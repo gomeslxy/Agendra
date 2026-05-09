@@ -1,6 +1,6 @@
 export type LeadStatus = 'cold' | 'warm' | 'hot' | 'success';
 export type LeadChannel = 'whatsapp' | 'instagram' | 'form';
-export type MessageRole = 'user' | 'assistant' | 'note';
+export type MessageRole = 'user' | 'assistant' | 'note' | 'agent';
 export type CompanyPlan = 'trial' | 'starter' | 'pro' | 'enterprise';
 export type ChannelProvider = 'whatsapp' | 'instagram';
 export type ChannelStatus = 'active' | 'error' | 'paused';
@@ -15,6 +15,8 @@ export interface Lead {
   status: LeadStatus;
   summary: string | null;
   heat_score: number;
+  conversation_tone: "cold" | "warm" | "hot";
+  auto_respond: boolean;
   city: string | null;
   email: string | null;
   created_at: string;
@@ -30,14 +32,19 @@ export interface Message {
   created_at: string;
 }
 
+export type EventSource = 'agendra' | 'gcal';
+export type GCalSyncStatus = 'synced' | 'pending' | 'error';
+
 export interface Event {
   id: string;
-  lead_id: string;
+  lead_id: string | null;
   company_id: string;
   title: string;
   start_time: string;
   end_time: string;
   gcal_event_id: string | null;
+  source: EventSource;
+  gcal_sync_status: GCalSyncStatus | null;
   created_at: string;
   updated_at: string;
 }
