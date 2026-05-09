@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { stagger } from "@/components/motion/variants";
+import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import { sendNote, takeOverLead } from "./actions";
 

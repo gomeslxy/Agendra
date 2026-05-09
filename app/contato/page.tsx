@@ -96,7 +96,7 @@ export default function ContatoPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <Badge variant="blue" className="mb-4 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest rounded-full">
+              <Badge variant="cold" className="mb-4 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest rounded-full">
                 Fale Conosco
               </Badge>
               <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white mb-6">
