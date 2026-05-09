@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { IconLogout, IconZap } from "@/components/icons";
 import { NAV } from "@/lib/constants";
@@ -13,24 +12,22 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { getInitials } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
-function isActive(href: string, pathname: string, hash: string) {
-  const [path, anchor] = href.split("#");
-  if (path !== pathname) return false;
-  if (!anchor) return hash === "";
-  return hash === anchor;
+function isActive(href: string, pathname: string, searchParams: URLSearchParams) {
+  try {
+    const url = new URL(href, "http://x");
+    if (url.pathname !== pathname) return false;
+    const tab = url.searchParams.get("tab");
+    if (tab) return searchParams.get("tab") === tab;
+    return !searchParams.get("tab");
+  } catch {
+    return false;
+  }
 }
 
 export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
   const pathname = usePathname();
-  const [hash, setHash] = useState("");
+  const searchParams = useSearchParams();
   const { profile, signOut, loading } = useAuth();
-
-  useEffect(() => {
-    const sync = () => setHash(window.location.hash.replace("#", ""));
-    sync();
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
-  }, [pathname]);
 
   const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "Usuário";
   const companyName = profile?.companies?.name ?? "Minha empresa";
@@ -64,7 +61,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
             </div>
           ) : (
             (() => {
-              const active = isActive(n.href, pathname, hash);
+              const active = isActive(n.href, pathname, searchParams);
               return (
                 <Link
                   key={n.id}
@@ -123,15 +120,16 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
               </div>
             </div>
             <div className="flex gap-1.5">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="flex-1 justify-center"
-                onClick={() => { window.location.href = "/settings#billing"; }}
-              >
-                <IconZap size={13} />
-                Upgrade
-              </Button>
+              <Link href="/settings#billing" className="flex-1">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full justify-center"
+                >
+                  <IconZap size={13} />
+                  Upgrade
+                </Button>
+              </Link>
               <Button
                 variant="ghost"
                 size="sm"

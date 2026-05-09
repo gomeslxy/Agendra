@@ -2,6 +2,8 @@ export type LeadStatus = 'cold' | 'warm' | 'hot' | 'success';
 export type LeadChannel = 'whatsapp' | 'instagram' | 'form';
 export type MessageRole = 'user' | 'assistant' | 'note';
 export type CompanyPlan = 'trial' | 'starter' | 'pro' | 'enterprise';
+export type ChannelProvider = 'whatsapp' | 'instagram';
+export type ChannelStatus = 'active' | 'error' | 'paused';
 
 export interface Lead {
   id: string;
@@ -42,4 +44,18 @@ export interface Event {
 
 export interface LeadWithLastMessage extends Lead {
   last_message?: Pick<Message, 'content' | 'created_at' | 'role'>;
+}
+
+export interface Channel {
+  id: string;
+  company_id: string;
+  provider: ChannelProvider;
+  /** Meta phone_number_id (WhatsApp) ou account_id (Instagram) */
+  provider_id: string;
+  /** Access token for this channel (store encrypted in production) */
+  access_token: string | null;
+  status: ChannelStatus;
+  meta: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }

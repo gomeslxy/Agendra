@@ -34,12 +34,12 @@ export const NAV: NavItem[] = [
   { kind: "link", id: "leads",   label: "Leads",       icon: IconLeads,    href: "/leads" },
   { kind: "link", id: "reports", label: "Relatórios",  icon: IconReports,  href: "/reports" },
   { kind: "section", label: "Automação" },
-  { kind: "link", id: "persona",  label: "Persona da IA", icon: IconPersona,  href: "/settings#persona" },
-  { kind: "link", id: "flows",    label: "Fluxos",        icon: IconFlows,    href: "/settings#flows" },
-  { kind: "link", id: "channels", label: "Canais",        icon: IconChannels, href: "/settings#channels" },
+  { kind: "link", id: "persona",  label: "Persona da IA", icon: IconPersona,  href: "/settings?tab=persona" },
+  { kind: "link", id: "flows",    label: "Fluxos",        icon: IconFlows,    href: "/settings?tab=flows" },
+  { kind: "link", id: "channels", label: "Canais",        icon: IconChannels, href: "/settings?tab=channels" },
   { kind: "section", label: "Time" },
-  { kind: "link", id: "team",     label: "Atendentes",    icon: IconTeam,     href: "/settings#team" },
-  { kind: "link", id: "settings", label: "Configurações", icon: IconSettings, href: "/settings" },
+  { kind: "link", id: "team",     label: "Atendentes",    icon: IconTeam,     href: "/settings?tab=team" },
+  { kind: "link", id: "settings", label: "Configurações", icon: IconSettings, href: "/settings?tab=billing" },
 ];
 
 export const HEAT_GRADIENT: Record<string, string> = {

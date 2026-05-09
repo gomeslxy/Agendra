@@ -1,18 +1,18 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { motion } from "framer-motion";
-import { CalendarCheck, Paperclip, Send } from "lucide-react";
+import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CalendarCheck, Paperclip, Send, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { stagger } from "@/components/motion/variants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import { sendNote, takeOverLead } from "./actions";
+import { createBrowserClient } from "@supabase/ssr";
 
 interface LeadWithMessages extends Lead {
   messages: Message[];
@@ -35,18 +35,101 @@ function relativeTime(dateStr: string) {
 }
 
 function lastMsg(lead: LeadWithMessages) {
-  // messages already sorted ascending by server. Last item is most recent.
-  // Avoid spread+sort on every render — O(1) instead of O(n log n) per call.
   const msgs = lead.messages;
   return msgs.length > 0 ? msgs[msgs.length - 1] : undefined;
 }
 
-export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
-  const [selectedId, setSelectedId] = useState<string | null>(leads[0]?.id ?? null);
+export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[] }) {
+  const [leads, setLeads] = useState<LeadWithMessages[]>(initialLeads);
+  const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id ?? null);
   const [noteText, setNoteText] = useState("");
   const [sendPending, startSend] = useTransition();
   const [takePending, startTake] = useTransition();
   const [inboxError, setInboxError] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Auto-scroll to bottom on new messages ──────────────────────────────────
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [leads, selectedId]);
+
+  // ── Supabase Realtime Subscription ─────────────────────────────────────────
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+
+    const channel = supabase
+      .channel("inbox-realtime")
+      // Listen for new messages
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const newMsg = payload.new as Message;
+
+          // Show "typing" indicator when user sends — AI is processing
+          if (newMsg.role === "user") {
+            setIsTyping(true);
+            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+            typingTimerRef.current = setTimeout(() => setIsTyping(false), 8000);
+          } else {
+            // AI replied — clear typing indicator immediately
+            setIsTyping(false);
+            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+          }
+
+          // Append message to the correct lead
+          setLeads((prev) =>
+            prev.map((lead) => {
+              if (lead.id !== newMsg.lead_id) return lead;
+              // Avoid duplicates (optimistic updates race condition)
+              if (lead.messages.some((m) => m.id === newMsg.id)) return lead;
+              return { ...lead, messages: [...lead.messages, newMsg] };
+            }),
+          );
+        },
+      )
+      // Listen for lead updates (heat_score, status, summary)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "leads" },
+        (payload) => {
+          const updatedLead = payload.new as Lead;
+          setLeads((prev) =>
+            prev.map((lead) =>
+              lead.id === updatedLead.id
+                ? { ...lead, ...updatedLead }
+                : lead,
+            ),
+          );
+        },
+      )
+      // Listen for new leads arriving
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "leads" },
+        (payload) => {
+          const newLead = payload.new as Lead;
+          setLeads((prev) => {
+            if (prev.some((l) => l.id === newLead.id)) return prev;
+            return [{ ...newLead, messages: [] }, ...prev];
+          });
+        },
+      )
+      .subscribe((status) => {
+        setIsConnected(status === "SUBSCRIBED");
+      });
+
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const selected = useMemo(
     () => leads.find((l) => l.id === selectedId) ?? null,
@@ -63,7 +146,7 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
     return { hot, warm, cold };
   }, [leads]);
 
-  function handleSend() {
+  const handleSend = useCallback(() => {
     if (!selected || !noteText.trim()) return;
     setInboxError(null);
     startSend(async () => {
@@ -74,9 +157,9 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
         setInboxError((e as Error).message);
       }
     });
-  }
+  }, [selected, noteText]);
 
-  function handleTakeOver() {
+  const handleTakeOver = useCallback(() => {
     if (!selected) return;
     setInboxError(null);
     startTake(async () => {
@@ -86,10 +169,9 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
         setInboxError((e as Error).message);
       }
     });
-  }
-  const { hot: hotCount, warm: warmCount, cold: coldCount } = counts;
+  }, [selected]);
 
-  // server returns messages already sorted ascending — no need to re-sort
+  const { hot: hotCount, warm: warmCount, cold: coldCount } = counts;
   const sortedMessages = selected ? selected.messages : [];
 
   return (
@@ -99,9 +181,30 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
         <div className="px-5 pb-3 pt-5 shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold tracking-tight">Caixa de entrada</h2>
-            <span className="font-mono text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
-              {leads.length} hoje
-            </span>
+            <div className="flex items-center gap-2">
+              {/* Real-time connection indicator */}
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all duration-500",
+                  isConnected
+                    ? "bg-teal-500/10 text-teal-400"
+                    : "bg-white/5 text-white/30"
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full transition-all duration-500",
+                    isConnected
+                      ? "bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.8)] animate-pulse"
+                      : "bg-white/20"
+                  )}
+                />
+                {isConnected ? "Live" : "—"}
+              </div>
+              <span className="font-mono text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                {leads.length} hoje
+              </span>
+            </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             <Badge variant="hot" className="rounded-full">Quente · {hotCount}</Badge>
@@ -222,6 +325,44 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
                   Nenhuma mensagem ainda.
                 </div>
               )}
+
+              {/* Typing indicator — shown while AI is processing */}
+              <AnimatePresence>
+                {isTyping && selected.id === selectedId && (
+                  <motion.div
+                    key="typing"
+                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-2 self-start"
+                  >
+                    <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-white/[0.08] bg-white/[0.05] px-4 py-2.5">
+                      <div className="flex gap-1">
+                        {[0, 1, 2].map((i) => (
+                          <motion.span
+                            key={i}
+                            className="h-1.5 w-1.5 rounded-full bg-brand-blue-400"
+                            animate={{ y: [0, -4, 0] }}
+                            transition={{
+                              duration: 0.8,
+                              repeat: Infinity,
+                              delay: i * 0.15,
+                              ease: "easeInOut",
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
+                        Agendra digitando…
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Scroll anchor */}
+              <div ref={chatBottomRef} />
             </motion.div>
 
             <div className="mb-3">
@@ -286,6 +427,42 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
               </CardContent>
             </Card>
 
+            {/* Real-time status card */}
+            <div className={cn(
+              "rounded-2xl border p-4 relative overflow-hidden transition-all duration-500",
+              isConnected
+                ? "border-teal-500/20 bg-teal-500/5"
+                : "border-white/[0.06] bg-white/[0.02]"
+            )}>
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <Zap size={48} />
+              </div>
+              <div className={cn(
+                "eyebrow text-[10px] mb-2 transition-colors duration-500",
+                isConnected ? "text-teal-400" : "text-white/30"
+              )}>
+                {isConnected ? "Realtime · Conectado" : "Realtime · Offline"}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "h-10 w-10 shrink-0 rounded-full grid place-items-center transition-all duration-500",
+                  isConnected ? "bg-teal-500/20" : "bg-white/5"
+                )}>
+                  <Zap size={20} className={isConnected ? "text-teal-300" : "text-white/20"} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white">
+                    {isConnected ? "Mensagens ao vivo" : "Reconectando…"}
+                  </div>
+                  <div className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
+                    {isConnected
+                      ? "Atualizações instantâneas ativas"
+                      : "Verificando conexão com Supabase"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-brand-teal-500/20 bg-brand-teal-500/5 p-4 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-3 opacity-10">
                  <CalendarCheck size={48} />
@@ -306,23 +483,6 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
           </motion.div>
         )}
       </aside>
-    </div>
-  );
-}
-
-function DetailCard({
-  title,
-  titleColor,
-  children,
-}: {
-  title: string;
-  titleColor?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3.5">
-      <div className="eyebrow mb-2.5" style={{ color: titleColor }}>{title}</div>
-      {children}
     </div>
   );
 }

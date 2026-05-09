@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, UserPlus, X, Plus, Loader2, Phone, Mail, MapPin, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -487,13 +488,14 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
 
                 {/* Ações */}
                 <div className="flex gap-2 mt-auto">
-                  <a
+                  <Link
                     href="/inbox"
+                    onClick={() => setSelectedLead(null)}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-medium transition hover:bg-white/[0.08] hover:text-white"
                     style={{ color: "var(--color-fg-2)" }}
                   >
                     Ver conversa no inbox
-                  </a>
+                  </Link>
                 </div>
               </div>
             </motion.aside>

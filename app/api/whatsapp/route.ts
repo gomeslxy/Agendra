@@ -18,6 +18,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { handleIncomingMessage } from "@/lib/ai/engine";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // ─── Tipos (Meta Webhook Payload) ────────────────────────────────────────────
 
@@ -99,26 +100,43 @@ async function validateMetaSignature(
 /**
  * Resolve a `company_id` a partir do `phone_number_id` da Meta.
  *
- * ─────────────────────────────────────────────────────────────────
- * TODO (Multi-tenant): Quando a tabela de configurações de canais
- * estiver criada (ex: `channels`), substituir este mock por:
+ * Consulta a tabela `channels` para mapear:
+ *   phone_number_id (Meta) → company_id (Agendra)
  *
- *   const { data } = await supabase
- *     .from("channels")
- *     .select("company_id")
- *     .eq("whatsapp_phone_number_id", phoneNumberId)
- *     .single();
- *   return data?.company_id ?? null;
- *
- * Por ora, retorna null para indicar que a resolução ainda não está
- * configurada — o evento será logado mas não persistido.
- * ─────────────────────────────────────────────────────────────────
+ * Retorna null se o canal não estiver registrado — o evento é logado
+ * e descartado (sem processamento parcial).
  */
 async function resolveCompanyId(
-  _phoneNumberId: string,
+  phoneNumberId: string,
 ): Promise<string | null> {
-  // Fallback single-tenant: use env var until channels table exists
-  return process.env.WHATSAPP_DEFAULT_COMPANY_ID ?? null;
+  if (!phoneNumberId) return null;
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("channels")
+    .select("company_id")
+    .eq("provider", "whatsapp")
+    .eq("provider_id", phoneNumberId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      `[WhatsApp] ❌ Erro ao resolver company_id para phone_number_id=${phoneNumberId}:`,
+      error.message,
+    );
+    return null;
+  }
+
+  if (!data?.company_id) {
+    console.warn(
+      `[WhatsApp] ⚠️  Nenhum canal ativo encontrado para phone_number_id=${phoneNumberId}`,
+      "\n  → Insira uma linha na tabela 'channels' com este provider_id.",
+    );
+    return null;
+  }
+
+  return data.company_id;
 }
 
 // ─── Handler: GET — Challenge Verification ───────────────────────────────────

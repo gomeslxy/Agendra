@@ -238,12 +238,13 @@ Regras:
 ## TODO
 
 - [x] Conectar Supabase (auth real)
-- [x] WhatsApp Cloud API webhook em `app/api/whatsapp/route.ts`
-- [x] Motor de IA (Gemini 2.0 Flash) processando intents (`lib/ai/engine.ts`)
-- [ ] Conexão OAuth com Google Calendar + Sync de eventos (Free/Busy)
-- [ ] Assinatura Supabase Realtime no front-end (`/inbox` e `/leads`)
+- [x] WhatsApp Cloud API webhook em `app/api/whatsapp/route.ts` (Multi-tenant)
+- [x] Motor de IA (Gemini 2.0 Flash) processando intents + Tool Calling (`lib/ai/engine.ts`)
+- [x] Conexão OAuth com Google Calendar (Helper + OAuth Route)
+- [x] Assinatura Supabase Realtime no front-end (`/inbox` e `/leads`)
+- [ ] Sincronização de eventos GCal -> DB local (Sync Job)
 - [ ] Interface para o atendente pausar a IA e responder manualmente
-- [ ] Funcionalidade de criar e editar a Persona/Prompt no `/settings`
+- [ ] Funcionalidade de criar e editar a Persona/Prompt completa no `/settings`
 - [ ] Stripe checkout + webhook em `/api/stripe/webhook`
 - [ ] `prefers-reduced-motion` em todas as animações decorativas
 - [ ] Substituir Lucide por SVGs branded em `components/icons/`

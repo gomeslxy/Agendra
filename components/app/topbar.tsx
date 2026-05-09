@@ -1,38 +1,56 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface TopbarProps {
-  cta?: { label: string };
+  cta?: { label: string; href?: string };
 }
 
 export function Topbar({ cta }: TopbarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastPushed = useRef<string | null>(null);
 
-  // Debounced search → push to /leads?q=...
+  const onLeadsPage = pathname.startsWith("/leads");
+
+  // Reset search when leaving /leads
   useEffect(() => {
+    if (!onLeadsPage) setQuery("");
+  }, [onLeadsPage]);
+
+  // Live search ONLY while user is on /leads.
+  // On other pages, typing must not yank the user away — they push on Enter.
+  useEffect(() => {
+    if (!onLeadsPage) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const trimmed = query.trim();
     debounceRef.current = setTimeout(() => {
-      const trimmed = query.trim();
       const target = trimmed ? `/leads?q=${encodeURIComponent(trimmed)}` : "/leads";
-      // Dedupe: skip when same target already pushed (avoids wasteful re-fetches)
-      if (lastPushed.current === target) return;
-      lastPushed.current = target;
-      router.push(target);
-    }, 500);
+      router.replace(target);
+    }, 350);
+
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, router]);
+  }, [query, router, onLeadsPage]);
+
+  // Enter to submit search from any page
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const trimmed = query.trim();
+    const target = trimmed ? `/leads?q=${encodeURIComponent(trimmed)}` : "/leads";
+    router.push(target);
+  }
 
   // Close notification panel on outside click
   useEffect(() => {
@@ -63,6 +81,7 @@ export function Topbar({ cta }: TopbarProps) {
           className="input !rounded-xl !py-2 !pl-9 !pr-8 !text-[13px]"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
         />
         {query && (
           <button
@@ -118,10 +137,12 @@ export function Topbar({ cta }: TopbarProps) {
           </AnimatePresence>
         </div>
 
-        <Button variant="primary" size="sm" onClick={() => router.push("/leads")}>
-          <Plus size={14} />
-          {cta?.label || "Novo fluxo"}
-        </Button>
+        <Link href={cta?.href ?? "/settings#flows"}>
+          <Button variant="primary" size="sm">
+            <Plus size={14} />
+            {cta?.label || "Novo fluxo"}
+          </Button>
+        </Link>
       </div>
     </motion.div>
   );
