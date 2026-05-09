@@ -119,16 +119,6 @@ export function SettingsShell({ company, memberships }: SettingsShellProps) {
   );
 }
 
-function Card({ title, children, sub }: { title: string; sub?: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5">
-      <h3 className="text-base font-semibold">{title}</h3>
-      {sub && <p className="mb-4 mt-1 text-xs" style={{ color: "var(--color-fg-3)" }}>{sub}</p>}
-      {!sub && <div className="mb-4" />}
-      {children}
-    </div>
-  );
-}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -335,18 +325,18 @@ function Team({ memberships }: { memberships: Member[] }) {
   ];
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5">
-      <div className="mb-3.5 flex items-center gap-3">
-        <div className="flex-1">
-          <h3 className="text-base font-semibold">Time</h3>
-          <p className="mt-1 text-xs" style={{ color: "var(--color-fg-3)" }}>{memberships.length} membros</p>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>Time</CardTitle>
+          <CardDescription>{memberships.length} membros</CardDescription>
         </div>
         <Button variant="primary" size="sm" onClick={() => alert("em breve")}>
-          <UserPlus size={14} />
+          <UserPlus size={14} className="mr-2" />
           Convidar
         </Button>
-      </div>
-      <div className="flex flex-col gap-2">
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
         {memberships.map((m, i) => {
           const u = Array.isArray(m.users) ? m.users[0] : m.users;
           const name = u?.full_name ?? u?.email ?? "Usuário";
@@ -355,10 +345,10 @@ function Team({ memberships }: { memberships: Member[] }) {
           return (
             <div
               key={m.id}
-              className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-3"
+              className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 hover:bg-white/[0.05] transition-colors"
             >
               <div
-                className="grid h-9 w-9 place-items-center rounded-full text-xs font-bold text-white"
+                className="grid h-9 w-9 place-items-center rounded-full text-xs font-bold text-white shadow-lg"
                 style={{ background: COLORS[i % COLORS.length] }}
               >
                 {initials}
@@ -371,8 +361,8 @@ function Team({ memberships }: { memberships: Member[] }) {
             </div>
           );
         })}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
