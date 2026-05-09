@@ -9,8 +9,8 @@ import { NAV } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { getInitials } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { getInitials, cn } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
 
 function isActive(href: string, pathname: string, searchParams: URLSearchParams) {
   try {
@@ -66,6 +66,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                 <Link
                   key={n.id}
                   href={n.href}
+                  onClick={() => trackEvent("nav_click", { target: n.id })}
                   className={cn(
                     "relative flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-[13px] font-medium transition-colors duration-150",
                     active ? "text-white" : "border border-transparent hover:bg-white/[0.04] hover:text-white",

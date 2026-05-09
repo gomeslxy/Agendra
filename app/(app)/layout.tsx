@@ -38,7 +38,7 @@ export default async function AppLayout({
   }
 
   return (
-    <AuthProvider initialProfile={profile}>
+    <AuthProvider initialUser={user} initialProfile={profile}>
       <AppShell hotCount={hotCount}>{children}</AppShell>
     </AuthProvider>
   );

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Glass } from "@/components/ui/glass";
 import { LegalModal } from "@/components/ui/legal-modal";
 import { createClient } from "@/lib/supabase/client";
+import { trackEvent } from "@/lib/analytics";
 import { TermosContent, PrivacidadeContent } from "@/components/legal/legal-content";
 
 // Mensagens de erro Supabase → pt-BR
@@ -63,10 +64,17 @@ export default function SignupPage() {
     const data = await res.json();
 
     if (!res.ok) {
+      trackEvent("critical_error", { 
+        category: "auth", 
+        action: "signup", 
+        message: data.error ?? "Unknown signup error" 
+      });
       setError(data.error ?? "Erro ao criar conta.");
       setLoading(false);
       return;
     }
+
+    trackEvent("signup", { method: "email" });
 
     // Armazenar temporariamente para login automático após verificação
     sessionStorage.setItem("agendra_signup_email", email.trim());

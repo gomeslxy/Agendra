@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, Paperclip, Send, Zap } from "lucide-react";
+import { CalendarCheck, ChevronDown, Paperclip, Send, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -13,13 +13,14 @@ import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import { sendNote, takeOverLead, automatizeLead, setConversationTone } from "./actions";
 import { createBrowserClient } from "@supabase/ssr";
+import { trackEvent } from "@/lib/analytics";
 
 interface LeadWithMessages extends Lead {
   messages: Message[];
 }
 
 const TONE_CYCLE: Array<"cold" | "warm" | "hot"> = ["cold", "warm", "hot"];
-const TONE_LABEL: Record<string, string> = { cold: "Frio", warm: "Morno", hot: "Quente" };
+const TONE_LABEL: Record<string, string> = { cold: "Formal", warm: "Amigável", hot: "Persuasivo" };
 
 function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -49,6 +50,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const [sendPending, startSend] = useTransition();
   const [takePending, startTake] = useTransition();
   const [tonePending, startTone] = useTransition();
+  const [toneOpen, setToneOpen] = useState(false);
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -143,6 +145,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     startSend(async () => {
       try {
         await sendNote(selected.id, noteText.trim());
+        trackEvent("message_sent", { lead_id: selected.id });
         setNoteText("");
       } catch (e) {
         setInboxError((e as Error).message);
@@ -160,6 +163,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     startTake(async () => {
       try {
         await takeOverLead(selected.id);
+        trackEvent("lead_takeover", { lead_id: selected.id });
       } catch (e) {
         // revert
         setLeads((prev) =>
@@ -179,6 +183,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     startTake(async () => {
       try {
         await automatizeLead(selected.id);
+        trackEvent("lead_automatize", { lead_id: selected.id });
       } catch (e) {
         setLeads((prev) =>
           prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: false } : l)),
@@ -188,18 +193,17 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     });
   }, [selected]);
 
-  const handleToneCycle = useCallback(() => {
-    if (!selected) return;
+  const handleToneChange = useCallback((tone: "cold" | "warm" | "hot") => {
+    if (!selected || selected.conversation_tone === tone) return;
     const current = selected.conversation_tone ?? "warm";
-    const idx = TONE_CYCLE.indexOf(current);
-    const next = TONE_CYCLE[(idx + 1) % TONE_CYCLE.length];
     // optimistic
     setLeads((prev) =>
-      prev.map((l) => (l.id === selected.id ? { ...l, conversation_tone: next } : l)),
+      prev.map((l) => (l.id === selected.id ? { ...l, conversation_tone: tone } : l)),
     );
     startTone(async () => {
       try {
-        await setConversationTone(selected.id, next);
+        await setConversationTone(selected.id, tone);
+        trackEvent("tone_changed", { lead_id: selected.id, tone });
       } catch (e) {
         // revert
         setLeads((prev) =>
@@ -209,6 +213,88 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
       }
     });
   }, [selected]);
+
+  const ToneDropdown = ({ compact = false }: { compact?: boolean }) => {
+    if (!selected) return null;
+    return (
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setToneOpen(!toneOpen);
+          }}
+          disabled={tonePending}
+          className={cn(
+            "flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/10 disabled:opacity-50",
+            toneOpen && "border-brand-blue-500/30 bg-white/10",
+            compact ? "h-8 px-2" : "w-full"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                selected.conversation_tone === "hot" ? "bg-orange-400 shadow-[0_0_6px_rgba(251,146,60,0.6)]" :
+                selected.conversation_tone === "warm" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.6)]" :
+                "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)]"
+              )}
+            />
+            <span className={cn(
+              "text-[10px] sm:text-[11px]",
+              selected.conversation_tone === "hot" ? "text-orange-400" :
+              selected.conversation_tone === "warm" ? "text-yellow-400" :
+              "text-blue-400"
+            )}>
+              {TONE_LABEL[selected.conversation_tone ?? "warm"]}
+            </span>
+          </div>
+          <ChevronDown size={12} className={cn("text-white/40 transition-transform duration-300", toneOpen && "rotate-180")} />
+        </button>
+
+        <AnimatePresence>
+          {toneOpen && (
+            <>
+              <div className="fixed inset-0 z-[100]" onClick={() => setToneOpen(false)} />
+              <motion.div
+                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                animate={{ opacity: 1, y: 4, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                className={cn(
+                  "absolute z-[101] overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1 shadow-2xl shadow-black/50",
+                  compact ? "right-0 top-full mt-1 w-32" : "left-0 top-full w-full"
+                )}
+              >
+                {TONE_CYCLE.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      handleToneChange(t);
+                      setToneOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide transition-colors",
+                      selected.conversation_tone === t
+                        ? "bg-white/10 text-white"
+                        : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        t === "hot" ? "bg-orange-400" :
+                        t === "warm" ? "bg-yellow-400" : "bg-blue-400"
+                      )}
+                    />
+                    {TONE_LABEL[t]}
+                  </button>
+                ))}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
 
   const { hot: hotCount, warm: warmCount, cold: coldCount } = counts;
   const sortedMessages = selected ? selected.messages : [];
@@ -246,10 +332,8 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
               </span>
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            <Badge variant="hot" className="rounded-full">Quente · {hotCount}</Badge>
-            <Badge variant="warm" className="rounded-full">Morno · {warmCount}</Badge>
-            <Badge variant="cold" className="rounded-full">Frio · {coldCount}</Badge>
+          <div className="mt-3 flex flex-wrap gap-1.5 opacity-0 pointer-events-none h-0">
+            {/* Heat filters removed per user request */}
           </div>
         </div>
 
@@ -336,9 +420,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                   {selected.phone} · {selected.channel}
                 </div>
               </div>
-              <Badge variant={selected.status as "hot" | "warm" | "cold" | "success"} className="ml-auto">
-                {HEAT_LABEL[selected.status]}
-              </Badge>
+              {/* Heat badge removed per user request */}
               <Button
                 variant="secondary"
                 size="sm"
@@ -347,6 +429,9 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
               >
                 {takePending ? "…" : isAutoRespond ? "Assumir" : "Automatizar"}
               </Button>
+              <div className="lg:hidden">
+                <ToneDropdown compact />
+              </div>
             </div>
 
             <motion.div
@@ -479,41 +564,15 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
             animate={{ opacity: 1, x: 0 }}
             className="flex flex-col gap-4"
           >
-            <Card className="p-0 border-white/[0.06]">
+            <Card className="p-0 border-white/[0.06] !overflow-visible">
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="eyebrow text-[10px]" style={{ color: "var(--color-brand-teal-300)" }}>
-                  Qualificação · IA
+                  Inteligência Artificial
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <KV k="Calor">
-                  <Badge variant={selected.status as "hot" | "warm" | "cold" | "success"} className="px-2 py-0.5 font-bold uppercase text-[9px]">
-                    {HEAT_LABEL[selected.status]} · {selected.heat_score}%
-                  </Badge>
-                </KV>
+              <CardContent className="p-4 pt-0 !overflow-visible">
                 <KV k="Tom da IA">
-                  <button
-                    onClick={handleToneCycle}
-                    disabled={tonePending}
-                    className={cn(
-                      "group flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50",
-                      selected.conversation_tone === "hot"
-                        ? "border-orange-500/40 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
-                        : selected.conversation_tone === "warm"
-                        ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
-                        : "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
-                    )}
-                    title="Clique para alterar o tom da conversa"
-                  >
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        selected.conversation_tone === "hot" ? "bg-orange-400" :
-                        selected.conversation_tone === "warm" ? "bg-yellow-400" : "bg-blue-400"
-                      )}
-                    />
-                    {TONE_LABEL[selected.conversation_tone ?? "warm"]}
-                  </button>
+                  <ToneDropdown />
                 </KV>
                 {selected.summary && <KV k="Resumo"><p className="leading-relaxed opacity-80">{selected.summary}</p></KV>}
                 <KV k="Canal">{selected.channel}</KV>

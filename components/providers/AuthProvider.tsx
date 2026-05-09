@@ -73,7 +73,7 @@ export function AuthProvider({
   const [user, setUser] = useState<User | null>(initialUser);
   const [profile, setProfile] = useState<UserProfile | null>(initialProfile);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(!initialUser);
+  const [loading, setLoading] = useState(!initialUser && !initialProfile);
 
   // Fetch profile from public.users
   const fetchProfile = useCallback(

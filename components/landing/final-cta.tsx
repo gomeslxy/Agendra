@@ -5,6 +5,7 @@ import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Glass } from "@/components/ui/glass";
 import { FadeUp } from "@/components/motion/fade-up";
+import { trackEvent } from "@/lib/analytics";
 
 export function FinalCTA() {
   return (
@@ -30,10 +31,13 @@ export function FinalCTA() {
               Conecte WhatsApp e Instagram em 2 minutos. Veja a Agendra responder no primeiro lead que chegar.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
-              <Link href="/signup">
+              <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "final_cta", target: "signup" })}>
                 <Button variant="primary" pulse>Começar grátis →</Button>
               </Link>
-              <Button variant="secondary">
+              <Button 
+                variant="secondary"
+                onClick={() => trackEvent("cta_click", { location: "final_cta", target: "demo" })}
+              >
                 <Play size={14} />
                 Ver demo
               </Button>

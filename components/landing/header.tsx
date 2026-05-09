@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
 
 const NAV = [
   { href: "#como",     label: "Como funciona" },
@@ -122,10 +123,10 @@ export function Header() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Link href="/login">
+          <Link href="/login" onClick={() => trackEvent("cta_click", { location: "header", target: "login" })}>
             <Button variant="ghost" size="sm">Entrar</Button>
           </Link>
-          <Link href="/signup">
+          <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "header", target: "signup" })}>
             <Button variant="primary" size="sm">Começar grátis</Button>
           </Link>
         </div>

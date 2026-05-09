@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { BarChart3, Calendar, Inbox, Users } from "lucide-react";
+import { BarChart3, Calendar, Inbox, Users, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
 
 const MOBILE_NAV = [
   { id: "inbox",   label: "Inbox",      icon: Inbox,    href: "/inbox" },
   { id: "agenda",  label: "Agenda",     icon: Calendar, href: "/agenda" },
   { id: "leads",   label: "Leads",      icon: Users,    href: "/leads" },
   { id: "reports", label: "Relatórios", icon: BarChart3, href: "/reports" },
+  { id: "settings", label: "Config",     icon: Settings, href: "/settings" },
 ];
 
 export function MobileNav() {
@@ -39,6 +41,7 @@ export function MobileNav() {
             >
               <Link
                 href={item.href}
+                onClick={() => trackEvent("nav_click", { target: item.id })}
                 className={cn(
                   "flex flex-1 flex-col items-center gap-1 px-2 py-3 text-[10px] font-medium transition-colors",
                   active ? "text-white" : "text-[#6B7896]",

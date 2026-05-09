@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { createEvent, deleteEvent } from "./actions";
+import { trackEvent } from "@/lib/analytics";
 
 const MONTHS = [
   "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
@@ -132,6 +133,7 @@ export function AgendaClient({
     startTransition(async () => {
       try {
         await createEvent(formData);
+        trackEvent("event_created");
         setShowModal(false);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erro ao criar agendamento");
@@ -143,6 +145,7 @@ export function AgendaClient({
     startTransition(async () => {
       try {
         await deleteEvent(eventId);
+        trackEvent("event_deleted");
       } catch (e) {
         console.error(e);
       }

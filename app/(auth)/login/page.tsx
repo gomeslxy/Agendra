@@ -9,6 +9,7 @@ import { ArrowRight, Chrome, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Glass } from "@/components/ui/glass";
 import { createClient } from "@/lib/supabase/client";
+import { trackEvent } from "@/lib/analytics";
 
 // Mensagens de erro Supabase → pt-BR
 function translateError(msg: string): string {
@@ -46,10 +47,17 @@ function LoginContent() {
     });
 
     if (error) {
+      trackEvent("critical_error", { 
+        category: "auth", 
+        action: "login", 
+        message: error.message 
+      });
       setError(translateError(error.message));
       setLoading(false);
       return;
     }
+
+    trackEvent("login", { method: "email" });
 
     // Redirecionar para destino original (ou inbox)
     router.push(next);

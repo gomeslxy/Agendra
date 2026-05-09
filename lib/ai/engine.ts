@@ -40,7 +40,14 @@ function buildSystemPrompt(persona: PersonaConfig, lead: Lead): string {
   const businessName = persona.business_name ?? 'nossa empresa';
   const businessType = persona.business_type ?? 'negócio';
   const services = persona.services?.join(', ') ?? 'nossos serviços';
-  const tone = persona.tone ?? 'amigável, profissional e objetivo';
+  const toneMap = {
+    cold: "Formal: Profissional, breve e direto ao ponto. Evite emojis ou intimidade. Ideal para serviços corporativos ou jurídicos.",
+    warm: "Amigável: Atencioso, profissional e equilibrado. Pode usar emojis moderadamente. Ideal para suporte e consultoria.",
+    hot: "Persuasivo: Entusiasta, ágil e próximo. Use emojis e linguagem persuasiva para converter o lead. Ideal para vendas e promoções.",
+  };
+
+  const selectedToneKey = (lead.conversation_tone || persona.tone) as keyof typeof toneMap;
+  const tone = toneMap[selectedToneKey] ?? (persona.tone || 'amigável, profissional e objetivo');
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
 

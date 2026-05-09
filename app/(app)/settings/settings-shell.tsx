@@ -16,6 +16,10 @@ import {
   GitBranch,
   Slack,
   UserPlus,
+  Cpu,
+  MessageSquare,
+  Users,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,15 +29,16 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { updatePersona } from "./actions";
+import { trackEvent } from "@/lib/analytics";
 
 type TabId = "persona" | "channels" | "flows" | "team" | "billing";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "persona",  label: "Persona da IA" },
-  { id: "channels", label: "Canais" },
-  { id: "flows",    label: "Fluxos" },
-  { id: "team",     label: "Atendentes" },
-  { id: "billing",  label: "Faturamento" },
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
+  { id: "persona",  label: "Persona",   icon: Cpu },
+  { id: "channels", label: "Canais",    icon: MessageSquare },
+  { id: "flows",    label: "Fluxos",    icon: GitBranch },
+  { id: "team",     label: "Time",      icon: Users },
+  { id: "billing",  label: "Cobrança",  icon: CreditCard },
 ];
 
 interface MemberUser {
@@ -86,12 +91,15 @@ export function SettingsShell({ company, memberships }: SettingsShellProps) {
     if (!gcal) return;
     if (gcal === "success") {
       setToast({ msg: "Google Calendar conectado com sucesso! 🎉", type: "success" });
+      trackEvent("gcal_connected");
       router.replace("/settings?tab=channels", { scroll: false });
     } else if (gcal === "error") {
       setToast({ msg: "Erro ao conectar Google Calendar. Tente novamente.", type: "error" });
+      trackEvent("gcal_failed", { reason: "error" });
       router.replace("/settings?tab=channels", { scroll: false });
     } else if (gcal === "denied") {
       setToast({ msg: "Conexão com Google Calendar cancelada.", type: "error" });
+      trackEvent("gcal_failed", { reason: "denied" });
       router.replace("/settings?tab=channels", { scroll: false });
     }
   }, [searchParams, router]);
@@ -130,27 +138,44 @@ export function SettingsShell({ company, memberships }: SettingsShellProps) {
         </p>
       </header>
 
-      <div className="relative mb-6 flex gap-1 overflow-x-auto border-b border-white/[0.08]">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "relative whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors",
-              tab === t.id ? "text-white" : "hover:text-white hover:underline",
-            )}
-            style={tab === t.id ? undefined : { color: "var(--color-fg-2)" }}
-          >
-            {t.label}
-            {tab === t.id && (
-              <motion.span
-                layoutId="tab-underline"
-                className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-brand-blue-600"
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
-            )}
-          </button>
-        ))}
+      <div className="relative mb-8 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                "group relative flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-bold tracking-tight transition-all duration-300 outline-none cursor-pointer",
+                active 
+                  ? "text-white" 
+                  : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
+              )}
+            >
+              <t.icon size={16} className={cn(
+                "transition-transform duration-300 group-hover:scale-110",
+                active ? "text-brand-blue-400" : "text-white/20 group-hover:text-white/40"
+              )} />
+              <span className="relative z-10">{t.label}</span>
+              
+              {active && (
+                <motion.div
+                  layoutId="active-tab-glow"
+                  className="absolute inset-0 z-0 rounded-xl border border-brand-blue-500/20 bg-brand-blue-500/5 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              
+              {active && (
+                <motion.div
+                  layoutId="active-tab-underline"
+                  className="absolute -bottom-1 left-3 right-3 h-0.5 rounded-full bg-brand-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <motion.div
@@ -203,6 +228,73 @@ function ToggleRow({
   );
 }
 
+function ToneSelect({ defaultValue }: { defaultValue: string }) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState(defaultValue);
+  
+  const options = [
+    { value: "cold", label: "Formal", sub: "Direto e profissional", color: "bg-blue-400" },
+    { value: "warm", label: "Amigável", sub: "Equilibrado e atencioso", color: "bg-yellow-400" },
+    { value: "hot", label: "Persuasivo", sub: "Enérgico e focado em vendas", color: "bg-orange-400" },
+  ];
+
+  const current = options.find(o => o.value === selected) || options[1];
+
+  return (
+    <div className="relative">
+      <input type="hidden" name="ai_tone" value={selected} />
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm transition-all hover:bg-white/10 focus:border-brand-blue-500/50 outline-none"
+      >
+        <div className="flex items-center gap-3">
+          <div className={cn("h-2 w-2 rounded-full", current.color)} />
+          <div className="text-left">
+            <div className="font-bold text-white/90">{current.label}</div>
+            <div className="text-[10px] text-white/40">{current.sub}</div>
+          </div>
+        </div>
+        <GitBranch size={14} className={cn("text-white/20 transition-transform duration-300", open && "rotate-180")} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 4, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.95 }}
+              className="absolute left-0 right-0 z-50 overflow-hidden rounded-2xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1.5 shadow-2xl shadow-black/50"
+            >
+              {options.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => {
+                    setSelected(o.value);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all",
+                    selected === o.value ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                  )}
+                >
+                  <div className={cn("h-2 w-2 rounded-full", o.color)} />
+                  <div className="text-left">
+                    <div className="text-[13px] font-bold">{o.label}</div>
+                    <div className="text-[10px] opacity-60">{o.sub}</div>
+                  </div>
+                </button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 function Persona({ company }: { company: Company | null }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -236,11 +328,11 @@ function Persona({ company }: { company: Company | null }) {
             <Field label="Nome da IA">
               <Input name="ai_name" defaultValue={company?.ai_name ?? "Agendra"} />
             </Field>
-            <Field label="Tom">
-              <Input name="ai_tone" defaultValue={company?.ai_tone ?? "Próxima, calorosa, com bom português brasileiro"} />
-            </Field>
             <Field label="Saudação padrão">
               <Input name="ai_greeting" defaultValue={company?.ai_greeting ?? "Oi! Sou a Agendra 👋"} />
+            </Field>
+            <Field label="Tom padrão">
+              <ToneSelect defaultValue={company?.ai_tone ?? "warm"} />
             </Field>
             <Field label="Frases proibidas">
               <Input name="ai_forbidden" defaultValue={company?.ai_forbidden ?? ""} placeholder="Ex.: 'desculpe pelo transtorno'" />

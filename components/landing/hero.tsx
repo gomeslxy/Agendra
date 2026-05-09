@@ -11,6 +11,7 @@ import { useEffect, useRef } from "react";
 import { Spotlight } from "@/components/ui/spotlight";
 import { GridBeam } from "@/components/ui/grid-beam";
 import { ShinyButton } from "@/components/ui/shiny-button";
+import { trackEvent } from "@/lib/analytics";
 
 function Counter({ to, duration = 1200, suffix = "" }: { to: number; duration?: number; suffix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -70,13 +71,17 @@ export function Hero() {
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/signup">
+            <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "hero", target: "signup" })}>
               <ShinyButton className="px-8 group">
                 Começar grátis
                 <ArrowRight size={18} className="ml-2 inline-block transition-transform group-hover:translate-x-1" />
               </ShinyButton>
             </Link>
-            <Button variant="secondary" className="px-6 rounded-full border-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10">
+            <Button 
+              variant="secondary" 
+              className="px-6 rounded-full border-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10"
+              onClick={() => trackEvent("cta_click", { location: "hero", target: "demo" })}
+            >
               <Play size={14} className="mr-2" />
               Ver demo de 2 min
             </Button>

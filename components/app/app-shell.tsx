@@ -19,6 +19,7 @@ function SidebarFallback() {
           <div key={i} className="h-10 w-full animate-pulse rounded-xl bg-white/[0.04]" style={{ animationDelay: `${i * 60}ms` }} />
         ))}
       </div>
+      <div className="mt-auto h-16 w-full animate-pulse rounded-xl bg-white/[0.04]" />
     </aside>
   );
 }

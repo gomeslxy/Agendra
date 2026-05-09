@@ -87,6 +87,8 @@ export const viewport: Viewport = {
 
 import { MotionProvider } from "@/components/motion/motion-provider";
 import { JsonLd } from "@/components/seo/json-ld";
+import { GoogleAnalytics } from "@next/third-parties/google";
+import { GA_TRACKING_ID } from "@/lib/analytics";
 
 export default function RootLayout({
   children,
@@ -102,6 +104,7 @@ export default function RootLayout({
         <JsonLd />
         <MotionProvider>{children}</MotionProvider>
       </body>
+      <GoogleAnalytics gaId={GA_TRACKING_ID} />
     </html>
   );
 }
