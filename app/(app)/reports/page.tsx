@@ -5,119 +5,113 @@ import { ReportsClient } from "./reports-client";
 export default async function ReportsPage() {
   const user = await getUser();
   if (!user) redirect("/login");
-
   const profile = await getCachedUserProfile(user.id);
   const companyId = profile?.memberships?.[0]?.company_id;
   if (!companyId) redirect("/login");
 
   const supabase = await createClient();
+  const since90 = new Date();
+  since90.setDate(since90.getDate() - 90);
 
-  // Limit to last 90 days for performance
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  const since = ninetyDaysAgo.toISOString();
-
-  const [
-    { data: leads },
-    { data: events },
-    { data: messages },
-  ] = await Promise.all([
-    supabase
-      .from("leads")
+  const [{ data: leads }, { data: events }, { data: messages }] = await Promise.all([
+    supabase.from("leads")
       .select("id, status, channel, created_at, heat_score")
-      .eq("company_id", companyId)
-      .gte("created_at", since),
-    supabase
-      .from("events")
-      .select("id, created_at, start_time")
-      .eq("company_id", companyId)
-      .gte("created_at", since),
-    supabase
-      .from("messages")
-      .select("id, role, created_at")
-      .eq("company_id", companyId)
-      .gte("created_at", since),
+      .eq("company_id", companyId).gte("created_at", since90.toISOString()),
+    supabase.from("events")
+      .select("id, created_at, lead_id")
+      .eq("company_id", companyId).gte("created_at", since90.toISOString()),
+    supabase.from("messages")
+      .select("id, role, created_at, lead_id")
+      .eq("company_id", companyId).gte("created_at", since90.toISOString()),
   ]);
 
-  const allLeads = leads ?? [];
-  const allEvents = events ?? [];
+  const allLeads   = leads    ?? [];
+  const allEvents  = events   ?? [];
   const allMessages = messages ?? [];
 
-  const totalLeads = allLeads.length;
-  const totalEvents = allEvents.length;
-  const totalMessages = allMessages.length;
-
-  // Single pass over leads: count by status, by channel, accumulate heat_score, daily counts
-  // Reduces from O(7n) (5 filters + reduce + dailyLeads inner filter×14) to O(n).
-  let hotLeads = 0, warmLeads = 0, coldLeads = 0, converted = 0;
-  let chWa = 0, chIg = 0, chForm = 0;
-  let heatSum = 0;
-
-  // Build daily bucket map for last 14 days
+  // ── Build 90-day map ────────────────────────────────────────────
   const now = new Date();
-  const dailyMap = new Map<string, number>();
+  type DayBucket = {
+    date: string; leads: number; hot: number; warm: number;
+    cold: number; converted: number; events: number;
+    messages: number; aiMessages: number;
+    whatsapp: number; instagram: number; form: number;
+  };
+  const dailyMap = new Map<string, DayBucket>();
   const dailyOrder: string[] = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split("T")[0];
-    dailyMap.set(dateStr, 0);
-    dailyOrder.push(dateStr);
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    const k = d.toISOString().slice(0, 10);
+    dailyMap.set(k, { date: k, leads: 0, hot: 0, warm: 0, cold: 0, converted: 0, events: 0, messages: 0, aiMessages: 0, whatsapp: 0, instagram: 0, form: 0 });
+    dailyOrder.push(k);
   }
 
+  // ── Heatmap 7×24 ──────────────────────────────────────────────
+  const heatGrid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+
+  // ── Events by lead_id ─────────────────────────────────────────
+  const leadsWithEvent = new Set(allEvents.map((e) => e.lead_id).filter(Boolean));
+  for (const e of allEvents) {
+    const k = e.created_at.slice(0, 10);
+    const b = dailyMap.get(k);
+    if (b) b.events++;
+  }
+
+  // ── Messages ─────────────────────────────────────────────────
+  const leadsWithMsg = new Set(allMessages.map((m) => m.lead_id).filter(Boolean));
+  for (const m of allMessages) {
+    const k = m.created_at.slice(0, 10);
+    const b = dailyMap.get(k);
+    if (b) { b.messages++; if (m.role === "assistant") b.aiMessages++; }
+  }
+
+  // ── Leads (main pass) ────────────────────────────────────────
+  let heatSum = 0;
   for (const l of allLeads) {
-    if (l.status === "hot") hotLeads++;
-    else if (l.status === "warm") warmLeads++;
-    else if (l.status === "cold") coldLeads++;
-    else if (l.status === "success") converted++;
-
-    if (l.channel === "whatsapp") chWa++;
-    else if (l.channel === "instagram") chIg++;
-    else if (l.channel === "form") chForm++;
-
+    const k = l.created_at.slice(0, 10);
+    const b = dailyMap.get(k);
+    if (b) {
+      b.leads++;
+      if (l.status === "hot") b.hot++;
+      else if (l.status === "warm") b.warm++;
+      else if (l.status === "cold") b.cold++;
+      else if (l.status === "success" || l.status === "converted") b.converted++;
+      if (l.channel === "whatsapp") b.whatsapp++;
+      else if (l.channel === "instagram") b.instagram++;
+      else if (l.channel === "form") b.form++;
+    }
     heatSum += l.heat_score ?? 0;
-
-    const dayKey = l.created_at.slice(0, 10);
-    if (dailyMap.has(dayKey)) dailyMap.set(dayKey, (dailyMap.get(dayKey) ?? 0) + 1);
+    const dt = new Date(l.created_at);
+    heatGrid[dt.getDay()][dt.getHours()]++;
   }
 
-  const conversionRate = totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0;
+  const dailyDetails = dailyOrder.map((d) => dailyMap.get(d)!);
 
-  let aiMessages = 0;
-  for (const m of allMessages) if (m.role === "assistant") aiMessages++;
+  // ── 90d funnel (pipeline snapshot) ──────────────────────────
+  const tot = allLeads.length;
+  const hot  = allLeads.filter((l) => l.status === "hot").length;
+  const warm = allLeads.filter((l) => l.status === "warm").length;
+  const conv = allLeads.filter((l) => l.status === "success" || l.status === "converted").length;
 
-  const byChannel = [
-    { channel: "whatsapp", label: "WhatsApp", count: chWa },
-    { channel: "instagram", label: "Instagram", count: chIg },
-    { channel: "form", label: "Formulário", count: chForm },
+  const funnelStages = [
+    { label: "Captados",     value: tot,                          color: "#3B82F6" },
+    { label: "Interagiram",  value: leadsWithMsg.size,            color: "#8B5CF6" },
+    { label: "Qualificados", value: hot + warm,                   color: "#14B8A6" },
+    { label: "Agendaram",    value: leadsWithEvent.size,          color: "#F59E0B" },
+    { label: "Convertidos",  value: conv,                         color: "#10B981" },
   ];
 
-  const byStatus = [
-    { label: "Quente", status: "hot", count: hotLeads, color: "#F97316" },
-    { label: "Morno", status: "warm", count: warmLeads, color: "#F59E0B" },
-    { label: "Frio", status: "cold", count: coldLeads, color: "#60A5FA" },
-    { label: "Convertido", status: "success", count: converted, color: "#14B8A6" },
-  ];
-
-  const dailyLeads = dailyOrder.map((date) => ({ date, count: dailyMap.get(date) ?? 0 }));
-
-  const avgHeatScore = totalLeads > 0 ? Math.round(heatSum / totalLeads) : 0;
+  const heatmapData = heatGrid.flatMap((row, wd) =>
+    row.map((value, hour) => ({ weekday: wd, hour, value }))
+  );
+  const avgHeatScore = tot > 0 ? Math.round(heatSum / tot) : 0;
 
   return (
     <ReportsClient
-      totalLeads={totalLeads}
-      hotLeads={hotLeads}
-      warmLeads={warmLeads}
-      coldLeads={coldLeads}
-      converted={converted}
-      conversionRate={conversionRate}
-      totalEvents={totalEvents}
-      totalMessages={totalMessages}
-      aiMessages={aiMessages}
+      dailyDetails={dailyDetails}
+      funnelStages={funnelStages}
+      heatmapData={heatmapData}
       avgHeatScore={avgHeatScore}
-      byChannel={byChannel}
-      byStatus={byStatus}
-      dailyLeads={dailyLeads}
     />
   );
 }

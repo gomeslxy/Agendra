@@ -16,6 +16,8 @@ dist
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+*.log
+logs
 
 # Project specific exclusions
 .claude
@@ -25,3 +27,21 @@ _scripts
 omnirepo.config.json
 omnirepo.db*
 .antigravity_memory.md
+
+# AI Configuration and Agents
+.gemini/
+.agents/
+brain/
+.clauderules
+.cursorrules
+.antigravity/
+.memories/
+
+# AI Context and Internal Documentation
+docs/00 - META/
+docs/superpowers/
+**/*.instruction.md
+**/*.skill.md
+
+# Temporary debug scripts
+check_db*.mjs

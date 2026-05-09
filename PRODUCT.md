@@ -161,7 +161,7 @@ Baseado em:
 ---
 
 ### IA
-- OpenAI / Claude
+- Gemini 2.0 Flash (Google AI) — Tool Calling & Loop Agêntico
 
 ---
 

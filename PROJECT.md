@@ -1,8 +1,12 @@
+# 🛡️ Agendra — OBSIDIAN FIRST
+> **ATENÇÃO AGENTE:** Antes de qualquer alteração, você **DEVE** ler a pasta `/docs`. O Obsidian é a fonte de verdade real deste projeto. Qualquer mudança no código deve ser refletida lá imediatamente.
+
 # Agendra — Projeto
 
 IA que responde, qualifica e agenda leads em WhatsApp, Instagram e formulários — em português brasileiro, com voz de marca configurável.
 
-> **Definição de produto completa em [PRODUCT.md](./PRODUCT.md)** — visão, problema, MVP, roadmap, regra principal (CONVERSÃO DE LEADS EM VENDAS).
+> **A documentação oficial e o estado real do projeto estão no Obsidian (pasta [./docs](./docs)).**
+> Veja [docs/01 - PRODUTO/visao-geral.md](./docs/01%20-%20PRODUTO/visao-geral.md) para começar.
 
 ---
 

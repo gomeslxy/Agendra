@@ -99,8 +99,9 @@ export default function RootLayout({
     <html
       lang="pt-BR"
       className={`${interTight.variable} ${jetbrains.variable}`}
+      suppressHydrationWarning
     >
-      <body className="antialiased">
+      <body className="antialiased" suppressHydrationWarning>
         <JsonLd />
         <MotionProvider>{children}</MotionProvider>
       </body>
