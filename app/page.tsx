@@ -5,6 +5,7 @@ import { ProductDemo } from "@/components/landing/product-demo";
 import { Benefits } from "@/components/landing/benefits";
 import { Proof } from "@/components/landing/proof";
 import { UseCases } from "@/components/landing/use-cases";
+import { FAQ } from "@/components/landing/faq";
 import { FinalCTA } from "@/components/landing/final-cta";
 import { Footer } from "@/components/landing/footer";
 
@@ -19,6 +20,7 @@ export default function LandingPage() {
         <Benefits />
         <Proof />
         <UseCases />
+        <FAQ />
         <FinalCTA />
       </main>
       <Footer />

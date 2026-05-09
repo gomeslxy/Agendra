@@ -3,8 +3,11 @@ import Link from "next/link";
 import { TermosContent } from "@/components/legal/legal-content";
 
 export const metadata: Metadata = {
-  title: "Termos de Uso — Agendra",
+  title: "Termos de Uso",
   description: "Termos e condições de uso da plataforma Agendra.",
+  alternates: {
+    canonical: "/termos",
+  },
 };
 
 export default function TermosPage() {

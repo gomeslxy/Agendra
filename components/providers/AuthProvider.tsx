@@ -115,7 +115,7 @@ export function AuthProvider({
       } else if (event === "SIGNED_OUT") {
         setProfile(null);
         setLoading(false);
-        router.push("/login");
+        router.push("/");
       } else if (event === "TOKEN_REFRESHED") {
         // Silent token renewal — no re-render needed
         setLoading(false);
@@ -130,7 +130,7 @@ export function AuthProvider({
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push("/");
   }, [supabase, router]);
 
   const value = useMemo(

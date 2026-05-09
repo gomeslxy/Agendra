@@ -21,10 +21,62 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Agendra — Lead novo, reunião marcada.",
+  metadataBase: new URL("https://agendra.com.br"),
+  title: {
+    default: "Agendra — Lead novo, reunião marcada.",
+    template: "%s | Agendra",
+  },
   description:
-    "Agendra responde, qualifica e agenda — em segundos, 24/7, em todos os canais. Sem fila, sem espera, sem lead perdido.",
-  icons: { icon: "/assets/agendra-glyph.svg" },
+    "A Agendra é a IA que responde, qualifica e agenda seus leads em segundos. Disponível 24/7 no WhatsApp e Instagram para garantir que você nunca mais perca um negócio.",
+  keywords: ["IA para agendamento", "automação de leads", "agendamento whatsapp", "qualificação de leads", "SaaS agendamento", "Agendra"],
+  authors: [{ name: "Agendra Team" }],
+  creator: "Agendra",
+  publisher: "Agendra",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Agendra — Lead novo, reunião marcada.",
+    description: "IA que responde, qualifica e agenda seus leads 24/7. Converta mais com agendamentos automáticos no WhatsApp e Instagram.",
+    url: "https://agendra.com.br",
+    siteName: "Agendra",
+    images: [
+      {
+        url: "/assets/og-image.png", // We will generate this
+        width: 1200,
+        height: 630,
+        alt: "Agendra - Automação de Agendamento com IA",
+      },
+    ],
+    locale: "pt_BR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Agendra — Lead novo, reunião marcada.",
+    description: "IA que responde, qualifica e agenda seus leads 24/7.",
+    images: ["/assets/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  icons: {
+    icon: "/assets/agendra-glyph.svg",
+    apple: "/assets/agendra-glyph.svg",
+  },
 };
 
 export const viewport: Viewport = {
@@ -34,6 +86,7 @@ export const viewport: Viewport = {
 };
 
 import { MotionProvider } from "@/components/motion/motion-provider";
+import { JsonLd } from "@/components/seo/json-ld";
 
 export default function RootLayout({
   children,
@@ -46,6 +99,7 @@ export default function RootLayout({
       className={`${interTight.variable} ${jetbrains.variable}`}
     >
       <body className="antialiased">
+        <JsonLd />
         <MotionProvider>{children}</MotionProvider>
       </body>
     </html>

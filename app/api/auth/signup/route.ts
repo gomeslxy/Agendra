@@ -1,0 +1,91 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/email/send";
+import { verificationEmail } from "@/lib/email/templates/verification";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+function generateOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  
+  if (!checkRateLimit(`signup:${ip}`, 5, 60_000)) {
+    return NextResponse.json({ error: "Muitas tentativas. Aguarde 1 minuto." }, { status: 429 });
+  }
+
+  let body: { email?: string; password?: string; companyName?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  const companyName = typeof body.companyName === "string" ? body.companyName.trim() : "usuário";
+
+  if (!email || !password || password.length < 8) {
+    return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+
+  // 1. Create user via Admin API (Silent creation, no Supabase email)
+  const { data: authUser, error: createError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: false, // Will confirm later in verify-otp
+    user_metadata: {
+      company_name: companyName,
+      full_name: companyName,
+    },
+  });
+
+  if (createError) {
+    // If user already exists, we might still want to send a new OTP if they are not confirmed
+    if (createError.message.includes("already registered")) {
+      // Logic for existing unconfirmed user could go here
+      // For now, let's just return the error to be safe
+      return NextResponse.json({ error: "Este email já está cadastrado." }, { status: 400 });
+    }
+    console.error("[api/auth/register] Create user error:", createError.message);
+    return NextResponse.json({ error: "Erro ao criar conta." }, { status: 500 });
+  }
+
+  // 2. Generate and save OTP
+  const code = generateOtp();
+  await admin
+    .from("otp_codes")
+    .update({ used: true })
+    .eq("email", email)
+    .eq("purpose", "signup")
+    .eq("used", false);
+
+  const { error: insertError } = await admin.from("otp_codes").insert({
+    email,
+    code,
+    purpose: "signup",
+  });
+
+  if (insertError) {
+    console.error("[api/auth/register] DB error:", insertError.message);
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+
+  // 3. Send email via Resend
+  try {
+    await sendEmail({
+      to: email,
+      subject: "Seu código de verificação Agendra",
+      html: verificationEmail({ code, companyName }),
+    });
+  } catch (err) {
+    console.error("[api/auth/register] Email error:", err);
+    // Even if email fails, user is created. We return error so they can try Resend.
+    return NextResponse.json({ error: "Erro ao enviar email de verificação." }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

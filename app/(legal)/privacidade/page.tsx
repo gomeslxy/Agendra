@@ -3,9 +3,12 @@ import Link from "next/link";
 import { PrivacidadeContent } from "@/components/legal/legal-content";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidade — Agendra",
+  title: "Política de Privacidade",
   description:
     "Política de privacidade e proteção de dados da plataforma Agendra, em conformidade com a LGPD.",
+  alternates: {
+    canonical: "/privacidade",
+  },
 };
 
 export default function PrivacidadePage() {

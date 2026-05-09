@@ -14,10 +14,10 @@ export function Footer() {
       <div className="mx-auto max-w-[1200px] px-6">
         <div className="flex flex-wrap items-start justify-between gap-8">
           <div className="min-w-[260px] flex-1">
-            <Image src="/assets/agendra-logo.svg" alt="Agendra" width={112} height={28} />
+            <Image src="/assets/agendra-logo.svg" alt="Agendra - IA para agendamento automático de leads" width={112} height={28} />
             <p className="mt-3 max-w-xs text-sm"
                style={{ color: "var(--color-fg-2)" }}>
-              IA que responde, qualifica e agenda. Para negócios que vendem por conversa.
+              Agendra é a inteligência artificial brasileira que responde, qualifica e agenda seus leads 24/7.
             </p>
           </div>
 

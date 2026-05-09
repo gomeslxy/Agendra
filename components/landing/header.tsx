@@ -100,7 +100,7 @@ export function Header() {
         <Link href="/" className="flex items-center gap-2.5">
           <Image
             src="/assets/agendra-logo.svg"
-            alt="Agendra"
+            alt="Agendra - Inteligência Artificial para Agendamento"
             width={120}
             height={30}
             style={{ height: "auto" }}

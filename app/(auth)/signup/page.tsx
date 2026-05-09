@@ -54,30 +54,23 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          company_name: companyName.trim(),
-          full_name: companyName.trim(),
-        },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), password, companyName: companyName.trim() }),
     });
 
-    if (error) {
-      setError(translateError(error.message));
+    const data = await res.json();
+
+    if (!res.ok) {
+      setError(data.error ?? "Erro ao criar conta.");
       setLoading(false);
       return;
     }
 
-    await fetch("/api/auth/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim(), companyName: companyName.trim() }),
-    });
+    // Armazenar temporariamente para login automático após verificação
+    sessionStorage.setItem("agendra_signup_email", email.trim());
+    sessionStorage.setItem("agendra_signup_password", password);
 
     router.push(
       `/verify?email=${encodeURIComponent(email.trim())}&company=${encodeURIComponent(companyName.trim())}`
@@ -93,6 +86,16 @@ export default function SignupPage() {
         className="w-full max-w-md"
       >
         <Glass className="p-9">
+          <div className="mb-6">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-xs font-medium transition-colors hover:text-white"
+              style={{ color: "var(--color-fg-3)" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              Voltar para o site
+            </Link>
+          </div>
           <div className="mb-5 flex justify-center">
             <Image
               src="/assets/agendra-logo.svg"

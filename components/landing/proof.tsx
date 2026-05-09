@@ -72,7 +72,7 @@ export function Proof() {
               <InfiniteSlider gap={80} duration={30}>
                 {LOGOS.map((logo) => (
                   <div key={logo.name} className="flex items-center gap-3 opacity-40 grayscale transition-all hover:opacity-100 hover:grayscale-0">
-                    <img src={logo.url} alt={logo.name} className="h-7 w-auto" />
+                    <img src={logo.url} alt={logo.name} className="h-7 w-auto" loading="lazy" decoding="async" />
                     <span className="text-sm font-semibold tracking-tight text-white">{logo.name}</span>
                   </div>
                 ))}

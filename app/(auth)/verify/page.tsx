@@ -41,6 +41,22 @@ function VerifyContent() {
     }
   }
 
+  function handlePaste(e: React.ClipboardEvent) {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text/plain").slice(0, 6);
+    if (!/^\d+$/.test(pastedData)) return;
+
+    const next = [...code];
+    pastedData.split("").forEach((char, i) => {
+      if (i < 6) next[i] = char;
+    });
+    setCode(next);
+
+    // Focus last filled or next empty
+    const lastIdx = Math.min(pastedData.length, 5);
+    inputRefs.current[lastIdx]?.focus();
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -67,6 +83,26 @@ function VerifyContent() {
     }
 
     const supabase = createClient();
+    
+    // Tentar login automático se as credenciais estiverem no sessionStorage
+    const storedEmail = sessionStorage.getItem("agendra_signup_email");
+    const storedPassword = sessionStorage.getItem("agendra_signup_password");
+
+    if (storedEmail && storedPassword) {
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: storedEmail,
+        password: storedPassword,
+      });
+
+      if (!loginError) {
+        sessionStorage.removeItem("agendra_signup_email");
+        sessionStorage.removeItem("agendra_signup_password");
+        router.push("/inbox");
+        router.refresh();
+        return;
+      }
+    }
+
     await supabase.auth.refreshSession();
     router.push("/inbox");
   }
@@ -113,6 +149,7 @@ function VerifyContent() {
                   value={digit}
                   onChange={(e) => handleDigit(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
+                  onPaste={handlePaste}
                   disabled={loading}
                   className="input h-14 w-12 text-center text-xl font-bold tracking-widest disabled:opacity-50"
                 />
