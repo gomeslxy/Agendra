@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { CalendarCheck, Paperclip, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { stagger } from "@/components/motion/variants";
@@ -92,71 +94,81 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
   return (
     <div className="grid h-full min-h-0 lg:grid-cols-[320px_1fr_320px]">
       {/* COL 1 — list */}
-      <section className="mobile-scroll-area overflow-y-auto border-r border-white/[0.08]">
-        <div className="px-5 pb-3 pt-5">
+      <section className="mobile-scroll-area flex flex-col overflow-hidden border-r border-white/[0.08]">
+        <div className="px-5 pb-3 pt-5 shrink-0">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Caixa de entrada</h2>
-            <span className="font-mono text-sm" style={{ color: "var(--color-fg-3)" }}>
+            <h2 className="text-lg font-bold tracking-tight">Caixa de entrada</h2>
+            <span className="font-mono text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
               {leads.length} hoje
             </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <Badge variant="hot">Quente · {hotCount}</Badge>
-            <Badge variant="warm">Morno · {warmCount}</Badge>
-            <Badge variant="cold">Frio · {coldCount}</Badge>
+            <Badge variant="hot" className="rounded-full">Quente · {hotCount}</Badge>
+            <Badge variant="warm" className="rounded-full">Morno · {warmCount}</Badge>
+            <Badge variant="cold" className="rounded-full">Frio · {coldCount}</Badge>
           </div>
         </div>
 
-        {leads.length === 0 ? (
-          <div className="px-5 py-8 text-sm" style={{ color: "var(--color-fg-3)" }}>
-            Nenhuma conversa ainda.
-          </div>
-        ) : (
-          <motion.div variants={stagger(0.02, 0.03)} initial="hidden" animate="show" className="flex flex-col">
-            {leads.map((l) => {
-              const last = lastMsg(l);
-              const isActive = l.id === selectedId;
-              return (
-                <motion.div
-                  key={l.id}
-                  variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
-                  whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }}
-                  onClick={() => setSelectedId(l.id)}
-                  className={`grid cursor-pointer grid-cols-[auto_1fr_auto] gap-2.5 border-b border-white/[0.08] px-5 py-3 ${
-                    isActive ? "border-l-2 !border-l-brand-blue-600 bg-[#2563EB]/10 pl-[18px]" : ""
-                  }`}
-                >
-                  <div
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
-                    style={{ background: HEAT_GRADIENT[l.status] ?? HEAT_GRADIENT.cold }}
+        <div className="flex-1 overflow-y-auto">
+          {leads.length === 0 ? (
+            <div className="px-5 py-8 text-sm italic" style={{ color: "var(--color-fg-3)" }}>
+              Nenhuma conversa ainda.
+            </div>
+          ) : (
+            <motion.div variants={stagger(0.02, 0.03)} initial="hidden" animate="show" className="flex flex-col">
+              {leads.map((l) => {
+                const last = lastMsg(l);
+                const isActive = l.id === selectedId;
+                return (
+                  <motion.div
+                    key={l.id}
+                    variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
+                    whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setSelectedId(l.id)}
+                    className={cn(
+                      "group relative grid cursor-pointer grid-cols-[auto_1fr_auto] gap-3 border-b border-white/[0.04] px-5 py-4 transition-all duration-200",
+                      isActive && "bg-brand-blue-600/10"
+                    )}
                   >
-                    {initials(l.name)}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] font-semibold">{l.name}</div>
-                    <div className="mt-0.5 truncate text-xs" style={{ color: "var(--color-fg-3)" }}>
-                      {last?.content ?? "Sem mensagens"}
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-lead"
+                        className="absolute inset-y-1 left-1 w-1 rounded-full bg-brand-blue-500"
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                    <div
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[13px] font-bold text-white shadow-lg shadow-black/20"
+                      style={{ background: HEAT_GRADIENT[l.status] ?? HEAT_GRADIENT.cold }}
+                    >
+                      {initials(l.name)}
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono text-[10px]" style={{ color: "var(--color-fg-3)" }}>
-                      {last ? relativeTime(last.created_at) : "—"}
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] font-bold tracking-tight">{l.name}</div>
+                      <div className="mt-1 truncate text-xs font-medium" style={{ color: isActive ? "var(--color-fg-2)" : "var(--color-fg-3)" }}>
+                        {last?.content ?? "Sem mensagens"}
+                      </div>
                     </div>
-                    <span
-                      className="ml-auto mt-1 block h-1.5 w-1.5 rounded-full"
-                      style={{
-                        background:
-                          l.status === "hot" ? "#F97316" :
-                          l.status === "warm" ? "#F59E0B" :
-                          l.status === "success" ? "#14B8A6" : "#60A5FA",
-                      }}
-                    />
-                  </div>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        )}
+                    <div className="flex flex-col items-end gap-1.5">
+                      <div className="font-mono text-[10px] font-medium" style={{ color: "var(--color-fg-3)" }}>
+                        {last ? relativeTime(last.created_at) : "—"}
+                      </div>
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full ring-2 ring-transparent transition-all group-hover:ring-white/10",
+                          l.status === "hot" ? "bg-orange-spark shadow-[0_0_8px_rgba(249,115,22,0.6)]" :
+                          l.status === "warm" ? "bg-yellow-500" :
+                          l.status === "success" ? "bg-teal-flow shadow-[0_0_8px_rgba(20,184,166,0.6)]" : "bg-blue-400"
+                        )}
+                      />
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </div>
       </section>
 
       {/* COL 2 — chat */}
@@ -211,23 +223,26 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
               )}
             </motion.div>
 
-            {inboxError && (
-              <p className="mb-1 text-xs text-red-400">{inboxError}</p>
-            )}
-            <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-3">
-              <Paperclip size={18} style={{ color: "var(--color-fg-3)" }} />
-              <input
-                placeholder="Escreva uma nota interna ou assuma a conversa…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-fg-3"
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                disabled={sendPending}
-              />
-              <Button variant="blue" size="sm" disabled={sendPending || !noteText.trim()} onClick={handleSend}>
-                <Send size={14} />
-                {sendPending ? "…" : "Enviar"}
-              </Button>
+            <div className="mb-3">
+              <p className={cn("text-xs transition-opacity duration-200", inboxError ? "opacity-100 text-red-400" : "opacity-0")}>
+                {inboxError || "Fine"}
+              </p>
+              <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.06] p-2 pr-2.5 focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.08] focus-within:shadow-glow-blue/10 transition-all duration-300">
+                <Button variant="ghost" size="sm" className="h-9 w-9 rounded-xl p-0">
+                  <Paperclip size={18} style={{ color: "var(--color-fg-3)" }} />
+                </Button>
+                <input
+                  placeholder="Escreva uma nota interna ou assuma a conversa…"
+                  className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-fg-3/60"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                  disabled={sendPending}
+                />
+                <Button variant="blue" size="sm" className="h-9 gap-2 rounded-xl px-4 font-bold" disabled={sendPending || !noteText.trim()} onClick={handleSend}>
+                  {sendPending ? "…" : <><Send size={14} /> Enviar</>}
+                </Button>
+              </div>
             </div>
           </>
         )}
@@ -236,36 +251,58 @@ export function InboxClient({ leads }: { leads: LeadWithMessages[] }) {
       {/* COL 3 — detail */}
       <aside className="hidden flex-col gap-3.5 overflow-y-auto border-l border-white/[0.08] p-5 lg:flex">
         {selected && (
-          <>
-            <DetailCard title="QUALIFICAÇÃO · IA" titleColor="var(--color-brand-teal-300)">
-              <KV k="Heat">
-                <Badge variant={selected.status as "hot" | "warm" | "cold" | "success"} className="px-2 py-0.5">
-                  {HEAT_LABEL[selected.status]} · {selected.heat_score}
-                </Badge>
-              </KV>
-              {selected.summary && <KV k="Resumo">{selected.summary}</KV>}
-              <KV k="Canal">{selected.channel}</KV>
-            </DetailCard>
+          <motion.div
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col gap-4"
+          >
+            <Card className="p-0 border-white/[0.06]">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="eyebrow text-[10px]" style={{ color: "var(--color-brand-teal-300)" }}>
+                  Qualificação · IA
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <KV k="Heat">
+                  <Badge variant={selected.status as "hot" | "warm" | "cold" | "success"} className="px-2 py-0.5 font-bold uppercase text-[9px]">
+                    {HEAT_LABEL[selected.status]} · {selected.heat_score}%
+                  </Badge>
+                </KV>
+                {selected.summary && <KV k="Resumo"><p className="leading-relaxed opacity-80">{selected.summary}</p></KV>}
+                <KV k="Canal">{selected.channel}</KV>
+              </CardContent>
+            </Card>
 
-            <DetailCard title="CONTATO">
-              <KV k="Canal">{selected.channel}</KV>
-              <KV k="Origem">{selected.source ?? "—"}</KV>
-              {selected.city && <KV k="Cidade">{selected.city}</KV>}
-              {selected.email && <KV k="Email">{selected.email}</KV>}
-            </DetailCard>
+            <Card className="p-0 border-white/[0.06]">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="eyebrow text-[10px]">Contato</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <KV k="Telefone">{selected.phone}</KV>
+                <KV k="Origem">{selected.source ?? "Direto"}</KV>
+                {selected.city && <KV k="Cidade">{selected.city}</KV>}
+                {selected.email && <KV k="Email">{selected.email}</KV>}
+              </CardContent>
+            </Card>
 
-            <DetailCard title="PRÓXIMO PASSO">
-              <div className="flex items-center gap-2.5 rounded-xl border border-[#14B8A6]/30 bg-[#14B8A6]/10 p-2.5">
-                <CalendarCheck size={18} className="text-brand-teal-300" />
+            <div className="rounded-2xl border border-brand-teal-500/20 bg-brand-teal-500/5 p-4 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                 <CalendarCheck size={48} />
+              </div>
+              <div className="eyebrow text-[10px] text-brand-teal-400 mb-2">Próximo Passo</div>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 shrink-0 rounded-full bg-brand-teal-500/20 grid place-items-center">
+                  <CalendarCheck size={20} className="text-brand-teal-300" />
+                </div>
                 <div>
-                  <div className="text-[13px] font-semibold text-brand-teal-300">Em atendimento</div>
-                  <div className="text-xs" style={{ color: "var(--color-fg-3)" }}>
-                    score {selected.heat_score}/100
+                  <div className="text-sm font-bold text-white">Agendamento em progresso</div>
+                  <div className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
+                    IA aguardando confirmação
                   </div>
                 </div>
               </div>
-            </DetailCard>
-          </>
+            </div>
+          </motion.div>
         )}
       </aside>
     </div>

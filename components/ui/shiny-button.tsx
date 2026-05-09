@@ -144,6 +144,7 @@ export function ShinyButton({ children, onClick, className, ...props }: ShinyBut
           --size: calc(100% + 1rem);
           width: var(--size);
           height: var(--size);
+          border-radius: inherit;
           box-shadow: inset 0 -1ex 2rem 4px var(--shiny-cta-highlight);
           opacity: 0;
           transition: opacity var(--transition);

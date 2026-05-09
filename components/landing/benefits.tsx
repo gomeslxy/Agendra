@@ -52,7 +52,7 @@ const ITEMS = [
 
 export function Benefits() {
   return (
-    <section id="beneficios" className="relative py-24">
+    <section id="recursos" className="relative py-24">
       <div className="mx-auto max-w-[1200px] px-6">
         <FadeUp>
           <div className="eyebrow mb-3">BENEFÍCIOS</div>

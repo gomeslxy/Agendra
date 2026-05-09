@@ -298,7 +298,7 @@ function SidePanel() {
 /* ─── Export ─────────────────────────────────────────────────── */
 export function ProductDemo() {
   return (
-    <section id="produto" className="relative pb-24 pt-16">
+    <section id="demo" className="relative pb-24 pt-16">
       <div className="mx-auto max-w-[1200px] px-6">
         <FadeUp>
           <div className="eyebrow mb-3">PRODUTO</div>

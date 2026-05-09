@@ -8,7 +8,7 @@ import { FadeUp } from "@/components/motion/fade-up";
 
 export function FinalCTA() {
   return (
-    <section id="preco" className="relative pb-24 pt-12">
+    <section id="precos" className="relative pb-24 pt-12">
       <div className="mx-auto max-w-[1200px] px-6">
         <FadeUp>
           <Glass
