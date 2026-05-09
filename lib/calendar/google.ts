@@ -104,14 +104,173 @@ export async function getFreeBusySlots(
   return json.calendars[calendarId]?.busy ?? [];
 }
 
+// ─── Event Listing (for sync) ─────────────────────────────────────────────────
+
+/**
+ * Lists events from a Google Calendar.
+ * - Pass `syncToken` for incremental sync (only events changed since last sync).
+ * - Pass `timeMin`/`timeMax` for full sync (first time or after syncToken expiry).
+ *
+ * Throws 'SYNC_TOKEN_EXPIRED' when Google returns 410 Gone.
+ * Filters out all-day events (holidays, birthdays) and transparent events.
+ */
+export async function listGCalEvents(
+  refreshToken: string,
+  calendarId: string,
+  opts: {
+    syncToken?: string;
+    timeMin?: string;
+    timeMax?: string;
+  } = {},
+): Promise<ListGCalEventsResult> {
+  const accessToken = await refreshAccessToken(refreshToken);
+
+  const params = new URLSearchParams({
+    singleEvents: 'true',   // expand recurring events into individual instances
+    maxResults: '2500',
+  });
+
+  if (opts.syncToken) {
+    // Incremental: only changes since last sync
+    params.set('syncToken', opts.syncToken);
+  } else {
+    // Full sync: bounded time window
+    if (opts.timeMin) params.set('timeMin', opts.timeMin);
+    if (opts.timeMax) params.set('timeMax', opts.timeMax);
+    params.set('eventTypes', 'default');  // excludes fromGmail, outOfOffice, focusTime
+    params.set('orderBy', 'startTime');
+  }
+
+  const res = await fetch(
+    `${GCAL_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+
+  // 410 Gone = syncToken expired — caller must retry as full sync
+  if (res.status === 410) {
+    throw new Error('SYNC_TOKEN_EXPIRED');
+  }
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Google Calendar list events falhou: ${res.status} — ${body}`);
+  }
+
+  const json = (await res.json()) as {
+    items: GCalEvent[];
+    nextSyncToken: string;
+  };
+
+  // Filter out events we should not import:
+  // - All-day events (start.date without dateTime) = holidays, birthdays, etc.
+  // - Transparent events (shows as "free") = don't block appointment slots
+  const filtered = (json.items ?? []).filter((e) => {
+    if (!e.start?.dateTime) return false;               // all-day event → skip
+    if (e.transparency === 'transparent') return false; // free → skip
+    return true;
+  });
+
+  return {
+    events: filtered,
+    nextSyncToken: json.nextSyncToken,
+  };
+}
+
+/**
+ * Deletes an event from Google Calendar.
+ * 404 (already deleted) is treated as success.
+ */
+export async function deleteGCalEvent(
+  refreshToken: string,
+  calendarId: string,
+  eventId: string,
+): Promise<void> {
+  const accessToken = await refreshAccessToken(refreshToken);
+
+  const res = await fetch(
+    `${GCAL_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
+
+  if (res.status === 404 || res.ok) return; // 404 = already deleted, fine
+
+  const body = await res.text();
+  throw new Error(`Google Calendar delete event falhou: ${res.status} — ${body}`);
+}
+
+/**
+ * Updates an existing event in Google Calendar (PATCH — partial update).
+ */
+export async function updateGCalEvent(
+  refreshToken: string,
+  calendarId: string,
+  eventId: string,
+  event: CalendarEventInput,
+): Promise<void> {
+  const accessToken = await refreshAccessToken(refreshToken);
+
+  const body: Record<string, unknown> = {
+    summary: event.title,
+    description: event.description ?? '',
+    start: { dateTime: event.start, timeZone: event.timeZone ?? 'America/Sao_Paulo' },
+    end:   { dateTime: event.end,   timeZone: event.timeZone ?? 'America/Sao_Paulo' },
+  };
+
+  const res = await fetch(
+    `${GCAL_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Google Calendar update event falhou: ${res.status} — ${errBody}`);
+  }
+}
+
+// ─── Event Types ──────────────────────────────────────────────────────────────
+
+export interface GCalEventDateTime {
+  dateTime?: string;   // ISO 8601 — present for timed events
+  date?: string;       // YYYY-MM-DD — present for all-day events (holidays, birthdays)
+  timeZone?: string;
+}
+
+export interface GCalEvent {
+  id: string;
+  summary?: string;
+  description?: string;
+  start: GCalEventDateTime;
+  end: GCalEventDateTime;
+  status: 'confirmed' | 'tentative' | 'cancelled';
+  transparency?: 'opaque' | 'transparent';
+  eventType?: string;
+  recurringEventId?: string;
+}
+
+export interface ListGCalEventsResult {
+  events: GCalEvent[];
+  nextSyncToken: string;
+}
+
 // ─── Event Creation ───────────────────────────────────────────────────────────
 
 export interface CalendarEventInput {
   title: string;
-  start: string;  // ISO 8601
-  end: string;    // ISO 8601
+  start: string;       // ISO 8601
+  end: string;         // ISO 8601
   description?: string;
   attendeeEmail?: string; // lead's email, if available
+  timeZone?: string;   // IANA timezone, e.g. 'America/Sao_Paulo'
 }
 
 /**
@@ -128,8 +287,8 @@ export async function createGoogleCalendarEvent(
   const body: Record<string, unknown> = {
     summary: event.title,
     description: event.description ?? '',
-    start: { dateTime: event.start },
-    end: { dateTime: event.end },
+    start: { dateTime: event.start, timeZone: event.timeZone ?? 'America/Sao_Paulo' },
+    end:   { dateTime: event.end,   timeZone: event.timeZone ?? 'America/Sao_Paulo' },
     reminders: {
       useDefault: false,
       overrides: [
