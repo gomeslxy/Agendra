@@ -1,0 +1,265 @@
+/**
+ * WhatsApp Cloud API — Webhook Route Handler
+ *
+ * Responsabilidades:
+ *  GET  → Verificação do Webhook pela Meta (Challenge Verification)
+ *  POST → Recebimento de mensagens e eventos de status
+ *
+ * Segurança:
+ *  - Valida assinatura HMAC SHA-256 (X-Hub-Signature-256) em todo POST
+ *  - Usa Admin Client (service role) para bypassar RLS — este endpoint
+ *    não tem sessão de usuário, mas é protegido pela assinatura da Meta.
+ *
+ * Performance:
+ *  - Retorna 200 imediatamente para a Meta (evitar reenvios por timeout)
+ *  - Processa a lógica de negócio de forma assíncrona (fire-and-forget)
+ */
+
+import { createHmac, timingSafeEqual } from "crypto";
+import { NextRequest, NextResponse } from "next/server";
+import { handleIncomingMessage } from "@/lib/ai/engine";
+
+// ─── Tipos (Meta Webhook Payload) ────────────────────────────────────────────
+
+interface MetaTextMessage {
+  id: string;
+  from: string;
+  timestamp: string;
+  type: "text" | "image" | "audio" | "video" | "document" | "sticker" | "location";
+  text?: { body: string };
+}
+
+interface MetaContact {
+  profile: { name: string };
+  wa_id: string;
+}
+
+interface MetaValue {
+  messaging_product: "whatsapp";
+  metadata: {
+    display_phone_number: string;
+    phone_number_id: string;
+  };
+  contacts?: MetaContact[];
+  messages?: MetaTextMessage[];
+  statuses?: { id: string; status: string; timestamp: string; recipient_id: string }[];
+}
+
+interface MetaChange {
+  value: MetaValue;
+  field: string;
+}
+
+interface MetaEntry {
+  id: string; // WABA ID (WhatsApp Business Account ID)
+  changes: MetaChange[];
+}
+
+interface MetaWebhookPayload {
+  object: "whatsapp_business_account";
+  entry: MetaEntry[];
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Valida a assinatura X-Hub-Signature-256 da Meta.
+ * Garante que o payload veio genuinamente da Meta e não de terceiros.
+ */
+async function validateMetaSignature(
+  request: NextRequest,
+  rawBody: string,
+): Promise<boolean> {
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+
+  // Se não houver APP_SECRET configurado, loga aviso e permite (dev mode)
+  if (!appSecret) {
+    console.warn("[WhatsApp] ⚠️  WHATSAPP_APP_SECRET não configurado — validação de assinatura desabilitada.");
+    return true;
+  }
+
+  const signature = request.headers.get("x-hub-signature-256");
+  if (!signature) {
+    console.error("[WhatsApp] ❌ Header X-Hub-Signature-256 ausente.");
+    return false;
+  }
+
+  const expectedSignature = createHmac("sha256", appSecret)
+    .update(rawBody, "utf8")
+    .digest("hex");
+
+  const sigBuffer = Buffer.from(signature.replace("sha256=", ""), "hex");
+  const expectedBuffer = Buffer.from(expectedSignature, "hex");
+
+  // timingSafeEqual evita timing attacks
+  if (sigBuffer.length !== expectedBuffer.length) return false;
+  return timingSafeEqual(sigBuffer, expectedBuffer);
+}
+
+/**
+ * Resolve a `company_id` a partir do `phone_number_id` da Meta.
+ *
+ * ─────────────────────────────────────────────────────────────────
+ * TODO (Multi-tenant): Quando a tabela de configurações de canais
+ * estiver criada (ex: `channels`), substituir este mock por:
+ *
+ *   const { data } = await supabase
+ *     .from("channels")
+ *     .select("company_id")
+ *     .eq("whatsapp_phone_number_id", phoneNumberId)
+ *     .single();
+ *   return data?.company_id ?? null;
+ *
+ * Por ora, retorna null para indicar que a resolução ainda não está
+ * configurada — o evento será logado mas não persistido.
+ * ─────────────────────────────────────────────────────────────────
+ */
+async function resolveCompanyId(
+  _phoneNumberId: string,
+): Promise<string | null> {
+  // Fallback single-tenant: use env var until channels table exists
+  return process.env.WHATSAPP_DEFAULT_COMPANY_ID ?? null;
+}
+
+// ─── Handler: GET — Challenge Verification ───────────────────────────────────
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const { searchParams } = new URL(request.url);
+
+  const mode = searchParams.get("hub.mode");
+  const token = searchParams.get("hub.verify_token");
+  const challenge = searchParams.get("hub.challenge");
+
+  console.log(`[WhatsApp] 🔍 Verificação de Webhook | mode=${mode} | token=${token}`);
+
+  if (mode !== "subscribe") {
+    console.error("[WhatsApp] ❌ Modo inválido:", mode);
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  if (!verifyToken) {
+    console.error("[WhatsApp] ❌ WHATSAPP_VERIFY_TOKEN não configurado.");
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  }
+
+  if (token !== verifyToken) {
+    console.error("[WhatsApp] ❌ Token de verificação inválido.");
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  console.log("[WhatsApp] ✅ Webhook verificado com sucesso.");
+  return new NextResponse(challenge, { status: 200 });
+}
+
+// ─── Handler: POST — Recebimento de Eventos ──────────────────────────────────
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  // ── Ler o body como texto (necessário para validação HMAC) ─────────────────
+  const rawBody = await request.text();
+
+  // ── Validar assinatura da Meta ANTES de qualquer processamento ─────────────
+  const isValid = await validateMetaSignature(request, rawBody);
+  if (!isValid) {
+    console.error("[WhatsApp] ❌ Assinatura inválida — request rejeitada.");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // ── Retornar 200 imediatamente (Meta tem timeout de 5s) ───────────────────
+  // O processamento pesado acontece de forma assíncrona (fire-and-forget).
+  const response = NextResponse.json({ status: "ok" }, { status: 200 });
+
+  // ── Processar payload de forma assíncrona ─────────────────────────────────
+  // Usando void para não bloquear a resposta (Next.js Route Handlers suportam isso)
+  void processWebhookPayload(rawBody);
+
+  return response;
+}
+
+// ─── Processamento Assíncrono ─────────────────────────────────────────────────
+
+async function processWebhookPayload(rawBody: string): Promise<void> {
+  let payload: MetaWebhookPayload;
+
+  try {
+    payload = JSON.parse(rawBody) as MetaWebhookPayload;
+  } catch {
+    console.error("[WhatsApp] ❌ Payload inválido — não é JSON válido.");
+    return;
+  }
+
+  // Verificar se é um payload de WhatsApp Business
+  if (payload.object !== "whatsapp_business_account") {
+    console.warn("[WhatsApp] ⚠️  Objeto inesperado:", payload.object);
+    return;
+  }
+
+  console.log(`[WhatsApp] 📦 Payload recebido | entries=${payload.entry?.length ?? 0}`);
+
+  for (const entry of payload.entry ?? []) {
+    const wabaId = entry.id; // WhatsApp Business Account ID
+
+    for (const change of entry.changes ?? []) {
+      if (change.field !== "messages") continue;
+
+      const value = change.value;
+      const phoneNumberId = value.metadata?.phone_number_id;
+      const messages = value.messages ?? [];
+      const contacts = value.contacts ?? [];
+
+      // Logar payload completo em dev para debug
+      if (process.env.NODE_ENV === "development") {
+        console.log("[WhatsApp] 🔬 Payload completo:", JSON.stringify(value, null, 2));
+      }
+
+      if (messages.length === 0) {
+        // Pode ser um evento de status (delivered, read, etc.) — ignorar silenciosamente
+        const statuses = value.statuses ?? [];
+        if (statuses.length > 0) {
+          console.log(`[WhatsApp] 📊 Status update | waba=${wabaId} | count=${statuses.length}`);
+        }
+        continue;
+      }
+
+      // ── Resolver company_id pelo phone_number_id (multi-tenant) ─────────────
+      const companyId = await resolveCompanyId(phoneNumberId);
+
+      if (!companyId) {
+        console.warn(
+          `[WhatsApp] ⚠️  company_id não resolvida para phone_number_id=${phoneNumberId} | waba=${wabaId}`,
+          "\n  → Configure a tabela 'channels' para mapear phone_number_id → company_id",
+        );
+        // Continua processando — não interrompe outros entries
+        continue;
+      }
+
+      // ── Processar cada mensagem recebida ──────────────────────────────────
+      for (const message of messages) {
+        // Encontrar o contato correspondente
+        const contact = contacts.find((c) => c.wa_id === message.from);
+
+        if (!contact) {
+          console.warn(`[WhatsApp] ⚠️  Contato não encontrado para from=${message.from}`);
+          continue;
+        }
+
+        // Apenas mensagens de texto por enquanto
+        if (message.type !== "text" || !message.text?.body) {
+          console.log(`[WhatsApp] ⏭️  Tipo de mensagem ignorado: ${message.type}`);
+          continue;
+        }
+
+        console.log(
+          `[WhatsApp] 📩 Nova mensagem | from=${message.from} | name="${contact.profile.name}" | text="${message.text.body.slice(0, 80)}"`,
+        );
+
+        await handleIncomingMessage(
+          companyId,
+          message.from,
+          contact.profile.name,
+          message.text.body,
+        );
+      }
+    }
+  }
+}
