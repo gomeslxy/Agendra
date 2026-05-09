@@ -23,6 +23,7 @@ export default async function LeadsPage({
     .select(`
       id, name, email, phone, status, channel, heat_score,
       source, summary, city,
+      conversation_tone, auto_respond,
       created_at, updated_at, company_id,
       messages(content, created_at, role)
     `)

@@ -11,12 +11,15 @@ import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { stagger } from "@/components/motion/variants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
-import { sendNote, takeOverLead } from "./actions";
+import { sendNote, takeOverLead, automatizeLead, setConversationTone } from "./actions";
 import { createBrowserClient } from "@supabase/ssr";
 
 interface LeadWithMessages extends Lead {
   messages: Message[];
 }
+
+const TONE_CYCLE: Array<"cold" | "warm" | "hot"> = ["cold", "warm", "hot"];
+const TONE_LABEL: Record<string, string> = { cold: "Frio", warm: "Morno", hot: "Quente" };
 
 function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -45,18 +48,17 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const [noteText, setNoteText] = useState("");
   const [sendPending, startSend] = useTransition();
   const [takePending, startTake] = useTransition();
+  const [tonePending, startTone] = useTransition();
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Auto-scroll to bottom on new messages ──────────────────────────────────
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [leads, selectedId]);
 
-  // ── Supabase Realtime Subscription ─────────────────────────────────────────
   useEffect(() => {
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -65,36 +67,28 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
     const channel = supabase
       .channel("inbox-realtime")
-      // Listen for new messages
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
           const newMsg = payload.new as Message;
-
-          // Show "typing" indicator when user sends — AI is processing
           if (newMsg.role === "user") {
             setIsTyping(true);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
             typingTimerRef.current = setTimeout(() => setIsTyping(false), 8000);
           } else {
-            // AI replied — clear typing indicator immediately
             setIsTyping(false);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
           }
-
-          // Append message to the correct lead
           setLeads((prev) =>
             prev.map((lead) => {
               if (lead.id !== newMsg.lead_id) return lead;
-              // Avoid duplicates (optimistic updates race condition)
               if (lead.messages.some((m) => m.id === newMsg.id)) return lead;
               return { ...lead, messages: [...lead.messages, newMsg] };
             }),
           );
         },
       )
-      // Listen for lead updates (heat_score, status, summary)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "leads" },
@@ -102,14 +96,11 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
           const updatedLead = payload.new as Lead;
           setLeads((prev) =>
             prev.map((lead) =>
-              lead.id === updatedLead.id
-                ? { ...lead, ...updatedLead }
-                : lead,
+              lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead,
             ),
           );
         },
       )
-      // Listen for new leads arriving
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "leads" },
@@ -162,10 +153,58 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const handleTakeOver = useCallback(() => {
     if (!selected) return;
     setInboxError(null);
+    // optimistic
+    setLeads((prev) =>
+      prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: false } : l)),
+    );
     startTake(async () => {
       try {
         await takeOverLead(selected.id);
       } catch (e) {
+        // revert
+        setLeads((prev) =>
+          prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: true } : l)),
+        );
+        setInboxError((e as Error).message);
+      }
+    });
+  }, [selected]);
+
+  const handleAutomatize = useCallback(() => {
+    if (!selected) return;
+    setInboxError(null);
+    setLeads((prev) =>
+      prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: true } : l)),
+    );
+    startTake(async () => {
+      try {
+        await automatizeLead(selected.id);
+      } catch (e) {
+        setLeads((prev) =>
+          prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: false } : l)),
+        );
+        setInboxError((e as Error).message);
+      }
+    });
+  }, [selected]);
+
+  const handleToneCycle = useCallback(() => {
+    if (!selected) return;
+    const current = selected.conversation_tone ?? "warm";
+    const idx = TONE_CYCLE.indexOf(current);
+    const next = TONE_CYCLE[(idx + 1) % TONE_CYCLE.length];
+    // optimistic
+    setLeads((prev) =>
+      prev.map((l) => (l.id === selected.id ? { ...l, conversation_tone: next } : l)),
+    );
+    startTone(async () => {
+      try {
+        await setConversationTone(selected.id, next);
+      } catch (e) {
+        // revert
+        setLeads((prev) =>
+          prev.map((l) => (l.id === selected.id ? { ...l, conversation_tone: current } : l)),
+        );
         setInboxError((e as Error).message);
       }
     });
@@ -173,6 +212,8 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
   const { hot: hotCount, warm: warmCount, cold: coldCount } = counts;
   const sortedMessages = selected ? selected.messages : [];
+  const isAutoRespond = selected?.auto_respond ?? true;
+  const inputBlocked = isAutoRespond || sendPending;
 
   return (
     <div className="grid h-full min-h-0 lg:grid-cols-[320px_1fr_320px]">
@@ -182,7 +223,6 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold tracking-tight">Caixa de entrada</h2>
             <div className="flex items-center gap-2">
-              {/* Real-time connection indicator */}
               <div
                 className={cn(
                   "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all duration-500",
@@ -299,8 +339,13 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
               <Badge variant={selected.status as "hot" | "warm" | "cold" | "success"} className="ml-auto">
                 {HEAT_LABEL[selected.status]}
               </Badge>
-              <Button variant="secondary" size="sm" disabled={takePending} onClick={handleTakeOver}>
-                {takePending ? "…" : "Assumir"}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={takePending}
+                onClick={isAutoRespond ? handleTakeOver : handleAutomatize}
+              >
+                {takePending ? "…" : isAutoRespond ? "Assumir" : "Automatizar"}
               </Button>
             </div>
 
@@ -311,11 +356,18 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
               animate="show"
               className="flex flex-1 flex-col gap-2.5 overflow-y-auto py-4"
             >
-              <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
+              {isAutoRespond && (
+                <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
+              )}
               {sortedMessages.map((msg) => (
                 <ChatBubble
                   key={msg.id}
-                  variant={msg.role === "user" ? "lead" : msg.role === "note" ? "note" : "ai"}
+                  variant={
+                    msg.role === "user" ? "lead" :
+                    msg.role === "note" ? "note" :
+                    msg.role === "agent" ? "agent" :
+                    "ai"
+                  }
                 >
                   {msg.content}
                 </ChatBubble>
@@ -326,7 +378,6 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                 </div>
               )}
 
-              {/* Typing indicator — shown while AI is processing */}
               <AnimatePresence>
                 {isTyping && selected.id === selectedId && (
                   <motion.div
@@ -361,7 +412,6 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                 )}
               </AnimatePresence>
 
-              {/* Scroll anchor */}
               <div ref={chatBottomRef} />
             </motion.div>
 
@@ -369,22 +419,53 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
               <p className={cn("text-xs transition-opacity duration-200", inboxError ? "opacity-100 text-red-400" : "opacity-0")}>
                 {inboxError || "Fine"}
               </p>
-              <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.06] p-2 pr-2.5 focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.08] focus-within:shadow-glow-blue/10 transition-all duration-300">
-                <Button variant="ghost" size="sm" className="h-9 w-9 rounded-xl p-0">
+              <div className={cn(
+                "flex items-center gap-2.5 rounded-2xl border bg-white/[0.06] p-2 pr-2.5 transition-all duration-300",
+                inputBlocked
+                  ? "border-white/[0.04] opacity-60 cursor-not-allowed"
+                  : "border-white/[0.08] focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.08] focus-within:shadow-glow-blue/10"
+              )}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-9 rounded-xl p-0"
+                  disabled={inputBlocked}
+                  title={isAutoRespond ? "Assuma a conversa para enviar arquivos" : undefined}
+                >
                   <Paperclip size={18} style={{ color: "var(--color-fg-3)" }} />
                 </Button>
                 <input
-                  placeholder="Escreva uma nota interna ou assuma a conversa…"
-                  className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-fg-3/60"
+                  placeholder={
+                    isAutoRespond
+                      ? "Clique em 'Assumir' para escrever uma mensagem…"
+                      : "Escreva uma mensagem para o lead…"
+                  }
+                  className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-fg-3/60 disabled:cursor-not-allowed"
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  disabled={sendPending}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!inputBlocked) handleSend();
+                    }
+                  }}
+                  disabled={inputBlocked}
                 />
-                <Button variant="blue" size="sm" className="h-9 gap-2 rounded-xl px-4 font-bold" disabled={sendPending || !noteText.trim()} onClick={handleSend}>
+                <Button
+                  variant="blue"
+                  size="sm"
+                  className="h-9 gap-2 rounded-xl px-4 font-bold"
+                  disabled={inputBlocked || !noteText.trim()}
+                  onClick={handleSend}
+                >
                   {sendPending ? "…" : <><Send size={14} /> Enviar</>}
                 </Button>
               </div>
+              {isAutoRespond && (
+                <p className="mt-1.5 text-center text-[11px]" style={{ color: "var(--color-fg-3)" }}>
+                  Chat automatizado · clique em <strong>Assumir</strong> para liberar o chat
+                </p>
+              )}
             </div>
           </>
         )}
@@ -405,10 +486,34 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                <KV k="Heat">
+                <KV k="Calor">
                   <Badge variant={selected.status as "hot" | "warm" | "cold" | "success"} className="px-2 py-0.5 font-bold uppercase text-[9px]">
                     {HEAT_LABEL[selected.status]} · {selected.heat_score}%
                   </Badge>
+                </KV>
+                <KV k="Tom da IA">
+                  <button
+                    onClick={handleToneCycle}
+                    disabled={tonePending}
+                    className={cn(
+                      "group flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50",
+                      selected.conversation_tone === "hot"
+                        ? "border-orange-500/40 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
+                        : selected.conversation_tone === "warm"
+                        ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+                        : "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
+                    )}
+                    title="Clique para alterar o tom da conversa"
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        selected.conversation_tone === "hot" ? "bg-orange-400" :
+                        selected.conversation_tone === "warm" ? "bg-yellow-400" : "bg-blue-400"
+                      )}
+                    />
+                    {TONE_LABEL[selected.conversation_tone ?? "warm"]}
+                  </button>
                 </KV>
                 {selected.summary && <KV k="Resumo"><p className="leading-relaxed opacity-80">{selected.summary}</p></KV>}
                 <KV k="Canal">{selected.channel}</KV>
@@ -427,7 +532,6 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
               </CardContent>
             </Card>
 
-            {/* Real-time status card */}
             <div className={cn(
               "rounded-2xl border p-4 relative overflow-hidden transition-all duration-500",
               isConnected

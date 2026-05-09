@@ -13,7 +13,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createGoogleCalendarEvent, getFreeBusySlots } from '@/lib/calendar/google';
-import type { Tool } from '@google/generative-ai';
+import { type Tool, SchemaType } from '@google/generative-ai';
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
@@ -47,10 +47,10 @@ export const toolDeclarations: Tool = {
         'Use esta ferramenta quando o lead demonstrar interesse em agendar uma reunião ' +
         'ou pedir para ver os horários disponíveis.',
       parameters: {
-        type: 'OBJECT' as const,
+        type: SchemaType.OBJECT,
         properties: {
           days_ahead: {
-            type: 'NUMBER' as const,
+            type: SchemaType.NUMBER,
             description: 'Quantos dias à frente verificar (padrão: 7, máximo: 14)',
           },
         },
@@ -64,18 +64,18 @@ export const toolDeclarations: Tool = {
         'Só use esta ferramenta após o lead confirmar explicitamente o horário desejado. ' +
         'O horário deve ser um dos retornados por checkAvailability.',
       parameters: {
-        type: 'OBJECT' as const,
+        type: SchemaType.OBJECT,
         properties: {
           start_time: {
-            type: 'STRING' as const,
+            type: SchemaType.STRING,
             description: 'Data e hora de início em ISO 8601 (ex: "2026-05-15T10:00:00-03:00")',
           },
           end_time: {
-            type: 'STRING' as const,
+            type: SchemaType.STRING,
             description: 'Data e hora de fim em ISO 8601 (ex: "2026-05-15T11:00:00-03:00")',
           },
           title: {
-            type: 'STRING' as const,
+            type: SchemaType.STRING,
             description: 'Título do evento (ex: "Reunião com João — Agendra Demo")',
           },
         },
@@ -88,18 +88,18 @@ export const toolDeclarations: Tool = {
         'Atualiza informações do lead no banco de dados quando o lead as fornecer durante a conversa. ' +
         'Use para salvar email, cidade ou a origem do interesse do lead.',
       parameters: {
-        type: 'OBJECT' as const,
+        type: SchemaType.OBJECT,
         properties: {
           email: {
-            type: 'STRING' as const,
+            type: SchemaType.STRING,
             description: 'Email do lead, se fornecido',
           },
           city: {
-            type: 'STRING' as const,
+            type: SchemaType.STRING,
             description: 'Cidade do lead, se fornecida',
           },
           source: {
-            type: 'STRING' as const,
+            type: SchemaType.STRING,
             description: 'Como o lead conheceu a empresa (ex: "Instagram", "indicação")',
           },
         },

@@ -99,7 +99,7 @@ export async function POST(req: Request) {
 
     case "invoice.payment_failed": {
       const inv = event.data.object as Stripe.Invoice;
-      const companyId = (inv.subscription as Stripe.Subscription)?.metadata?.companyId;
+      const companyId = (inv as any).subscription?.metadata?.companyId;
       if (companyId) {
         await updateCompanyStatus(companyId, 'past_due', 'pro');
       }

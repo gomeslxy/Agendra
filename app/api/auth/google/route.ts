@@ -13,30 +13,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildGoogleOAuthUrl, exchangeCodeForTokens } from '@/lib/calendar/google';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function getSessionCompanyId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (updates) => {
-          for (const { name, value, options } of updates) {
-            cookieStore.set(name, value, options);
-          }
-        },
-      },
-    },
-  );
+  const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;

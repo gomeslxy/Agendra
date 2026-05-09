@@ -8,7 +8,7 @@
  *   - Mantém o contrato original de handleIncomingMessage()
  */
 
-import { GoogleGenerativeAI, type Content } from '@google/generative-ai';
+import { GoogleGenerativeAI, type Content, FunctionCallingMode } from '@google/generative-ai';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import type { Lead, Message } from '@/lib/types/database';
@@ -97,7 +97,7 @@ export async function processLeadMessage(
     model: 'gemini-2.0-flash',
     systemInstruction: buildSystemPrompt(persona, lead),
     tools: [toolDeclarations],
-    toolConfig: { functionCallingConfig: { mode: 'AUTO' as const } },
+    toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
   });
 
   const ctx: ToolContext = { companyId, leadId: lead.id };
