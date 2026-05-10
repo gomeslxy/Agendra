@@ -131,6 +131,13 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     [leads, selectedId],
   );
 
+  // Restore focus after sending message or taking over
+  useEffect(() => {
+    if (!sendPending && !takePending && selected) {
+      inputRef.current?.focus();
+    }
+  }, [sendPending, takePending, selected?.id]);
+
   const counts = useMemo(() => {
     let hot = 0, warm = 0, cold = 0;
     for (const l of leads) {
@@ -172,7 +179,6 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     const content = noteText.trim();
     setInboxError(null);
     setNoteText(""); // Clear immediately for better UX
-    setTimeout(() => inputRef.current?.focus(), 0);
 
     // Optimistic update
     const tempId = crypto.randomUUID();
