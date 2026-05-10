@@ -35,8 +35,12 @@ export async function createClient() {
   );
 }
 
-/** Convenience: return the authenticated user or null */
-export async function getUser() {
+/**
+ * Per-request memoized auth check.
+ * React cache() deduplicates calls within a single server render pass —
+ * layout + page both call this but Supabase auth is only hit once.
+ */
+export const getUser = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -44,7 +48,7 @@ export async function getUser() {
   } = await supabase.auth.getUser();
   if (error || !user) return null;
   return user;
-}
+});
 
 /** Convenience: return the user's profile row from public.users */
 export async function getUserProfile() {

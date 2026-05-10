@@ -77,28 +77,37 @@ export function SettingsShell({ company, memberships }: SettingsShellProps) {
   const router = useRouter();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Derive tab directly from URL — single source of truth.
+  // Tab state is local — no server round trip on tab switch.
+  // Initialized from URL so deep-links and OAuth redirects work.
   const rawTab = searchParams.get("tab") as TabId | null;
-  const tab: TabId = rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "persona";
+  const [tab, setTab] = useState<TabId>(() =>
+    rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "persona"
+  );
 
-  function setTab(newTab: TabId) {
-    router.replace(`/settings?tab=${newTab}`, { scroll: false });
+  function changeTab(newTab: TabId) {
+    setTab(newTab);
+    // Update URL without triggering RSC re-fetch (no router.replace here).
+    window.history.replaceState({}, "", `/settings?tab=${newTab}`);
   }
 
-  // OAuth callback toast (gcal=success|error|denied in searchParams after redirect)
+  // OAuth callback toast (gcal=success|error|denied in searchParams after redirect).
+  // router.replace here is intentional: cleans the gcal param from the URL.
   useEffect(() => {
     const gcal = searchParams.get("gcal");
     if (!gcal) return;
     if (gcal === "success") {
       setToast({ msg: "Google Calendar conectado com sucesso! 🎉", type: "success" });
+      setTab("channels");
       trackEvent("gcal_connected");
       router.replace("/settings?tab=channels", { scroll: false });
     } else if (gcal === "error") {
       setToast({ msg: "Erro ao conectar Google Calendar. Tente novamente.", type: "error" });
+      setTab("channels");
       trackEvent("gcal_failed", { reason: "error" });
       router.replace("/settings?tab=channels", { scroll: false });
     } else if (gcal === "denied") {
       setToast({ msg: "Conexão com Google Calendar cancelada.", type: "error" });
+      setTab("channels");
       trackEvent("gcal_failed", { reason: "denied" });
       router.replace("/settings?tab=channels", { scroll: false });
     }
@@ -144,7 +153,7 @@ export function SettingsShell({ company, memberships }: SettingsShellProps) {
           return (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => changeTab(t.id)}
               className={cn(
                 "group relative flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-bold tracking-tight transition-all duration-300 outline-none cursor-pointer",
                 active 

@@ -10,7 +10,12 @@ type Variant = "lead" | "ai" | "agent" | "note";
 interface ChatBubbleProps {
   variant: Variant;
   children: ReactNode;
+  timestamp?: string;
   className?: string;
+  isFirst?: boolean;
+  isLast?: boolean;
+  hideLabel?: boolean;
+  hideTime?: boolean;
 }
 
 const ANIM_X: Record<Variant, number> = {
@@ -27,23 +32,37 @@ const META: Record<Variant, { label: string; align: "start" | "end" | "center" }
   note:  { label: "",           align: "center" },
 };
 
-export function ChatBubble({ variant, children, className }: ChatBubbleProps) {
+function formatTime(dateStr?: string) {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+export function ChatBubble({ 
+  variant, 
+  children, 
+  timestamp, 
+  className,
+  isFirst = true,
+  isLast = true,
+  hideLabel = false,
+  hideTime = false,
+}: ChatBubbleProps) {
   const x = ANIM_X[variant];
   const { label, align } = META[variant];
 
   if (variant === "note") {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.18 }}
-        className="flex items-center gap-3 py-1"
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3 py-4 px-6"
       >
-        <div className="h-px flex-1 bg-white/[0.06]" />
-        <span className="shrink-0 text-[11px] font-medium italic text-white/30">
+        <div className="h-px flex-1 bg-white/[0.03]" />
+        <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.2em] text-white/20 bg-white/[0.03] px-3 py-1 rounded-full border border-white/[0.05]">
           {children}
         </span>
-        <div className="h-px flex-1 bg-white/[0.06]" />
+        <div className="h-px flex-1 bg-white/[0.03]" />
       </motion.div>
     );
   }
@@ -54,49 +73,72 @@ export function ChatBubble({ variant, children, className }: ChatBubbleProps) {
       animate={{ opacity: 1, x: 0, scale: 1 }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        "flex max-w-[72%] flex-col gap-1",
+        "flex max-w-[85%] sm:max-w-[72%] flex-col gap-1 transition-all duration-300",
         align === "end" ? "self-end items-end" : "self-start items-start",
+        !isFirst && "-mt-2"
       )}
     >
       {/* sender label */}
-      <div className="flex items-center gap-1.5 px-1">
-        {variant === "ai" && (
-          <Bot size={10} className="text-blue-400 opacity-70" />
-        )}
-        {variant === "agent" && (
-          <User size={10} className="text-emerald-400 opacity-70" />
-        )}
-        <span className="text-[10px] font-medium uppercase tracking-widest opacity-40">
-          {label}
-        </span>
-      </div>
+      {!hideLabel && (
+        <div className="flex items-center gap-1.5 px-1.5 mb-0.5">
+          {variant === "ai" && (
+            <Bot size={10} className="text-blue-400 opacity-70" />
+          )}
+          {variant === "agent" && (
+            <User size={10} className="text-emerald-400 opacity-70" />
+          )}
+          <span className="text-[9px] font-bold uppercase tracking-[0.15em] opacity-30">
+            {label}
+          </span>
+        </div>
+      )}
 
       {/* bubble */}
       <div
         className={cn(
-          "rounded-[18px] px-4 py-2.5 text-sm leading-relaxed",
+          "relative group overflow-hidden px-4 py-2.5 text-[13px] leading-relaxed transition-all duration-300",
+          "rounded-[1.25rem]", // Default rounded
+          
           variant === "lead" && [
-            "rounded-tl-sm",
-            "bg-white/[0.07] text-white/90",
-            "border border-white/[0.09]",
-            "shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]",
+            "bg-white/[0.05] text-white/90",
+            "border border-white/[0.08]",
+            "shadow-lg shadow-black/10",
+            "rounded-tl-sm", // Always sharp top-left to connect or be the tail
+            !isLast && "rounded-bl-sm", // Sharp bottom-left if not last
+            isLast && "rounded-bl-[1.25rem]", // Rounded bottom-left if last
           ],
+          
+          (variant === "ai" || variant === "agent") && [
+            "text-white border border-white/10",
+            "rounded-tr-sm", // Always sharp top-right to connect or be the tail
+            !isLast && "rounded-br-sm", // Sharp bottom-right if not last
+            isLast && "rounded-br-[1.25rem]", // Rounded bottom-right if last
+          ],
+
           variant === "ai" && [
-            "rounded-tr-sm",
-            "bg-gradient-to-br from-[#2563EB] to-[#1A3FA6] text-white",
-            "border border-blue-400/20",
-            "shadow-[0_4px_20px_rgba(37,99,235,0.35),inset_0_1px_0_rgba(255,255,255,0.15)]",
+            "bg-gradient-to-br from-brand-blue-600 to-brand-blue-800",
+            "shadow-xl shadow-brand-blue-900/20",
           ],
+          
           variant === "agent" && [
-            "rounded-tr-sm",
-            "bg-gradient-to-br from-[#059669] to-[#065F46] text-white",
-            "border border-emerald-400/20",
-            "shadow-[0_4px_20px_rgba(5,150,105,0.30),inset_0_1px_0_rgba(255,255,255,0.12)]",
+            "bg-gradient-to-br from-emerald-600 to-emerald-800",
+            "shadow-xl shadow-emerald-900/20",
           ],
+
           className,
         )}
       >
-        {children}
+        <div className="flex flex-col gap-1">
+          <div>{children}</div>
+          {timestamp && !hideTime && (
+            <div className={cn(
+              "self-end text-[9px] font-medium opacity-40 mt-1",
+              (variant === "ai" || variant === "agent") && "opacity-70"
+            )}>
+              {formatTime(timestamp)}
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );

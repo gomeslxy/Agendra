@@ -349,7 +349,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
         "flex flex-col border-r border-white/[0.08] transition-all duration-300 lg:w-[320px] lg:flex-shrink-0",
         showChatOnMobile ? "hidden lg:flex" : "flex w-full"
       )}>
-        <div className="px-5 pb-3 pt-5 shrink-0 bg-background/50 backdrop-blur-md">
+        <div className="px-5 pb-3 pt-5 shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-black tracking-tight bg-gradient-to-r from-white to-white/50 bg-clip-text text-transparent">Inbox</h2>
             <div className="flex items-center gap-2">
@@ -453,7 +453,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
       {/* COL 2 — chat */}
       <section className={cn(
-        "flex flex-col transition-all duration-300 bg-[#050505]",
+        "flex flex-col transition-all duration-300",
         !showChatOnMobile ? "hidden lg:flex lg:flex-1" : "flex w-full lg:flex-1"
       )}>
         {!selected ? (
@@ -514,7 +514,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-[#050505] to-[#0A0A0A]">
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
               <motion.div
                 key={selected.id}
                 initial={{ opacity: 0 }}
