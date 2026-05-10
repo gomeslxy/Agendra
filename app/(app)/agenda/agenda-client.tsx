@@ -228,7 +228,36 @@ export function AgendaClient({
   };
 
   return (
-    <div className="mobile-scroll-area h-full overflow-y-auto px-4 py-4 sm:px-8 sm:py-7">
+    <div className="relative mobile-scroll-area h-full overflow-y-auto px-4 py-4 sm:px-8 sm:py-7">
+      {/* Sync loading overlay */}
+      <AnimatePresence>
+        {isSyncing && (
+          <motion.div
+            key="sync-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="flex flex-col items-center gap-4 rounded-2xl border border-white/[0.1] bg-[rgba(11,18,34,0.97)] px-10 py-8 shadow-2xl"
+            >
+              <RefreshCw size={28} className="animate-spin text-indigo-400" />
+              <div className="text-center">
+                <p className="font-semibold">Sincronizando</p>
+                <p className="mt-1 text-sm" style={{ color: "var(--color-fg-3)" }}>
+                  Buscando eventos do Google Calendar...
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-end">
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.02em] sm:text-[28px]">Agenda</h1>
@@ -327,11 +356,11 @@ export function AgendaClient({
               return (
                 <motion.button
                   key={i}
-                  whileHover={c.muted ? undefined : { scale: 1.03 }}
+                  whileHover={c.muted ? undefined : { scale: 1.02 }}
                   transition={{ type: "spring", stiffness: 400, damping: 28 }}
                   onClick={() => !c.muted && setSelected(c.d)}
                   className={cn(
-                    "flex aspect-square min-h-[40px] cursor-pointer flex-col gap-1 rounded-xl border p-1.5 text-left sm:p-2",
+                    "flex min-h-[60px] cursor-pointer flex-col gap-1 rounded-xl border p-1.5 text-left sm:min-h-[80px] sm:p-2",
                     "border-white/[0.08] bg-white/[0.02] transition-colors",
                     !c.muted && "hover:bg-white/[0.05]",
                     c.muted && "opacity-30",
@@ -340,21 +369,36 @@ export function AgendaClient({
                   )}
                 >
                   <span className="text-[11px] font-semibold sm:text-[13px]">{c.d}</span>
-                  <span className="mt-auto flex gap-0.5">
-                    {evs.slice(0, 4).map((e, j) => {
-                      const dotColor =
+                  {/* Event chips */}
+                  <div className="flex flex-col gap-0.5 overflow-hidden">
+                    {evs.slice(0, isMobile ? 1 : 2).map((e, j) => {
+                      const color =
                         e.source === "gcal"
                           ? GCAL_INDIGO
                           : HEAT_COLOR[e.leads?.status ?? "cold"];
                       return (
                         <span
                           key={j}
-                          className="h-1.5 w-1.5 rounded-full"
-                          style={{ background: dotColor }}
-                        />
+                          className="truncate rounded px-1 py-0.5 text-[8px] font-semibold leading-tight sm:text-[9px]"
+                          style={{
+                            background: color + "28",
+                            color,
+                            border: `1px solid ${color}33`,
+                          }}
+                        >
+                          {e.title}
+                        </span>
                       );
                     })}
-                  </span>
+                    {evs.length > (isMobile ? 1 : 2) && (
+                      <span
+                        className="text-[8px] font-medium sm:text-[9px]"
+                        style={{ color: "var(--color-fg-3)" }}
+                      >
+                        +{evs.length - (isMobile ? 1 : 2)} mais
+                      </span>
+                    )}
+                  </div>
                 </motion.button>
               );
             })}

@@ -164,7 +164,10 @@ export async function listGCalEvents(
   // Filter out events we should not import:
   // - All-day events (start.date without dateTime) = holidays, birthdays, etc.
   // - Transparent events (shows as "free") = don't block appointment slots
+  // NOTE: cancelled events must pass through — they have no start.dateTime but
+  // the sync engine needs them to delete the corresponding row.
   const filtered = (json.items ?? []).filter((e) => {
+    if (e.status === 'cancelled') return true;          // must reach sync engine for deletion
     if (!e.start?.dateTime) return false;               // all-day event → skip
     if (e.transparency === 'transparent') return false; // free → skip
     return true;
