@@ -183,53 +183,75 @@ export async function handleCheckAvailability(
   const ptMonths = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
   const availableSlots: AvailableSlot[] = [];
-  const cursor = new Date(now);
+  let cursor = new Date(now);
   cursor.setMinutes(0, 0, 0);
   cursor.setHours(cursor.getHours() + 1); // começa na próxima hora cheia
 
+  // Returns UTC offset in minutes for a given timezone at a given UTC moment.
+  // e.g., America/Sao_Paulo (UTC-3) returns -180
+  function getOffsetMinutes(utcDate: Date, tz: string): number {
+    const utcStr = utcDate.toLocaleString('en-CA', {
+      timeZone: 'UTC',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    const localStr = utcDate.toLocaleString('en-CA', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    return (new Date(localStr.replace(' ', 'T')).getTime() -
+            new Date(utcStr.replace(' ', 'T')).getTime()) / 60000;
+  }
+
   while (cursor < rangeEnd && availableSlots.length < 10) {
-    const dayKey = dayNames[cursor.getDay()];
+    // Convert cursor (UTC) to local time using timezone offset
+    const offsetMs = getOffsetMinutes(cursor, timezone) * 60000;
+    const localCursor = new Date(cursor.getTime() + offsetMs);
+    const localDayOfWeek = localCursor.getUTCDay();
+    const localHour = localCursor.getUTCHours();
+    const localMinute = localCursor.getUTCMinutes();
+
+    const dayKey = dayNames[localDayOfWeek];
     const hours = workingHours[dayKey];
 
     if (hours) {
       const [startHH, startMM] = hours[0].split(':').map(Number);
       const [endHH, endMM] = hours[1].split(':').map(Number);
+      const localMinutes = localHour * 60 + localMinute;
+      const workStart = startHH * 60 + startMM;
+      const workEnd = endHH * 60 + endMM;
+      const slotEndLocalMinutes = localMinutes + slotDuration;
 
-      const dayStart = new Date(cursor);
-      dayStart.setHours(startHH, startMM, 0, 0);
-      const dayEnd = new Date(cursor);
-      dayEnd.setHours(endHH, endMM, 0, 0);
+      if (localMinutes >= workStart && slotEndLocalMinutes <= workEnd) {
+        const slotEnd = new Date(cursor.getTime() + slotDuration * 60000);
 
-      // Garantir que o slot não seja no passado
-      const slotStart = cursor < dayStart ? dayStart : new Date(cursor);
-      slotStart.setMinutes(0, 0, 0);
-
-      let s = new Date(slotStart);
-      while (s.getTime() + slotDuration * 60000 <= dayEnd.getTime()) {
-        const slotEnd = new Date(s.getTime() + slotDuration * 60000);
-
-        // Verificar colisão com busy intervals
         const isBusy = busyIntervals.some(
-          (busy) => new Date(busy.start) < slotEnd && new Date(busy.end) > s,
+          (busy) => new Date(busy.start) < slotEnd && new Date(busy.end) > cursor,
         );
 
         if (!isBusy) {
           const pad = (n: number) => String(n).padStart(2, '0');
-          const label = `${ptDays[dayKey]}, ${pad(s.getDate())} ${ptMonths[s.getMonth()]} · ${pad(s.getHours())}:${pad(s.getMinutes())}–${pad(slotEnd.getHours())}:${pad(slotEnd.getMinutes())}`;
-          availableSlots.push({
-            start: s.toISOString(),
-            end: slotEnd.toISOString(),
-            label,
-          });
+          const label = `${ptDays[dayKey]}, ${pad(localCursor.getUTCDate())} ${ptMonths[localCursor.getUTCMonth()]} · ${pad(localHour)}:${pad(localMinute)}–${pad(Math.floor(slotEndLocalMinutes / 60))}:${pad(slotEndLocalMinutes % 60)}`;
+          availableSlots.push({ start: cursor.toISOString(), end: slotEnd.toISOString(), label });
         }
-
-        s = slotEnd;
       }
-    }
 
-    // Avançar para o próximo dia
-    cursor.setDate(cursor.getDate() + 1);
-    cursor.setHours(0, 0, 0, 0);
+      // Advance by slot duration
+      cursor = new Date(cursor.getTime() + slotDuration * 60000);
+
+      // If past working hours, jump to next local midnight
+      if (slotEndLocalMinutes >= workEnd) {
+        const nextLocalMidnight = new Date(localCursor.getTime() + 24 * 60 * 60 * 1000);
+        nextLocalMidnight.setUTCHours(0, 0, 0, 0);
+        cursor = new Date(nextLocalMidnight.getTime() - offsetMs);
+      }
+    } else {
+      // Non-working day — jump to next local day
+      const nextLocalMidnight = new Date(localCursor.getTime() + 24 * 60 * 60 * 1000);
+      nextLocalMidnight.setUTCHours(0, 0, 0, 0);
+      cursor = new Date(nextLocalMidnight.getTime() - offsetMs);
+    }
   }
 
   if (availableSlots.length === 0) {
