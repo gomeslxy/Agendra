@@ -56,6 +56,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -140,11 +141,38 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     return { hot, warm, cold };
   }, [leads]);
 
+  const groupedMessages = useMemo(() => {
+    const msgs = selected?.messages ?? [];
+    return msgs.map((msg, i) => {
+      const prev = msgs[i - 1];
+      const next = msgs[i + 1];
+      const isNote = msg.role === "note";
+      const prevIsSame = prev && prev.role === msg.role && !isNote;
+      const nextIsSame = next && next.role === msg.role && !isNote;
+
+      const timeGapPrev = prev ? (new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime()) : 0;
+      const timeGapNext = next ? (new Date(next.created_at).getTime() - new Date(msg.created_at).getTime()) : 0;
+      const GAP_LIMIT = 5 * 60 * 1000;
+
+      const isFirst = !prevIsSame || timeGapPrev > GAP_LIMIT;
+      const isLast = !nextIsSame || timeGapNext > GAP_LIMIT;
+
+      return {
+        ...msg,
+        isFirst,
+        isLast,
+        hideLabel: !isFirst,
+        hideTime: !isLast,
+      };
+    });
+  }, [selected?.messages]);
+
   const handleSend = useCallback(() => {
     if (!selected || !noteText.trim()) return;
     const content = noteText.trim();
     setInboxError(null);
     setNoteText(""); // Clear immediately for better UX
+    setTimeout(() => inputRef.current?.focus(), 0);
 
     // Optimistic update
     const tempId = crypto.randomUUID();
@@ -528,41 +556,24 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
                 {/* Group messages by date could be added here */}
 
-                {sortedMessages.map((msg, i) => {
-                  const prev = sortedMessages[i - 1];
-                  const next = sortedMessages[i + 1];
-                  
-                  const isNote = msg.role === "note";
-                  const prevIsSame = prev && prev.role === msg.role && !isNote;
-                  const nextIsSame = next && next.role === msg.role && !isNote;
-
-                  // Time gap check (5 mins)
-                  const timeGapPrev = prev ? (new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime()) : 0;
-                  const timeGapNext = next ? (new Date(next.created_at).getTime() - new Date(msg.created_at).getTime()) : 0;
-                  const GAP_LIMIT = 5 * 60 * 1000;
-
-                  const isFirst = !prevIsSame || timeGapPrev > GAP_LIMIT;
-                  const isLast = !nextIsSame || timeGapNext > GAP_LIMIT;
-
-                  return (
-                    <ChatBubble
-                      key={msg.id}
-                      timestamp={msg.created_at}
-                      variant={
-                        msg.role === "user" ? "lead" :
-                        msg.role === "note" ? "note" :
-                        msg.role === "agent" ? "agent" :
-                        "ai"
-                      }
-                      isFirst={isFirst}
-                      isLast={isLast}
-                      hideLabel={!isFirst}
-                      hideTime={!isLast}
-                    >
-                      {msg.content}
-                    </ChatBubble>
-                  );
-                })}
+                {groupedMessages.map((msg) => (
+                  <ChatBubble
+                    key={msg.id}
+                    timestamp={msg.created_at}
+                    variant={
+                      msg.role === "user" ? "lead" :
+                      msg.role === "note" ? "note" :
+                      msg.role === "agent" ? "agent" :
+                      "ai"
+                    }
+                    isFirst={msg.isFirst}
+                    isLast={msg.isLast}
+                    hideLabel={msg.hideLabel}
+                    hideTime={msg.hideTime}
+                  >
+                    {msg.content}
+                  </ChatBubble>
+                ))}
 
                 {sortedMessages.length === 0 && (
                   <div className="my-12 text-center flex flex-col items-center gap-2">
@@ -627,22 +638,23 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                 )}
 
                 <div className={cn(
-                  "flex items-end gap-2 transition-all duration-300",
+                  "flex items-center gap-2 sm:gap-3 transition-all duration-300",
                   isAutoRespond && "blur-[2px] scale-[0.98] opacity-50"
                 )}>
-                  <div className="flex-1 relative flex items-end gap-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl px-3 py-2 transition-all focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.06] focus-within:shadow-glow-blue/5">
+                  <div className="flex-1 relative flex items-end gap-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl px-3 py-1.5 transition-all focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.06] focus-within:shadow-glow-blue/5">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 w-9 rounded-xl p-0 hover:bg-white/5 shrink-0"
+                      className="h-9 w-9 rounded-xl p-0 hover:bg-white/5 shrink-0 mb-0.5"
                       disabled={inputBlocked}
                     >
                       <Paperclip size={18} className="text-white/30" />
                     </Button>
                     <textarea
+                      ref={inputRef}
                       rows={1}
                       placeholder="Escreva uma mensagem..."
-                      className="flex-1 bg-transparent py-2 text-[14px] outline-none placeholder:text-white/20 disabled:cursor-not-allowed resize-none max-h-32 custom-scrollbar"
+                      className="flex-1 bg-transparent py-2.5 text-[14px] outline-none placeholder:text-white/20 disabled:cursor-not-allowed resize-none max-h-32 custom-scrollbar"
                       value={noteText}
                       onChange={(e) => {
                         setNoteText(e.target.value);
@@ -658,18 +670,48 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                       disabled={inputBlocked}
                     />
                   </div>
-                  <Button
-                    variant="blue"
-                    size="sm"
-                    className={cn(
-                      "h-11 w-11 rounded-full shrink-0 transition-all",
-                      noteText.trim() ? "scale-100 opacity-100 shadow-glow-blue/40" : "scale-90 opacity-50"
-                    )}
-                    disabled={inputBlocked || !noteText.trim()}
-                    onClick={handleSend}
-                  >
-                    {sendPending ? <Zap size={18} className="animate-spin" /> : <Send size={18} />}
-                  </Button>
+                  
+                  <div className="relative group/send shrink-0 flex items-center justify-center h-12 w-12">
+                    <div className={cn(
+                      "absolute inset-0 rounded-full blur-md transition-all duration-500 opacity-0 group-hover/send:opacity-40 bg-brand-blue-500",
+                      noteText.trim() && !sendPending && "group-hover/send:opacity-60"
+                    )} />
+                    <Button
+                      variant="blue"
+                      size="sm"
+                      className={cn(
+                        "relative h-11 w-11 rounded-full shrink-0 transition-all duration-500 overflow-hidden shadow-2xl z-10",
+                        noteText.trim() ? "scale-100 opacity-100 shadow-glow-blue/40" : "scale-90 opacity-40 grayscale"
+                      )}
+                      disabled={inputBlocked || !noteText.trim()}
+                      onClick={handleSend}
+                    >
+                      <AnimatePresence mode="wait">
+                        {sendPending ? (
+                          <motion.div
+                            key="pending"
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.5, opacity: 0 }}
+                          >
+                            <Zap size={18} className="animate-spin" />
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key="idle"
+                            initial={{ x: -10, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            whileHover={{ x: [0, 5, 0], transition: { repeat: Infinity, duration: 1 } }}
+                          >
+                            <Send size={18} className={cn(
+                              "transition-transform duration-300",
+                              noteText.trim() && "group-hover/send:translate-x-0.5 group-hover/send:-translate-y-0.5 group-hover/send:scale-110"
+                            )} />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </Button>
+                  </div>
                 </div>
               </div>
 

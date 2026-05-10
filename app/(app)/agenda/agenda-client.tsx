@@ -75,11 +75,9 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function toInputDate(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+function toDatetimeLocal(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function formatRelative(iso: string) {
@@ -125,9 +123,30 @@ export function AgendaClient({
   const [viewMonth, setViewMonth] = useState(TODAY.getMonth());
   const [selected, setSelected] = useState(TODAY.getDate());
   const [showModal, setShowModal] = useState(false);
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [isPending, startTransition] = useTransition();
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset form times whenever modal opens, based on selected day
+  useEffect(() => {
+    if (!showModal) return;
+    const base = new Date(viewYear, viewMonth, selected, 9, 0);
+    setStartTime(toDatetimeLocal(base));
+    setEndTime(toDatetimeLocal(new Date(base.getTime() + 60 * 60 * 1000)));
+  }, [showModal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleStartChange = (val: string) => {
+    setStartTime(val);
+    if (!val) return;
+    const start = new Date(val);
+    if (isNaN(start.getTime())) return;
+    const end = new Date(endTime);
+    if (isNaN(end.getTime()) || end <= start) {
+      setEndTime(toDatetimeLocal(new Date(start.getTime() + 60 * 60 * 1000)));
+    }
+  };
 
   const eventsByDay = useMemo(() => {
     const map: Record<number, AgendaEvent[]> = {};
@@ -207,8 +226,6 @@ export function AgendaClient({
       setIsSyncing(false);
     }
   };
-
-  const defaultDate = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(selected).padStart(2, "0")}`;
 
   return (
     <div className="mobile-scroll-area h-full overflow-y-auto px-4 py-4 sm:px-8 sm:py-7">
@@ -508,7 +525,8 @@ export function AgendaClient({
                         name="start_time"
                         type="datetime-local"
                         required
-                        defaultValue={`${defaultDate}T09:00`}
+                        value={startTime}
+                        onChange={(e) => handleStartChange(e.target.value)}
                         className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
                       />
                     </div>
@@ -523,7 +541,8 @@ export function AgendaClient({
                         name="end_time"
                         type="datetime-local"
                         required
-                        defaultValue={`${defaultDate}T10:00`}
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
                         className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
                       />
                     </div>
