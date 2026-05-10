@@ -1,8 +1,19 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, X, Trash2, Loader2 } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  X,
+  Trash2,
+  Loader2,
+  RefreshCw,
+  Cloud,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -16,6 +27,8 @@ const MONTHS = [
 const DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 type LeadStatus = "hot" | "warm" | "cold" | "success";
+type EventSource = "agendra" | "gcal";
+type GCalSyncStatus = "synced" | "pending" | "error" | null;
 
 interface EventLead {
   name: string;
@@ -30,6 +43,9 @@ interface AgendaEvent {
   end_time: string;
   lead_id: string | null;
   leads: EventLead | null;
+  source: EventSource;
+  gcal_sync_status: GCalSyncStatus;
+  gcal_event_id: string | null;
 }
 
 interface LeadOption {
@@ -53,6 +69,8 @@ const HEAT_LABEL: Record<LeadStatus, string> = {
   success: "Convertido",
 };
 
+const GCAL_INDIGO = "#6366F1";
+
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
@@ -64,27 +82,51 @@ function toInputDate(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-function toInputDatetime(iso: string) {
-  const d = new Date(iso);
-  const date = toInputDate(d);
-  const time = d.toTimeString().slice(0, 5);
-  return `${date}T${time}`;
+function formatRelative(iso: string) {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return "agora";
+  if (mins < 60) return `há ${mins}min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `há ${hrs}h`;
+  return `há ${Math.floor(hrs / 24)}d`;
+}
+
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < breakpoint);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [breakpoint]);
+  return isMobile;
 }
 
 export function AgendaClient({
   events,
   leads,
+  companyId: _companyId,
+  gcalConnected = false,
+  gcalEmail,
+  lastSyncedAt,
 }: {
   events: AgendaEvent[];
   leads: LeadOption[];
   companyId: string;
+  gcalConnected?: boolean;
+  gcalEmail?: string | null;
+  lastSyncedAt?: string | null;
 }) {
+  const router = useRouter();
+  const isMobile = useIsMobile();
+
   const TODAY = new Date();
   const [viewYear, setViewYear] = useState(TODAY.getFullYear());
   const [viewMonth, setViewMonth] = useState(TODAY.getMonth());
   const [selected, setSelected] = useState(TODAY.getDate());
   const [showModal, setShowModal] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const eventsByDay = useMemo(() => {
@@ -152,18 +194,56 @@ export function AgendaClient({
     });
   };
 
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/sync/gcal");
+      if (!res.ok) throw new Error("Sync failed");
+      router.refresh();
+    } catch (e) {
+      console.error("[AgendaClient] sync failed:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const defaultDate = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(selected).padStart(2, "0")}`;
 
   return (
-    <div className="mobile-scroll-area h-full overflow-y-auto px-8 py-7">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mobile-scroll-area h-full overflow-y-auto px-4 py-4 sm:px-8 sm:py-7">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-end">
         <div>
-          <h1 className="text-[28px] font-bold tracking-[-0.02em]">Agenda</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.02em] sm:text-[28px]">Agenda</h1>
           <p className="mt-1 text-sm" style={{ color: "var(--color-fg-2)" }}>
             {dayEvents.length} evento{dayEvents.length === 1 ? "" : "s"} em {selected} de {MONTHS[viewMonth]}.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {gcalConnected && (
+            <div className="flex items-center gap-2">
+              {lastSyncedAt && (
+                <span
+                  className="hidden text-[11px] sm:inline"
+                  style={{ color: "var(--color-fg-3)" }}
+                >
+                  {gcalEmail ? `${gcalEmail} · ` : ""}
+                  {formatRelative(lastSyncedAt)}
+                </span>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleSync}
+                disabled={isSyncing}
+              >
+                <RefreshCw size={14} className={cn(isSyncing && "animate-spin")} />
+                <span className="hidden sm:inline">
+                  {isSyncing ? "Sincronizando..." : "Sincronizar"}
+                </span>
+              </Button>
+            </div>
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -174,20 +254,21 @@ export function AgendaClient({
             }}
           >
             <CalendarDays size={14} />
-            Hoje
+            <span className="hidden sm:inline">Hoje</span>
           </Button>
           <Button variant="primary" size="sm" onClick={() => setShowModal(true)}>
             <Plus size={14} />
-            Novo agendamento
+            <span className="hidden sm:inline">Novo agendamento</span>
+            <span className="sm:hidden">Novo</span>
           </Button>
         </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         {/* Calendar grid */}
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3 sm:p-5">
           <div className="mb-4 flex items-center gap-3">
-            <div className="flex-1 text-lg font-semibold">
+            <div className="flex-1 text-base font-semibold sm:text-lg">
               {MONTHS[viewMonth]} {viewYear}
             </div>
             <div className="flex gap-1">
@@ -208,11 +289,11 @@ export function AgendaClient({
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
             {DOW.map((d) => (
               <div
                 key={d}
-                className="py-1 text-center font-mono text-[10px] font-medium uppercase tracking-[0.16em]"
+                className="py-1 text-center font-mono text-[9px] font-medium uppercase tracking-[0.12em] sm:text-[10px] sm:tracking-[0.16em]"
                 style={{ color: "var(--color-fg-3)" }}
               >
                 {d}
@@ -220,7 +301,11 @@ export function AgendaClient({
             ))}
             {cells.map((c, i) => {
               const evs = !c.muted ? eventsByDay[c.d] || [] : [];
-              const isToday = !c.muted && c.d === TODAY.getDate() && viewMonth === TODAY.getMonth() && viewYear === TODAY.getFullYear();
+              const isToday =
+                !c.muted &&
+                c.d === TODAY.getDate() &&
+                viewMonth === TODAY.getMonth() &&
+                viewYear === TODAY.getFullYear();
               const isSel = !c.muted && c.d === selected;
               return (
                 <motion.button
@@ -229,7 +314,7 @@ export function AgendaClient({
                   transition={{ type: "spring", stiffness: 400, damping: 28 }}
                   onClick={() => !c.muted && setSelected(c.d)}
                   className={cn(
-                    "flex aspect-square cursor-pointer flex-col gap-1 rounded-xl border p-2 text-left",
+                    "flex aspect-square min-h-[40px] cursor-pointer flex-col gap-1 rounded-xl border p-1.5 text-left sm:p-2",
                     "border-white/[0.08] bg-white/[0.02] transition-colors",
                     !c.muted && "hover:bg-white/[0.05]",
                     c.muted && "opacity-30",
@@ -237,15 +322,18 @@ export function AgendaClient({
                     isSel && "border-[#F97316]/50 !bg-[#F97316]/10",
                   )}
                 >
-                  <span className="text-[13px] font-semibold">{c.d}</span>
+                  <span className="text-[11px] font-semibold sm:text-[13px]">{c.d}</span>
                   <span className="mt-auto flex gap-0.5">
                     {evs.slice(0, 4).map((e, j) => {
-                      const status = e.leads?.status ?? "cold";
+                      const dotColor =
+                        e.source === "gcal"
+                          ? GCAL_INDIGO
+                          : HEAT_COLOR[e.leads?.status ?? "cold"];
                       return (
                         <span
                           key={j}
                           className="h-1.5 w-1.5 rounded-full"
-                          style={{ background: HEAT_COLOR[status] }}
+                          style={{ background: dotColor }}
                         />
                       );
                     })}
@@ -257,18 +345,21 @@ export function AgendaClient({
         </div>
 
         {/* Day events panel */}
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 sm:p-5">
           <div className="eyebrow mb-3">Dia {selected} · {MONTHS[viewMonth]}</div>
-          <div className="flex max-h-[calc(100vh-260px)] flex-col gap-2.5 overflow-y-auto">
+          <div className="flex flex-col gap-2.5 sm:max-h-[calc(100vh-260px)] sm:overflow-y-auto">
             {dayEvents.length === 0 ? (
-              <div className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-4 text-center"
-                   style={{ color: "var(--color-fg-3)" }}>
+              <div
+                className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-4 text-center"
+                style={{ color: "var(--color-fg-3)" }}
+              >
                 <p className="text-sm">Sem agendamentos neste dia.</p>
-                <p className="mt-1 text-[11px]">Clique em "Novo agendamento" para adicionar.</p>
+                <p className="mt-1 text-[11px]">Clique em "Novo" para adicionar.</p>
               </div>
             ) : (
               dayEvents.map((e, i) => {
                 const status = e.leads?.status ?? "cold";
+                const isGcal = e.source === "gcal";
                 return (
                   <motion.div
                     key={e.id}
@@ -277,28 +368,45 @@ export function AgendaClient({
                     transition={{ duration: 0.2, delay: i * 0.04 }}
                     className="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] p-3"
                   >
-                    <span className="min-w-[50px] font-mono text-xs font-semibold text-brand-teal-300">
+                    <span className="min-w-[44px] font-mono text-xs font-semibold text-brand-teal-300">
                       {formatTime(e.start_time)}
                     </span>
-                    <div className="flex-1">
-                      <div className="text-[13px] font-semibold">{e.title}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[13px] font-semibold">{e.title}</span>
+                        {isGcal && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/40 bg-indigo-400/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-400">
+                            <Cloud size={8} />
+                            Google
+                          </span>
+                        )}
+                        {e.gcal_sync_status === "error" && (
+                          <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                            Sync pendente
+                          </span>
+                        )}
+                      </div>
                       {e.leads?.name && (
-                        <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-fg-3)" }}>
+                        <div className="mt-0.5 truncate text-[11px]" style={{ color: "var(--color-fg-3)" }}>
                           {e.leads.name} · {e.leads.phone}
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant={status} className="px-2 py-0.5">
-                        {HEAT_LABEL[status]}
-                      </Badge>
-                      <button
-                        onClick={() => handleDelete(e.id)}
-                        className="grid h-6 w-6 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-red-400"
-                        aria-label="Excluir"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {!isGcal && e.leads && (
+                        <Badge variant={status} className="px-2 py-0.5 text-[10px]">
+                          {HEAT_LABEL[status]}
+                        </Badge>
+                      )}
+                      {!isGcal && (
+                        <button
+                          onClick={() => handleDelete(e.id)}
+                          className="grid h-7 w-7 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-red-400"
+                          aria-label="Excluir"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -321,14 +429,27 @@ export function AgendaClient({
               className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             />
             <motion.div
-              key="modal"
-              initial={{ opacity: 0, scale: 0.96, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 16 }}
-              transition={{ duration: 0.18 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              key="modal-wrap"
+              className={cn(
+                "fixed inset-0 z-50 flex",
+                isMobile ? "items-end" : "items-center justify-center p-4",
+              )}
             >
-              <div className="w-full max-w-md rounded-2xl border border-white/[0.1] bg-[rgba(11,18,34,0.95)] p-6 shadow-2xl backdrop-blur-xl">
+              <motion.div
+                key="modal"
+                initial={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.96, y: 16 }}
+                animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+                exit={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.96, y: 16 }}
+                transition={
+                  isMobile
+                    ? { type: "spring", stiffness: 300, damping: 30 }
+                    : { duration: 0.18 }
+                }
+                className={cn(
+                  "w-full border border-white/[0.1] bg-[rgba(11,18,34,0.97)] p-6 shadow-2xl backdrop-blur-xl",
+                  isMobile ? "rounded-t-2xl" : "max-w-md rounded-2xl",
+                )}
+              >
                 <div className="mb-5 flex items-center justify-between">
                   <h2 className="text-lg font-semibold">Novo agendamento</h2>
                   <button
@@ -341,7 +462,10 @@ export function AgendaClient({
 
                 <form action={handleCreate} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                    <label
+                      className="font-mono text-[11px] uppercase tracking-wider"
+                      style={{ color: "var(--color-fg-3)" }}
+                    >
                       Título / motivo *
                     </label>
                     <input
@@ -353,7 +477,10 @@ export function AgendaClient({
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                    <label
+                      className="font-mono text-[11px] uppercase tracking-wider"
+                      style={{ color: "var(--color-fg-3)" }}
+                    >
                       Lead (opcional)
                     </label>
                     <select
@@ -371,7 +498,10 @@ export function AgendaClient({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1.5">
-                      <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                      <label
+                        className="font-mono text-[11px] uppercase tracking-wider"
+                        style={{ color: "var(--color-fg-3)" }}
+                      >
                         Início *
                       </label>
                       <input
@@ -383,7 +513,10 @@ export function AgendaClient({
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                      <label
+                        className="font-mono text-[11px] uppercase tracking-wider"
+                        style={{ color: "var(--color-fg-3)" }}
+                      >
                         Fim *
                       </label>
                       <input
@@ -420,11 +553,11 @@ export function AgendaClient({
                       disabled={isPending}
                     >
                       {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                      {isPending ? "Salvando..." : "Criar agendamento"}
+                      {isPending ? "Salvando..." : "Criar"}
                     </Button>
                   </div>
                 </form>
-              </div>
+              </motion.div>
             </motion.div>
           </>
         )}

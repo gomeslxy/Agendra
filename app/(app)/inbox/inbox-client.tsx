@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, ChevronDown, Paperclip, Send, Zap } from "lucide-react";
+import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -46,6 +46,7 @@ function lastMsg(lead: LeadWithMessages) {
 export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[] }) {
   const [leads, setLeads] = useState<LeadWithMessages[]>(initialLeads);
   const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id ?? null);
+  const [showChatOnMobile, setShowChatOnMobile] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [sendPending, startSend] = useTransition();
   const [takePending, startTake] = useTransition();
@@ -59,7 +60,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [leads, selectedId]);
+  }, [leads, selectedId, showChatOnMobile]);
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -141,14 +142,42 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
   const handleSend = useCallback(() => {
     if (!selected || !noteText.trim()) return;
+    const content = noteText.trim();
     setInboxError(null);
+    setNoteText(""); // Clear immediately for better UX
+
+    // Optimistic update
+    const tempId = crypto.randomUUID();
+    const tempMsg: Message = {
+      id: tempId,
+      lead_id: selected.id,
+      company_id: selected.company_id,
+      content,
+      role: "agent",
+      created_at: new Date().toISOString(),
+    };
+
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === selected.id ? { ...l, messages: [...l.messages, tempMsg] } : l
+      )
+    );
+
     startSend(async () => {
       try {
-        await sendNote(selected.id, noteText.trim());
+        await sendNote(selected.id, content);
         trackEvent("message_sent", { lead_id: selected.id });
-        setNoteText("");
       } catch (e) {
         setInboxError((e as Error).message);
+        // Remove optimistic message on error
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === selected.id
+              ? { ...l, messages: l.messages.filter((m) => m.id !== tempId) }
+              : l
+          )
+        );
+        setNoteText(content); // Restore text
       }
     });
   }, [selected, noteText]);
@@ -156,10 +185,22 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const handleTakeOver = useCallback(() => {
     if (!selected) return;
     setInboxError(null);
+    
     // optimistic
+    const tempId = crypto.randomUUID();
+    const tempNote: Message = {
+      id: tempId,
+      lead_id: selected.id,
+      company_id: selected.company_id,
+      content: "Você assumiu o atendimento.",
+      role: "note",
+      created_at: new Date().toISOString(),
+    };
+
     setLeads((prev) =>
-      prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: false } : l)),
+      prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: false, messages: [...l.messages, tempNote] } : l)),
     );
+
     startTake(async () => {
       try {
         await takeOverLead(selected.id);
@@ -167,7 +208,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
       } catch (e) {
         // revert
         setLeads((prev) =>
-          prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: true } : l)),
+          prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: true, messages: l.messages.filter(m => m.id !== tempId) } : l)),
         );
         setInboxError((e as Error).message);
       }
@@ -302,45 +343,51 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const inputBlocked = isAutoRespond || sendPending;
 
   return (
-    <div className="grid h-full min-h-0 lg:grid-cols-[320px_1fr_320px]">
+    <div className="flex h-full min-h-0 w-full overflow-hidden">
       {/* COL 1 — list */}
-      <section className="mobile-scroll-area flex flex-col overflow-hidden border-r border-white/[0.08]">
-        <div className="px-5 pb-3 pt-5 shrink-0">
+      <section className={cn(
+        "flex flex-col border-r border-white/[0.08] transition-all duration-300 lg:w-[320px] lg:flex-shrink-0",
+        showChatOnMobile ? "hidden lg:flex" : "flex w-full"
+      )}>
+        <div className="px-5 pb-3 pt-5 shrink-0 bg-background/50 backdrop-blur-md">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold tracking-tight">Caixa de entrada</h2>
+            <h2 className="text-xl font-black tracking-tight bg-gradient-to-r from-white to-white/50 bg-clip-text text-transparent">Inbox</h2>
             <div className="flex items-center gap-2">
               <div
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all duration-500",
+                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all duration-500",
                   isConnected
-                    ? "bg-teal-500/10 text-teal-400"
-                    : "bg-white/5 text-white/30"
+                    ? "bg-teal-500/10 text-teal-400 border border-teal-500/20"
+                    : "bg-white/5 text-white/30 border border-white/5"
                 )}
               >
                 <span
                   className={cn(
                     "h-1.5 w-1.5 rounded-full transition-all duration-500",
                     isConnected
-                      ? "bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.8)] animate-pulse"
+                      ? "bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)] animate-pulse"
                       : "bg-white/20"
                   )}
                 />
-                {isConnected ? "Live" : "—"}
+                {isConnected ? "LIVE" : "OFFLINE"}
               </div>
-              <span className="font-mono text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
-                {leads.length} hoje
-              </span>
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5 opacity-0 pointer-events-none h-0">
-            {/* Heat filters removed per user request */}
+          <div className="mt-4 flex items-center gap-2 rounded-xl bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Atividade:</span>
+            <span className="font-mono text-[11px] font-bold text-brand-blue-400">
+              {leads.length} leads hoje
+            </span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
           {leads.length === 0 ? (
-            <div className="px-5 py-8 text-sm italic" style={{ color: "var(--color-fg-3)" }}>
-              Nenhuma conversa ainda.
+            <div className="flex flex-col items-center justify-center h-40 px-5 text-center gap-2">
+              <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center">
+                <Zap size={20} className="text-white/20" />
+              </div>
+              <p className="text-xs font-medium text-white/30 italic">Nenhuma conversa disponível.</p>
             </div>
           ) : (
             <motion.div variants={stagger(0.02, 0.03)} initial="hidden" animate="show" className="flex flex-col">
@@ -352,44 +399,49 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                     key={l.id}
                     variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
                     whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setSelectedId(l.id)}
+                    onClick={() => {
+                      setSelectedId(l.id);
+                      setShowChatOnMobile(true);
+                    }}
                     className={cn(
-                      "group relative grid cursor-pointer grid-cols-[auto_1fr_auto] gap-3 border-b border-white/[0.04] px-5 py-4 transition-all duration-200",
+                      "group relative flex cursor-pointer items-center gap-4 border-b border-white/[0.04] px-5 py-4 transition-all duration-200",
                       isActive && "bg-brand-blue-600/10"
                     )}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="active-lead"
-                        className="absolute inset-y-1 left-1 w-1 rounded-full bg-brand-blue-500"
+                        className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
                         transition={{ type: "spring", stiffness: 400, damping: 30 }}
                       />
                     )}
                     <div
-                      className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[13px] font-bold text-white shadow-lg shadow-black/20"
+                      className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full text-sm font-black text-white shadow-xl"
                       style={{ background: HEAT_GRADIENT[l.status] ?? HEAT_GRADIENT.cold }}
                     >
                       {initials(l.name)}
+                      <div className={cn(
+                        "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#050505] transition-all",
+                        l.status === "hot" ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" :
+                        l.status === "warm" ? "bg-yellow-500" :
+                        l.status === "success" ? "bg-teal-500" : "bg-blue-400"
+                      )} />
                     </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-[13px] font-bold tracking-tight">{l.name}</div>
-                      <div className="mt-1 truncate text-xs font-medium" style={{ color: isActive ? "var(--color-fg-2)" : "var(--color-fg-3)" }}>
-                        {last?.content ?? "Sem mensagens"}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-[14px] font-bold tracking-tight text-white">{l.name}</span>
+                        <span className="font-mono text-[10px] font-bold uppercase text-white/30 whitespace-nowrap">
+                          {last ? relativeTime(last.created_at) : "—"}
+                        </span>
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      <div className="font-mono text-[10px] font-medium" style={{ color: "var(--color-fg-3)" }}>
-                        {last ? relativeTime(last.created_at) : "—"}
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className={cn(
+                          "truncate text-[12px] font-medium transition-colors",
+                          isActive ? "text-white/70" : "text-white/40"
+                        )}>
+                          {last?.content ?? "Nenhuma mensagem"}
+                        </span>
                       </div>
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 rounded-full ring-2 ring-transparent transition-all group-hover:ring-white/10",
-                          l.status === "hot" ? "bg-orange-spark shadow-[0_0_8px_rgba(249,115,22,0.6)]" :
-                          l.status === "warm" ? "bg-yellow-500" :
-                          l.status === "success" ? "bg-teal-flow shadow-[0_0_8px_rgba(20,184,166,0.6)]" : "bg-blue-400"
-                        )}
-                      />
                     </div>
                   </motion.div>
                 );
@@ -400,86 +452,138 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
       </section>
 
       {/* COL 2 — chat */}
-      <section className="flex min-h-0 flex-col px-6 py-5">
+      <section className={cn(
+        "flex flex-col transition-all duration-300 bg-[#050505]",
+        !showChatOnMobile ? "hidden lg:flex lg:flex-1" : "flex w-full lg:flex-1"
+      )}>
         {!selected ? (
-          <div className="flex flex-1 items-center justify-center text-sm" style={{ color: "var(--color-fg-3)" }}>
-            Selecione uma conversa
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+            <div className="h-20 w-20 rounded-full bg-white/[0.02] border border-white/[0.05] flex items-center justify-center shadow-inner">
+               <Zap size={32} className="text-white/10" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white/40">Agendra Inbox</h3>
+              <p className="text-sm text-white/20 mt-1 max-w-[240px]">Selecione um lead para iniciar a gestão de atendimento em tempo real.</p>
+            </div>
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-3 border-b border-white/[0.08] pb-3.5">
-              <div
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
-                style={{ background: HEAT_GRADIENT[selected.status] ?? HEAT_GRADIENT.cold }}
-              >
-                {initials(selected.name)}
-              </div>
-              <div>
-                <div className="text-sm font-semibold">{selected.name}</div>
-                <div className="text-xs" style={{ color: "var(--color-fg-3)" }}>
-                  {selected.phone} · {selected.channel}
+            {/* Chat Header */}
+            <div className="flex items-center justify-between border-b border-white/[0.08] bg-background/80 backdrop-blur-xl px-4 py-3 sm:px-6 z-10 shadow-lg shadow-black/20">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-9 rounded-full lg:hidden shrink-0 p-0"
+                  onClick={() => setShowChatOnMobile(false)}
+                >
+                  <ChevronLeft size={20} />
+                </Button>
+                <div
+                  className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full text-xs font-black text-white shadow-lg"
+                  style={{ background: HEAT_GRADIENT[selected.status] ?? HEAT_GRADIENT.cold }}
+                >
+                  {initials(selected.name)}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-white">{selected.name}</div>
+                  <div className="flex items-center gap-1.5 truncate text-[10px] font-bold uppercase tracking-wider text-white/40">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Ativo agora · {selected.channel}
+                  </div>
                 </div>
               </div>
-              {/* Heat badge removed per user request */}
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={takePending}
-                onClick={isAutoRespond ? handleTakeOver : handleAutomatize}
-              >
-                {takePending ? "…" : isAutoRespond ? "Assumir" : "Automatizar"}
-              </Button>
-              <div className="lg:hidden">
-                <ToneDropdown compact />
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={isAutoRespond ? "secondary" : "blue"}
+                  size="sm"
+                  className={cn(
+                    "h-8 rounded-lg px-3 text-[11px] font-black uppercase tracking-wider transition-all",
+                    !isAutoRespond && "shadow-glow-blue/20"
+                  )}
+                  disabled={takePending}
+                  onClick={isAutoRespond ? handleTakeOver : handleAutomatize}
+                >
+                  {takePending ? "…" : isAutoRespond ? "Assumir" : "Automatizar"}
+                </Button>
+                <div className="hidden sm:block">
+                  <ToneDropdown compact />
+                </div>
               </div>
             </div>
 
-            <motion.div
-              key={selected.id}
-              variants={stagger(0.04, 0.04)}
-              initial="hidden"
-              animate="show"
-              className="flex flex-1 flex-col gap-2.5 overflow-y-auto py-4"
-            >
-              {isAutoRespond && (
-                <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
-              )}
-              {sortedMessages.map((msg) => (
-                <ChatBubble
-                  key={msg.id}
-                  variant={
-                    msg.role === "user" ? "lead" :
-                    msg.role === "note" ? "note" :
-                    msg.role === "agent" ? "agent" :
-                    "ai"
-                  }
-                >
-                  {msg.content}
-                </ChatBubble>
-              ))}
-              {sortedMessages.length === 0 && (
-                <div className="text-center text-xs" style={{ color: "var(--color-fg-3)" }}>
-                  Nenhuma mensagem ainda.
-                </div>
-              )}
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-[#050505] to-[#0A0A0A]">
+              <motion.div
+                key={selected.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-col gap-3 p-4 sm:p-6"
+              >
+                {isAutoRespond && (
+                  <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
+                )}
 
-              <AnimatePresence>
+                {/* Group messages by date could be added here */}
+
+                {sortedMessages.map((msg, i) => {
+                  const prev = sortedMessages[i - 1];
+                  const next = sortedMessages[i + 1];
+                  
+                  const isNote = msg.role === "note";
+                  const prevIsSame = prev && prev.role === msg.role && !isNote;
+                  const nextIsSame = next && next.role === msg.role && !isNote;
+
+                  // Time gap check (5 mins)
+                  const timeGapPrev = prev ? (new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime()) : 0;
+                  const timeGapNext = next ? (new Date(next.created_at).getTime() - new Date(msg.created_at).getTime()) : 0;
+                  const GAP_LIMIT = 5 * 60 * 1000;
+
+                  const isFirst = !prevIsSame || timeGapPrev > GAP_LIMIT;
+                  const isLast = !nextIsSame || timeGapNext > GAP_LIMIT;
+
+                  return (
+                    <ChatBubble
+                      key={msg.id}
+                      timestamp={msg.created_at}
+                      variant={
+                        msg.role === "user" ? "lead" :
+                        msg.role === "note" ? "note" :
+                        msg.role === "agent" ? "agent" :
+                        "ai"
+                      }
+                      isFirst={isFirst}
+                      isLast={isLast}
+                      hideLabel={!isFirst}
+                      hideTime={!isLast}
+                    >
+                      {msg.content}
+                    </ChatBubble>
+                  );
+                })}
+
+                {sortedMessages.length === 0 && (
+                  <div className="my-12 text-center flex flex-col items-center gap-2">
+                    <div className="h-1 w-8 bg-white/10 rounded-full" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/20">Início da conversa</span>
+                  </div>
+                )}
+
                 {isTyping && selected.id === selectedId && (
                   <motion.div
-                    key="typing"
                     initial={{ opacity: 0, y: 8, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex items-center gap-2 self-start"
+                    className="flex items-center gap-2 self-start mt-2"
                   >
-                    <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-white/[0.08] bg-white/[0.05] px-4 py-2.5">
+                    <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm border border-white/[0.08] bg-white/[0.05] px-4 py-2.5 backdrop-blur-sm">
                       <div className="flex gap-1">
                         {[0, 1, 2].map((i) => (
                           <motion.span
                             key={i}
                             className="h-1.5 w-1.5 rounded-full bg-brand-blue-400"
-                            animate={{ y: [0, -4, 0] }}
+                            animate={{ y: [0, -3, 0] }}
                             transition={{
                               duration: 0.8,
                               repeat: Infinity,
@@ -489,66 +593,94 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                           />
                         ))}
                       </div>
-                      <span className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
-                        Agendra digitando…
-                      </span>
                     </div>
                   </motion.div>
                 )}
-              </AnimatePresence>
+                <div ref={chatBottomRef} />
+              </motion.div>
+            </div>
 
-              <div ref={chatBottomRef} />
-            </motion.div>
+            {/* Input Area */}
+            <div className="relative bg-background/95 backdrop-blur-2xl border-t border-white/[0.08] p-3 sm:p-4 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-[env(safe-area-inset-bottom,16px)] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+              <div className="max-w-5xl mx-auto relative group">
+                {isAutoRespond && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl"
+                  >
+                    <Button
+                      variant="blue"
+                      size="sm"
+                      className="gap-2 px-6 h-10 rounded-full font-black uppercase tracking-wider shadow-glow-blue"
+                      onClick={handleTakeOver}
+                      disabled={takePending}
+                    >
+                      {takePending ? (
+                        <Zap size={16} className="animate-spin" />
+                      ) : (
+                        <Zap size={16} fill="currentColor" />
+                      )}
+                      Assumir Atendimento
+                    </Button>
+                  </motion.div>
+                )}
 
-            <div className="mb-3">
-              <p className={cn("text-xs transition-opacity duration-200", inboxError ? "opacity-100 text-red-400" : "opacity-0")}>
-                {inboxError || "Fine"}
-              </p>
-              <div className={cn(
-                "flex items-center gap-2.5 rounded-2xl border bg-white/[0.06] p-2 pr-2.5 transition-all duration-300",
-                inputBlocked
-                  ? "border-white/[0.04] opacity-60 cursor-not-allowed"
-                  : "border-white/[0.08] focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.08] focus-within:shadow-glow-blue/10"
-              )}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 w-9 rounded-xl p-0"
-                  disabled={inputBlocked}
-                  title={isAutoRespond ? "Assuma a conversa para enviar arquivos" : undefined}
-                >
-                  <Paperclip size={18} style={{ color: "var(--color-fg-3)" }} />
-                </Button>
-                <input
-                  placeholder={
-                    isAutoRespond
-                      ? "Clique em 'Assumir' para escrever uma mensagem…"
-                      : "Escreva uma mensagem para o lead…"
-                  }
-                  className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-fg-3/60 disabled:cursor-not-allowed"
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      if (!inputBlocked) handleSend();
-                    }
-                  }}
-                  disabled={inputBlocked}
-                />
-                <Button
-                  variant="blue"
-                  size="sm"
-                  className="h-9 gap-2 rounded-xl px-4 font-bold"
-                  disabled={inputBlocked || !noteText.trim()}
-                  onClick={handleSend}
-                >
-                  {sendPending ? "…" : <><Send size={14} /> Enviar</>}
-                </Button>
+                <div className={cn(
+                  "flex items-end gap-2 transition-all duration-300",
+                  isAutoRespond && "blur-[2px] scale-[0.98] opacity-50"
+                )}>
+                  <div className="flex-1 relative flex items-end gap-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl px-3 py-2 transition-all focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.06] focus-within:shadow-glow-blue/5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 rounded-xl p-0 hover:bg-white/5 shrink-0"
+                      disabled={inputBlocked}
+                    >
+                      <Paperclip size={18} className="text-white/30" />
+                    </Button>
+                    <textarea
+                      rows={1}
+                      placeholder="Escreva uma mensagem..."
+                      className="flex-1 bg-transparent py-2 text-[14px] outline-none placeholder:text-white/20 disabled:cursor-not-allowed resize-none max-h-32 custom-scrollbar"
+                      value={noteText}
+                      onChange={(e) => {
+                        setNoteText(e.target.value);
+                        e.target.style.height = 'auto';
+                        e.target.style.height = e.target.scrollHeight + 'px';
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          if (!inputBlocked && noteText.trim()) handleSend();
+                        }
+                      }}
+                      disabled={inputBlocked}
+                    />
+                  </div>
+                  <Button
+                    variant="blue"
+                    size="sm"
+                    className={cn(
+                      "h-11 w-11 rounded-full shrink-0 transition-all",
+                      noteText.trim() ? "scale-100 opacity-100 shadow-glow-blue/40" : "scale-90 opacity-50"
+                    )}
+                    disabled={inputBlocked || !noteText.trim()}
+                    onClick={handleSend}
+                  >
+                    {sendPending ? <Zap size={18} className="animate-spin" /> : <Send size={18} />}
+                  </Button>
+                </div>
               </div>
+
               {isAutoRespond && (
-                <p className="mt-1.5 text-center text-[11px]" style={{ color: "var(--color-fg-3)" }}>
-                  Chat automatizado · clique em <strong>Assumir</strong> para liberar o chat
+                <p className="mt-3 text-center text-[9px] font-black uppercase tracking-[0.2em] text-brand-blue-400 animate-pulse">
+                  Modo Automático Ativo · Agendra IA está no controle
+                </p>
+              )}
+              {inboxError && (
+                <p className="mt-2 text-center text-[11px] font-bold text-red-400">
+                   Erro: {inboxError}
                 </p>
               )}
             </div>
@@ -557,91 +689,69 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
       </section>
 
       {/* COL 3 — detail */}
-      <aside className="hidden flex-col gap-3.5 overflow-y-auto border-l border-white/[0.08] p-5 lg:flex">
+      <aside className="hidden flex-col gap-4 overflow-y-auto border-l border-white/[0.08] bg-background/30 p-5 w-[320px] shrink-0 custom-scrollbar xl:flex">
         {selected && (
           <motion.div
-            initial={{ opacity: 0, x: 10 }}
+            initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex flex-col gap-4"
+            className="flex flex-col gap-6"
           >
-            <Card className="p-0 border-white/[0.06] !overflow-visible">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="eyebrow text-[10px]" style={{ color: "var(--color-brand-teal-300)" }}>
-                  Inteligência Artificial
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 !overflow-visible">
-                <KV k="Tom da IA">
-                  <ToneDropdown />
-                </KV>
-                {selected.summary && <KV k="Resumo"><p className="leading-relaxed opacity-80">{selected.summary}</p></KV>}
-                <KV k="Canal">{selected.channel}</KV>
-              </CardContent>
-            </Card>
-
-            <Card className="p-0 border-white/[0.06]">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="eyebrow text-[10px]">Contato</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <KV k="Telefone">{selected.phone}</KV>
-                <KV k="Origem">{selected.source ?? "Direto"}</KV>
-                {selected.city && <KV k="Cidade">{selected.city}</KV>}
-                {selected.email && <KV k="Email">{selected.email}</KV>}
-              </CardContent>
-            </Card>
-
-            <div className={cn(
-              "rounded-2xl border p-4 relative overflow-hidden transition-all duration-500",
-              isConnected
-                ? "border-teal-500/20 bg-teal-500/5"
-                : "border-white/[0.06] bg-white/[0.02]"
-            )}>
-              <div className="absolute top-0 right-0 p-3 opacity-10">
-                <Zap size={48} />
+            <div className="flex flex-col items-center text-center gap-4 pb-4 border-b border-white/[0.06]">
+              <div
+                className="grid h-20 w-20 place-items-center rounded-3xl text-2xl font-black text-white shadow-2xl rotate-3"
+                style={{ background: HEAT_GRADIENT[selected.status] ?? HEAT_GRADIENT.cold }}
+              >
+                {initials(selected.name)}
               </div>
-              <div className={cn(
-                "eyebrow text-[10px] mb-2 transition-colors duration-500",
-                isConnected ? "text-teal-400" : "text-white/30"
-              )}>
-                {isConnected ? "Realtime · Conectado" : "Realtime · Offline"}
-              </div>
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "h-10 w-10 shrink-0 rounded-full grid place-items-center transition-all duration-500",
-                  isConnected ? "bg-teal-500/20" : "bg-white/5"
-                )}>
-                  <Zap size={20} className={isConnected ? "text-teal-300" : "text-white/20"} />
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-white">
-                    {isConnected ? "Mensagens ao vivo" : "Reconectando…"}
-                  </div>
-                  <div className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
-                    {isConnected
-                      ? "Atualizações instantâneas ativas"
-                      : "Verificando conexão com Supabase"}
-                  </div>
-                </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">{selected.name}</h2>
+                <p className="text-xs font-medium text-white/40">{selected.phone}</p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-brand-teal-500/20 bg-brand-teal-500/5 p-4 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-3 opacity-10">
-                 <CalendarCheck size={48} />
-              </div>
-              <div className="eyebrow text-[10px] text-brand-teal-400 mb-2">Próximo Passo</div>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 shrink-0 rounded-full bg-brand-teal-500/20 grid place-items-center">
-                  <CalendarCheck size={20} className="text-brand-teal-300" />
+            <div className="space-y-6">
+              <section>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-3">Inteligência Artificial</h4>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-2">Tom da Conversa</span>
+                    <ToneDropdown />
+                  </div>
+                  {selected.summary && (
+                    <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
+                      <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-1.5">Resumo IA</span>
+                      <p className="text-[12px] leading-relaxed text-white/70 italic">"{selected.summary}"</p>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-white">Agendamento em progresso</div>
-                  <div className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
-                    IA aguardando confirmação
+              </section>
+
+              <section>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-3">Dados do Lead</h4>
+                <div className="space-y-3">
+                   <KV k="Status" v={HEAT_LABEL[selected.status]} color={selected.status === 'hot' ? 'text-orange-400' : 'text-blue-400'} />
+                   <KV k="Canal" v={selected.channel} />
+                   <KV k="Origem" v={selected.source ?? "Direto"} />
+                   {selected.city && <KV k="Cidade" v={selected.city} />}
+                </div>
+              </section>
+
+              <section className="pt-4">
+                <div className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 relative overflow-hidden group hover:border-teal-500/40 transition-all">
+                  <div className="absolute -top-2 -right-2 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <CalendarCheck size={64} />
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-400">
+                      <CalendarCheck size={16} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">Status de Agendamento</div>
+                      <div className="text-[11px] font-medium text-teal-400/70 mt-0.5">IA aguardando confirmação</div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </section>
             </div>
           </motion.div>
         )}
@@ -650,14 +760,11 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   );
 }
 
-function KV({ k, children }: { k: string; children: React.ReactNode }) {
+function KV({ k, v, color = "text-white/60" }: { k: string; v: string; color?: string }) {
   return (
-    <div className="grid grid-cols-[90px_1fr] gap-2 py-1 text-[13px]">
-      <span className="self-center font-mono text-[11px] uppercase tracking-wider"
-            style={{ color: "var(--color-fg-3)" }}>
-        {k}
-      </span>
-      <span>{children}</span>
+    <div className="flex items-center justify-between gap-2 text-[12px]">
+      <span className="font-bold text-white/20 uppercase tracking-widest text-[10px]">{k}</span>
+      <span className={cn("font-bold truncate max-w-[140px]", color)}>{v}</span>
     </div>
   );
 }

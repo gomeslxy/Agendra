@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
 import { AgendaClient } from "./agenda-client";
+import { syncCompanyCalendar } from "@/lib/calendar/sync";
 
 export default async function AgendaPage() {
   const user = await getUser();
@@ -12,11 +13,43 @@ export default async function AgendaPage() {
 
   const supabase = await createClient();
 
+  const { data: company } = await supabase
+    .from("companies")
+    .select("google_refresh_token, google_calendar_email, last_synced_at")
+    .eq("id", companyId)
+    .single();
+
+  const gcalConnected = !!company?.google_refresh_token;
+  const gcalEmail: string | null = company?.google_calendar_email ?? null;
+  const lastSyncedAt: string | null = company?.last_synced_at ?? null;
+
+  // On-demand sync: trigger if GCal connected and last sync > 5 min ago (or never)
+  if (gcalConnected) {
+    const isStale =
+      !lastSyncedAt ||
+      Date.now() - new Date(lastSyncedAt).getTime() > 5 * 60 * 1000;
+
+    if (isStale) {
+      try {
+        await Promise.race([
+          syncCompanyCalendar(companyId),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Sync timeout")), 8000),
+          ),
+        ]);
+      } catch (err) {
+        console.error(
+          "[AgendaPage] on-demand sync:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  }
+
   const now = new Date();
   const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
   const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59).toISOString();
 
-  // Parallel fetch — events and leads don't depend on each other
   const [{ data: events, error }, { data: leads }] = await Promise.all([
     supabase
       .from("events")
@@ -37,5 +70,14 @@ export default async function AgendaPage() {
     console.error("[AgendaPage] fetch error:", error.message);
   }
 
-  return <AgendaClient events={events ?? []} leads={leads ?? []} companyId={companyId} />;
+  return (
+    <AgendaClient
+      events={events ?? []}
+      leads={leads ?? []}
+      companyId={companyId}
+      gcalConnected={gcalConnected}
+      gcalEmail={gcalEmail}
+      lastSyncedAt={lastSyncedAt}
+    />
+  );
 }
