@@ -415,7 +415,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-0">
           {leads.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 px-5 text-center gap-2">
               <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center">

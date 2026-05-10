@@ -101,7 +101,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
   };
 
   return (
-    <div className="mobile-scroll-area h-full overflow-y-auto px-8 py-7">
+    <div className="mobile-scroll-area h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:px-8 lg:py-7">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-bold tracking-[-0.02em]">Leads</h1>
@@ -144,7 +144,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
         })}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+      <div className="overflow-x-auto rounded-2xl border border-white/[0.08] bg-white/[0.02]">
         {visible.length === 0 ? (
           <div className="px-6 py-12 text-center" style={{ color: "var(--color-fg-3)" }}>
             <p className="text-sm">
@@ -261,8 +261,8 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               transition={{ duration: 0.18 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="w-full max-w-md rounded-2xl border border-white/[0.1] bg-[rgba(11,18,34,0.95)] p-6 shadow-2xl backdrop-blur-xl">
-                <div className="mb-5 flex items-center justify-between">
+              <div className="w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border border-white/[0.1] bg-[rgba(11,18,34,0.95)] p-6 shadow-2xl backdrop-blur-xl">
+                <div className="mb-5 flex shrink-0 items-center justify-between">
                   <h2 className="text-lg font-semibold">Novo lead</h2>
                   <button
                     onClick={() => setShowNewModal(false)}
@@ -272,111 +272,113 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                   </button>
                 </div>
 
-                <form action={handleCreate} className="flex flex-col gap-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2 flex flex-col gap-1.5">
-                      <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
-                        Nome completo *
-                      </label>
-                      <input
-                        name="name"
-                        required
-                        placeholder="João da Silva"
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
-                      />
+                <div className="overflow-y-auto px-1 -mx-1 flex-1">
+                  <form action={handleCreate} className="flex flex-col gap-4 pb-2">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
+                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                          Nome completo *
+                        </label>
+                        <input
+                          name="name"
+                          required
+                          placeholder="João da Silva"
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
+                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                          Telefone * (com DDI)
+                        </label>
+                        <input
+                          name="phone"
+                          required
+                          placeholder="+5511999999999"
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
+                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                          Canal *
+                        </label>
+                        <select
+                          name="channel"
+                          required
+                          defaultValue="whatsapp"
+                          className="rounded-xl border border-white/[0.08] bg-[rgba(11,18,34,0.9)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50"
+                        >
+                          <option value="whatsapp">WhatsApp</option>
+                          <option value="instagram">Instagram</option>
+                          <option value="form">Formulário</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                          Origem
+                        </label>
+                        <input
+                          name="source"
+                          placeholder="Ex: Google Ads"
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                          Cidade
+                        </label>
+                        <input
+                          name="city"
+                          placeholder="São Paulo"
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        />
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
+                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                          E-mail
+                        </label>
+                        <input
+                          name="email"
+                          type="email"
+                          placeholder="joao@exemplo.com"
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        />
+                      </div>
                     </div>
 
-                    <div className="col-span-2 flex flex-col gap-1.5">
-                      <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
-                        Telefone * (com DDI)
-                      </label>
-                      <input
-                        name="phone"
-                        required
-                        placeholder="+5511999999999"
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
-                      />
-                    </div>
+                    {formError && (
+                      <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                        {formError}
+                      </p>
+                    )}
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
-                        Canal *
-                      </label>
-                      <select
-                        name="channel"
-                        required
-                        defaultValue="whatsapp"
-                        className="rounded-xl border border-white/[0.08] bg-[rgba(11,18,34,0.9)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50"
+                    <div className="mt-2 flex gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1 justify-center"
+                        onClick={() => setShowNewModal(false)}
                       >
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="instagram">Instagram</option>
-                        <option value="form">Formulário</option>
-                      </select>
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        size="sm"
+                        className="flex-1 justify-center"
+                        disabled={isPending}
+                      >
+                        {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                        {isPending ? "Salvando..." : "Criar lead"}
+                      </Button>
                     </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
-                        Origem
-                      </label>
-                      <input
-                        name="source"
-                        placeholder="Ex: Google Ads"
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
-                        Cidade
-                      </label>
-                      <input
-                        name="city"
-                        placeholder="São Paulo"
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
-                        E-mail
-                      </label>
-                      <input
-                        name="email"
-                        type="email"
-                        placeholder="joao@exemplo.com"
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
-                      />
-                    </div>
-                  </div>
-
-                  {formError && (
-                    <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-                      {formError}
-                    </p>
-                  )}
-
-                  <div className="mt-1 flex gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="flex-1 justify-center"
-                      onClick={() => setShowNewModal(false)}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      size="sm"
-                      className="flex-1 justify-center"
-                      disabled={isPending}
-                    >
-                      {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                      {isPending ? "Salvando..." : "Criar lead"}
-                    </Button>
-                  </div>
-                </form>
+                  </form>
+                </div>
               </div>
             </motion.div>
           </>

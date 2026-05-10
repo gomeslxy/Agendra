@@ -121,7 +121,7 @@ export function SettingsShell({ company, memberships }: SettingsShellProps) {
   }, [toast]);
 
   return (
-    <div className="mobile-scroll-area h-full overflow-y-auto px-8 py-7 relative">
+    <div className="mobile-scroll-area h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:px-8 lg:py-7 relative">
       <AnimatePresence>
         {toast && (
           <motion.div

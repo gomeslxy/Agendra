@@ -37,7 +37,7 @@ export default async function SettingsPage() {
 
 function SettingsSkeleton() {
   return (
-    <div className="h-full overflow-y-auto px-8 py-7 flex flex-col gap-6">
+    <div className="h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:px-8 lg:py-7 flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <div className="h-8 w-48 animate-pulse rounded-lg bg-white/[0.07]" />
         <div className="h-4 w-64 animate-pulse rounded-md bg-white/[0.04]" />

@@ -228,7 +228,7 @@ export function AgendaClient({
   };
 
   return (
-    <div className="relative mobile-scroll-area h-full overflow-y-auto px-4 py-4 sm:px-8 sm:py-7">
+    <div className="relative mobile-scroll-area h-full overflow-y-auto px-4 pt-4 pb-[calc(72px+env(safe-area-inset-bottom,12px))] sm:pt-7 sm:px-8 sm:pb-7">
       {/* Sync loading overlay */}
       <AnimatePresence>
         {isSyncing && (
@@ -491,27 +491,17 @@ export function AgendaClient({
             />
             <motion.div
               key="modal-wrap"
-              className={cn(
-                "fixed inset-0 z-50 flex",
-                isMobile ? "items-end" : "items-center justify-center p-4",
-              )}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
               <motion.div
                 key="modal"
-                initial={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.96, y: 16 }}
-                animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
-                exit={isMobile ? { y: "100%" } : { opacity: 0, scale: 0.96, y: 16 }}
-                transition={
-                  isMobile
-                    ? { type: "spring", stiffness: 300, damping: 30 }
-                    : { duration: 0.18 }
-                }
-                className={cn(
-                  "w-full border border-white/[0.1] bg-[rgba(11,18,34,0.97)] p-6 shadow-2xl backdrop-blur-xl",
-                  isMobile ? "rounded-t-2xl" : "max-w-md rounded-2xl",
-                )}
+                initial={{ opacity: 0, scale: 0.96, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                transition={{ duration: 0.18 }}
+                className="w-full max-w-md border border-white/[0.1] bg-[rgba(11,18,34,0.97)] p-6 shadow-2xl backdrop-blur-xl flex flex-col rounded-2xl max-h-[85vh]"
               >
-                <div className="mb-5 flex items-center justify-between">
+                <div className="mb-5 flex shrink-0 items-center justify-between">
                   <h2 className="text-lg font-semibold">Novo agendamento</h2>
                   <button
                     onClick={() => setShowModal(false)}
@@ -521,105 +511,107 @@ export function AgendaClient({
                   </button>
                 </div>
 
-                <form action={handleCreate} className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      className="font-mono text-[11px] uppercase tracking-wider"
-                      style={{ color: "var(--color-fg-3)" }}
-                    >
-                      Título / motivo *
-                    </label>
-                    <input
-                      name="title"
-                      required
-                      placeholder="Ex: Consulta inicial, Retorno..."
-                      className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      className="font-mono text-[11px] uppercase tracking-wider"
-                      style={{ color: "var(--color-fg-3)" }}
-                    >
-                      Lead (opcional)
-                    </label>
-                    <select
-                      name="lead_id"
-                      className="rounded-xl border border-white/[0.08] bg-[rgba(11,18,34,0.9)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50"
-                    >
-                      <option value="">— Nenhum lead vinculado —</option>
-                      {leads.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name} ({l.phone})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="overflow-y-auto px-1 -mx-1 flex-1">
+                  <form action={handleCreate} className="flex flex-col gap-4 pb-2">
                     <div className="flex flex-col gap-1.5">
                       <label
                         className="font-mono text-[11px] uppercase tracking-wider"
                         style={{ color: "var(--color-fg-3)" }}
                       >
-                        Início *
+                        Título / motivo *
                       </label>
                       <input
-                        name="start_time"
-                        type="datetime-local"
+                        name="title"
                         required
-                        value={startTime}
-                        onChange={(e) => handleStartChange(e.target.value)}
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        placeholder="Ex: Consulta inicial, Retorno..."
+                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
                       />
                     </div>
+
                     <div className="flex flex-col gap-1.5">
                       <label
                         className="font-mono text-[11px] uppercase tracking-wider"
                         style={{ color: "var(--color-fg-3)" }}
                       >
-                        Fim *
+                        Lead (opcional)
                       </label>
-                      <input
-                        name="end_time"
-                        type="datetime-local"
-                        required
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
-                      />
+                      <select
+                        name="lead_id"
+                        className="rounded-xl border border-white/[0.08] bg-[rgba(11,18,34,0.9)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50"
+                      >
+                        <option value="">— Nenhum lead vinculado —</option>
+                        {leads.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} ({l.phone})
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
 
-                  {error && (
-                    <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-                      {error}
-                    </p>
-                  )}
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1.5">
+                        <label
+                          className="font-mono text-[11px] uppercase tracking-wider"
+                          style={{ color: "var(--color-fg-3)" }}
+                        >
+                          Início *
+                        </label>
+                        <input
+                          name="start_time"
+                          type="datetime-local"
+                          required
+                          value={startTime}
+                          onChange={(e) => handleStartChange(e.target.value)}
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label
+                          className="font-mono text-[11px] uppercase tracking-wider"
+                          style={{ color: "var(--color-fg-3)" }}
+                        >
+                          Fim *
+                        </label>
+                        <input
+                          name="end_time"
+                          type="datetime-local"
+                          required
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        />
+                      </div>
+                    </div>
 
-                  <div className="mt-1 flex gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="flex-1 justify-center"
-                      onClick={() => setShowModal(false)}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      size="sm"
-                      className="flex-1 justify-center"
-                      disabled={isPending}
-                    >
-                      {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                      {isPending ? "Salvando..." : "Criar"}
-                    </Button>
-                  </div>
-                </form>
+                    {error && (
+                      <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                        {error}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1 justify-center"
+                        onClick={() => setShowModal(false)}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        size="sm"
+                        className="flex-1 justify-center"
+                        disabled={isPending}
+                      >
+                        {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                        {isPending ? "Salvando..." : "Criar"}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
               </motion.div>
             </motion.div>
           </>

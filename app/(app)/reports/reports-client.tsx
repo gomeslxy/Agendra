@@ -332,7 +332,7 @@ export function ReportsClient({
 
   if (dailyDetails.reduce((s, d) => s + d.leads, 0) === 0) {
     return (
-      <div className="h-full overflow-y-auto px-6 py-7 lg:px-8">
+      <div className="h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:py-7 lg:px-8">
         <h1 className="mb-2 text-[28px] font-bold tracking-[-0.02em]">Business Intelligence</h1>
         <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] py-20 text-center">
           <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.06]">
@@ -348,7 +348,7 @@ export function ReportsClient({
   }
 
   return (
-    <div className="h-full overflow-y-auto px-6 py-7 lg:px-8">
+    <div className="h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:py-7 lg:px-8">
       {/* ── Header ── */}
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
