@@ -344,6 +344,11 @@ export async function handleIncomingMessage(
     .order('created_at', { ascending: true })
     .limit(20);
 
+  console.log(`[AI Engine] 📚 Histórico carregado para leadId=${lead.id}: ${history?.length ?? 0} mensagens`);
+  if (history && history.length > 0) {
+    console.log(`[AI Engine] 🕒 Última mensagem do histórico: ${history[history.length - 1].role} - ${history[history.length - 1].content.substring(0, 20)}...`);
+  }
+
   // ── Processar com Gemini + Tools (Apenas se auto_respond estiver ativo) ───
   if (!lead.auto_respond) {
     console.log(`[AI Engine] 🔇 Automação desligada para o lead ${lead.id}. Apenas registrando mensagem.`);
