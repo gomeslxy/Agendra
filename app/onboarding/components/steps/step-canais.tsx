@@ -1,4 +1,4 @@
-// app/(onboarding)/components/steps/step-canais.tsx
+// app/onboarding/components/steps/step-canais.tsx
 "use client";
 
 import type { OnboardingData } from "@/lib/onboarding/types";

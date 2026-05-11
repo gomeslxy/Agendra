@@ -1,4 +1,4 @@
-// app/(onboarding)/page.tsx
+// app/onboarding/page.tsx
 import { getUser, getCachedUserProfile, createClient } from "@/lib/supabase/server";
 import { buildPrefillFromLegacy } from "@/lib/onboarding/prefill";
 import { OnboardingWizard } from "./onboarding-wizard";

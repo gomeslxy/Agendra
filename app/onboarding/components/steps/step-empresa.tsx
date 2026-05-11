@@ -1,4 +1,4 @@
-// app/(onboarding)/components/steps/step-empresa.tsx
+// app/onboarding/components/steps/step-empresa.tsx
 "use client";
 
 import type { OnboardingData, BusinessSize } from "@/lib/onboarding/types";

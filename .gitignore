@@ -34,6 +34,7 @@ omnirepo.db*
 brain/
 .clauderules
 .cursorrules
+CLAUDE.md
 .antigravity/
 .memories/
 

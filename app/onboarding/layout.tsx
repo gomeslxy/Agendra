@@ -1,4 +1,4 @@
-// app/(onboarding)/layout.tsx
+// app/onboarding/layout.tsx
 import { redirect } from "next/navigation";
 import { getUser, getCachedUserProfile } from "@/lib/supabase/server";
 import { getOnboardingStatus } from "@/lib/onboarding/guards";

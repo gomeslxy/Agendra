@@ -1,4 +1,4 @@
-// app/(onboarding)/components/steps/step-metas.tsx
+// app/onboarding/components/steps/step-metas.tsx
 "use client";
 
 import type { OnboardingData, PrimaryMetric } from "@/lib/onboarding/types";

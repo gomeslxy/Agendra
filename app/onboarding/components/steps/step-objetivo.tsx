@@ -1,4 +1,4 @@
-// app/(onboarding)/components/steps/step-objetivo.tsx
+// app/onboarding/components/steps/step-objetivo.tsx
 "use client";
 
 import type { OnboardingData, BusinessGoal, BusinessMaturity } from "@/lib/onboarding/types";

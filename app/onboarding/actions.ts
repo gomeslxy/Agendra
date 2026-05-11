@@ -1,4 +1,4 @@
-// app/(onboarding)/actions.ts
+// app/onboarding/actions.ts
 "use server";
 
 import { redirect } from "next/navigation";

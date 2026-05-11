@@ -1,4 +1,4 @@
-// app/(onboarding)/components/steps/step-ia.tsx
+// app/onboarding/components/steps/step-ia.tsx
 "use client";
 
 import type { OnboardingData, AiTone } from "@/lib/onboarding/types";
