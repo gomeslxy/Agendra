@@ -11,13 +11,11 @@ import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { stagger } from "@/components/motion/variants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
+import type { LeadWithMessages } from "./page";
 import { sendNote, takeOverLead, automatizeLead, setConversationTone } from "./actions";
 import { createBrowserClient } from "@supabase/ssr";
 import { trackEvent } from "@/lib/analytics";
 
-interface LeadWithMessages extends Lead {
-  messages: Message[];
-}
 
 const TONE_CYCLE: Array<"cold" | "warm" | "hot"> = ["cold", "warm", "hot"];
 const TONE_LABEL: Record<string, string> = { cold: "Formal", warm: "Amigável", hot: "Persuasivo" };
@@ -785,25 +783,70 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
               </section>
 
               <section className="pt-4">
-                <div className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 relative overflow-hidden group hover:border-teal-500/40 transition-all">
-                  <div className="absolute -top-2 -right-2 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
-                    <CalendarCheck size={64} />
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-400">
-                      <CalendarCheck size={16} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-white">Status de Agendamento</div>
-                      <div className="text-[11px] font-medium text-teal-400/70 mt-0.5">IA aguardando confirmação</div>
-                    </div>
-                  </div>
-                </div>
+                <BookingStatusCard lead={selected} />
               </section>
             </div>
           </motion.div>
         )}
       </aside>
+    </div>
+  );
+}
+
+function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
+  const next = lead.next_event;
+
+  if (next) {
+    const dt = new Date(next.start_time);
+    const formatted = dt.toLocaleString("pt-BR", {
+      weekday: "short", day: "2-digit", month: "short",
+      hour: "2-digit", minute: "2-digit",
+    });
+    return (
+      <div className="rounded-2xl border border-teal-500/30 bg-teal-500/10 p-4 relative overflow-hidden">
+        <div className="flex flex-col gap-2">
+          <div className="h-8 w-8 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-400">
+            <CalendarCheck size={16} />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-teal-300">Agendamento Confirmado</div>
+            <div className="text-[12px] font-semibold text-white mt-0.5">{next.title}</div>
+            <div className="text-[11px] text-teal-400/80 mt-0.5 capitalize">{formatted}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (lead.status === "success") {
+    return (
+      <div className="rounded-2xl border border-brand-teal-500/20 bg-brand-teal-500/5 p-4">
+        <div className="flex flex-col gap-2">
+          <div className="h-8 w-8 rounded-lg bg-brand-teal-500/20 flex items-center justify-center text-brand-teal-400">
+            <CalendarCheck size={16} />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white">Convertido</div>
+            <div className="text-[11px] text-brand-teal-400/70 mt-0.5">Agendamento concluído</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <div className="flex flex-col gap-2">
+        <div className="h-8 w-8 rounded-lg bg-white/[0.05] flex items-center justify-center text-white/30">
+          <CalendarCheck size={16} />
+        </div>
+        <div>
+          <div className="text-xs font-bold text-white/50">Sem agendamento ativo</div>
+          <div className="text-[11px] text-white/30 mt-0.5">
+            {lead.status === "hot" ? "Lead quente — IA conduzindo para agendamento" : "IA qualificando lead"}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

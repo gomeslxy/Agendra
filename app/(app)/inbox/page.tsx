@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { getUser, getCachedUserProfile, createClient } from "@/lib/supabase/server";
 import { InboxClient } from "./inbox-client";
-import type { Lead, Message } from "@/lib/types/database";
+import type { Lead, Message, Event } from "@/lib/types/database";
 
-interface LeadWithMessages extends Lead {
+export interface LeadWithMessages extends Lead {
   messages: Message[];
+  next_event?: Pick<Event, 'id' | 'title' | 'start_time' | 'end_time'> | null;
 }
 
 export default async function InboxPage() {
@@ -17,26 +18,39 @@ export default async function InboxPage() {
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("leads")
-    .select(`
-      *,
-      messages(id, content, role, created_at)
-    `)
-    .eq("company_id", companyId)
-    .order("updated_at", { ascending: false })
-    .order("created_at", { foreignTable: "messages", ascending: true })
-    .limit(50, { foreignTable: "messages" })
-    .limit(30);
+  const [{ data, error }, { data: events }] = await Promise.all([
+    supabase
+      .from("leads")
+      .select(`*, messages(id, content, role, created_at)`)
+      .eq("company_id", companyId)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { foreignTable: "messages", ascending: true })
+      .limit(50, { foreignTable: "messages" })
+      .limit(30),
+    supabase
+      .from("events")
+      .select("id, lead_id, title, start_time, end_time")
+      .eq("company_id", companyId)
+      .gte("start_time", new Date().toISOString())
+      .order("start_time", { ascending: true }),
+  ]);
 
   if (error) {
     console.error("[InboxPage] fetch error:", error.message);
   }
 
-  // server already returns messages sorted ascending — no client sort needed
+  // Index upcoming events by lead_id (first/nearest one per lead)
+  const eventByLead = new Map<string, { id: string; title: string; start_time: string; end_time: string }>();
+  for (const e of events ?? []) {
+    if (e.lead_id && !eventByLead.has(e.lead_id)) {
+      eventByLead.set(e.lead_id, { id: e.id, title: e.title, start_time: e.start_time, end_time: e.end_time });
+    }
+  }
+
   const leads: LeadWithMessages[] = (data ?? []).map((l) => ({
     ...l,
     messages: (l.messages ?? []) as Message[],
+    next_event: eventByLead.get(l.id) ?? null,
   }));
 
   return <InboxClient leads={leads} />;

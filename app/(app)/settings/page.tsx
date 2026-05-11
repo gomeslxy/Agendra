@@ -14,15 +14,19 @@ export default async function SettingsPage() {
 
   const supabase = await createClient();
 
-  const [{ data: company }, { data: memberships }] = await Promise.all([
+  const [{ data: company }, { data: memberships }, { data: channels }] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name, ai_name, ai_tone, ai_greeting, ai_forbidden, google_calendar_email, google_calendar_id, plan_type, subscription_status, stripe_customer_id")
+      .select("id, name, ai_name, ai_tone, ai_greeting, ai_forbidden, persona_config, google_calendar_email, google_calendar_id, plan_type, subscription_status, stripe_customer_id")
       .eq("id", companyId)
       .maybeSingle(),
     supabase
       .from("memberships")
       .select("id, role, company_id, users(id, full_name, email)")
+      .eq("company_id", companyId),
+    supabase
+      .from("channels")
+      .select("id, provider, provider_id, status")
       .eq("company_id", companyId),
   ]);
 
@@ -33,6 +37,7 @@ export default async function SettingsPage() {
       <SettingsShell
         company={company ?? null}
         memberships={memberships ?? []}
+        channels={channels ?? []}
         usage={usage}
       />
     </Suspense>

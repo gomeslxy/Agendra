@@ -49,8 +49,7 @@ export default async function ReportsPage() {
   // ── Heatmap 7×24 ──────────────────────────────────────────────
   const heatGrid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
 
-  // ── Events by lead_id ─────────────────────────────────────────
-  const leadsWithEvent = new Set(allEvents.map((e) => e.lead_id).filter(Boolean));
+  // ── Events by lead_id ────────────────────────────────────────
   for (const e of allEvents) {
     const k = e.created_at.slice(0, 10);
     const b = dailyMap.get(k);
@@ -58,7 +57,6 @@ export default async function ReportsPage() {
   }
 
   // ── Messages ─────────────────────────────────────────────────
-  const leadsWithMsg = new Set(allMessages.map((m) => m.lead_id).filter(Boolean));
   for (const m of allMessages) {
     const k = m.created_at.slice(0, 10);
     const b = dailyMap.get(k);
@@ -87,18 +85,33 @@ export default async function ReportsPage() {
 
   const dailyDetails = dailyOrder.map((d) => dailyMap.get(d)!);
 
-  // ── 90d funnel (pipeline snapshot) ──────────────────────────
-  const tot = allLeads.length;
-  const hot  = allLeads.filter((l) => l.status === "hot").length;
-  const warm = allLeads.filter((l) => l.status === "warm").length;
+  // ── Funnel computed from full 90d data (passed to client for per-period slicing) ──
+  // Client receives dailyDetails with per-day lead IDs not tracked here, so we pass
+  // a funnelBuilder map instead: lead_id → { hasMsg, hasEvent, status }
+  const leadMeta = new Map<string, { hasMsg: boolean; hasEvent: boolean; status: string; date: string }>();
+  for (const l of allLeads) {
+    leadMeta.set(l.id, { hasMsg: false, hasEvent: false, status: l.status, date: l.created_at.slice(0, 10) });
+  }
+  for (const m of allMessages) {
+    if (m.lead_id && leadMeta.has(m.lead_id)) leadMeta.get(m.lead_id)!.hasMsg = true;
+  }
+  for (const e of allEvents) {
+    if (e.lead_id && leadMeta.has(e.lead_id)) leadMeta.get(e.lead_id)!.hasEvent = true;
+  }
+
+  // Build 90d funnel (all-time within window) — client will recompute per period using dailyDetails
+  const tot  = allLeads.length;
+  const withMsg   = [...leadMeta.values()].filter((l) => l.hasMsg).length;
+  const qualified = allLeads.filter((l) => l.status === "hot" || l.status === "warm").length;
+  const withEvent = [...leadMeta.values()].filter((l) => l.hasEvent).length;
   const conv = allLeads.filter((l) => l.status === "success" || l.status === "converted").length;
 
   const funnelStages = [
-    { label: "Captados",     value: tot,                          color: "#3B82F6" },
-    { label: "Interagiram",  value: leadsWithMsg.size,            color: "#8B5CF6" },
-    { label: "Qualificados", value: hot + warm,                   color: "#14B8A6" },
-    { label: "Agendaram",    value: leadsWithEvent.size,          color: "#F59E0B" },
-    { label: "Convertidos",  value: conv,                         color: "#10B981" },
+    { label: "Captados",     value: tot,        color: "#3B82F6" },
+    { label: "Interagiram",  value: withMsg,    color: "#8B5CF6" },
+    { label: "Qualificados", value: qualified,  color: "#14B8A6" },
+    { label: "Agendaram",    value: withEvent,  color: "#F59E0B" },
+    { label: "Convertidos",  value: conv,       color: "#10B981" },
   ];
 
   const heatmapData = heatGrid.flatMap((row, wd) =>

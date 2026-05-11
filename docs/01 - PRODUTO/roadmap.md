@@ -28,6 +28,16 @@ Status atualizado em: 2026-05-10
 - [x] **GCal Delete Propagation**: Cancelar no GCal quando deletar no Agendra (e vice-versa). `lib/calendar/sync.ts` + `app/(app)/agenda/actions.ts`
 - [ ] **Instagram DM Integration**: Expansão de canais (Backlog).
 
+## ✅ Fase 5.1: Produto — Persona & Engine Upgrade (Concluído 2026-05-11)
+- [x] **Persona Tab Redesign**: 3 seções reais (Identidade, Regras Operacionais, Comportamento). `app/(app)/settings/settings-shell.tsx`
+- [x] **Campos editáveis pós-onboarding**: timezone, working_hours, slot_duration, services, business_type agora configuráveis em Settings.
+- [x] **Auto-escalação real**: toggle + threshold persistem em `persona_config`; engine escala automaticamente leads frios.
+- [x] **buildSystemPrompt enriquecido**: business_type, services, extra_instructions, frases proibidas, bloco de escalação.
+- [x] **Channels tab com status real**: WhatsApp mostra status do banco, canais não implementados sem fake "Conectado".
+- [x] **Flows tab**: removido `alert()`, placeholder honesto com preview das 3 automações futuras.
+- [x] **Inbox booking status real**: painel lateral lê eventos reais do lead (agendado/sem agendamento/convertido).
+- [x] **Reports funnel**: removidas variáveis obsoletas, funil calculado consistentemente.
+
 ## 🔧 Fase 5: Monetização & Escala (Em Progresso)
 - [x] **Stripe Checkout**: Fluxo de assinatura + linha items + metadata companyId. `app/api/stripe/checkout/route.ts`
 - [x] **Stripe Webhook**: Eventos `checkout.session.completed`, `subscription.updated`, `subscription.deleted`, `invoice.payment_failed`. `app/api/stripe/webhook/route.ts`

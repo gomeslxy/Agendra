@@ -34,17 +34,23 @@ interface PersonaConfig {
   greeting?: string;
   timezone?: string;
   slot_duration_minutes?: number;
+  extra_instructions?: string;
+  ai_forbidden?: string;
+  auto_escalate?: boolean;
+  escalation_threshold?: number;
 }
 
 function buildSystemPrompt(persona: PersonaConfig, lead: Lead): string {
   const aiName = persona.name ?? 'Agendra';
   const businessName = persona.business_name ?? 'nossa empresa';
   const businessType = persona.business_type ?? 'negócio';
-  const services = persona.services?.join(', ') ?? 'nossos serviços';
+  const services = persona.services?.length
+    ? persona.services.join(', ')
+    : 'nossos serviços';
   const toneMap = {
-    cold: "Formal: Profissional, breve e direto ao ponto. Evite emojis ou intimidade. Ideal para serviços corporativos ou jurídicos.",
-    warm: "Amigável: Atencioso, profissional e equilibrado. Pode usar emojis moderadamente. Ideal para suporte e consultoria.",
-    hot: "Persuasivo: Entusiasta, ágil e próximo. Use emojis e linguagem persuasiva para converter o lead. Ideal para vendas e promoções.",
+    cold: "Formal: Profissional, breve e direto ao ponto. Evite emojis ou intimidade.",
+    warm: "Amigável: Atencioso, profissional e equilibrado. Pode usar emojis moderadamente.",
+    hot:  "Persuasivo: Entusiasta, ágil e próximo. Use emojis e linguagem persuasiva para converter.",
   };
 
   const selectedToneKey = (lead.conversation_tone || persona.tone) as keyof typeof toneMap;
@@ -52,14 +58,28 @@ function buildSystemPrompt(persona: PersonaConfig, lead: Lead): string {
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
 
+  const forbiddenBlock = persona.ai_forbidden?.trim()
+    ? `\n## Frases Proibidas\nNUNCA use estas expressões na sua resposta: ${persona.ai_forbidden}.`
+    : '';
+
+  const extraBlock = persona.extra_instructions?.trim()
+    ? `\n## Regras Adicionais do Negócio\n${persona.extra_instructions}`
+    : '';
+
+  const escalationThreshold = persona.escalation_threshold ?? 25;
+  const escalationBlock = persona.auto_escalate
+    ? `\n## Escalação\nSe o score do lead estiver abaixo de ${escalationThreshold}, encerre a conversa gentilmente dizendo que um atendente humano entrará em contato em breve. Não tente forçar o agendamento com leads frios.`
+    : '';
+
   return `Você é ${aiName}, assistente de vendas inteligente do(a) ${businessName} (${businessType}).
 Tom: ${tone}. Use sempre o primeiro nome do lead: "${firstName}". Seja concisa e direta.
 
+Tipo de negócio: ${businessType}.
 Serviços que você representa: ${services}.
 Fuso horário do negócio: ${timezone}.
 
 ## Missão Principal
-Qualificar o lead e agendar uma reunião/consulta. Conduza a conversa nessa direção.
+Qualificar o lead e agendar uma reunião/consulta. Conduza a conversa nessa direção de forma natural.
 
 ## Regras de Uso das Ferramentas
 1. Quando o lead pedir horários disponíveis OU demonstrar intenção de agendar → use \`checkAvailability\`
@@ -67,6 +87,7 @@ Qualificar o lead e agendar uma reunião/consulta. Conduza a conversa nessa dire
 3. Quando o lead mencionar seu email, cidade ou como conheceu a empresa → use \`updateLeadInfo\` silenciosamente
 4. NUNCA invente horários — sempre use \`checkAvailability\` primeiro
 5. Após \`bookMeeting\` ser bem-sucedido, confirme o agendamento com entusiasmo e próximos passos
+${forbiddenBlock}${extraBlock}${escalationBlock}
 
 ## Qualificação (inclua no bloco JSON ao final)
 Após sua resposta textual, adicione SEMPRE um bloco separado por "---JSON---":
@@ -326,9 +347,21 @@ export async function handleIncomingMessage(
   }
 
   // ── Atualizar classificação do lead ──────────────────────────────────────
+  const leadPatch: Record<string, unknown> = { heat_score, status, summary };
+
+  const autoEscalate = (persona as PersonaConfig).auto_escalate ?? false;
+  const escalationThreshold = (persona as PersonaConfig).escalation_threshold ?? 25;
+  const wasAutoRespond = lead.auto_respond;
+  const shouldEscalate = autoEscalate && heat_score < escalationThreshold && wasAutoRespond;
+
+  if (shouldEscalate) {
+    leadPatch.auto_respond = false;
+    console.log(`[AI Engine] Auto-escalation triggered for lead ${lead.id} — score ${heat_score} < ${escalationThreshold}`);
+  }
+
   await admin
     .from('leads')
-    .update({ heat_score, status, summary })
+    .update(leadPatch)
     .eq('id', lead.id);
 
   // ── Persistir resposta da IA ─────────────────────────────────────────────
@@ -338,6 +371,16 @@ export async function handleIncomingMessage(
     role: 'assistant',
     content: finalReply,
   });
+
+  // ── Nota interna se escalou ───────────────────────────────────────────────
+  if (shouldEscalate) {
+    await admin.from('messages').insert({
+      lead_id: lead.id,
+      company_id: companyId,
+      role: 'note',
+      content: `IA pausou atendimento — score ${heat_score} (abaixo de ${escalationThreshold}). Aguardando atendente humano.`,
+    });
+  }
 
   // ── Enviar via WhatsApp ───────────────────────────────────────────────────
   await sendWhatsAppMessage(phone, finalReply);
