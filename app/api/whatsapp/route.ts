@@ -222,19 +222,14 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
   console.log(`[WhatsApp] 📦 Payload recebido | entries=${payload.entry?.length ?? 0}`);
 
   for (const entry of payload.entry ?? []) {
-    const wabaId = entry.id; // WhatsApp Business Account ID
-
+    
+    // ─── Processar Mudanças (Changes) ─────────────────────────────────────────
     for (const change of entry.changes ?? []) {
-      console.log(`[WhatsApp] 🔍 Campo recebido: "${change.field}"`);
-      
-      if (change.field !== "messages") {
-        console.log(`[WhatsApp] ⏭️ Ignorando campo: ${change.field}`);
-        continue;
-      }
-
       const value = change.value;
-      const phoneNumberId = value.metadata?.phone_number_id;
-      console.log(`[WhatsApp] 📱 phone_number_id detectado: ${phoneNumberId}`);
+      if (!value) continue;
+
+      const metadata = value.metadata;
+      const phoneNumberId = metadata?.phone_number_id;
 
       const messages = value.messages ?? [];
       const contacts = value.contacts ?? [];
@@ -252,8 +247,7 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
 
       if (!companyId) {
         console.warn(
-          `[WhatsApp] ⚠️  company_id não resolvida para phone_number_id=${phoneNumberId} | waba=${wabaId}`,
-          "\n  → Configure a tabela 'channels' para mapear phone_number_id → company_id",
+          `[WhatsApp] ⚠️  company_id não resolvida para phone_number_id=${phoneNumberId}`,
         );
         continue;
       }
@@ -261,37 +255,37 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
       console.log(`[WhatsApp] 🏢 Empresa resolvida: ${companyId}`);
 
 
-      // ── Processar cada mensagem recebida ──────────────────────────────────
-      for (const message of messages) {
+      // ── Processar cada mensagem individualmente ─────────────────────────────
+      for (const msg of messages) {
         // Encontrar o contato correspondente
-        const contact = contacts.find((c) => c.wa_id === message.from);
+        const contact = contacts.find((c) => c.wa_id === msg.from);
 
         if (!contact) {
-          console.warn(`[WhatsApp] ⚠️  Contato não encontrado para from=${message.from}`);
+          console.warn(`[WhatsApp] ⚠️  Contato não encontrado para from=${msg.from}`);
           continue;
         }
 
         // Apenas mensagens de texto por enquanto
-        if (message.type !== "text" || !message.text?.body) {
-          console.log(`[WhatsApp] ⏭️  Tipo de mensagem ignorado: ${message.type}`);
+        if (msg.type !== "text" || !msg.text?.body) {
+          console.log(`[WhatsApp] ⏭️  Tipo de mensagem ignorado: ${msg.type}`);
           continue;
         }
 
         console.log(
-          `[WhatsApp] 📩 Nova mensagem | from=${message.from} | name="${contact.profile.name}" | text="${message.text.body.slice(0, 80)}"`,
+          `[WhatsApp] 📩 Nova mensagem | from=${msg.from} | name="${contact.profile.name}" | text="${msg.text.body.slice(0, 80)}"`
         );
 
         console.log(`[WhatsApp] 🧠 Chamando handleIncomingMessage...`);
         try {
           await handleIncomingMessage(
             companyId,
-            message.from,
+            msg.from,
             contact.profile.name,
-            message.text.body,
+            msg.text.body,
           );
           console.log(`[WhatsApp] ✅ handleIncomingMessage finalizado com sucesso.`);
-        } catch (err) {
-          console.error(`[WhatsApp] ❌ Erro no handleIncomingMessage:`, err);
+        } catch (err: any) {
+          console.error(`[WhatsApp] ❌ Erro no handleIncomingMessage:`, err.message || err);
         }
 
       }
