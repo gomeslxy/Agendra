@@ -6,6 +6,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { type OnboardingData, ONBOARDING_TOTAL_STEPS } from "@/lib/onboarding/types";
 import { saveOnboardingStep, completeOnboarding } from "@/app/(onboarding)/actions";
 import { OnboardingProgress } from "@/app/(onboarding)/components/onboarding-progress";
+import { StepEmpresa } from "@/app/(onboarding)/components/steps/step-empresa";
+import { StepObjetivo } from "@/app/(onboarding)/components/steps/step-objetivo";
+import { StepCanais } from "@/app/(onboarding)/components/steps/step-canais";
+import { StepIA } from "@/app/(onboarding)/components/steps/step-ia";
+import { StepMetas } from "@/app/(onboarding)/components/steps/step-metas";
 import { Button } from "@/components/ui/button";
 
 interface OnboardingWizardProps {
@@ -21,23 +26,7 @@ const STEP_TITLES = [
   "Suas Metas",
 ];
 
-function StepPlaceholder({
-  step,
-  data,
-  onChange,
-}: {
-  step: number;
-  data: Partial<OnboardingData>;
-  onChange: (d: Partial<OnboardingData>) => void;
-}) {
-  void data;
-  void onChange;
-  return (
-    <div className="text-white/60 text-sm py-4">
-      Step {step + 1} content (coming soon)
-    </div>
-  );
-}
+const STEP_COMPONENTS = [StepEmpresa, StepObjetivo, StepCanais, StepIA, StepMetas];
 
 export function OnboardingWizard({ initialStep, initialData }: OnboardingWizardProps) {
   const router = useRouter();
@@ -49,6 +38,7 @@ export function OnboardingWizard({ initialStep, initialData }: OnboardingWizardP
   const [direction, setDirection] = useState(1);
 
   const isLastStep = step === ONBOARDING_TOTAL_STEPS - 1;
+  const StepComponent = STEP_COMPONENTS[step];
 
   function handleChange(patch: Partial<OnboardingData>) {
     setData((prev) => ({ ...prev, ...patch }));
@@ -112,7 +102,7 @@ export function OnboardingWizard({ initialStep, initialData }: OnboardingWizardP
               exit={{ x: -direction * 60, opacity: 0 }}
               transition={{ type: "spring", stiffness: 380, damping: 35 }}
             >
-              <StepPlaceholder step={step} data={data} onChange={handleChange} />
+              <StepComponent data={data} onChange={handleChange} />
             </motion.div>
           </AnimatePresence>
         </div>
