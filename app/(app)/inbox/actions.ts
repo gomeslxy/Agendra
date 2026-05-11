@@ -3,15 +3,16 @@
 import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireOnboarding } from "@/lib/onboarding/guards";
+import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
 
-async function getLeadCompanyId(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
+async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
   const { data, error } = await supabase
     .from("leads")
-    .select("company_id")
+    .select("company_id, phone")
     .eq("id", leadId)
     .single();
   if (error || !data) throw new Error("Lead não encontrado");
-  return data.company_id as string;
+  return { company_id: data.company_id as string, phone: data.phone as string };
 }
 
 export async function sendNote(leadId: string, content: string) {
@@ -19,9 +20,18 @@ export async function sendNote(leadId: string, content: string) {
   if (!profile) throw new Error("Unauthorized");
 
   const supabase = await createClient();
-  const company_id = await getLeadCompanyId(supabase, leadId);
+  const { company_id, phone } = await getLeadInfo(supabase, leadId);
   await requireOnboarding(company_id);
 
+  // 1. Enviar para o WhatsApp primeiro
+  try {
+    await sendWhatsAppMessage(phone, content);
+  } catch (err) {
+    console.error("[sendNote] WhatsApp send error:", err);
+    throw new Error("Erro ao enviar para o WhatsApp. Verifique as configurações do canal.");
+  }
+
+  // 2. Salvar no banco apenas se o envio acima funcionar (ou se você preferir salvar mesmo com erro, inverta a ordem)
   const { error } = await supabase.from("messages").insert({
     lead_id: leadId,
     company_id,
@@ -39,7 +49,7 @@ export async function takeOverLead(leadId: string) {
   if (!profile) throw new Error("Unauthorized");
 
   const supabase = await createClient();
-  const company_id = await getLeadCompanyId(supabase, leadId);
+  const { company_id } = await getLeadInfo(supabase, leadId);
   await requireOnboarding(company_id);
 
   await supabase
@@ -64,7 +74,7 @@ export async function automatizeLead(leadId: string) {
   if (!profile) throw new Error("Unauthorized");
 
   const supabase = await createClient();
-  const company_id = await getLeadCompanyId(supabase, leadId);
+  const { company_id } = await getLeadInfo(supabase, leadId);
   await requireOnboarding(company_id);
 
   await supabase
