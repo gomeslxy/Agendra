@@ -37,6 +37,10 @@ export async function applyOnboardingConfig(
   companyId: string,
   data: OnboardingData,
 ): Promise<ApplyResult> {
+  if (!companyId?.trim()) {
+    return { ok: false, error: 'companyId is required' };
+  }
+
   const admin = createAdminClient();
 
   try {
@@ -55,7 +59,7 @@ export async function applyOnboardingConfig(
     const { error } = await admin
       .from('companies')
       .update({
-        name: data.company_name ?? undefined,
+        ...(data.company_name ? { name: data.company_name } : {}),
         persona_config,
         ai_name: data.ai_name ?? null,
         ai_tone: data.ai_tone ?? null,

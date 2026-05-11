@@ -66,4 +66,24 @@ describe('buildPrefillFromLegacy', () => {
     });
     expect(result.working_hours).toEqual(wh);
   });
+
+  it('handles null persona_config gracefully', () => {
+    const result = buildPrefillFromLegacy({ name: 'Test', persona_config: null });
+    expect(result.company_name).toBe('Test');
+    expect(result.niche).toBeUndefined();
+  });
+
+  it('ignores non-string business_type in persona_config', () => {
+    const result = buildPrefillFromLegacy({
+      persona_config: { business_type: 123 },
+    });
+    expect(result.niche).toBeUndefined();
+  });
+
+  it('ignores array working_hours in persona_config', () => {
+    const result = buildPrefillFromLegacy({
+      persona_config: { working_hours: ['invalid'] },
+    });
+    expect(result.working_hours).toBeUndefined();
+  });
 });
