@@ -116,32 +116,34 @@ async function resolveCompanyId(
 ): Promise<string | null> {
   if (!phoneNumberId) return null;
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("channels")
-    .select("company_id")
-    .eq("provider", "whatsapp")
-    .eq("provider_id", phoneNumberId)
-    .eq("status", "active")
-    .maybeSingle();
+  try {
+    console.log(`[DB] 🔍 Iniciando consulta para phone_id=${phoneNumberId}`);
+    const admin = createAdminClient();
+    
+    const { data, error } = await admin
+      .from("channels")
+      .select("company_id")
+      .eq("provider", "whatsapp")
+      .eq("provider_id", phoneNumberId)
+      .eq("status", "active")
+      .maybeSingle();
 
-  if (error) {
-    console.error(
-      `[WhatsApp] ❌ Erro ao resolver company_id para phone_number_id=${phoneNumberId}:`,
-      error.message,
-    );
+    if (error) {
+      console.error(`[DB] ❌ Erro na consulta do Supabase:`, error.message);
+      return null;
+    }
+
+    if (!data?.company_id) {
+      console.warn(`[DB] ⚠️ Canal ativo não encontrado para phone_id=${phoneNumberId}`);
+      return null;
+    }
+
+    console.log(`[DB] ✅ Empresa resolvida com sucesso: ${data.company_id}`);
+    return data.company_id;
+  } catch (err: any) {
+    console.error(`[DB] 💥 Crash catastrófico ao falar com Supabase:`, err.message || err);
     return null;
   }
-
-  if (!data?.company_id) {
-    console.warn(
-      `[WhatsApp] ⚠️  Nenhum canal ativo encontrado para phone_number_id=${phoneNumberId}`,
-      "\n  → Insira uma linha na tabela 'channels' com este provider_id.",
-    );
-    return null;
-  }
-
-  return data.company_id;
 }
 
 // ─── Handler: GET — Challenge Verification ───────────────────────────────────
