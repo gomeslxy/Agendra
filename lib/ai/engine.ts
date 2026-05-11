@@ -123,7 +123,7 @@ export async function processLeadMessage(
   persona: PersonaConfig,
 ): Promise<AIResult> {
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-1.5-flash',
     systemInstruction: buildSystemPrompt(persona, lead),
     tools: [toolDeclarations],
     toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },

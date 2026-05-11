@@ -23,23 +23,24 @@ export async function sendNote(leadId: string, content: string) {
   const { company_id, phone } = await getLeadInfo(supabase, leadId);
   await requireOnboarding(company_id);
 
-  // 1. Enviar para o WhatsApp primeiro
-  try {
-    await sendWhatsAppMessage(phone, content);
-  } catch (err) {
-    console.error("[sendNote] WhatsApp send error:", err);
-    throw new Error("Erro ao enviar para o WhatsApp. Verifique as configurações do canal.");
-  }
-
-  // 2. Salvar no banco apenas se o envio acima funcionar (ou se você preferir salvar mesmo com erro, inverta a ordem)
-  const { error } = await supabase.from("messages").insert({
+  // 1. Salvar no banco primeiro (registro histórico garantido)
+  const { error: dbError } = await supabase.from("messages").insert({
     lead_id: leadId,
     company_id,
     content,
     role: "agent",
   });
 
-  if (error) throw new Error(error.message);
+  if (dbError) throw new Error(dbError.message);
+
+  // 2. Tentar enviar para o WhatsApp
+  try {
+    await sendWhatsAppMessage(phone, content);
+  } catch (err) {
+    console.error("[sendNote] WhatsApp send error:", err);
+    // Aqui não damos throw para não quebrar a UI com erro genérico do Next.js
+    // O log vai capturar o 401 ou outros erros.
+  }
 
   revalidatePath("/inbox");
 }
