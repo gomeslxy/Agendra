@@ -19,8 +19,17 @@ A tabela `channels` armazena:
 
 ## 📤 Fluxo de Envio (`lib/whatsapp/client.ts`)
 - Utiliza a **WhatsApp Cloud API (v19.0+)**.
-- Suporta apenas mensagens de texto e templates básicos no momento.
-- O envio é feito usando o token e o phone ID resolvidos dinamicamente pela `company_id`.
+- **Resiliência do Inbox**: As mensagens manuais são salvas no banco de dados ANTES do envio via API. Isso garante o registro histórico mesmo se houver falha na comunicação com a Meta.
+- **Tratamento de Erros**: Erros de envio (como Token expirado) são logados no servidor, mas não interrompem o fluxo da UI no dashboard.
+
+## 🖼️ Suporte a Mídia
+- O sistema detecta tipos de mensagem não-textuais (`image`, `audio`, `video`, `document`).
+- Para manter a consistência do histórico, essas mensagens são convertidas em fallbacks de texto (ex: `[Imagem recebida]`) para processamento pela IA e exibição no Inbox.
+
+## 🛠️ Troubleshooting & Dicas
+- **Tokens**: O `WHATSAPP_TOKEN` (System User Access Token) deve ter aproximadamente 180-200 caracteres. Tokens curtos (10-15 caracteres) são IDs e causarão erro 401.
+- **Formatador de Token**: O cliente limpa automaticamente prefixos "Bearer " e espaços em branco para evitar erros de autenticação comuns.
+- **Phone ID**: Certifique-se de usar o `phone_number_id` (numérico longo) e não o WABA ID.
 
 ## 🛡️ Segurança
 - **Admin Client**: O processamento do webhook usa um cliente admin do Supabase para bypassar RLS, já que não há sessão de usuário logado no momento do recebimento.

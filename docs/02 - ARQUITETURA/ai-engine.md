@@ -1,11 +1,16 @@
 # 🧠 Motor de IA (Agendra AI Engine)
 
-O Agendra utiliza um motor agêntico baseado no **Gemini 2.0 Flash**, projetado para transformar conversas em WhatsApp em agendamentos reais.
+O Agendra utiliza um motor agêntico baseado no **Gemini 1.5 Flash** (em transição para **Gemini 3.1 Flash-Lite**), projetado para transformar conversas em WhatsApp em agendamentos reais.
 
 ## ⚙️ Tecnologias
-- **Modelo**: `gemini-2.0-flash`
-- **SDK**: `@google/generative-ai`
+- **Modelo Principal**: `gemini-3.1-flash-lite` (Escolha baseada em estabilidade de cota e performance).
+- **Modelo de Fallback**: `gemini-1.5-flash`.
+- **SDK**: `@google/generative-ai`.
 - **Padrão**: Tool Calling (Function Calling) com loop agêntico de até 5 iterações.
+
+## 📜 Regras de Histórico
+- **Strict User Start**: O Gemini exige que a primeira mensagem do histórico seja do `user`. O motor filtra automaticamente mensagens iniciais do assistente se necessário.
+- **Filtragem de Notas**: Mensagens do tipo `note` (anotações manuais) são ignoradas pelo motor de IA para evitar confusão no contexto.
 
 ## 🛠️ Ferramentas (Tools)
 A IA possui "mãos" para interagir com o sistema através das seguintes ferramentas:

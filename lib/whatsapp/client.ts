@@ -15,6 +15,9 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
 
   token = token.trim();
 
+  // DIAGNÓSTICO
+  console.log(`[WhatsApp Client] 🔍 Debug Token: length=${token.length} | startsWith=${token.substring(0, 10)}... | endsWith=...${token.substring(token.length - 5)}`);
+
   const res = await fetch(`${WHATSAPP_API_BASE}/${phoneId}/messages`, {
     method: 'POST',
     headers: {

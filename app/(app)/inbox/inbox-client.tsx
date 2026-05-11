@@ -201,7 +201,10 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
         trackEvent("message_sent", { lead_id: selected.id });
       } catch (e) {
         setInboxError((e as Error).message);
-        // Remove optimistic message on error
+        setNoteText(content); // Restore text
+      } finally {
+        // Remove optimistic message ALWAYS after completion
+        // The real message will be added by the Realtime listener
         setLeads((prev) =>
           prev.map((l) =>
             l.id === selected.id
@@ -209,7 +212,6 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
               : l
           )
         );
-        setNoteText(content); // Restore text
       }
     });
   }, [selected, noteText]);

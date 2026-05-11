@@ -38,8 +38,7 @@ export async function sendNote(leadId: string, content: string) {
     await sendWhatsAppMessage(phone, content);
   } catch (err) {
     console.error("[sendNote] WhatsApp send error:", err);
-    // Aqui não damos throw para não quebrar a UI com erro genérico do Next.js
-    // O log vai capturar o 401 ou outros erros.
+    throw err; // Re-throw to be caught by the client
   }
 
   revalidatePath("/inbox");

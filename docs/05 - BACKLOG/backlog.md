@@ -3,6 +3,8 @@
 Lista de funcionalidades, melhorias e débitos técnicos para o futuro do Agendra.
 
 ## 🛠️ Débitos Técnicos & Refatoração
+- [ ] **Billing Database Migration**: Adicionar colunas `current_period_start` e `current_period_end` na tabela `subscriptions` para suporte completo a ciclos de faturamento.
+- [ ] **WhatsApp Media UI**: Implementar visualização real de mídias (imagens, áudios) no Inbox, substituindo os fallbacks de texto atuais.
 - [ ] **Encrypted Tokens**: Criptografar `google_refresh_token` e `whatsapp_token` em repouso no banco de dados.
 - [ ] **Branded Icons**: Substituir `lucide-react` por ícones SVG próprios para reforçar a identidade visual.
 - [ ] **Centralized Types**: Unificar todos os tipos de banco de dados em um único pacote/arquivo compartilhado.
