@@ -236,19 +236,17 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
 
       const messages = value.messages ?? [];
       const contacts = value.contacts ?? [];
-
+      console.log(`[WhatsApp] 📩 Mensagens no payload: ${messages.length} | Contatos: ${contacts.length}`);
 
       if (messages.length === 0) {
-        // Pode ser um evento de status (delivered, read, etc.) — ignorar silenciosamente
         const statuses = value.statuses ?? [];
-        if (statuses.length > 0) {
-          console.log(`[WhatsApp] 📊 Status update | waba=${wabaId} | count=${statuses.length}`);
-        }
+        console.log(`[WhatsApp] 📊 Nenhum conteúdo de mensagem. Status updates: ${statuses.length}`);
         continue;
       }
 
-      // ── Resolver company_id pelo phone_number_id (multi-tenant) ─────────────
+      console.log(`[WhatsApp] 🔍 Buscando empresa para phone_id=${phoneNumberId}...`);
       const companyId = await resolveCompanyId(phoneNumberId);
+
 
       if (!companyId) {
         console.warn(
