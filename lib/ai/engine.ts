@@ -358,6 +358,16 @@ export async function handleIncomingMessage(
     persona,
   );
 
+  // ── Watermark Logic ───────────────────────────────────────────────────────
+  // Só adiciona se o plano permitir E se for a primeiríssima resposta da IA para este lead
+  let finalReply = reply;
+  const assistantMessages = (history ?? []).filter(m => m.role === 'assistant');
+  const isFirstResponse = assistantMessages.length === 0;
+  
+  if (usage.limits.hasWatermark && isFirstResponse) {
+    finalReply += '\n\n⚡ _Powered by Agendra_';
+  }
+
   // ── Atualizar classificação do lead ──────────────────────────────────────
   const leadPatch: Record<string, unknown> = { heat_score, status, summary };
 
@@ -381,7 +391,7 @@ export async function handleIncomingMessage(
     lead_id: lead.id,
     company_id: companyId,
     role: 'assistant',
-    content: reply,
+    content: finalReply,
   });
 
   // ── Nota interna se escalou ───────────────────────────────────────────────
@@ -395,5 +405,5 @@ export async function handleIncomingMessage(
   }
 
   // ── Enviar via WhatsApp ───────────────────────────────────────────────────
-  await sendWhatsAppMessage(phone, reply);
+  await sendWhatsAppMessage(phone, finalReply);
 }
