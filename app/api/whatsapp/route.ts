@@ -252,9 +252,11 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
           `[WhatsApp] ⚠️  company_id não resolvida para phone_number_id=${phoneNumberId} | waba=${wabaId}`,
           "\n  → Configure a tabela 'channels' para mapear phone_number_id → company_id",
         );
-        // Continua processando — não interrompe outros entries
         continue;
       }
+
+      console.log(`[WhatsApp] 🏢 Empresa resolvida: ${companyId}`);
+
 
       // ── Processar cada mensagem recebida ──────────────────────────────────
       for (const message of messages) {
@@ -276,12 +278,19 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
           `[WhatsApp] 📩 Nova mensagem | from=${message.from} | name="${contact.profile.name}" | text="${message.text.body.slice(0, 80)}"`,
         );
 
-        await handleIncomingMessage(
-          companyId,
-          message.from,
-          contact.profile.name,
-          message.text.body,
-        );
+        console.log(`[WhatsApp] 🧠 Chamando handleIncomingMessage...`);
+        try {
+          await handleIncomingMessage(
+            companyId,
+            message.from,
+            contact.profile.name,
+            message.text.body,
+          );
+          console.log(`[WhatsApp] ✅ handleIncomingMessage finalizado com sucesso.`);
+        } catch (err) {
+          console.error(`[WhatsApp] ❌ Erro no handleIncomingMessage:`, err);
+        }
+
       }
     }
   }
