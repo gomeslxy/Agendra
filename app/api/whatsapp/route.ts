@@ -223,17 +223,20 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
     const wabaId = entry.id; // WhatsApp Business Account ID
 
     for (const change of entry.changes ?? []) {
-      if (change.field !== "messages") continue;
+      console.log(`[WhatsApp] 🔍 Campo recebido: "${change.field}"`);
+      
+      if (change.field !== "messages") {
+        console.log(`[WhatsApp] ⏭️ Ignorando campo: ${change.field}`);
+        continue;
+      }
 
       const value = change.value;
       const phoneNumberId = value.metadata?.phone_number_id;
+      console.log(`[WhatsApp] 📱 phone_number_id detectado: ${phoneNumberId}`);
+
       const messages = value.messages ?? [];
       const contacts = value.contacts ?? [];
 
-      // Logar payload completo em dev para debug
-      if (process.env.NODE_ENV === "development") {
-        console.log("[WhatsApp] 🔬 Payload completo:", JSON.stringify(value, null, 2));
-      }
 
       if (messages.length === 0) {
         // Pode ser um evento de status (delivered, read, etc.) — ignorar silenciosamente
