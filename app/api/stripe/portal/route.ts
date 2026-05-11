@@ -14,7 +14,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { cookies } from 'next/headers';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-01-27.acacia' as any,
+  apiVersion: '2026-04-22.dahlia' as any,
 });
 
 export async function POST(request: NextRequest) {

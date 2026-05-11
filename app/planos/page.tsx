@@ -11,70 +11,17 @@ import { cn } from "@/lib/utils";
 import { GridBeam } from "@/components/ui/grid-beam";
 import { Spotlight } from "@/components/ui/spotlight";
 import { createClient } from "@/lib/supabase/client";
-import { calculateTrialStatus, calculateTrialProgress } from "@/lib/billing/plans";
+import { 
+  calculateTrialStatus, 
+  calculateTrialProgress,
+  STRIPE_PRICE_IDS,
+  PLANS_META
+} from "@/lib/billing/plans";
 
-// ─── Price IDs (reais, gerados via Stripe MCP) ────────────────────────────────
-const PRICE_IDS = {
-  starter: {
-    monthly: "price_1TVhRaH6hV4OPdFIzsyU61mj",
-    annual:  "price_1TVhRaH6hV4OPdFITnnF2gLW",
-  },
-  pro: {
-    monthly: "price_1TVhRaH6hV4OPdFI0LbdFuO2",
-    annual:  "price_1TVhRbH6hV4OPdFIumxlitWe",
-  },
-  business: {
-    monthly: "price_1TVhRbH6hV4OPdFINcsGvpIW",
-    annual:  "price_1TVhRbH6hV4OPdFI0Zqpxpjo",
-  },
-} as const;
-
+// ─── Constants are now imported from @/lib/billing/plans ───────────────────────
+const plans = PLANS_META;
+const PRICE_IDS = STRIPE_PRICE_IDS;
 type PlanKey = keyof typeof PRICE_IDS;
-
-// ─── Plan Definitions ─────────────────────────────────────────────────────────
-const plans: {
-  id: PlanKey;
-  name: string;
-  desc: string;
-  monthly: number;
-  annual: number;
-  leads: string;
-  features: string[];
-  recommended: boolean;
-}[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    desc: "Perfeito para profissionais autônomos iniciando com IA.",
-    monthly: 87,
-    annual: 67,
-    leads: "150 leads/mês",
-    features: ["1 WhatsApp conectado", "1 Calendário sincronizado", "Agendamento automático 24/7", "Marca d'água Agendra"],
-    recommended: false,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    desc: "Para quem já investe em anúncios e precisa de escala.",
-    monthly: 197,
-    annual: 147,
-    leads: "1.000 leads/mês",
-    features: ["Até 3 WhatsApps conectados", "Até 3 Calendários", "Sem marca d'água", "Webhooks (Zapier/Make)", "Suporte prioritário"],
-    recommended: true,
-  },
-  {
-    id: "business",
-    name: "Business",
-    desc: "Clínicas, agências e operações de alto volume.",
-    monthly: 497,
-    annual: 397,
-    leads: "5.000 leads/mês",
-    features: ["Até 10 WhatsApps conectados", "Até 10 Calendários", "Sem marca d'água", "Prioridade de processamento", "Follow-up automatizado", "Onboarding dedicado"],
-    recommended: false,
-  },
-];
-
-// ─── Trial Banner Helpers Removidos (Usando lib centralizada) ──────────────────
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PlanosPage() {
@@ -146,9 +93,9 @@ export default function PlanosPage() {
       const { url, error } = await res.json();
       if (error) throw new Error(error);
       window.location.href = url;
-    } catch (err) {
+    } catch (err: any) {
       console.error("Checkout error:", err);
-      alert("Erro ao iniciar checkout. Tente novamente.");
+      alert(`Erro ao iniciar checkout: ${err.message || "Tente novamente."}`);
     } finally {
       setLoadingPlan(null);
     }

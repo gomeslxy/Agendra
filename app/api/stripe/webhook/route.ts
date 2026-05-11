@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   }
 
   const stripe = new Stripe(secretKey, {
-    apiVersion: '2025-10-27-acacia' as any,
+    apiVersion: '2026-04-22.dahlia' as any,
   });
 
   const body = await req.text();

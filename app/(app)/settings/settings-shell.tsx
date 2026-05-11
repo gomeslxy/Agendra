@@ -122,7 +122,8 @@ export function SettingsShell({ company, memberships, channels, usage }: Setting
   // router.replace here is intentional: cleans the gcal param from the URL.
   useEffect(() => {
     const gcal = searchParams.get("gcal");
-    if (!gcal) return;
+    const stripe = searchParams.get("stripe");
+
     if (gcal === "success") {
       setToast({ msg: "Google Calendar conectado com sucesso! 🎉", type: "success" });
       setTab("channels");
@@ -138,6 +139,11 @@ export function SettingsShell({ company, memberships, channels, usage }: Setting
       setTab("channels");
       trackEvent("gcal_failed", { reason: "denied" });
       router.replace("/settings?tab=channels", { scroll: false });
+    } else if (stripe === "success") {
+      setToast({ msg: "Assinatura confirmada! Sua IA está turbinada. 🚀", type: "success" });
+      setTab("billing");
+      trackEvent("stripe_success");
+      router.replace("/settings?tab=billing", { scroll: false });
     }
   }, [searchParams, router]);
 

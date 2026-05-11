@@ -20,6 +20,7 @@ import {
   type ToolContext,
 } from './tools';
 import { getCompanyUsage } from '@/lib/billing/limits';
+import { persistAITrace } from '@/lib/ai/observability';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
@@ -157,7 +158,26 @@ export async function processLeadMessage(
   // ── Loop Agêntico ──────────────────────────────────────────────────────────
   // O Gemini pode chamar ferramentas múltiplas vezes antes de responder.
   // Limitamos a 5 iterações para prevenir loops infinitos.
+  const startMs = Date.now();
   let response = await chat.sendMessage(newMessage);
+  const durationMs = Date.now() - startMs;
+
+  const safeGetText = (resp: any) => {
+    try { return resp.text(); } catch { return ''; }
+  };
+
+  persistAITrace({
+    company_id: companyId,
+    lead_id: lead.id,
+    trace_type: 'completion',
+    request_data: { message: newMessage },
+    response_data: {
+      text: safeGetText(response.response),
+      functionCalls: response.response.candidates?.[0]?.content.parts.filter(p => p.functionCall).map(p => p.functionCall) || []
+    },
+    duration_ms: durationMs,
+    tokens_used: response.response.usageMetadata?.totalTokenCount ?? null,
+  });
   let iterations = 0;
   const MAX_ITERATIONS = 5;
 
@@ -226,13 +246,28 @@ export async function processLeadMessage(
         };
       });
 
+    const startMsTool = Date.now();
     response = await chat.sendMessage(functionResponses);
+    const durationMsTool = Date.now() - startMsTool;
+
+    persistAITrace({
+      company_id: companyId,
+      lead_id: lead.id,
+      trace_type: 'tool_call',
+      request_data: { functionResponses },
+      response_data: {
+        text: safeGetText(response.response),
+        functionCalls: response.response.candidates?.[0]?.content.parts.filter(p => p.functionCall).map(p => p.functionCall) || []
+      },
+      duration_ms: durationMsTool,
+      tokens_used: response.response.usageMetadata?.totalTokenCount ?? null,
+    });
   }
 
   // ── Extrair resposta final ─────────────────────────────────────────────────
-  const fullText = response.response.text();
+  const fullText = safeGetText(response.response);
   const [replyPart, jsonPart] = fullText.split('---JSON---');
-  const reply = replyPart.trim();
+  const reply = replyPart ? replyPart.trim() : '';
 
   let heat_score = lead.heat_score;
   let status = lead.status;
@@ -349,9 +384,9 @@ export async function handleIncomingMessage(
     console.log(`[AI Engine] 🕒 Última mensagem do histórico: ${history[history.length - 1].role} - ${history[history.length - 1].content.substring(0, 20)}...`);
   }
 
-  // ── Processar com Gemini + Tools (Apenas se auto_respond estiver ativo) ───
-  if (!lead.auto_respond) {
-    console.log(`[AI Engine] 🔇 Automação desligada para o lead ${lead.id}. Apenas registrando mensagem.`);
+  // ── Processar com Gemini + Tools (Apenas se auto_respond estiver ativo e não estiver em pausa) ───
+  if (!lead.auto_respond || lead.is_paused) {
+    console.log(`[AI Engine] 🔇 Automação pausada ou desligada para o lead ${lead.id}. Apenas registrando mensagem.`);
     return;
   }
 

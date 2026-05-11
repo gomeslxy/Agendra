@@ -18,7 +18,7 @@ import { cookies } from 'next/headers';
 import { planFromPriceId } from '@/lib/billing/plans';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-01-27.acacia' as any,
+  apiVersion: '2026-04-22.dahlia' as any,
 });
 
 export async function POST(request: NextRequest) {
@@ -47,18 +47,28 @@ export async function POST(request: NextRequest) {
 
     // 2. Resolver company e verificar assinatura existente
     const admin = createAdminClient();
-    const { data: membership } = await admin
-      .from('memberships')
+    const { data: profile, error: profileError } = await admin
+      .from('users')
       .select('company_id, companies(name, stripe_subscription_id, stripe_customer_id, subscription_status)')
-      .eq('user_id', user.id)
-      .single();
+      .eq('id', user.id)
+      .maybeSingle();
 
-    const companyId = membership?.company_id;
-    if (!companyId) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 });
+    if (profileError) {
+      console.error('[Checkout] User profile error:', profileError);
+      return NextResponse.json({ 
+        error: `Erro ao buscar perfil: ${profileError.message}`
+      }, { status: 500 });
+    }
 
-    const company = Array.isArray(membership?.companies)
-      ? membership?.companies[0]
-      : (membership?.companies as any);
+    if (!profile || !profile.company_id) {
+      console.error('[Checkout] No company linked to user:', user.id);
+      return NextResponse.json({ 
+        error: 'Sua conta não está vinculada a nenhuma empresa. Entre em contato com o suporte.'
+      }, { status: 404 });
+    }
+
+    const companyId = profile.company_id;
+    const company = profile.companies as any;
 
     // [FIX CRIT-4] Se já tem assinatura ativa, redireciona para portal em vez de criar nova
     if (company?.subscription_status === 'active' && company?.stripe_subscription_id) {
@@ -81,9 +91,11 @@ export async function POST(request: NextRequest) {
       // [FIX MED-8] URL correta: /settings, não /app/settings
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?tab=billing&stripe=success`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/planos?stripe=cancel`,
-      customer_email: user.email,
-      // Pré-popular customer se já existe
-      ...(company?.stripe_customer_id ? { customer: company.stripe_customer_id } : {}),
+      // [FIX] Stripe does not allow both customer and customer_email
+      ...(company?.stripe_customer_id 
+        ? { customer: company.stripe_customer_id } 
+        : { customer_email: user.email }
+      ),
       metadata: {
         companyId,
         userId: user.id,

@@ -19,6 +19,7 @@ export interface Lead {
   auto_respond: boolean;
   city: string | null;
   email: string | null;
+  is_paused: boolean;
   created_at: string;
   updated_at: string;
   lead_memory?: LeadMemory | null; // optional: added in schema_v6
@@ -156,6 +157,18 @@ export interface AILog {
   latency_ms: number;
   model: string;
   error: string | null;
+  created_at: string;
+}
+
+export interface AITrace {
+  id: string;
+  company_id: string;
+  lead_id: string | null;
+  trace_type: 'tool_call' | 'completion' | 'error' | 'system';
+  request_data: any;
+  response_data: any;
+  duration_ms: number | null;
+  tokens_used: number | null;
   created_at: string;
 }
 
