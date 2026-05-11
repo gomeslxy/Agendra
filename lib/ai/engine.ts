@@ -329,7 +329,12 @@ export async function handleIncomingMessage(
     .order('created_at', { ascending: true })
     .limit(20);
 
-  // ── Processar com Gemini + Tools ─────────────────────────────────────────
+  // ── Processar com Gemini + Tools (Apenas se auto_respond estiver ativo) ───
+  if (!lead.auto_respond) {
+    console.log(`[AI Engine] 🔇 Automação desligada para o lead ${lead.id}. Apenas registrando mensagem.`);
+    return;
+  }
+
   const { reply, heat_score, status, summary } = await processLeadMessage(
     lead,
     (history ?? []) as Message[],
