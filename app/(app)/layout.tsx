@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { AppShell } from "@/components/app/app-shell";
+import { getOnboardingStatus } from "@/lib/onboarding/guards";
 
 export default async function AppLayout({
   children,
@@ -25,6 +26,14 @@ export default async function AppLayout({
   if (!profile) redirect("/login");
 
   const companyId = profile.memberships?.[0]?.company_id ?? null;
+
+  if (companyId) {
+    const onboardingStatus = await getOnboardingStatus(companyId);
+    if (onboardingStatus !== 'completed') {
+      redirect('/onboarding');
+    }
+  }
+
   let hotCount = 0;
 
   if (companyId) {
