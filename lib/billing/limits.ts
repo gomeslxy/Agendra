@@ -19,13 +19,19 @@ export interface CompanyUsage {
 
 export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> {
   const admin = createAdminClient();
-  const { data: company } = await admin
+  console.log(`[Billing] 🔍 Buscando uso para companyId: "${companyId}"`);
+  const { data: company, error: companyError } = await admin
     .from('companies')
     .select('plan_type, subscription_status, current_period_start, current_period_end, created_at')
     .eq('id', companyId)
     .single();
 
-  if (!company) throw new Error('Company not found');
+  if (companyError) {
+    console.error(`[Billing] ❌ Erro ao buscar empresa no Supabase:`, companyError.message);
+    throw new Error(`Company not found: ${companyError.message}`);
+  }
+
+  if (!company) throw new Error('Company not found (null data)');
 
   // [FIX CRIT-2 + HIGH-4] Fallback seguro: trial, não starter
   const planType = ((company.plan_type as PlanType) || 'trial');
