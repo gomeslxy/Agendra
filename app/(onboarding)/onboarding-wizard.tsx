@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { type OnboardingData, ONBOARDING_TOTAL_STEPS } from "@/lib/onboarding/types";
@@ -12,6 +12,7 @@ import { StepCanais } from "@/app/(onboarding)/components/steps/step-canais";
 import { StepIA } from "@/app/(onboarding)/components/steps/step-ia";
 import { StepMetas } from "@/app/(onboarding)/components/steps/step-metas";
 import { Button } from "@/components/ui/button";
+import { trackEvent } from "@/lib/analytics";
 
 interface OnboardingWizardProps {
   initialStep: number;
@@ -40,6 +41,11 @@ export function OnboardingWizard({ initialStep, initialData }: OnboardingWizardP
   const isLastStep = step === ONBOARDING_TOTAL_STEPS - 1;
   const StepComponent = STEP_COMPONENTS[step];
 
+  // Fire once on mount — initialStep may be > 0 on resume, still counts as start
+  useEffect(() => {
+    trackEvent("onboarding_start");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleChange(patch: Partial<OnboardingData>) {
     setData((prev) => ({ ...prev, ...patch }));
   }
@@ -59,6 +65,7 @@ export function OnboardingWizard({ initialStep, initialData }: OnboardingWizardP
       if (isLastStep) {
         const result = await completeOnboarding(data as OnboardingData);
         if (result.ok) {
+          trackEvent("onboarding_complete");
           router.push("/inbox");
         } else {
           setError(result.error ?? "Ocorreu um erro ao concluir o onboarding.");

@@ -3,6 +3,7 @@
 import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { isValidUuid } from "@/lib/utils";
+import { requireOnboarding } from "@/lib/onboarding/guards";
 
 const VALID_CHANNELS = ["whatsapp", "instagram", "form"] as const;
 type Channel = (typeof VALID_CHANNELS)[number];
@@ -13,6 +14,7 @@ export async function exportLeads(): Promise<string> {
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
+  await requireOnboarding(companyId);
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -43,6 +45,7 @@ export async function createLead(formData: FormData) {
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId || !isValidUuid(companyId)) throw new Error("No company");
+  await requireOnboarding(companyId);
 
   const name = (formData.get("name") as string | null)?.trim() ?? "";
   const phone = (formData.get("phone") as string | null)?.trim() ?? "";

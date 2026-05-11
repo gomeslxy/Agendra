@@ -4,6 +4,7 @@ import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { isValidUuid } from "@/lib/utils";
 import { createGoogleCalendarEvent, deleteGCalEvent } from "@/lib/calendar/google";
+import { requireOnboarding } from "@/lib/onboarding/guards";
 
 export async function createEvent(formData: FormData) {
   const profile = await getUserProfile();
@@ -11,6 +12,7 @@ export async function createEvent(formData: FormData) {
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId || !isValidUuid(companyId)) throw new Error("No company");
+  await requireOnboarding(companyId);
 
   const leadId = (formData.get("lead_id") as string | null)?.trim() || null;
   const title = (formData.get("title") as string | null)?.trim() ?? "";

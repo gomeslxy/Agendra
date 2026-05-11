@@ -2,6 +2,7 @@
 
 import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { requireOnboarding } from "@/lib/onboarding/guards";
 
 async function getLeadCompanyId(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
   const { data, error } = await supabase
@@ -19,6 +20,7 @@ export async function sendNote(leadId: string, content: string) {
 
   const supabase = await createClient();
   const company_id = await getLeadCompanyId(supabase, leadId);
+  await requireOnboarding(company_id);
 
   const { error } = await supabase.from("messages").insert({
     lead_id: leadId,
@@ -38,6 +40,7 @@ export async function takeOverLead(leadId: string) {
 
   const supabase = await createClient();
   const company_id = await getLeadCompanyId(supabase, leadId);
+  await requireOnboarding(company_id);
 
   await supabase
     .from("leads")
@@ -62,6 +65,7 @@ export async function automatizeLead(leadId: string) {
 
   const supabase = await createClient();
   const company_id = await getLeadCompanyId(supabase, leadId);
+  await requireOnboarding(company_id);
 
   await supabase
     .from("leads")
