@@ -31,7 +31,6 @@ export default async function OnboardingPage() {
     <OnboardingWizard
       initialStep={savedStep}
       initialData={prefill}
-      companyId={companyId}
     />
   );
 }
