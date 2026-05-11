@@ -204,8 +204,10 @@ export async function handleCheckAvailability(
             new Date(utcStr.replace(' ', 'T')).getTime()) / 60000;
   }
 
+  console.log(`[Tools] 🔍 Verificando disponibilidade: now=${now.toISOString()} timezone=${timezone}`);
+  console.log(`[Tools] 🗓️ Bloqueios encontrados: ${busyIntervals.length} (Local + GCal)`);
+
   while (cursor < rangeEnd && availableSlots.length < 10) {
-    // Convert cursor (UTC) to local time using timezone offset
     const offsetMs = getOffsetMinutes(cursor, timezone) * 60000;
     const localCursor = new Date(cursor.getTime() + offsetMs);
     const localDayOfWeek = localCursor.getUTCDay();
@@ -225,7 +227,6 @@ export async function handleCheckAvailability(
 
       if (localMinutes >= workStart && slotEndLocalMinutes <= workEnd) {
         const slotEnd = new Date(cursor.getTime() + slotDuration * 60000);
-
         const isBusy = busyIntervals.some(
           (busy) => new Date(busy.start) < slotEnd && new Date(busy.end) > cursor,
         );
@@ -237,22 +238,21 @@ export async function handleCheckAvailability(
         }
       }
 
-      // Advance by slot duration
       cursor = new Date(cursor.getTime() + slotDuration * 60000);
 
-      // If past working hours, jump to next local midnight
       if (slotEndLocalMinutes >= workEnd) {
         const nextLocalMidnight = new Date(localCursor.getTime() + 24 * 60 * 60 * 1000);
         nextLocalMidnight.setUTCHours(0, 0, 0, 0);
         cursor = new Date(nextLocalMidnight.getTime() - offsetMs);
       }
     } else {
-      // Non-working day — jump to next local day
       const nextLocalMidnight = new Date(localCursor.getTime() + 24 * 60 * 60 * 1000);
       nextLocalMidnight.setUTCHours(0, 0, 0, 0);
       cursor = new Date(nextLocalMidnight.getTime() - offsetMs);
     }
   }
+
+  console.log(`[Tools] ✨ Slots encontrados: ${availableSlots.length}`);
 
   if (availableSlots.length === 0) {
     return { slots: [], message: 'Nenhum horário disponível nos próximos ' + daysAhead + ' dias.' };
