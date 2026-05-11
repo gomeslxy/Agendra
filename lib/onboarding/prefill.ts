@@ -1,0 +1,50 @@
+// lib/onboarding/prefill.ts
+import type { OnboardingData, AiTone } from './types';
+
+interface LegacyCompany {
+  name?: string | null;
+  ai_name?: string | null;
+  ai_tone?: string | null;
+  persona_config?: Record<string, unknown> | null;
+  onboarding_data?: Partial<OnboardingData> | null;
+}
+
+const VALID_TONES: AiTone[] = ['formal', 'friendly', 'direct', 'warm'];
+
+function toAiTone(raw: unknown): AiTone | undefined {
+  if (typeof raw === 'string' && VALID_TONES.includes(raw as AiTone)) {
+    return raw as AiTone;
+  }
+  return undefined;
+}
+
+export function buildPrefillFromLegacy(company: LegacyCompany): Partial<OnboardingData> {
+  // Already has onboarding_data from a previous incomplete session — use it
+  if (company.onboarding_data && Object.keys(company.onboarding_data).length > 0) {
+    return company.onboarding_data;
+  }
+
+  const config = (company.persona_config ?? {}) as Record<string, unknown>;
+  const result: Partial<OnboardingData> = {};
+
+  // Step 1 fields
+  if (company.name) result.company_name = company.name;
+  if (typeof config.business_type === 'string') result.niche = config.business_type;
+
+  // Step 4 fields — AI persona
+  const aiName = company.ai_name ?? (typeof config.name === 'string' ? config.name : undefined);
+  if (aiName) result.ai_name = aiName;
+
+  const aiTone =
+    toAiTone(company.ai_tone) ??
+    toAiTone(config.tone);
+  if (aiTone) result.ai_tone = aiTone;
+
+  if (typeof config.timezone === 'string') result.timezone = config.timezone;
+
+  if (config.working_hours && typeof config.working_hours === 'object' && !Array.isArray(config.working_hours)) {
+    result.working_hours = config.working_hours as Record<string, [string, string]>;
+  }
+
+  return result;
+}
