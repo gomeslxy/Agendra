@@ -9,7 +9,7 @@ const NAVIGATION = {
   produto: [
     { name: "Como funciona", href: "#como-funciona" },
     { name: "Recursos", href: "#recursos" },
-    { name: "Preços", href: "#precos" },
+    { name: "Preços", href: "/planos" },
     { name: "Demo", href: "#demo" },
   ],
   empresa: [

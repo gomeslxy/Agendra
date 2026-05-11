@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getUser, getCachedUserProfile, createClient } from "@/lib/supabase/server";
 import { SettingsShell } from "./settings-shell";
+import { getCompanyUsage } from "@/lib/billing/limits";
 
 export default async function SettingsPage() {
   const user = await getUser();
@@ -25,11 +26,14 @@ export default async function SettingsPage() {
       .eq("company_id", companyId),
   ]);
 
+  const usage = await getCompanyUsage(companyId).catch(() => null);
+
   return (
     <Suspense fallback={<SettingsSkeleton />}>
       <SettingsShell
         company={company ?? null}
         memberships={memberships ?? []}
+        usage={usage}
       />
     </Suspense>
   );

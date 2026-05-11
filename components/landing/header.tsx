@@ -8,12 +8,14 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
+import { createClient } from "@/lib/supabase/client";
+import { User } from "@supabase/supabase-js";
 
 const NAV = [
   { href: "#como",     label: "Como funciona" },
   { href: "#produto",  label: "Produto" },
   { href: "#casos",    label: "Casos" },
-  { href: "#preco",    label: "Preço" },
+  { href: "/planos",   label: "Planos" },
 ];
 
 const HEADER_HEIGHT = 68;
@@ -54,16 +56,32 @@ function NavLink({
     [href, onClick],
   );
 
+  if (href.startsWith("#")) {
+    return (
+      <a href={href} onClick={handleClick} className={className} style={style}>
+        {children}
+      </a>
+    );
+  }
+
   return (
-    <a href={href} onClick={handleClick} className={className} style={style}>
+    <Link href={href} onClick={onClick} className={className} style={style}>
       {children}
-    </a>
+    </Link>
   );
 }
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+  }, []);
 
   useEffect(() => {
     let ticking = false;
@@ -123,12 +141,20 @@ export function Header() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Link href="/login" onClick={() => trackEvent("cta_click", { location: "header", target: "login" })}>
-            <Button variant="ghost" size="sm">Entrar</Button>
-          </Link>
-          <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "header", target: "signup" })}>
-            <Button variant="primary" size="sm">Começar grátis</Button>
-          </Link>
+          {user ? (
+            <Link href="/inbox">
+              <Button variant="primary" size="sm">Ir para o Dashboard</Button>
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" onClick={() => trackEvent("cta_click", { location: "header", target: "login" })}>
+                <Button variant="ghost" size="sm">Entrar</Button>
+              </Link>
+              <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "header", target: "signup" })}>
+                <Button variant="primary" size="sm">Começar grátis</Button>
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -161,12 +187,20 @@ export function Header() {
                 </NavLink>
               ))}
               <div className="mt-3 flex gap-2">
-                <Link href="/login" className="flex-1">
-                  <Button variant="secondary" size="sm" className="w-full justify-center">Entrar</Button>
-                </Link>
-                <Link href="/signup" className="flex-1">
-                  <Button variant="primary" size="sm" className="w-full justify-center">Começar grátis</Button>
-                </Link>
+                {user ? (
+                  <Link href="/inbox" className="flex-1">
+                    <Button variant="primary" size="sm" className="w-full justify-center">Ir para o Dashboard</Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Link href="/login" className="flex-1">
+                      <Button variant="secondary" size="sm" className="w-full justify-center">Entrar</Button>
+                    </Link>
+                    <Link href="/signup" className="flex-1">
+                      <Button variant="primary" size="sm" className="w-full justify-center">Começar grátis</Button>
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>

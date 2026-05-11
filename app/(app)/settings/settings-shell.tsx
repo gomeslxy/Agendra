@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Users,
   CreditCard,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { updatePersona } from "./actions";
 import { trackEvent } from "@/lib/analytics";
+import { STRIPE_PRICE_IDS, PLANS_META } from "@/lib/billing/plans";
+import type { PlanType } from "@/lib/billing/plans";
 
 type TabId = "persona" | "channels" | "flows" | "team" | "billing";
 
@@ -61,18 +64,20 @@ interface Company {
   ai_tone?: string | null;
   ai_greeting?: string | null;
   ai_forbidden?: string | null;
-  plan_type?: string | null;
+  plan_type?: PlanType | null;
   subscription_status?: string | null;
   stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
   google_calendar_email?: string | null;
 }
 
 interface SettingsShellProps {
   company: Company | null;
   memberships: Member[];
+  usage: any;
 }
 
-export function SettingsShell({ company, memberships }: SettingsShellProps) {
+export function SettingsShell({ company, memberships, usage }: SettingsShellProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -197,7 +202,7 @@ export function SettingsShell({ company, memberships }: SettingsShellProps) {
         {tab === "channels" && <Channels company={company} />}
         {tab === "flows"    && <Flows />}
         {tab === "team"     && <Team memberships={memberships} />}
-        {tab === "billing"  && <Billing company={company} />}
+        {tab === "billing"  && <Billing company={company} usage={usage} />}
       </motion.div>
     </div>
   );
@@ -629,16 +634,18 @@ function Team({ memberships }: { memberships: Member[] }) {
   );
 }
 
-function Billing({ company }: { company: Company | null }) {
-  const [loading, setLoading] = React.useState(false);
+function Billing({ company, usage }: { company: Company | null; usage: any }) {
+  const [loading, setLoading] = React.useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = React.useState(false);
+  const [isAnnual, setIsAnnual] = React.useState(true);
 
-  const handleCheckout = async (priceId: string) => {
+  const handleCheckout = async (priceId: string, planType: string) => {
     try {
-      setLoading(true);
+      setLoading(planType);
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({ priceId, planType }),
       });
       const { url, error } = await res.json();
       if (error) throw new Error(error);
@@ -647,98 +654,169 @@ function Billing({ company }: { company: Company | null }) {
       console.error("Checkout error:", err);
       alert("Erro ao iniciar checkout. Tente novamente.");
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
 
-  const isPro = company?.plan_type === 'pro' && company?.subscription_status === 'active';
+  // [FIX CRIT-3] Real Stripe Billing Portal
+  const handleManageSubscription = async () => {
+    try {
+      setPortalLoading(true);
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const { url, error } = await res.json();
+      if (error) throw new Error(error);
+      window.location.href = url;
+    } catch (err) {
+      console.error("Portal error:", err);
+      alert("Erro ao abrir gerenciamento de assinatura. Tente novamente.");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const currentPlan = company?.plan_type || "trial";
+  const isSubscriptionActive = company?.subscription_status === "active";
+
+  // [FIX ARCH-1] Price IDs agora vêm do single source of truth
+  const plans = PLANS_META.map((p) => ({
+    ...p,
+    priceId: STRIPE_PRICE_IDS[p.id][isAnnual ? "annual" : "monthly"],
+  }));
+
+  const leadsUsed = usage?.usage?.leads || 0;
+  const leadsMax = usage?.limits?.maxLeads || 150;
+  const leadsPct = Math.min(100, Math.round((leadsUsed / leadsMax) * 100));
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2 items-start">
-      <Card>
-        <CardHeader>
-          <CardTitle>Plano atual</CardTitle>
-          <CardDescription>
-            {isPro ? "Pro · Ativo" : "Free · Gratuito"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="my-2 text-4xl font-bold tracking-tight">
-            {isPro ? "R$ 297" : "R$ 0"}
-            <span className="text-sm font-medium ml-1" style={{ color: "var(--color-fg-3)" }}>
-              /mês
-            </span>
-          </div>
-          <p className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
-            {isPro ? "Cobrança automática ativa" : "Limite de 100 mensagens/mês"}
-          </p>
-          <div className="mt-6 flex gap-2">
-            {!isPro ? (
-              <Button
-                variant="blue"
-                size="sm"
-                className="flex-1 font-bold"
-                disabled={loading}
-                onClick={() => handleCheckout("price_placeholder_pro")}
-              >
-                {loading ? "Processando..." : "Assinar Pro"}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="flex-1 font-medium"
-                  disabled={loading}
-                  onClick={() => window.open("https://billing.stripe.com/p/login/test_placeholder", "_blank")}
-                >
-                  Gerenciar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-1 font-medium text-red-400 hover:text-red-300"
-                  onClick={() => window.open("https://billing.stripe.com/p/login/test_placeholder", "_blank")}
-                >
-                  Cancelar
-                </Button>
-              </>
+    <div className="flex flex-col gap-6 pb-12">
+      {/* Barra de Uso */}
+      <Card className="bg-white/[0.02] border-brand-teal-500/10">
+        <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex-1 w-full">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[13px] font-semibold text-white/90">Consumo de Leads ({currentPlan.toUpperCase()})</span>
+              <span className="text-xs font-mono text-white/60">{leadsUsed} / {leadsMax}</span>
+            </div>
+            <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${leadsPct}%` }}
+                className={cn("h-full rounded-full", leadsPct > 85 ? "bg-brand-orange-500 shadow-glow-orange/20" : "bg-brand-teal-400 shadow-glow-teal/20")}
+                transition={{ duration: 1, ease: "easeOut" }}
+              />
+            </div>
+            {leadsPct > 85 && (
+              <p className="text-[11px] text-brand-orange-400 mt-2 font-medium">Você está perto do limite do seu plano. Faça upgrade para não pausar a IA.</p>
             )}
           </div>
+          {isSubscriptionActive ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="whitespace-nowrap"
+              disabled={portalLoading}
+              onClick={handleManageSubscription}
+            >
+              {portalLoading ? <><Loader2 size={14} className="animate-spin mr-1.5" />Abrindo...</> : "Gerenciar Assinatura"}
+            </Button>
+          ) : (
+            <Link href="/planos">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="whitespace-nowrap bg-brand-blue-500/10 text-brand-blue-400 hover:bg-brand-blue-500/20 border-brand-blue-500/20"
+              >
+                <Zap size={13} className="mr-1.5" />
+                Fazer Upgrade
+              </Button>
+            </Link>
+          )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Uso este mês</CardTitle>
-          <CardDescription>Consumo de recursos</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {[
-            { lbl: "Mensagens",     pct: isPro ? 15 : 65, n: isPro ? "1.5k / ∞" : "65 / 100",  col: "#3B82F6" },
-            { lbl: "Agendamentos",  pct: isPro ? 10 : 40, n: isPro ? "52 / ∞" : "2 / 5",       col: "#F97316" },
-            { lbl: "IA Agents",    pct: isPro ? 20 : 100, n: isPro ? "1 / 5" : "1 / 1",       col: "#14B8A6" },
-          ].map((u) => (
-            <div
-              key={u.lbl}
-              className="grid items-center gap-4"
-              style={{ gridTemplateColumns: "100px 1fr 80px" }}
+      {/* Tabela de Preços */}
+      <div className="flex flex-col items-center mb-4">
+        <div className="flex items-center gap-3 p-1 rounded-full border border-white/10 bg-white/5">
+          <button
+            onClick={() => setIsAnnual(false)}
+            className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors", !isAnnual ? "bg-white/10 text-white" : "text-white/40")}
+          >
+            Mensal
+          </button>
+          <button
+            onClick={() => setIsAnnual(true)}
+            className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors flex items-center gap-1.5", isAnnual ? "bg-white/10 text-brand-teal-300" : "text-white/40")}
+          >
+            Anual {!isAnnual && <Badge variant="hot" className="text-[9px] px-1 py-0 h-4">-25%</Badge>}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {plans.map((p) => {
+          const isActive = isSubscriptionActive && currentPlan === p.id;
+          const isButtonLoading = loading === p.id;
+
+          return (
+            <motion.div
+              key={p.id}
+              whileHover={{ y: -4 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className={cn(
+                "relative flex flex-col rounded-2xl border p-6 overflow-hidden",
+                p.recommended ? "border-brand-blue-500/50 bg-brand-blue-500/5" : "border-white/[0.08] bg-white/[0.02]",
+                isActive && "border-brand-teal-500/50"
+              )}
             >
-              <span className="text-xs font-medium" style={{ color: "var(--color-fg-2)" }}>{u.lbl}</span>
-              <div className="h-2 overflow-hidden rounded-full bg-white/[0.06] border border-white/[0.04]">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${u.pct}%` }}
-                  transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-                  className="h-full rounded-full shadow-glow-blue/10"
-                  style={{ background: u.col }}
-                />
+              {p.recommended && (
+                <div className="absolute top-0 right-0 left-0 flex justify-center transform -translate-y-px">
+                  <div className="bg-brand-blue-500 text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-b-lg">
+                    Recomendado
+                  </div>
+                </div>
+              )}
+              
+              <div className="mt-4 mb-2">
+                <h3 className="text-xl font-bold">{p.name}</h3>
+                <p className="text-[12px] text-white/50 h-8">{p.desc}</p>
               </div>
-              <span className="text-right font-mono text-[11px] font-medium opacity-80">{u.n}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+
+              <div className="my-4 flex items-baseline gap-1">
+                <span className="text-3xl font-black">R$ {isAnnual ? p.annual : p.monthly}</span>
+                <span className="text-xs text-white/50">/mês</span>
+              </div>
+              
+              {isAnnual && (
+                <div className="text-[11px] text-white/40 mb-6">Faturado R$ {p.annual * 12}/ano</div>
+              )}
+              {!isAnnual && (
+                <div className="text-[11px] text-white/40 mb-6 invisible">Espaço</div>
+              )}
+
+              <Button
+                variant={isActive ? "ghost" : p.recommended ? "blue" : "secondary"}
+                className={cn("w-full mb-6 font-bold", p.recommended && "shadow-glow-blue/20")}
+                disabled={isActive || loading !== null}
+                onClick={() => handleCheckout(p.priceId, p.id)}
+              >
+                {isButtonLoading ? "Processando..." : isActive ? "Plano Atual" : "Assinar " + p.name}
+              </Button>
+
+              <div className="flex flex-col gap-3 flex-1">
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-brand-teal-300">
+                  <Check size={14} /> {p.leads}
+                </div>
+                {p.features.map((f, i) => (
+                  <div key={i} className="flex items-start gap-2 text-[12px] text-white/70">
+                    <Check size={14} className="mt-0.5 text-white/30 shrink-0" />
+                    {f}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }

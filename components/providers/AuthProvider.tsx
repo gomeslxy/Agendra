@@ -37,6 +37,9 @@ export interface UserProfile {
     id: string;
     name: string;
     plan: string;
+    plan_type: string;
+    subscription_status: string;
+    created_at: string;
   } | null;
   memberships: { role: string; company_id: string }[] | null;
 }
@@ -80,7 +83,7 @@ export function AuthProvider({
     async (userId: string) => {
       const { data } = await supabase
         .from("users")
-        .select("*, companies(id, name, plan), memberships(role, company_id)")
+        .select("*, companies(id, name, plan, plan_type, subscription_status, created_at), memberships(role, company_id)")
         .eq("id", userId)
         .single();
       setProfile(data ?? null);

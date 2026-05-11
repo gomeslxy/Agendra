@@ -120,7 +120,7 @@ export default function SignupPage() {
             className="mb-7 mt-1 text-center text-sm"
             style={{ color: "var(--color-fg-2)" }}
           >
-            14 dias para testar. Sem cartão.
+            7 dias para testar. Sem cartão.
           </p>
 
           <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>

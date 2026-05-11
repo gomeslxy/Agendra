@@ -19,6 +19,7 @@ import {
   handleUpdateLeadInfo,
   type ToolContext,
 } from './tools';
+import { getCompanyUsage } from '@/lib/billing/limits';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
@@ -247,6 +248,7 @@ export async function handleIncomingMessage(
     .eq('phone', phone)
     .maybeSingle();
 
+  let isNewLead = false;
   if (existing) {
     lead = existing as Lead;
   } else {
@@ -257,6 +259,37 @@ export async function handleIncomingMessage(
       .single();
     if (error || !created) throw new Error(`Falha ao criar lead: ${error?.message}`);
     lead = created as Lead;
+    isNewLead = true;
+  }
+
+  // ── Verifica Limites de Billing ──────────────────────────────────────────
+  const usage = await getCompanyUsage(companyId);
+  
+  if (usage.isLimitReached && isNewLead) {
+    console.log(`[AI Engine] 🚨 Company ${companyId} atingiu o limite de ${usage.limits.maxLeads} leads. Pausando atendimento para novo lead.`);
+    
+    // Salva a mensagem recebida para não perder histórico
+    await admin.from('messages').insert({
+      lead_id: lead.id,
+      company_id: companyId,
+      role: 'user',
+      content: messageText,
+    });
+    
+    const fallbackMessage = "No momento todos os nossos atendentes estão ocupados. Seu contato foi registrado e retornaremos em breve!";
+    
+    await admin.from('messages').insert({
+      lead_id: lead.id,
+      company_id: companyId,
+      role: 'assistant',
+      content: fallbackMessage,
+    });
+    
+    await sendWhatsAppMessage(phone, fallbackMessage);
+    
+    // Define o lead como 'paused' ou atualiza status para avisar no dashboard
+    await admin.from('leads').update({ auto_respond: false, summary: 'Límite de plano excedido' }).eq('id', lead.id);
+    return;
   }
 
   // ── Persistir mensagem recebida ──────────────────────────────────────────
@@ -284,6 +317,14 @@ export async function handleIncomingMessage(
     persona,
   );
 
+  // ── Watermark Logic ───────────────────────────────────────────────────────
+  let finalReply = reply;
+  const isFirstAssistantMessage = !history || history.filter(m => m.role === 'assistant').length === 0;
+  
+  if (usage.limits.hasWatermark && isFirstAssistantMessage) {
+    finalReply += '\n\n⚡ _Powered by Agendra_';
+  }
+
   // ── Atualizar classificação do lead ──────────────────────────────────────
   await admin
     .from('leads')
@@ -295,9 +336,9 @@ export async function handleIncomingMessage(
     lead_id: lead.id,
     company_id: companyId,
     role: 'assistant',
-    content: reply,
+    content: finalReply,
   });
 
   // ── Enviar via WhatsApp ───────────────────────────────────────────────────
-  await sendWhatsAppMessage(phone, reply);
+  await sendWhatsAppMessage(phone, finalReply);
 }

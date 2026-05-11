@@ -1,7 +1,7 @@
 export type LeadStatus = 'cold' | 'warm' | 'hot' | 'success';
 export type LeadChannel = 'whatsapp' | 'instagram' | 'form';
 export type MessageRole = 'user' | 'assistant' | 'note' | 'agent';
-export type CompanyPlan = 'trial' | 'starter' | 'pro' | 'enterprise';
+export type CompanyPlan = 'trial' | 'starter' | 'pro' | 'business' | 'enterprise';
 export type ChannelProvider = 'whatsapp' | 'instagram';
 export type ChannelStatus = 'active' | 'error' | 'paused';
 

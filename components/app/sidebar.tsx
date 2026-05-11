@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { getInitials, cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
+import { calculateTrialStatus, calculateTrialProgress } from "@/lib/billing/plans";
 
 function isActive(href: string, pathname: string, searchParams: URLSearchParams) {
   try {
@@ -31,15 +32,19 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
 
   const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "Usuário";
   const companyName = profile?.companies?.name ?? "Minha empresa";
-  const plan = profile?.companies?.plan ?? "trial";
+  const planName = profile?.companies?.plan ?? "Teste Grátis";
+  const planType = profile?.companies?.plan_type ?? "trial";
   const initials = getInitials(displayName);
 
   const planLabel: Record<string, string> = {
-    trial: "Trial · 14 dias",
-    starter: "Plano Starter",
-    pro: "Plano Pro",
-    enterprise: "Enterprise",
+    trial: "Teste Grátis",
+    free: "Teste Grátis",
+    starter: "Starter",
+    pro: "Pro",
+    business: "Business",
   };
+
+  const displayPlan = planLabel[planType] || planName;
 
   return (
     <aside
@@ -116,16 +121,43 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                   className="font-mono text-[10px]"
                   style={{ color: "var(--color-fg-3)" }}
                 >
-                  {planLabel[plan] ?? plan}
+                  {displayPlan}
                 </div>
               </div>
             </div>
+            {(planType === "trial" || planType === "free") && (
+              <div className="mb-4 space-y-1.5 px-0.5">
+                <div className="flex items-center justify-between text-[10px] font-medium">
+                  <span className="text-white/40">Trial em progresso</span>
+                  <span className="text-brand-blue-400">
+                    {(() => {
+                      const { remaining } = calculateTrialStatus(profile?.companies?.created_at);
+                      return `${remaining} dias restantes`;
+                    })()}
+                  </span>
+                </div>
+                <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ 
+                      width: (() => {
+                        const { elapsed } = calculateTrialStatus(profile?.companies?.created_at);
+                        return `${calculateTrialProgress(elapsed)}%`;
+                      })()
+                    }}
+                    transition={{ duration: 1 }}
+                    className="h-full bg-gradient-to-r from-brand-blue-600 to-brand-teal-500"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-1.5">
-              <Link href="/settings#billing" className="flex-1">
+              <Link href="/planos" className="flex-1">
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="w-full justify-center"
+                  className="w-full justify-center bg-brand-blue-500/10 text-brand-blue-400 hover:bg-brand-blue-500/20 border-brand-blue-500/20"
                 >
                   <IconZap size={13} />
                   Upgrade
