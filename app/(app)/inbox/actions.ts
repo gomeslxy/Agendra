@@ -16,32 +16,39 @@ async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, l
 }
 
 export async function sendNote(leadId: string, content: string) {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const supabase = await createClient();
-  const { company_id, phone } = await getLeadInfo(supabase, leadId);
-  await requireOnboarding(company_id);
-
-  // 1. Salvar no banco primeiro (registro histórico garantido)
-  const { error: dbError } = await supabase.from("messages").insert({
-    lead_id: leadId,
-    company_id,
-    content,
-    role: "agent",
-  });
-
-  if (dbError) throw new Error(dbError.message);
-
-  // 2. Tentar enviar para o WhatsApp
+  console.log(`[Action:sendNote] 🚀 Iniciando envio manual para leadId=${leadId}`);
   try {
-    await sendWhatsAppMessage(phone, content);
-  } catch (err) {
-    console.error("[sendNote] WhatsApp send error:", err);
-    throw err; // Re-throw to be caught by the client
-  }
+    const profile = await getUserProfile();
+    if (!profile) throw new Error("Não autorizado");
 
-  revalidatePath("/inbox");
+    const supabase = await createClient();
+    const { company_id, phone } = await getLeadInfo(supabase, leadId);
+    console.log(`[Action:sendNote] 📱 Lead encontrado: ${phone} (Empresa: ${company_id})`);
+    
+    await requireOnboarding(company_id);
+
+    // 1. Salvar no banco
+    const { error: dbError } = await supabase.from("messages").insert({
+      lead_id: leadId,
+      company_id,
+      content,
+      role: "agent",
+    });
+
+    if (dbError) throw new Error(`Erro no Banco: ${dbError.message}`);
+    console.log(`[Action:sendNote] ✅ Mensagem salva no banco`);
+
+    // 2. Enviar WhatsApp
+    await sendWhatsAppMessage(phone, content);
+    console.log(`[Action:sendNote] ✉️ Mensagem enviada para WhatsApp com sucesso`);
+
+    revalidatePath("/inbox");
+    return { success: true };
+  } catch (err) {
+    const msg = (err as Error).message;
+    console.error("[Action:sendNote] ❌ Falha crítica:", msg);
+    return { success: false, error: msg };
+  }
 }
 
 export async function takeOverLead(leadId: string) {

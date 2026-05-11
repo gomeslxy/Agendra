@@ -180,6 +180,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 // ─── Handler: POST — Recebimento de Eventos ──────────────────────────────────
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  console.log("=========================================");
+  console.log("[WhatsApp Webhook] 🔔 SINAL RECEBIDO!");
+  console.log("=========================================");
+  
   // ── Ler o body como texto (necessário para validação HMAC) ─────────────────
   const rawBody = await request.text();
 

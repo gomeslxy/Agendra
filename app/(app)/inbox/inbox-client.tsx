@@ -197,8 +197,13 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
     startSend(async () => {
       try {
-        await sendNote(selected.id, content);
-        trackEvent("message_sent", { lead_id: selected.id });
+        const result = await sendNote(selected.id, content);
+        if (result?.success) {
+          trackEvent("message_sent", { lead_id: selected.id });
+        } else if (result?.error) {
+          setInboxError(result.error);
+          setNoteText(content); // Restore text
+        }
       } catch (e) {
         setInboxError((e as Error).message);
         setNoteText(content); // Restore text

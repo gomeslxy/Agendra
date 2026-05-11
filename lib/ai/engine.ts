@@ -129,6 +129,8 @@ export async function processLeadMessage(
     toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
   });
 
+  console.log(`[AI Engine] 🧠 Processando mensagem para leadId=${lead.id} | model=${model.model}`);
+  
   const ctx: ToolContext = { companyId, leadId: lead.id };
 
   // Converter histórico para o formato do Gemini
