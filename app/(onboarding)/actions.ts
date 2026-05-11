@@ -32,7 +32,7 @@ export async function saveOnboardingStep(
   const merged = { ...(existing?.onboarding_data ?? {}), ...data };
   const newStep = Math.max(step, existing?.onboarding_step ?? 0);
 
-  await supabase
+  const { error } = await supabase
     .from("companies")
     .update({
       onboarding_data: merged,
@@ -40,16 +40,29 @@ export async function saveOnboardingStep(
       onboarding_status: "in_progress",
     })
     .eq("id", companyId);
+
+  if (error) throw new Error(`Failed to save onboarding step: ${error.message}`);
 }
 
 export async function completeOnboarding(
   data: OnboardingData,
 ): Promise<ApplyResult> {
   const companyId = await getCompanyId();
+  const supabase = await createClient();
+
+  const { data: company } = await supabase
+    .from("companies")
+    .select("onboarding_status")
+    .eq("id", companyId)
+    .single();
+
+  if (company?.onboarding_status === "completed") {
+    return { ok: true };
+  }
+
   const result = await applyOnboardingConfig(companyId, data);
 
   if (!result.ok) {
-    const supabase = await createClient();
     await supabase
       .from("companies")
       .update({ onboarding_status: "needs_review" })
