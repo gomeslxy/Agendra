@@ -20,7 +20,9 @@ export type AnalyticsEvent =
   | "lead_takeover"
   | "lead_automatize"
   | "tone_changed"
-  | "message_sent";
+  | "message_sent"
+  | "checkout_started"
+  | "stripe_success";
 
 export interface AnalyticsEventParams {
   [key: string]: string | number | boolean | undefined;

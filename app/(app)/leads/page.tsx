@@ -24,7 +24,7 @@ export default async function LeadsPage({
       id, name, email, phone, status, channel, heat_score,
       source, summary, city,
       conversation_tone, auto_respond,
-      created_at, updated_at, company_id,
+      created_at, updated_at, company_id, is_paused,
       messages(content, created_at, role)
     `)
     .eq("company_id", companyId)

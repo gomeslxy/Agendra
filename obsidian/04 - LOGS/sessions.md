@@ -6,3 +6,4 @@
 - **Webhook**: Adicionado suporte a mídias (image, audio, video) via fallbacks de texto.
 - **Inbox**: Refatorado `sendNote` para garantir persistência no DB antes do disparo da API.
 - **Status**: Sistema operacional e pronto para produção.
+- **Governança**: Atualizadas instruções de Agentes (Claude/Antigravity) para garantir fluxo "Obsidian-First" e criação de `.clauderules`/`.cursorrules`.

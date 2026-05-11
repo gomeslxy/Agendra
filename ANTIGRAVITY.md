@@ -1,6 +1,8 @@
-# 🛰️ ANTIGRAVITY.md — Agent Protocols for Agendra
-
-As Antigravity, you are a powerful agentic AI coding assistant. You MUST adhere to these protocols to maintain the high standards of the Agendra project.
+## 🏁 MANDATORY STARTUP (EVERY SESSION)
+Before taking any action, you MUST:
+1. **Search & Read**: List the `obsidian/` folder and read relevant files.
+2. **Context**: Read `obsidian/04 - LOGS/sessions.md` for the latest session summary.
+3. **Rules**: Review the global rules in `.clauderules` and `.cursorrules`.
 
 ## 💎 The Golden Rule: Visual Excellence
 Agendra is a premium SaaS. Your UI implementations MUST "WOW" the user.
@@ -16,10 +18,11 @@ Agendra is a premium SaaS. Your UI implementations MUST "WOW" the user.
 - **Atmosphere Skill**: [Taste Design](file:///C:/Users/lucas/.agents/skills/stitch-design/references/design-mappings.md) (Visual Quality Control).
 
 ## 🛡️ Operational Protocols
-1. **Obsidian First**: Before any major change, search and read the `obsidian/` folder. It is the DEFINITIVE truth.
-2. **Sync Truth**: After completing a task, update the relevant `.md` files in `obsidian/` (Roadmap, Architecture, Backlog).
-3. **Multitenancy**: Every database query MUST filter by `company_id`. No exceptions.
-4. **Tools First**: Use `generate_image` for assets, `mcp_magic` for UI components, and `search_web` for modern design inspiration.
+1. **Obsidian First**: The `obsidian/` folder is the DEFINITIVE truth. Read it before coding.
+2. **Global Rules**: Follow [[obsidian/00 - META/global-rules.md|Global Rules & Governance]] for all tasks.
+3. **Sync Truth**: After completing a task, update the relevant `.md` files in `obsidian/` (Roadmap, Architecture, Backlog).
+4. **Multitenancy**: Every database query MUST filter by `company_id`. No exceptions.
+5. **Tools First**: Use `generate_image` for assets, `mcp_magic` for UI components, and `search_web` for modern design inspiration.
 
 ---
 

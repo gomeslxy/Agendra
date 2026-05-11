@@ -1,0 +1,27 @@
+# 🛡️ Agendra Project Rules (Cursor Edition)
+
+You are an AI developer working on **Agendra**. You MUST follow these rules strictly.
+
+## 🏁 MANDATORY STARTUP
+- Always read `obsidian/` folder to understand the current state.
+- Consult `CLAUDE.md` and `ANTIGRAVITY.md`.
+- Read `obsidian/04 - LOGS/sessions.md`.
+
+## 🚀 Core Principles
+- **Safety**: Always filter by `company_id`.
+- **Truth**: Obsidian is the source of truth. Read it before coding, update it after.
+- **Design**: "Liquid Glass" aesthetic (Vanilla CSS + Tailwind v4 + Framer Motion).
+- **Simplicity**: Change only what is needed.
+
+## 🛡️ Governance
+Follow the "12 Rules of Agendra" (documented in `CLAUDE.md`).
+
+## 🎨 Design Guidelines
+- Use `.glass` class for cards/modals.
+- Use `components/motion/` variants for animations.
+- Stick to the brand palette: Graphite, Blue-core, Teal-flow, Orange-spark.
+
+## 📅 Completion
+- Update `obsidian/01 - PRODUTO/roadmap.md`.
+- Update `obsidian/05 - BACKLOG/backlog.md`.
+- Log the session in `obsidian/04 - LOGS/sessions.md`.

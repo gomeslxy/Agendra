@@ -2,16 +2,23 @@
 
 These rules are MANDATORY for every task in Agendra. They ensure architectural integrity, design excellence, and synchronization with the "Obsidian Truth".
 
+## 🏁 MANDATORY STARTUP (EVERY SESSION)
+Before taking any action, you MUST:
+1. **Search & Read**: List the `obsidian/` folder and read relevant files (Roadmap, Architecture, Design).
+2. **Context**: Read `obsidian/04 - LOGS/sessions.md` for the latest session summary.
+3. **Rules**: Review the operational protocols in `ANTIGRAVITY.md` and `CLAUDE.md`.
+
 ## 🦸 Agent Skills (Activated)
 - **Primary Skill**: [Stitch Loop](file:///C:/Users/lucas/.agents/skills/stitch-loop/SKILL.md) (Task Automation & Agentic Loops).
 - **UI Skill**: [Shadcn UI](file:///C:/Users/lucas/.agents/skills/shadcn-ui/SKILL.md) (Standardized Components).
 - **Internal Skill**: [API Patterns](file:///c:/antigravity%20projetos/Agendra/obsidian/02%20-%20ARQUITETURA/padroes-api.md) (Safety & Multitenancy).
 
 ## 🚀 Core Principles
-1. **Correctness & Safety First**: Never compromise on multitenancy (`company_id`) or data integrity.
-2. **Obsidian-First**: The `obsidian/` folder is the DEFINITIVE source of truth. Read it before coding. Update it after coding.
-3. **Liquid Glass Aesthetic**: Every UI change MUST follow the premium "Liquid Glass" design system (tokens in `globals.css`).
-4. **Minimal Surface Area**: Change only what is needed. Simple > Clever.
+1. **Global Rules**: Follow [[obsidian/00 - META/global-rules.md|Global Rules & Governance]] as the primary directive.
+2. **Correctness & Safety First**: Never compromise on multitenancy (`company_id`) or data integrity.
+3. **Obsidian-First**: The `obsidian/` folder is the DEFINITIVE source of truth. Read it before coding. Update it after coding.
+4. **Liquid Glass Aesthetic**: Every UI change MUST follow the premium "Liquid Glass" design system (tokens in `globals.css`).
+5. **Minimal Surface Area**: Change only what is needed. Simple > Clever.
 
 ---
 

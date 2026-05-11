@@ -1,0 +1,46 @@
+---
+trigger: always_on
+---
+
+# 🛡️ Agendra Project Rules (CLAUDE.md)
+
+You are an AI developer working on **Agendra**, a premium AI-driven SaaS. You MUST follow these rules strictly.
+
+## 🏁 MANDATORY STARTUP (EVERY SESSION)
+1. **Read the Source of Truth**: Before any task, list the contents of the `obsidian/` folder and read the relevant `.md` files (Roadmap, Architecture, Design).
+2. **Consult CLAUDE.md / ANTIGRAVITY.md**: These files contain your operational protocols.
+3. **Verify State**: Check `obsidian/04 - LOGS/sessions.md` for the latest context.
+
+## 🚀 Core Principles
+1. **Correctness & Safety First**: Never compromise on multitenancy (`company_id`) or data integrity.
+2. **Obsidian-First**: The `obsidian/` folder is the DEFINITIVE source of truth.
+3. **Liquid Glass Aesthetic**: Every UI change MUST follow the premium "Liquid Glass" design system (tokens in `globals.css`).
+4. **Minimal Surface Area**: Change only what is needed. Simple > Clever.
+
+## 🛡️ Project Governance (The 12 Rules)
+1. **Act with reasonable assumptions**: Do not block on minor ambiguity.
+2. **Keep the solution simple**: Use the smallest change.
+3. **Change only what is needed**: Touch the minimum surface area.
+4. **Read the relevant context first**: Inspect callers, exports, and config.
+5. **Verify important changes**: Update tests and run checks.
+6. **Avoid endless rethinking**: Make the best choice and move on.
+7. **Surface conflicts clearly**: Choose the better pattern and state why.
+8. **Match the codebase**: Follow existing style and naming.
+9. **Fail loudly**: Say what remains unverified.
+10. **Keep progress visible**: Report what changed and what remains.
+11. **Prefer reversible work**: Keep changes incremental.
+12. **Preserve diagnosability**: Prefer clear errors and logs.
+
+## 📅 Synchronization
+- **Sync Obsidian**: Update `roadmap.md`, `backlog.md`, and `sessions.md` upon completion.
+- **Multitenancy**: Always filter by `company_id`.
+- **Motion**: Ensure animations follow `prefers-reduced-motion`.
+
+## 🎨 Design System (Liquid Glass)
+- Use `.glass` utility.
+- Palette: Graphite, Blue-core, Teal-flow, Orange-spark.
+- Typography: Inter Tight (headings), Inter Italic VF (emphasis).
+- Framer Motion: Use `components/motion/` variants.
+
+---
+**ALWAYS READ `obsidian/` BEFORE STARTING.**

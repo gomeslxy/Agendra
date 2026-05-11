@@ -15,10 +15,13 @@ Este projeto utiliza "Skills" para guiar os agentes de IA em tarefas complexas.
 - **components/**: [[obsidian/03 - DESIGN/design-system.md|Liquid Glass]] (Glassmorphism & Framer Motion).
 - **obsidian/**: [[obsidian/00 - META/superpowers.md|Obsidian Truth]] (Sincronização de Conhecimento).
 
-## 🛡️ Regras de Ouro
+## 🛡️ Regras de Ouro (Global Rules)
+Consulte [[obsidian/00 - META/global-rules.md|Global Rules & Governance]] para o conjunto completo de regras obrigatórias.
+
 1. **Obsidian First**: Consulte o Obsidian antes de qualquer mudança estrutural.
 2. **Sync Always**: Atualize Roadmap e Backlog ao concluir tarefas.
 3. **Company ID Isolation**: Nunca ignore a multilocação no banco de dados.
+4. **Liquid Glass**: Siga o padrão estético premium em todas as UIs.
 
 
 ---
