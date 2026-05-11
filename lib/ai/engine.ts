@@ -132,10 +132,23 @@ export async function processLeadMessage(
   const ctx: ToolContext = { companyId, leadId: lead.id };
 
   // Converter histórico para o formato do Gemini
-  const geminiHistory: Content[] = history.map((m) => ({
-    role: m.role === 'user' ? 'user' : 'model',
-    parts: [{ text: m.content }],
-  }));
+  // O Gemini EXIGE que o histórico comece com uma mensagem de 'user'
+  let geminiHistory: Content[] = history
+    .filter(m => m.role === 'user' || m.role === 'assistant') // Ignorar 'notes'
+    .map((m) => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.content }],
+    }));
+
+  // Encontrar o primeiro índice de mensagem 'user'
+  const firstUserIndex = geminiHistory.findIndex(h => h.role === 'user');
+  if (firstUserIndex !== -1) {
+    geminiHistory = geminiHistory.slice(firstUserIndex);
+  } else {
+    // Se não houver nenhuma mensagem de usuário no histórico (improvável mas possível),
+    // começamos com um histórico vazio e deixamos a newMessage ser a primeira.
+    geminiHistory = [];
+  }
 
   const chat = model.startChat({ history: geminiHistory });
 

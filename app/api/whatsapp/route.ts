@@ -250,7 +250,7 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
       console.log(`[WhatsApp] 🏢 Empresa resolvida: ${companyId}`);
 
 
-      // ── Processar cada mensagem individualmente ─────────────────────────────
+        // ── Processar cada mensagem individualmente ─────────────────────────────
       for (const msg of messages) {
         // Encontrar o contato correspondente
         const contact = contacts.find((c) => c.wa_id === msg.from);
@@ -260,14 +260,29 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
           continue;
         }
 
-        // Apenas mensagens de texto por enquanto
-        if (msg.type !== "text" || !msg.text?.body) {
-          console.log(`[WhatsApp] ⏭️  Tipo de mensagem ignorado: ${msg.type}`);
+        // Definir o texto da mensagem (fallback para mídia)
+        let messageText = "";
+        if (msg.type === "text" && msg.text?.body) {
+          messageText = msg.text.body;
+        } else if (msg.type === "image") {
+          messageText = "[Imagem recebida]";
+        } else if (msg.type === "audio") {
+          messageText = "[Áudio recebido]";
+        } else if (msg.type === "video") {
+          messageText = "[Vídeo recebido]";
+        } else if (msg.type === "document") {
+          messageText = "[Documento recebido]";
+        } else {
+          messageText = `[Mídia recebida: ${msg.type}]`;
+        }
+
+        if (!messageText) {
+          console.log(`[WhatsApp] ⏭️  Conteúdo vazio ou ignorado para tipo: ${msg.type}`);
           continue;
         }
 
         console.log(
-          `[WhatsApp] 📩 Nova mensagem | from=${msg.from} | name="${contact.profile.name}" | text="${msg.text.body.slice(0, 80)}"`
+          `[WhatsApp] 📩 Nova mensagem | from=${msg.from} | name="${contact.profile.name}" | type=${msg.type} | text="${messageText.slice(0, 80)}"`
         );
 
         console.log(`[WhatsApp] 🧠 Chamando handleIncomingMessage...`);
@@ -276,13 +291,12 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
             companyId,
             msg.from,
             contact.profile.name,
-            msg.text.body,
+            messageText,
           );
           console.log(`[WhatsApp] ✅ handleIncomingMessage finalizado com sucesso.`);
         } catch (err: any) {
           console.error(`[WhatsApp] ❌ Erro no handleIncomingMessage:`, err.message || err);
         }
-
       }
     }
   }
