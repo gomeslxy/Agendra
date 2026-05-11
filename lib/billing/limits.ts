@@ -23,18 +23,17 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> 
   console.log(`[Billing] 🌐 Usando Supabase URL: ${supabaseUrl.split('//')[1]?.split('.')[0]}...`);
   console.log(`[Billing] 🔍 Buscando uso para companyId: "${companyId}"`);
 
+  // Buscamos apenas o básico primeiro para evitar erro de coluna inexistente
   const { data: company, error: companyError } = await admin
     .from('companies')
-    .select('plan_type, subscription_status, current_period_start, current_period_end, created_at')
+    .select('*')
     .eq('id', companyId)
     .single();
 
-  if (companyError) {
-    console.error(`[Billing] ❌ Erro ao buscar empresa no Supabase:`, companyError.message);
-    throw new Error(`Company not found: ${companyError.message}`);
+  if (companyError || !company) {
+    console.error(`[Billing] ❌ Erro ao buscar empresa:`, companyError?.message || 'Data is null');
+    throw new Error(`Company not found: ${companyError?.message || 'null'}`);
   }
-
-  if (!company) throw new Error('Company not found (null data)');
 
   // [FIX CRIT-2 + HIGH-4] Fallback seguro: trial, não starter
   const planType = ((company.plan_type as PlanType) || 'trial');
