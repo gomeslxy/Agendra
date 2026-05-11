@@ -190,15 +190,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ── Retornar 200 imediatamente (Meta tem timeout de 5s) ───────────────────
-  // O processamento pesado acontece de forma assíncrona (fire-and-forget).
-  const response = NextResponse.json({ status: "ok" }, { status: 200 });
-
-  // ── Processar payload de forma assíncrona ─────────────────────────────────
-  // Usando void para não bloquear a resposta (Next.js Route Handlers suportam isso)
-  void processWebhookPayload(rawBody);
-
-  return response;
+  // ── Processar payload (Aguardar para evitar que a Vercel mate o processo) ──
+  await processWebhookPayload(rawBody);
+  
+  return NextResponse.json({ status: "ok" }, { status: 200 });
 }
 
 // ─── Processamento Assíncrono ─────────────────────────────────────────────────
