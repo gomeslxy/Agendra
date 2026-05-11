@@ -358,14 +358,6 @@ export async function handleIncomingMessage(
     persona,
   );
 
-  // ── Watermark Logic ───────────────────────────────────────────────────────
-  let finalReply = reply;
-  const isFirstAssistantMessage = !history || history.filter(m => m.role === 'assistant').length === 0;
-  
-  if (usage.limits.hasWatermark && isFirstAssistantMessage) {
-    finalReply += '\n\n⚡ _Powered by Agendra_';
-  }
-
   // ── Atualizar classificação do lead ──────────────────────────────────────
   const leadPatch: Record<string, unknown> = { heat_score, status, summary };
 
@@ -389,7 +381,7 @@ export async function handleIncomingMessage(
     lead_id: lead.id,
     company_id: companyId,
     role: 'assistant',
-    content: finalReply,
+    content: reply,
   });
 
   // ── Nota interna se escalou ───────────────────────────────────────────────
@@ -403,5 +395,5 @@ export async function handleIncomingMessage(
   }
 
   // ── Enviar via WhatsApp ───────────────────────────────────────────────────
-  await sendWhatsAppMessage(phone, finalReply);
+  await sendWhatsAppMessage(phone, reply);
 }
