@@ -21,6 +21,7 @@ export interface Lead {
   email: string | null;
   created_at: string;
   updated_at: string;
+  lead_memory?: LeadMemory | null; // optional: added in schema_v6
 }
 
 export interface Message {
@@ -65,4 +66,100 @@ export interface Channel {
   meta: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+}
+
+// ── AI Engine v3 Types ──────────────────────────────────────────────────────
+
+export type LeadMemoryEventType =
+  | 'first_contact'
+  | 'showed_interest'
+  | 'objection_raised'
+  | 'slot_shown'
+  | 'slot_declined'
+  | 'booked'
+  | 'no_show'
+  | 'reactivated'
+  | 'disqualified';
+
+export interface LeadMemoryEvent {
+  date: string; // ISO 8601
+  event: LeadMemoryEventType;
+  note?: string;
+}
+
+export interface ScoreHistoryEntry {
+  date: string;
+  score: number;
+  reason: string;
+}
+
+export interface LeadMemory {
+  timeline: LeadMemoryEvent[];
+  objections_raised: string[];
+  services_mentioned: string[];
+  score_history: ScoreHistoryEntry[];
+  last_intent_signal: string;
+  qualification_answers: Record<string, string>;
+}
+
+export interface ServiceEntry {
+  name: string;
+  description: string;
+  price_range?: string;
+  duration_minutes?: number;
+  ideal_profile?: string;
+  common_objections?: string[];
+  call_to_action: string;
+}
+
+export interface GuidedConfig {
+  never_do: string[];
+  main_trigger: string;
+  top_objection: string;
+}
+
+export interface BusinessKnowledge {
+  services: ServiceEntry[];
+  qualification_questions: string[];
+  key_differentials: string[];
+  out_of_scope: string[];
+  persona_mode: 'guided' | 'advanced';
+  guided_config?: GuidedConfig;
+}
+
+export type FlowJobType = 'followup' | 'confirmation' | 'reactivation';
+export type FlowJobStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
+
+export interface FlowJob {
+  id: string;
+  company_id: string;
+  lead_id: string;
+  flow_type: FlowJobType;
+  status: FlowJobStatus;
+  scheduled_at: string;
+  executed_at: string | null;
+  result: { sent: boolean; message: string; error?: string } | null;
+  created_at: string;
+}
+
+export interface AILog {
+  id: string;
+  company_id: string;
+  lead_id: string;
+  message_id: string | null;
+  flow_type: FlowJobType | null;
+  tools_called: Array<{ name: string; args_summary: string; result_summary: string }>;
+  heat_score_before: number;
+  heat_score_after: number;
+  score_validated_to: number;
+  score_delta: number;
+  latency_ms: number;
+  model: string;
+  error: string | null;
+  created_at: string;
+}
+
+// Extend Lead with optional new fields (added via migrations)
+export interface LeadWithMemory extends Lead {
+  lead_memory?: LeadMemory | null;
 }
