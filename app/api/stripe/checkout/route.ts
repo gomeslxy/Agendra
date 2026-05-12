@@ -24,6 +24,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export async function POST(request: NextRequest) {
   try {
     const { priceId, planType: planTypeFromBody } = await request.json();
+    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL;
 
     if (!priceId) {
       return NextResponse.json({ error: 'priceId é obrigatório' }, { status: 400 });
@@ -70,26 +71,52 @@ export async function POST(request: NextRequest) {
     const companyId = profile.company_id;
     const company = profile.companies as any;
 
-    // [FIX CRIT-4]    // Se já é assinante e está ativo, manda para o portal de faturamento
+    // 1. Validar empresa e IDs
+    console.log('[DEBUG CHECKOUT] Iniciando processamento:', {
+      userId: user.id,
+      companyId: companyId,
+      stripeCustomerId: company?.stripe_customer_id,
+      currentStatus: company?.subscription_status,
+      priceIdRequested: priceId
+    });
+
+    if (!company?.stripe_customer_id) {
+      console.error('[DEBUG CHECKOUT] ERRO: Empresa sem stripe_customer_id');
+      return NextResponse.json({ error: 'Sua conta não tem um ID de cliente do Stripe vinculado.' }, { status: 400 });
+    }
+
+    // Se já é assinante e está ativo, manda para o portal de faturamento
     if (company?.subscription_status === 'active' && company?.stripe_subscription_id) {
-      console.log('User has active subscription, redirecting to Portal with update flow:', {
-        subscriptionId: company.stripe_subscription_id,
-        targetPrice: priceId
-      });
-
-      const portalSession = await stripe.billingPortal.sessions.create({
-        customer: company.stripe_customer_id,
-        return_url: `${origin}/settings?tab=billing`,
-        // Forçamos o portal a abrir na tela de "Troca de Plano"
-        flow_data: {
-          type: 'subscription_update',
-          subscription_update: {
-            subscription: company.stripe_subscription_id,
+      console.log('[DEBUG CHECKOUT] Redirecionando para PORTAL (Usuário Ativo)');
+      
+      try {
+        const portalSession = await stripe.billingPortal.sessions.create({
+          customer: company.stripe_customer_id,
+          return_url: `${origin}/settings?tab=billing`,
+          flow_data: {
+            type: 'subscription_update',
+            subscription_update: {
+              subscription: company.stripe_subscription_id,
+            },
           },
-        },
-      });
-
-      return NextResponse.json({ url: portalSession.url });
+        });
+        console.log('[DEBUG CHECKOUT] Portal Session (Update) criada:', portalSession.url);
+        return NextResponse.json({ url: portalSession.url });
+      } catch (portalError: any) {
+        console.error('[DEBUG CHECKOUT] Falha no flow_data do Portal:', portalError.message);
+        
+        try {
+          console.log('[DEBUG CHECKOUT] Tentando fallback para Portal Geral...');
+          const fallbackSession = await stripe.billingPortal.sessions.create({
+            customer: company.stripe_customer_id,
+            return_url: `${origin}/settings?tab=billing`,
+          });
+          return NextResponse.json({ url: fallbackSession.url });
+        } catch (fallbackError: any) {
+          console.error('[DEBUG CHECKOUT] Falha total no Portal:', fallbackError.message);
+          return NextResponse.json({ error: fallbackError.message }, { status: 500 });
+        }
+      }
     }
 
     // 3. Determinar planType a partir do priceId (mais confiável que o body)

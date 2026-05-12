@@ -99,12 +99,23 @@ export default function PlanosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priceId, planType: planId }),
       });
-      const { url, error } = await res.json();
-      if (error) throw new Error(error);
-      window.location.href = url;
+      
+      const data = await res.json();
+      console.log('[DEBUG FRONTEND] Resposta do Servidor:', { status: res.status, data });
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Erro na resposta do servidor');
+      }
+      
+      if (data.url) {
+        console.log('[DEBUG FRONTEND] Sucesso! Redirecionando...');
+        window.location.href = data.url;
+      } else {
+        throw new Error('URL de redirecionamento não encontrada');
+      }
     } catch (err: any) {
-      console.error("Checkout error:", err);
-      alert(`Erro ao iniciar checkout: ${err.message || "Tente novamente."}`);
+      console.error("[DEBUG FRONTEND] Erro capturado:", err);
+      alert(err.message || "Erro ao iniciar checkout. Tente novamente.");
     } finally {
       setLoadingPlan(null);
     }
