@@ -80,13 +80,8 @@ export async function POST(request: NextRequest) {
       priceIdRequested: priceId
     });
 
-    if (!company?.stripe_customer_id) {
-      console.error('[DEBUG CHECKOUT] ERRO: Empresa sem stripe_customer_id');
-      return NextResponse.json({ error: 'Sua conta não tem um ID de cliente do Stripe vinculado.' }, { status: 400 });
-    }
-
-    // Se já é assinante e está ativo, manda para o portal de faturamento
-    if (company?.subscription_status === 'active' && company?.stripe_subscription_id) {
+    // 2. Se já é assinante e está ativo E tem customer_id, manda para o portal de faturamento
+    if (company?.subscription_status === 'active' && company?.stripe_subscription_id && company?.stripe_customer_id) {
       console.log('[DEBUG CHECKOUT] Redirecionando para PORTAL (Usuário Ativo)');
       
       try {
@@ -114,7 +109,9 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ url: fallbackSession.url });
         } catch (fallbackError: any) {
           console.error('[DEBUG CHECKOUT] Falha total no Portal:', fallbackError.message);
-          return NextResponse.json({ error: fallbackError.message }, { status: 500 });
+          // Se falhar o portal, deixamos cair para o checkout normal como último recurso? 
+          // Não, se ele é ativo, o checkout normal pode criar duplicidade. Melhor erro controlado.
+          return NextResponse.json({ error: `Erro no portal Stripe: ${fallbackError.message}` }, { status: 500 });
         }
       }
     }
@@ -127,8 +124,8 @@ export async function POST(request: NextRequest) {
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      // [FIX MED-8] URL correta: /settings, não /app/settings
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?tab=billing&stripe=success`,
+      // [FIX] Redireciona para /planos com celebração premium
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/planos?stripe=success`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/planos?stripe=cancel`,
       // [FIX] Stripe does not allow both customer and customer_email
       ...(company?.stripe_customer_id 

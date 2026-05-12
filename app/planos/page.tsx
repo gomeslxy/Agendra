@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Sparkles, ArrowRight, Clock, Loader2, Zap } from "lucide-react";
+import { Check, Sparkles, ArrowRight, Clock, Loader2, Zap, X, PartyPopper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/landing/header";
 import { Footer } from "@/components/landing/footer";
@@ -37,6 +37,11 @@ export default function PlanosPage() {
   const [periodEnd, setPeriodEnd] = useState<string | null>(null);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
   const [companyCreatedAt, setCompanyCreatedAt] = useState<string | null>(null);
+
+  // Post-checkout states
+  const [syncing, setSyncing] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showCancelNotice, setShowCancelNotice] = useState(false);
 
   // Check session on mount
   useEffect(() => {
@@ -84,6 +89,57 @@ export default function PlanosPage() {
     init();
   }, []);
 
+  // ── Auto-Sync pós-checkout ─────────────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeResult = params.get('stripe');
+    if (!stripeResult) return;
+
+    // Limpar URL
+    window.history.replaceState({}, '', '/planos');
+
+    if (stripeResult === 'cancel') {
+      setShowCancelNotice(true);
+      setTimeout(() => setShowCancelNotice(false), 5000);
+      return;
+    }
+
+    if (stripeResult === 'success') {
+      setSyncing(true);
+
+      const syncWithRetry = async (retries = 4) => {
+        try {
+          const res = await fetch('/api/stripe/sync', { method: 'POST' });
+          const data = await res.json();
+
+          if (data.synced && data.plan && data.plan !== 'trial') {
+            setCurrentPlan(data.plan);
+            setIsSubscribed(true);
+            setTrialDaysRemaining(null);
+            setSyncing(false);
+            setShowCelebration(true);
+          } else if (retries > 0) {
+            // Webhook pode não ter chegado ainda, tentar novamente
+            setTimeout(() => syncWithRetry(retries - 1), 2500);
+          } else {
+            setSyncing(false);
+            // Mostrar celebração mesmo assim — webhook pode estar atrasado
+            setShowCelebration(true);
+          }
+        } catch {
+          if (retries > 0) {
+            setTimeout(() => syncWithRetry(retries - 1), 2500);
+          } else {
+            setSyncing(false);
+            setShowCelebration(true);
+          }
+        }
+      };
+
+      syncWithRetry();
+    }
+  }, []);
+
   // Checkout handler for logged-in users
   const handleCheckout = async (planId: PlanKey) => {
     const priceId = PRICE_IDS[planId][isAnnual ? "annual" : "monthly"];
@@ -128,6 +184,61 @@ export default function PlanosPage() {
   return (
     <div className="bg-[#0b1222] min-h-screen flex flex-col text-white selection:bg-brand-blue/30 relative">
       <Header />
+
+      {/* ── Celebração Premium ── */}
+      <AnimatePresence>
+        {showCelebration && (
+          <SubscriptionCelebration
+            planName={plans.find(p => p.id === currentPlan)?.name ?? currentPlan ?? 'Pro'}
+            onDismiss={() => setShowCelebration(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Syncing Overlay ── */}
+      <AnimatePresence>
+        {syncing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-xl"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="flex flex-col items-center gap-4 text-center"
+            >
+              <div className="relative">
+                <div className="h-16 w-16 rounded-full border-2 border-brand-blue-500/30 border-t-brand-blue-400 animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Zap className="w-6 h-6 text-brand-blue-400" />
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-white/70">Ativando seu plano...</p>
+              <p className="text-xs text-white/30">Sincronizando com o Stripe</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Cancel Notice ── */}
+      <AnimatePresence>
+        {showCancelNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0A0A0A]/90 backdrop-blur-xl px-5 py-3 shadow-2xl"
+          >
+            <X className="w-4 h-4 text-white/40" />
+            <span className="text-sm text-white/70">Checkout cancelado. Nenhuma cobrança foi feita.</span>
+            <button onClick={() => setShowCancelNotice(false)} className="text-white/30 hover:text-white/60 transition-colors">
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <main className="flex-1 pt-28 pb-24 px-4 sm:px-6 md:px-12 relative overflow-hidden z-10">
         <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" fill="#3b82f6" />
@@ -433,5 +544,148 @@ export default function PlanosPage() {
 
       <Footer />
     </div>
+  );
+}
+
+// ─── Celebration Component ──────────────────────────────────────────────────────
+
+const CONFETTI_COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4'];
+
+function SubscriptionCelebration({ planName, onDismiss }: { planName: string; onDismiss: () => void }) {
+  const particles = useMemo(() =>
+    Array.from({ length: 40 }, (_, i) => ({
+      id: i,
+      x: 10 + Math.random() * 80,
+      delay: Math.random() * 0.6,
+      duration: 2 + Math.random() * 2,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      size: 5 + Math.random() * 7,
+      rotation: Math.random() * 360,
+      xDrift: (Math.random() - 0.5) * 120,
+    }))
+  , []);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[999] flex items-center justify-center"
+    >
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="absolute inset-0 bg-black/70 backdrop-blur-xl"
+        onClick={onDismiss}
+      />
+
+      {/* Confetti */}
+      {particles.map(p => (
+        <motion.div
+          key={p.id}
+          className="absolute rounded-sm pointer-events-none"
+          style={{
+            left: `${p.x}%`,
+            top: '-2%',
+            width: p.size,
+            height: p.size * 0.6,
+            backgroundColor: p.color,
+          }}
+          initial={{ y: 0, opacity: 1, rotate: 0 }}
+          animate={{
+            y: '110vh',
+            x: p.xDrift,
+            opacity: [1, 1, 0],
+            rotate: p.rotation + 720,
+          }}
+          transition={{
+            duration: p.duration,
+            delay: p.delay,
+            ease: [0.25, 0.46, 0.45, 0.94],
+          }}
+        />
+      ))}
+
+      {/* Glass Card */}
+      <motion.div
+        initial={{ scale: 0.7, opacity: 0, y: 30 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 10 }}
+        transition={{ delay: 0.15, type: 'spring', stiffness: 300, damping: 25 }}
+        className="relative z-10 max-w-md w-full mx-4 rounded-3xl border border-white/20 bg-white/[0.06] backdrop-blur-2xl p-8 sm:p-10 text-center shadow-[0_0_80px_rgba(59,130,246,0.12)]"
+      >
+        {/* Glow ring */}
+        <div className="absolute -inset-px rounded-3xl bg-gradient-to-b from-emerald-500/20 via-transparent to-brand-blue-500/10 pointer-events-none" />
+
+        {/* Animated Check */}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.35, type: 'spring', stiffness: 400, damping: 12 }}
+          className="relative mx-auto mb-7 h-24 w-24"
+        >
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500 to-teal-400 blur-xl opacity-50 animate-pulse" />
+          <div className="relative h-full w-full rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.4)]">
+            <motion.div
+              initial={{ pathLength: 0, opacity: 0 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ delay: 0.6, duration: 0.4 }}
+            >
+              <Check className="w-12 h-12 text-white" strokeWidth={3} />
+            </motion.div>
+          </div>
+        </motion.div>
+
+        <motion.h2
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="text-2xl sm:text-3xl font-bold text-white mb-3"
+        >
+          Assinatura Ativada! 🎉
+        </motion.h2>
+
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="text-sm sm:text-base text-white/50 mb-2 leading-relaxed"
+        >
+          O plano{' '}
+          <span className="font-bold text-brand-blue-400">{planName}</span>{' '}
+          está ativo. Você agora tem acesso completo à Agendra.
+        </motion.p>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7 }}
+          className="text-xs text-white/25 mb-8"
+        >
+          Seus limites e funcionalidades foram atualizados automaticamente.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.75 }}
+          className="flex flex-col sm:flex-row gap-3"
+        >
+          <a
+            href="/inbox"
+            className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-gradient-to-r from-brand-blue-600 to-brand-blue-500 text-white font-semibold text-sm hover:brightness-110 transition-all shadow-[0_0_25px_rgba(59,130,246,0.3)] hover:shadow-[0_0_35px_rgba(59,130,246,0.5)] active:scale-[0.98]"
+          >
+            Ir para o Dashboard <ArrowRight className="w-4 h-4" />
+          </a>
+          <button
+            onClick={onDismiss}
+            className="flex-1 h-12 rounded-xl border border-white/10 bg-white/[0.04] text-white/60 font-medium text-sm hover:bg-white/[0.08] hover:text-white/80 transition-all active:scale-[0.98]"
+          >
+            Continuar aqui
+          </button>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }
