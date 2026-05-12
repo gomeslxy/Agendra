@@ -17,8 +17,10 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { handleIncomingMessage } from "@/lib/ai/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCompanyUsage } from "@/lib/billing/limits";
 
 // ─── Tipos (Meta Webhook Payload) ────────────────────────────────────────────
 
@@ -103,45 +105,40 @@ async function validateMetaSignature(
 
 
 /**
- * Resolve a `company_id` a partir do `phone_number_id` da Meta.
+ * Resolve o Canal (Row) a partir do `phone_number_id` da Meta.
  *
- * Consulta a tabela `channels` para mapear:
- *   phone_number_id (Meta) → company_id (Agendra)
- *
- * Retorna null se o canal não estiver registrado — o evento é logado
- * e descartado (sem processamento parcial).
+ * Além de mapear a empresa, recupera o `access_token` específico
+ * deste canal (Nexus Multi-tenant).
  */
-async function resolveCompanyId(
+async function resolveChannel(
   phoneNumberId: string,
-): Promise<string | null> {
+) {
   if (!phoneNumberId) return null;
 
   try {
-    console.log(`[DB] 🔍 Iniciando consulta para phone_id=${phoneNumberId}`);
     const admin = createAdminClient();
     
     const { data, error } = await admin
       .from("channels")
-      .select("company_id")
+      .select("*")
       .eq("provider", "whatsapp")
       .eq("provider_id", phoneNumberId)
-      .eq("status", "active")
       .maybeSingle();
 
-    if (error) {
-      console.error(`[DB] ❌ Erro na consulta do Supabase:`, error.message);
+    if (error || !data) {
+      console.warn(`[Nexus] ⚠️ Canal não encontrado para phone_id=${phoneNumberId}`);
       return null;
     }
 
-    if (!data?.company_id) {
-      console.warn(`[DB] ⚠️ Canal ativo não encontrado para phone_id=${phoneNumberId}`);
-      return null;
-    }
+    // Atualizar telemetria (last_seen) de forma assíncrona
+    admin.from("channels")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .then();
 
-    console.log(`[DB] ✅ Empresa resolvida com sucesso: ${data.company_id}`);
-    return data.company_id;
+    return data;
   } catch (err: any) {
-    console.error(`[DB] 💥 Crash catastrófico ao falar com Supabase:`, err.message || err);
+    console.error(`[Nexus] 💥 Erro ao resolver canal:`, err.message);
     return null;
   }
 }
@@ -180,9 +177,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 // ─── Handler: POST — Recebimento de Eventos ──────────────────────────────────
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  console.log("=========================================");
-  console.log("[WhatsApp Webhook] 🔔 SINAL RECEBIDO!");
-  console.log("=========================================");
+  console.log("[WhatsApp Webhook] 🔔 Sinal recebido");
   
   // ── Ler o body como texto (necessário para validação HMAC) ─────────────────
   const rawBody = await request.text();
@@ -194,9 +189,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ── Processar payload (Aguardar para evitar que a Vercel mate o processo) ──
-  await processWebhookPayload(rawBody);
-  
+  // ── Responder 200 IMEDIATAMENTE e processar em background ─────────────────
+  // O after() do Next.js garante que o processamento continua após o response
+  after(async () => {
+    try {
+      await processWebhookPayload(rawBody);
+    } catch (err: any) {
+      console.error("[WhatsApp] 💥 Erro no processamento em background:", err.message);
+    }
+  });
+
   return NextResponse.json({ status: "ok" }, { status: 200 });
 }
 
@@ -240,18 +242,35 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
         continue;
       }
 
-      console.log(`[WhatsApp] 🔍 Buscando empresa para phone_id=${phoneNumberId}...`);
-      const companyId = await resolveCompanyId(phoneNumberId);
+      console.log(`[WhatsApp] 🔍 Buscando canal para phone_id=${phoneNumberId}...`);
+      const channel = await resolveChannel(phoneNumberId);
 
-
-      if (!companyId) {
-        console.warn(
-          `[WhatsApp] ⚠️  company_id não resolvida para phone_number_id=${phoneNumberId}`,
-        );
+      if (!channel) {
+        console.warn(`[WhatsApp] ⚠️ Canal não registrado: ${phoneNumberId}`);
         continue;
       }
 
-      console.log(`[WhatsApp] 🏢 Empresa resolvida: ${companyId}`);
+      if (channel.status !== "active") {
+        console.warn(`[WhatsApp] ⏸️ Canal pausado ou com erro: ${channel.id} (${channel.status})`);
+        continue;
+      }
+
+      const companyId = channel.company_id;
+
+      // ─── BILLING GATE: Proteção de Margem ─────────────────────────────────────
+      console.log(`[WhatsApp] 🛡️ Verificando limites para empresa: ${companyId}`);
+      try {
+        const usage = await getCompanyUsage(companyId);
+        if (usage.isLimitReached) {
+          console.error(`[WhatsApp] 🚫 BLOQUEADO: Limite atingido ou assinatura expirada para ${companyId}`);
+          // Opcional: Enviar mensagem de aviso via Cloud API (sem IA) se for WhatsApp
+          continue;
+        }
+      } catch (usageErr) {
+        console.error(`[WhatsApp] ❌ Erro ao verificar billing:`, usageErr);
+        // Em caso de erro no billing, por segurança, bloqueamos ou permitimos? 
+        // Na Agendra, permitimos para não degradar UX por falha interna temporária.
+      }
 
 
         // ── Processar cada mensagem individualmente ─────────────────────────────

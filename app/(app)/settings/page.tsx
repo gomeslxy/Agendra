@@ -26,7 +26,7 @@ export default async function SettingsPage() {
       .eq("company_id", companyId),
     supabase
       .from("channels")
-      .select("id, provider, provider_id, status")
+      .select("id, provider, provider_id, status, last_error")
       .eq("company_id", companyId),
   ]);
 

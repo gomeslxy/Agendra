@@ -80,39 +80,60 @@ export async function POST(request: NextRequest) {
       priceIdRequested: priceId
     });
 
-    // 2. Se já é assinante e está ativo E tem customer_id, manda para o portal de faturamento
+    // 2. Se já é assinante e está ativo E tem customer_id, faz upgrade direto (1-click)
     if (company?.subscription_status === 'active' && company?.stripe_subscription_id && company?.stripe_customer_id) {
-      console.log('[DEBUG CHECKOUT] Redirecionando para PORTAL (Usuário Ativo)');
+      console.log('[DEBUG CHECKOUT] Iniciando UPGRADE DIRETO (Usuário Ativo)');
       
       try {
-        const portalSession = await stripe.billingPortal.sessions.create({
-          customer: company.stripe_customer_id,
-          return_url: `${origin}/settings?tab=billing`,
-          flow_data: {
-            type: 'subscription_update',
-            subscription_update: {
-              subscription: company.stripe_subscription_id,
-            },
-          },
-        });
-        console.log('[DEBUG CHECKOUT] Portal Session (Update) criada:', portalSession.url);
-        return NextResponse.json({ url: portalSession.url });
-      } catch (portalError: any) {
-        console.error('[DEBUG CHECKOUT] Falha no flow_data do Portal:', portalError.message);
+        // 1. Recuperar a assinatura atual para identificar o item a ser substituído
+        const subscription = await stripe.subscriptions.retrieve(company.stripe_subscription_id);
+        const currentItemId = subscription.items.data[0].id;
+
+        // 2. Realizar o swap do plano diretamente via API
+        // Usamos proration_behavior: 'create_prorations' para cobrar a diferença proporcional
+        const updatedSubscription = await stripe.subscriptions.update(
+          company.stripe_subscription_id,
+          {
+            items: [
+              { id: currentItemId, deleted: true }, // Remove o item atual
+              { price: priceId },                    // Adiciona o novo plano
+            ],
+            proration_behavior: 'create_prorations',
+            payment_behavior: 'pending_if_incomplete',
+            expand: ['latest_invoice.payment_intent'],
+            metadata: {
+              companyId,
+              planType: planFromPriceId(priceId),
+            }
+          }
+        );
+
+        const latestInvoice = updatedSubscription.latest_invoice as Stripe.Invoice;
         
-        try {
-          console.log('[DEBUG CHECKOUT] Tentando fallback para Portal Geral...');
-          const fallbackSession = await stripe.billingPortal.sessions.create({
-            customer: company.stripe_customer_id,
-            return_url: `${origin}/settings?tab=billing`,
-          });
-          return NextResponse.json({ url: fallbackSession.url });
-        } catch (fallbackError: any) {
-          console.error('[DEBUG CHECKOUT] Falha total no Portal:', fallbackError.message);
-          // Se falhar o portal, deixamos cair para o checkout normal como último recurso? 
-          // Não, se ele é ativo, o checkout normal pode criar duplicidade. Melhor erro controlado.
-          return NextResponse.json({ error: `Erro no portal Stripe: ${fallbackError.message}` }, { status: 500 });
+        // 3. Verificar se o pagamento da diferença exige ação do usuário (ex: 3D Secure)
+        if (latestInvoice.status === 'open' && latestInvoice.hosted_invoice_url) {
+          console.log('[DEBUG CHECKOUT] Upgrade exige autenticação/pagamento manual:', latestInvoice.hosted_invoice_url);
+          return NextResponse.json({ url: latestInvoice.hosted_invoice_url });
         }
+
+        // Sucesso imediato! Redirecionamos para a origem com flag de sucesso.
+        // Se veio do /settings, voltamos para lá. Se veio do /planos, voltamos para lá.
+        const referer = request.headers.get('referer');
+        const successPath = referer?.includes('/settings') 
+          ? '/settings?tab=billing&stripe=success' 
+          : '/planos?stripe=success';
+        
+        console.log('[DEBUG CHECKOUT] Upgrade processado instantaneamente. Redirect:', successPath);
+        return NextResponse.json({ 
+          url: `${origin}${successPath}`,
+          directSuccess: true 
+        });
+
+      } catch (upgradeError: any) {
+        console.error('[DEBUG CHECKOUT] Falha no upgrade direto:', upgradeError.message);
+        return NextResponse.json({ 
+          error: `Não foi possível atualizar sua assinatura automaticamente: ${upgradeError.message}. Por favor, tente pelo portal de faturamento ou contate o suporte.` 
+        }, { status: 500 });
       }
     }
 
@@ -124,9 +145,9 @@ export async function POST(request: NextRequest) {
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      // [FIX] Redireciona para /planos com celebração premium
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/planos?stripe=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/planos?stripe=cancel`,
+      // [FIX] Redireciona para /planos com celebração premium ou settings dependendo da origem
+      success_url: `${origin}${request.headers.get('referer')?.includes('/settings') ? '/settings?tab=billing&stripe=success' : '/planos?stripe=success'}`,
+      cancel_url: `${origin}${request.headers.get('referer')?.includes('/settings') ? '/settings?tab=billing&stripe=cancel' : '/planos?stripe=cancel'}`,
       // [FIX] Stripe does not allow both customer and customer_email
       ...(company?.stripe_customer_id 
         ? { customer: company.stripe_customer_id } 

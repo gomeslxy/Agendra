@@ -156,6 +156,10 @@ export interface AILog {
   score_delta: number;
   latency_ms: number;
   model: string;
+  tokens_input: number | null;
+  tokens_output: number | null;
+  cost: number | null;
+  retries: number;
   error: string | null;
   created_at: string;
 }

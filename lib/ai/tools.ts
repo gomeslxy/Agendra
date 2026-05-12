@@ -14,6 +14,9 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createGoogleCalendarEvent, getFreeBusySlots } from '@/lib/calendar/google';
 import { type Tool, SchemaType } from '@google/generative-ai';
+import { handleUpdateLeadMemory } from './memory';
+
+export { handleUpdateLeadMemory };
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
@@ -85,25 +88,64 @@ export const toolDeclarations: Tool = {
     {
       name: 'updateLeadInfo',
       description:
-        'Atualiza informações do lead no banco de dados quando o lead as fornecer durante a conversa. ' +
-        'Use para salvar email, cidade ou a origem do interesse do lead.',
+        'Atualiza informações básicas do lead (email, cidade, origem) no banco de dados. ' +
+        'Use silenciosamente sempre que o lead fornecer esses dados.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          email: {
-            type: SchemaType.STRING,
-            description: 'Email do lead, se fornecido',
-          },
-          city: {
-            type: SchemaType.STRING,
-            description: 'Cidade do lead, se fornecida',
-          },
-          source: {
-            type: SchemaType.STRING,
-            description: 'Como o lead conheceu a empresa (ex: "Instagram", "indicação")',
-          },
+          email: { type: SchemaType.STRING, description: 'Email do lead' },
+          city: { type: SchemaType.STRING, description: 'Cidade do lead' },
+          source: { type: SchemaType.STRING, description: 'Como conheceu a empresa' },
         },
         required: [],
+      },
+    },
+    {
+      name: 'updateLeadMemory',
+      description:
+        'Atualiza a memória estratégica e comportamental do lead. ' +
+        'Use para registrar interesse em serviços, objeções levantadas, respostas de qualificação ' +
+        'ou mudanças significativas no status do lead (ex: desqualificado).',
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          event_type: {
+            type: SchemaType.STRING,
+            enum: [
+              'showed_interest',
+              'objection_raised',
+              'slot_shown',
+              'slot_declined',
+              'booked',
+              'no_show',
+              'reactivated',
+              'disqualified'
+            ],
+            description: 'Tipo de evento sendo registrado na linha do tempo',
+          },
+          note: {
+            type: SchemaType.STRING,
+            description: 'Descrição breve do contexto do evento',
+          },
+          services_mentioned: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: 'Lista de serviços que o lead demonstrou interesse',
+          },
+          objection: {
+            type: SchemaType.STRING,
+            description: 'Objeção específica levantada pelo lead',
+          },
+          answers: {
+            type: SchemaType.OBJECT,
+            description: 'Pares de pergunta:resposta coletados (ex: {"orcamento": "R$ 5.000"})',
+          },
+          intent_signal: {
+            type: SchemaType.STRING,
+            description: 'Frase curta resumindo a intenção atual',
+          },
+        },
+        required: ['event_type'],
       },
     },
   ],

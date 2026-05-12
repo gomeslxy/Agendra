@@ -39,20 +39,36 @@ export default async function AppLayout({
   }
 
   let hotCount = 0;
+  let unhealthyChannelsCount = 0;
 
   if (companyId) {
     const supabase = await createClient();
-    const { count } = await supabase
+    
+    // Fetch Hot Leads
+    const { count: hc } = await supabase
       .from("leads")
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyId)
       .eq("status", "hot");
-    hotCount = count ?? 0;
+    hotCount = hc ?? 0;
+
+    // Fetch Unhealthy Channels
+    const { count: uc } = await supabase
+      .from("channels")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("status", "error");
+    unhealthyChannelsCount = uc ?? 0;
   }
 
   return (
     <AuthProvider initialUser={user} initialProfile={profile}>
-      <AppShell hotCount={hotCount}>{children}</AppShell>
+      <AppShell 
+        hotCount={hotCount} 
+        unhealthyChannelsCount={unhealthyChannelsCount}
+      >
+        {children}
+      </AppShell>
     </AuthProvider>
   );
 }

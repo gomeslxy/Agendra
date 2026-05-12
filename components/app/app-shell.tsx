@@ -4,10 +4,14 @@ import { Suspense } from "react";
 import { Sidebar } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
 import { MobileNav } from "@/components/app/mobile-nav";
+import { AlertTriangle, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 
 interface AppShellProps {
   children: React.ReactNode;
   hotCount?: number;
+  unhealthyChannelsCount?: number;
 }
 
 function SidebarFallback() {
@@ -24,11 +28,11 @@ function SidebarFallback() {
   );
 }
 
-// Page transitions live in `app/(app)/template.tsx` so each route segment
-// re-mounts cleanly without an AnimatePresence "exit" gate that blocked
-// new content from appearing.
-// Suspense around Sidebar: it uses useSearchParams (Next 15+ requirement).
-export function AppShell({ children, hotCount = 0 }: AppShellProps) {
+export function AppShell({ 
+  children, 
+  hotCount = 0,
+  unhealthyChannelsCount = 0 
+}: AppShellProps) {
   return (
     <>
       <div className="bg-aurora grid h-screen overflow-hidden md:grid-cols-[240px_1fr]">
@@ -37,7 +41,42 @@ export function AppShell({ children, hotCount = 0 }: AppShellProps) {
         </Suspense>
         <div className="grid min-w-0 grid-rows-[auto_1fr]">
           <Topbar />
-          <main className="relative min-h-0 overflow-hidden">{children}</main>
+          <main className="relative min-h-0 overflow-hidden flex flex-col">
+            <AnimatePresence>
+              {unhealthyChannelsCount > 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <Link 
+                    href="/settings"
+                    className="flex items-center gap-3 bg-red-500/10 border-b border-red-500/20 px-6 py-2.5 hover:bg-red-500/15 transition-colors group"
+                  >
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500/20 text-red-400">
+                      <AlertTriangle size={14} />
+                    </div>
+                    <div className="flex flex-1 flex-col">
+                      <span className="text-[12px] font-bold text-red-200">Atenção Necessária</span>
+                      <span className="text-[11px] text-red-300/70">
+                        {unhealthyChannelsCount === 1 
+                          ? "Um canal de WhatsApp está desconectado ou com erro." 
+                          : `${unhealthyChannelsCount} canais de WhatsApp estão com problemas de conexão.`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-red-400 group-hover:text-red-300 transition-colors">
+                      Resolver Agora
+                      <ChevronRight size={14} />
+                    </div>
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div className="flex-1 overflow-hidden relative">
+              {children}
+            </div>
+          </main>
         </div>
       </div>
       <MobileNav />

@@ -2,13 +2,34 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import type { AILog, AITrace } from '@/lib/types/database';
 
 /**
+ * Calculates estimated cost for Gemini 1.5 Flash.
+ */
+export function calculateGeminiCost(inputTokens: number, outputTokens: number, model: string): number {
+  // Approximate pricing for Gemini 1.5 Flash
+  // Input: $0.075 / 1M tokens
+  // Output: $0.30 / 1M tokens
+  const is8b = model.includes('8b');
+  const inputRate = is8b ? 0.0375 / 1_000_000 : 0.075 / 1_000_000;
+  const outputRate = is8b ? 0.15 / 1_000_000 : 0.30 / 1_000_000;
+
+  return (inputTokens * inputRate) + (outputTokens * outputRate);
+}
+
+/**
  * Persists an AI interaction log to the database.
- * Does not block execution (async fire-and-forget recommended).
+ * Does not block execution.
  */
 export async function persistAILog(log: Omit<AILog, 'id' | 'created_at'>): Promise<void> {
   try {
     const admin = createAdminClient();
-    const { error } = await admin.from('ai_logs').insert(log);
+    
+    // Ensure cost is calculated if tokens are provided
+    const finalLog = {
+      ...log,
+      cost: log.cost ?? calculateGeminiCost(log.tokens_input ?? 0, log.tokens_output ?? 0, log.model)
+    };
+
+    const { error } = await admin.from('ai_logs').insert(finalLog);
 
     if (error) {
       console.error('[Observability] ❌ Failed to persist AI log:', error.message);
@@ -20,7 +41,6 @@ export async function persistAILog(log: Omit<AILog, 'id' | 'created_at'>): Promi
 
 /**
  * Persists a raw AI trace for deep observability (e.g. tool calls, completions).
- * Does not block execution.
  */
 export async function persistAITrace(trace: Omit<AITrace, 'id' | 'created_at'>): Promise<void> {
   try {

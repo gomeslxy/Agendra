@@ -31,7 +31,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { updatePersona } from "./actions";
+import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding } from "./actions";
+import Script from "next/script";
+import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
 import { STRIPE_PRICE_IDS, PLANS_META } from "@/lib/billing/plans";
 import type { PlanType } from "@/lib/billing/plans";
@@ -92,6 +94,7 @@ interface ChannelRow {
   provider: string;
   provider_id: string;
   status: string;
+  last_error?: string | null;
 }
 
 interface SettingsShellProps {
@@ -144,6 +147,18 @@ export function SettingsShell({ company, memberships, channels, usage }: Setting
       setToast({ msg: "Assinatura confirmada! Sua IA está turbinada. 🚀", type: "success" });
       setTab("billing");
       trackEvent("stripe_success");
+      
+      // Kaizen: Forçar sincronização imediata do estado local
+      const sync = async () => {
+        try {
+          await fetch("/api/stripe/sync", { method: "POST" });
+          router.refresh(); // Atualiza os dados do Server Component (usage, company)
+        } catch (e) {
+          console.error("Sync error:", e);
+        }
+      };
+      sync();
+      
       router.replace("/settings?tab=billing", { scroll: false });
     }
   }, [searchParams, router]);
@@ -701,19 +716,106 @@ function Channels({ company, channels }: { company: Company | null; channels: Ch
   return (
     <div className="flex flex-col gap-3">
       {items.map((c) => (
-        <ChannelCard key={c.name} item={c} />
+        <ChannelCard key={c.name} item={c} channels={channels} />
       ))}
     </div>
   );
 }
 
-function ChannelCard({ item: c }: { item: ChannelItem }) {
+function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: ChannelRow[] }) {
   const [expanded, setExpanded] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleConnect(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await saveWhatsAppChannel(formData);
+        setExpanded(false);
+        toast.success("Canal conectado com sucesso!");
+      } catch (err: any) {
+        setError(err.message);
+      }
+    });
+  }
+
+  async function handleTest() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/whatsapp/test", { method: "POST" });
+        const data = await res.json();
+        if (data.ok) {
+          toast.success(`Conexão ativa! Número: ${data.displayPhone}`);
+        } else {
+          setError(data.error);
+          toast.error("Falha na conexão.");
+        }
+      } catch (err: any) {
+        toast.error("Erro ao testar conexão.");
+      }
+    });
+  }
+
+  async function handleDisconnect() {
+    if (!confirm("Tem certeza que deseja desconectar este canal? Todas as mensagens enviadas para este número deixarão de ser processadas pela IA.")) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const channel = channels.find(ch => ch.provider_id === c.action.provider_id);
+        if (!channel) throw new Error("Canal não encontrado");
+        
+        await disconnectWhatsAppChannel(channel.id);
+        toast.success("Canal desconectado com sucesso");
+      } catch (err: any) {
+        toast.error(err.message || "Erro ao desconectar");
+      }
+    });
+  }
+
+  function handleMetaLogin() {
+    if (!(window as any).FB) {
+      toast.error("SDK da Meta não carregado. Verifique sua conexão.");
+      return;
+    }
+
+    (window as any).FB.login(
+      (response: any) => {
+        if (response.authResponse) {
+          const accessToken = response.authResponse.accessToken;
+          toast.promise(
+            completeWhatsAppOnboarding(accessToken).then((res) => {
+              if (!res.success) throw new Error(res.error);
+              return res;
+            }),
+            {
+              loading: "Configurando canal...",
+              success: (res) => `Sucesso! Número ${res.phone} conectado.`,
+              error: (err: any) => `Erro: ${err.message}`,
+            }
+          );
+        } else {
+          toast.error("Conexão cancelada pelo usuário.");
+        }
+      },
+      {
+        scope: "whatsapp_business_management,whatsapp_business_messaging",
+        extras: {
+          feature: "whatsapp_embedded_signup",
+        },
+      }
+    );
+  }
 
   return (
     <motion.div
       layout
-      className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]"
+      className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm"
     >
       <div className="flex items-center gap-3 p-4">
         <div
@@ -725,10 +827,20 @@ function ChannelCard({ item: c }: { item: ChannelItem }) {
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-semibold">{c.name}</div>
           <div
-            className="mt-0.5 font-mono text-[11px] font-medium"
+            className="mt-0.5 font-mono text-[11px] font-medium flex items-center gap-1.5"
             style={{ color: c.ok ? "var(--color-brand-teal-300)" : "var(--color-fg-3)" }}
           >
-            {c.ok ? "● Conectado" : "○ Não conectado"}
+            {c.ok ? (
+              <>
+                <span className="flex h-1.5 w-1.5 rounded-full bg-brand-teal-500 animate-pulse" />
+                Conectado
+              </>
+            ) : (
+              <>
+                <span className="flex h-1.5 w-1.5 rounded-full bg-white/20" />
+                Não conectado
+              </>
+            )}
           </div>
           {c.sub && (
             <div className="mt-0.5 font-mono text-[10px]" style={{ color: "var(--color-fg-3)" }}>
@@ -763,12 +875,94 @@ function ChannelCard({ item: c }: { item: ChannelItem }) {
           </Button>
         )}
 
-        {c.action.kind === "coming-soon" && (
+        {c.action.kind === "coming-soon" && c.name === "WhatsApp Business" ? (
+          <Button variant="blue" size="sm" onClick={() => setExpanded(!expanded)}>
+             {expanded ? "Cancelar" : "Conectar"}
+          </Button>
+        ) : c.action.kind === "coming-soon" && (
           <Badge variant="cold" className="text-[10px] px-2 py-0.5">Em breve</Badge>
         )}
       </div>
 
       <AnimatePresence>
+        {/* Formulário de Conexão WhatsApp */}
+        {c.name === "WhatsApp Business" && !c.ok && expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-white/[0.06] bg-white/[0.02]"
+          >
+            <div className="p-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] font-medium text-white/70">Conexão Automática (Recomendado)</p>
+                <button
+                  onClick={handleMetaLogin}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white text-[13px] font-semibold transition-all shadow-lg shadow-[#1877F2]/20 group"
+                >
+                  <Facebook size={16} fill="currentColor" />
+                  Conectar com Meta
+                </button>
+                <p className="text-[10px] text-white/40 leading-relaxed text-center">
+                  Método oficial e seguro. Não exige preenchimento manual de IDs.
+                </p>
+              </div>
+
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-white/5"></div>
+                <span className="flex-shrink mx-3 text-[9px] uppercase tracking-widest text-white/20 font-bold">Ou manual</span>
+                <div className="flex-grow border-t border-white/5"></div>
+              </div>
+
+              <form onSubmit={handleConnect} className="flex flex-col gap-4">
+                <div className="rounded-lg bg-brand-blue-500/10 border border-brand-blue-500/20 p-3 mb-2">
+                  <p className="text-[11px] leading-relaxed text-brand-blue-200">
+                    <span className="font-bold">Manual:</span> Use se você já possui um 
+                    <span className="text-white mx-1">Phone ID</span> e <span className="text-white">Token Permanente</span>.
+                  </p>
+                </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Phone Number ID</label>
+                  <Input 
+                    name="phone_number_id" 
+                    placeholder="Ex: 1092837465..." 
+                    className="h-9 text-xs"
+                    required
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Nome do Canal</label>
+                  <Input 
+                    name="name" 
+                    placeholder="Ex: WhatsApp Vendas" 
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Access Token (Permanente)</label>
+                <Input 
+                  name="access_token" 
+                  type="password"
+                  placeholder="EAAW..." 
+                  className="h-9 text-xs"
+                  required
+                />
+              </div>
+
+              {error && <p className="text-[10px] text-red-400 font-medium">{error}</p>}
+
+              <Button type="submit" variant="blue" size="sm" className="w-full" disabled={pending}>
+                {pending ? "Conectando..." : "Salvar Canal WhatsApp"}
+              </Button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+
         {/* WhatsApp details panel */}
         {c.action.kind === "whatsapp-connected" && expanded && (
           <motion.div
@@ -777,19 +971,57 @@ function ChannelCard({ item: c }: { item: ChannelItem }) {
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 flex flex-col gap-2">
-              <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                <MessageCircle size={13} style={{ color: "var(--color-brand-teal-300)" }} />
-                <span className="font-mono text-[12px]" style={{ color: "var(--color-fg-2)" }}>
-                  Phone Number ID: {c.action.provider_id}
-                </span>
+            <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Configurações Ativas</div>
+                <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                  <MessageCircle size={13} className="text-brand-teal-300" />
+                  <span className="font-mono text-[12px] text-white/70">
+                    Phone ID: {c.action.provider_id}
+                  </span>
+                </div>
               </div>
-              <p className="text-[11px]" style={{ color: "var(--color-fg-3)" }}>
-                Canal WhatsApp ativo. Para reconfigurar, acesse o Meta Business Manager e atualize o webhook.
-              </p>
+
+              {/* Display Error if any */}
+              {channels.find(ch => ch.id === c.action.provider_id || ch.provider_id === c.action.provider_id)?.last_error && (
+                <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-red-400 font-bold mb-1">Erro de Conexão</p>
+                  <p className="text-[11px] text-red-200/80 font-mono break-all">
+                    {channels.find(ch => ch.provider_id === c.action.provider_id)?.last_error}
+                  </p>
+                </div>
+              )}
+              
+              <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
+                <p className="text-[11px] leading-relaxed text-white/50">
+                  Este canal está roteado para o webhook oficial da Agendra. Suas mensagens são processadas pela IA configurada na aba Persona.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  variant="blue" 
+                  size="sm" 
+                  className="flex-1" 
+                  onClick={handleTest}
+                  disabled={pending}
+                >
+                  {pending ? "Testando..." : "Testar Conexão"}
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="flex-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20" 
+                  onClick={handleDisconnect}
+                  disabled={pending}
+                >
+                  Desconectar
+                </Button>
+              </div>
             </div>
           </motion.div>
         )}
+
 
         {/* Google Calendar management panel */}
         {c.action.kind === "google-manage" && expanded && (
@@ -1153,6 +1385,21 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
           );
         })}
       </div>
+
+      <Script
+        src="https://connect.facebook.net/pt_BR/sdk.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          (window as any).fbAsyncInit = function () {
+            (window as any).FB.init({
+              appId: process.env.NEXT_PUBLIC_META_APP_ID,
+              cookie: true,
+              xfbml: true,
+              version: "v19.0",
+            });
+          };
+        }}
+      />
     </div>
   );
 }
