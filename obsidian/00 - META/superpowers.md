@@ -3,6 +3,7 @@
 Este projeto utiliza "Skills" para guiar os agentes de IA em tarefas complexas.
 
 ## 🤖 Agentes & Skills Globais
+- **Omnirepo-MCP**: Motor de contexto e indexação do repositório. Use `omnirepo.db` para entender a estrutura.
 - **Antigravity**: Focado em design premium e visual excellence. Protocolo: [[ANTIGRAVITY.md]].
   - *Skill Principal*: [Stitch Design](file:///C:/Users/lucas/.agents/skills/stitch-design/SKILL.md) (Design Premium & Stitch MCP).
   - *Skill Auxiliar*: [Taste Design](file:///C:/Users/lucas/.agents/skills/stitch-design/references/design-mappings.md) (Atmosphere & Mood).

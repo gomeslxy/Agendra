@@ -25,7 +25,7 @@ type PlanKey = keyof typeof PRICE_IDS;
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PlanosPage() {
-  const [isAnnual, setIsAnnual] = useState(true);
+  const [isAnnual, setIsAnnual] = useState(false);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
   // Auth / company state
@@ -33,6 +33,8 @@ export default function PlanosPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
   const [companyCreatedAt, setCompanyCreatedAt] = useState<string | null>(null);
 
@@ -53,7 +55,7 @@ export default function PlanosPage() {
       // Fetch company data
       const { data: membership } = await supabase
         .from("memberships")
-        .select("company_id, companies(plan_type, subscription_status, created_at)")
+        .select("company_id, companies(plan_type, subscription_status, created_at, cancel_at_period_end, current_period_end)")
         .eq("user_id", user.id)
         .single();
 
@@ -64,6 +66,8 @@ export default function PlanosPage() {
       if (company) {
         setCurrentPlan(company.plan_type ?? "trial");
         setIsSubscribed(company.subscription_status === "active");
+        setIsCanceling(!!company.cancel_at_period_end);
+        setPeriodEnd(company.current_period_end);
         const createdAt = (company as any).created_at ?? null;
         setCompanyCreatedAt(createdAt);
 
@@ -83,6 +87,11 @@ export default function PlanosPage() {
   // Checkout handler for logged-in users
   const handleCheckout = async (planId: PlanKey) => {
     const priceId = PRICE_IDS[planId][isAnnual ? "annual" : "monthly"];
+    
+    // DEBUG LOG
+    console.log(`[Stripe] Redirecionando para ${planId} (${isAnnual ? 'Anual' : 'Mensal'})`);
+    console.log(`[Stripe] Price ID: ${priceId}`);
+
     try {
       setLoadingPlan(planId);
       const res = await fetch("/api/stripe/checkout", {
@@ -117,6 +126,33 @@ export default function PlanosPage() {
 
           {/* ── Trial Banner: apenas para usuários logados e não assinantes ── */}
           <AnimatePresence>
+            {/* ── Banner de Cancelamento ── */}
+            {!authLoading && isLoggedIn && isCanceling && periodEnd && (
+              <motion.div
+                initial={{ opacity: 0, y: -16 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-10 rounded-2xl border border-brand-orange-500/30 bg-brand-orange-500/5 p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-orange-500/20">
+                  <Clock className="w-5 h-5 text-brand-orange-400" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-brand-orange-300">Sua assinatura será encerrada em breve</h4>
+                  <p className="text-xs text-brand-orange-300/70 mt-0.5">
+                    Seu plano <strong>{currentPlan?.toUpperCase()}</strong> expira em <strong>{new Date(periodEnd).toLocaleDateString()}</strong>. Você voltará ao plano Trial após esta data.
+                  </p>
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="border-brand-orange-500/30 text-brand-orange-400 hover:bg-brand-orange-500/10"
+                  onClick={() => window.location.href = "/settings?tab=billing"}
+                >
+                  Gerenciar
+                </Button>
+              </motion.div>
+            )}
+
             {!authLoading && isLoggedIn && !isSubscribed && trialDaysRemaining !== null && trialDaysRemaining >= 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -16 }}
@@ -303,11 +339,11 @@ export default function PlanosPage() {
                         <div className="h-12 rounded-xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
                       ) : isLoggedIn ? (
                         <button
-                          disabled={isPlanActive || isButtonLoading || loadingPlan !== null}
+                          disabled={(isPlanActive && !isCanceling) || isButtonLoading || loadingPlan !== null}
                           onClick={() => handleCheckout(plan.id)}
                           className={cn(
                             "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2",
-                            isPlanActive
+                            isPlanActive && !isCanceling
                               ? "bg-emerald-500/10 text-emerald-400 border border-emerald-400/20 cursor-default"
                               : plan.recommended
                               ? "bg-white text-[#0b1222] hover:bg-white/90 shadow-[0_0_25px_rgba(255,255,255,0.15)] hover:shadow-[0_0_35px_rgba(255,255,255,0.25)] active:scale-[0.98]"
@@ -318,7 +354,7 @@ export default function PlanosPage() {
                           {isButtonLoading ? (
                             <><Loader2 className="w-4 h-4 animate-spin" /> Redirecionando...</>
                           ) : isPlanActive ? (
-                            "✓ Plano Atual"
+                            isCanceling ? "Reativar Plano" : "Plano Atual"
                           ) : (
                             <>Assinar {plan.name} <ArrowRight className="w-4 h-4" /></>
                           )}

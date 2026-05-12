@@ -17,7 +17,7 @@ export default async function SettingsPage() {
   const [{ data: company }, { data: memberships }, { data: channels }] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name, ai_name, ai_tone, ai_greeting, ai_forbidden, persona_config, google_calendar_email, google_calendar_id, plan_type, subscription_status, stripe_customer_id")
+      .select("id, name, ai_name, ai_tone, ai_greeting, ai_forbidden, persona_config, google_calendar_email, google_calendar_id, plan_type, subscription_status, stripe_customer_id, cancel_at_period_end, current_period_end")
       .eq("id", companyId)
       .maybeSingle(),
     supabase

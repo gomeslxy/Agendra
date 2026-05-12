@@ -53,7 +53,8 @@ export async function POST(req: Request) {
     subId?: string,
     custId?: string,
     periodStart?: number,
-    periodEnd?: number
+    periodEnd?: number,
+    cancelAtPeriodEnd?: boolean
   ) {
     const updateData: Record<string, any> = {
       subscription_status: status,
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
     if (custId) updateData.stripe_customer_id = custId;
     if (periodStart) updateData.current_period_start = new Date(periodStart * 1000).toISOString();
     if (periodEnd) updateData.current_period_end = new Date(periodEnd * 1000).toISOString();
+    if (cancelAtPeriodEnd !== undefined) updateData.cancel_at_period_end = cancelAtPeriodEnd;
 
     const { error } = await admin
       .from('companies')
@@ -70,7 +72,7 @@ export async function POST(req: Request) {
       .eq('id', companyId);
 
     if (error) console.error(`[Stripe Webhook] ❌ Error updating company ${companyId}:`, error.message);
-    else console.log(`[Stripe Webhook] ✅ Updated company ${companyId} → status=${status} plan=${plan}`);
+    else console.log(`[Stripe Webhook] ✅ Updated company ${companyId} → status=${status} plan=${plan} cancel_at=${cancelAtPeriodEnd}`);
   }
 
   // ── Helper: obter companyId a partir de customer_id (fallback) ────────────
@@ -90,24 +92,20 @@ export async function POST(req: Request) {
       const companyId = session.metadata?.companyId;
 
       if (companyId && session.subscription) {
-        const subscription = await stripe.subscriptions.retrieve(
+        const subscription = (await stripe.subscriptions.retrieve(
           session.subscription as string
-        ) as Stripe.Subscription & { metadata?: Record<string, string> };
+        )) as any;
 
         // [HIGH-2] Determinar planType a partir do price_id (fonte mais confiável)
-        const priceId = subscription.items.data[0]?.price?.id;
-        const planType = planFromPriceId(priceId) 
-          || subscription.metadata?.planType 
-          || 'pro';
-
         await updateCompanyStatus(
           companyId,
-          'active',
-          planType,
+          subscription.status,
+          planFromPriceId(subscription.items.data[0].price.id) || 'pro',
           subscription.id,
-          session.customer as string,
-          (subscription as any).current_period_start,
-          (subscription as any).current_period_end
+          subscription.customer as string,
+          subscription.current_period_start,
+          subscription.current_period_end,
+          subscription.cancel_at_period_end
         );
       }
       break;
@@ -119,21 +117,18 @@ export async function POST(req: Request) {
         || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
 
       if (companyId) {
-        // [HIGH-2] Derivar planType do price_id real na subscription
-        const priceId = sub.items.data[0]?.price?.id;
-        const planType = planFromPriceId(priceId) || sub.metadata?.planType || 'pro';
-
         const status = sub.status === 'active' ? 'active' : 
                        sub.status === 'past_due' ? 'past_due' : sub.status;
 
         await updateCompanyStatus(
           companyId,
           status,
-          planType,
+          planFromPriceId(sub.items.data[0]?.price?.id) || sub.metadata?.planType || 'pro',
           sub.id,
           undefined,
           (sub as any).current_period_start,
-          (sub as any).current_period_end
+          (sub as any).current_period_end,
+          sub.cancel_at_period_end
         );
       }
       break;
@@ -145,8 +140,17 @@ export async function POST(req: Request) {
         || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
 
       if (companyId) {
-        // [FIX HIGH-1] 'trial' não 'free' — 'free' não existe em PLAN_LIMITS
-        await updateCompanyStatus(companyId, 'canceled', 'trial');
+        // [FIX HIGH-1] Reset para 'trial' e status 'canceled'
+        await updateCompanyStatus(
+          companyId, 
+          'canceled', 
+          'trial', 
+          undefined, 
+          undefined, 
+          undefined, 
+          undefined, 
+          false // Reset cancel_at
+        );
       }
       break;
     }
@@ -214,7 +218,25 @@ export async function POST(req: Request) {
       }
 
       if (companyId) {
-        await updateCompanyStatus(companyId, 'active', currentPlanType, undefined, undefined, periodStart, periodEnd);
+        // Obter cancel_at real da sub se possível
+        let cancelAt = false;
+        if (invAny2.subscription) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(invAny2.subscription as string);
+            cancelAt = sub.cancel_at_period_end;
+          } catch(e) {}
+        }
+
+        await updateCompanyStatus(
+          companyId, 
+          'active', 
+          currentPlanType, 
+          undefined, 
+          undefined, 
+          periodStart, 
+          periodEnd,
+          cancelAt
+        );
       }
       break;
     }

@@ -70,13 +70,25 @@ export async function POST(request: NextRequest) {
     const companyId = profile.company_id;
     const company = profile.companies as any;
 
-    // [FIX CRIT-4] Se já tem assinatura ativa, redireciona para portal em vez de criar nova
+    // [FIX CRIT-4]    // Se já é assinante e está ativo, manda para o portal de faturamento
     if (company?.subscription_status === 'active' && company?.stripe_subscription_id) {
-      // Criar sessão no portal de billing para upgrade/downgrade
-      const portalSession = await stripe.billingPortal.sessions.create({
-        customer: company.stripe_customer_id as string,
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?tab=billing`,
+      console.log('User has active subscription, redirecting to Portal with update flow:', {
+        subscriptionId: company.stripe_subscription_id,
+        targetPrice: priceId
       });
+
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: company.stripe_customer_id,
+        return_url: `${origin}/settings?tab=billing`,
+        // Forçamos o portal a abrir na tela de "Troca de Plano"
+        flow_data: {
+          type: 'subscription_update',
+          subscription_update: {
+            subscription: company.stripe_subscription_id,
+          },
+        },
+      });
+
       return NextResponse.json({ url: portalSession.url });
     }
 

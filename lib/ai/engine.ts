@@ -304,11 +304,18 @@ export async function handleIncomingMessage(
   // ── Carregar configuração da empresa (persona + Google tokens) ────────────
   const { data: company } = await admin
     .from('companies')
-    .select('persona_config, google_refresh_token, google_calendar_id')
+    .select('persona_config, google_refresh_token, google_calendar_id, ai_name, ai_tone, ai_greeting, ai_forbidden')
     .eq('id', companyId)
     .single();
 
-  const persona = (company?.persona_config ?? {}) as PersonaConfig;
+  const personaConfigRaw = (company?.persona_config ?? {}) as PersonaConfig;
+  const persona: PersonaConfig = {
+    ...personaConfigRaw,
+    name: company?.ai_name || personaConfigRaw.name,
+    tone: company?.ai_tone || personaConfigRaw.tone,
+    greeting: company?.ai_greeting || personaConfigRaw.greeting,
+    ai_forbidden: company?.ai_forbidden || personaConfigRaw.ai_forbidden,
+  };
 
   // ── Upsert lead ──────────────────────────────────────────────────────────
   let lead: Lead;
@@ -356,7 +363,7 @@ export async function handleIncomingMessage(
       content: fallbackMessage,
     });
     
-    await sendWhatsAppMessage(phone, fallbackMessage);
+    await sendWhatsAppMessage(phone, fallbackMessage, companyId);
     
     // Define o lead como 'paused' ou atualiza status para avisar no dashboard
     await admin.from('leads').update({ is_paused: true, summary: 'Límite de plano excedido' }).eq('id', lead.id);
@@ -445,5 +452,5 @@ export async function handleIncomingMessage(
   }
 
   // ── Enviar via WhatsApp ───────────────────────────────────────────────────
-  await sendWhatsAppMessage(phone, finalReply);
+  await sendWhatsAppMessage(phone, finalReply, companyId);
 }

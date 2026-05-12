@@ -22,6 +22,7 @@ import {
   CreditCard,
   Loader2,
   Zap,
+  Clock,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -1000,8 +1001,28 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
   const leadsMax = usage?.limits?.maxLeads || 150;
   const leadsPct = Math.min(100, Math.round((leadsUsed / leadsMax) * 100));
 
+  const cancelAtPeriodEnd = usage?.cancelAtPeriodEnd;
+  const currentPeriodEnd = usage?.currentPeriodEnd;
+
   return (
     <div className="flex flex-col gap-6 pb-12">
+      {/* Banner de Cancelamento */}
+      {cancelAtPeriodEnd && currentPeriodEnd && (
+        <Card className="border-brand-orange-500/30 bg-brand-orange-500/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-full bg-brand-orange-500/20 text-brand-orange-400">
+              <Clock size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-brand-orange-300">Sua assinatura foi cancelada</p>
+              <p className="text-xs text-brand-orange-300/70">
+                Seu acesso ao plano <strong>{currentPlan.toUpperCase()}</strong> continuará ativo até o dia <strong>{new Date(currentPeriodEnd).toLocaleDateString()}</strong>. Após essa data, você voltará ao plano Trial.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Barra de Uso */}
       <Card className="bg-white/[0.02] border-brand-teal-500/10">
         <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

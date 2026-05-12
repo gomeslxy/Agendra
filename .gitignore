@@ -40,6 +40,8 @@ ANTIGRAVITY.md
 rules.md
 .clauderules
 .cursorrules
+pnpm.bat
+supabase.bat
 
 # Project Specific Exclusions
 _design/

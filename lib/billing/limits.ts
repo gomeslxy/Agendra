@@ -8,6 +8,7 @@ export { PLAN_LIMITS };
 
 export interface CompanyUsage {
   planType: PlanType;
+  status: 'active' | 'past_due' | 'canceled' | 'trial';
   limits: PlanLimits;
   usage: { leads: number };
   isLimitReached: boolean;
@@ -15,6 +16,8 @@ export interface CompanyUsage {
   trialStartedAt: string | null;
   /** Days remaining in trial, null if not on trial */
   trialDaysRemaining: number | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd: boolean;
 }
 
 export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> {
@@ -89,10 +92,13 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> 
 
   return {
     planType,
+    status: (company.subscription_status || 'trial') as 'active' | 'past_due' | 'canceled' | 'trial',
     limits,
     usage: { leads: leadsUsed },
     isLimitReached,
     trialStartedAt,
     trialDaysRemaining,
+    currentPeriodEnd: company.current_period_end,
+    cancelAtPeriodEnd: !!company.cancel_at_period_end
   };
 }

@@ -4,6 +4,7 @@ import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireOnboarding } from "@/lib/onboarding/guards";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
+import { persistAITrace } from "@/lib/ai/observability";
 
 async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
   const { data, error } = await supabase
@@ -39,7 +40,7 @@ export async function sendNote(leadId: string, content: string) {
     console.log(`[Action:sendNote] ✅ Mensagem salva no banco`);
 
     // 2. Enviar WhatsApp
-    await sendWhatsAppMessage(phone, content);
+    await sendWhatsAppMessage(phone, content, company_id);
     console.log(`[Action:sendNote] ✉️ Mensagem enviada para WhatsApp com sucesso`);
 
     revalidatePath("/inbox");
@@ -73,6 +74,17 @@ export async function takeOverLead(leadId: string) {
 
   if (error) throw new Error(error.message);
 
+  // Observabilidade: log de handoff manual
+  persistAITrace({
+    company_id,
+    lead_id: leadId,
+    trace_type: 'system',
+    request_data: { action: 'human_takeover' },
+    response_data: { info: 'Atendente assumiu a conversa' },
+    duration_ms: null,
+    tokens_used: null,
+  });
+
   revalidatePath("/inbox");
 }
 
@@ -97,6 +109,17 @@ export async function automatizeLead(leadId: string) {
   });
 
   if (error) throw new Error(error.message);
+
+  // Observabilidade: log de retorno à automação
+  persistAITrace({
+    company_id,
+    lead_id: leadId,
+    trace_type: 'system',
+    request_data: { action: 'ai_automatize' },
+    response_data: { info: 'Atendente devolveu para automação da IA' },
+    duration_ms: null,
+    tokens_used: null,
+  });
 
   revalidatePath("/inbox");
 }

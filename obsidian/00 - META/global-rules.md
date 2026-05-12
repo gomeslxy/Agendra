@@ -10,22 +10,25 @@ These rules apply to ALL agents (Claude, Antigravity, Cursor, Gemini) working on
     - `obsidian/05 - LOGS/sessions.md` (Latest session context).
 3. **Operational Protocol**: Read `CLAUDE.md` or `ANTIGRAVITY.md` for agent-specific commands.
 
-## 🚀 PROJECT OPERATING RULES (The 12 Rules) 🛡️
+## 🚀 PROJECT OPERATING RULES (The 14 Rules) 🛡️
 
 Priority order: 1. Correctness | 2. Safety | 3. Minimal change | 4. Codebase conventions | 5. Speed
 
-1. **Act with reasonable assumptions**: Do not block on minor ambiguity. State assumptions and continue.
-2. **Keep the solution simple**: Smallest change, direct code, no premature abstraction.
-3. **Change only what is needed**: Touch minimum surface area. No unrelated formatting.
-4. **Read the relevant context first**: Inspect callers, shared utilities, and config BEFORE editing.
-5. **Verify important changes**: Add/update tests, run checks, verify RLS.
-6. **Avoid endless rethinking**: Make a choice, verify, move on.
-7. **Surface conflicts clearly**: Choose the better pattern and state why.
-8. **Match the codebase**: Follow existing style, naming, and structure.
-9. **Fail loudly**: Do not hide uncertainty. If something isn't verified, say it.
-10. **Keep progress visible**: Report what changed, what was verified, and what remains.
-11. **Prefer reversible work**: Keep changes incremental and easy to roll back.
-12. **Preserve diagnosability**: Prefer useful errors and logs.
+1. **ONLY use pnpm**: Never use `npm` or `yarn`. This is absolute.
+2. **Act with reasonable assumptions**: Do not block on minor ambiguity. State assumptions and continue.
+3. **Keep the solution simple**: Smallest change, direct code, no premature abstraction.
+4. **Change only what is needed**: Touch minimum surface area. No unrelated formatting.
+5. **Read the relevant context first**: Inspect callers, shared utilities, and config BEFORE editing.
+6. **Verify important changes**: Add/update tests, run checks, verify RLS.
+7. **Avoid endless rethinking**: Make a choice, verify, move on.
+8. **Surface conflicts clearly**: Choose the better pattern and state why.
+9. **Match the codebase**: Follow existing style, naming, and structure.
+10. **Fail loudly**: Do not hide uncertainty. If something isn't verified, say it.
+11. **Keep progress visible**: Report what changed, what was verified, and what remains.
+12. **Prefer reversible work**: Keep changes incremental and easy to roll back.
+13. **Preserve diagnosability**: Prefer useful errors and logs.
+14. **Omnirepo Context**: Use `omnirepo-mcp` and `omnirepo.db` for repository-wide indexing and deep context.
+15. **Environment Awareness**: If `pnpm` or `supabase` are not found, use absolute paths (e.g., `C:\Users\lucas\AppData\Local\pnpm\bin\pnpm.CMD`) or `npx`. `supabase` is now a dev dependency; always use `npx supabase` or `pnpm supabase`.
 
 ## 📅 COMPLETION PROTOCOL (EVERY TASK)
 After completing a task, you MUST update:
