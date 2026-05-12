@@ -1,18 +1,24 @@
 /**
- * Agendra — AI Tools (Fase 2)
+ * Agendra — AI Tools (Fase 2+)
  *
  * Define as ferramentas que o Gemini pode invocar durante uma conversa:
- *   - checkAvailability  → Consulta horários livres nos próximos dias
- *   - bookMeeting        → Cria um evento na tabela events (+ GCal se configurado)
+ *   - listServices       → Lista serviços disponíveis
+ *   - checkAvailability  → Consulta horários livres baseados no serviço
+ *   - bookAppointment    → Cria um agendamento estruturado
+ *   - cancelAppointment  → Cancela um agendamento
+ *   - rescheduleAppointment → Reagenda um evento
+ *   - myAppointments     → Lista agendamentos do lead
  *   - updateLeadInfo     → Atualiza campos do lead (email, cidade, etc.)
- *
- * Cada ferramenta tem:
- *   1. `declaration` — schema JSON para o Gemini (FunctionDeclaration)
- *   2. `handler`     — função assíncrona que executa a lógica real
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createGoogleCalendarEvent, getFreeBusySlots } from '@/lib/calendar/google';
+import { 
+  createGoogleCalendarEvent, 
+  getFreeBusySlots, 
+  deleteGCalEvent, 
+  updateGCalEvent 
+} from '@/lib/calendar/google';
+import { calculateAvailableSlots, AvailableSlot } from '@/lib/calendar/availability';
 import { type Tool, SchemaType } from '@google/generative-ai';
 import { handleUpdateLeadMemory } from './memory';
 
@@ -23,12 +29,6 @@ export { handleUpdateLeadMemory };
 export interface ToolContext {
   companyId: string;
   leadId: string;
-}
-
-export interface AvailableSlot {
-  start: string; // ISO 8601
-  end: string;   // ISO 8601
-  label: string; // "Terça, 13 mai · 10:00–11:00"
 }
 
 export interface BookingResult {
@@ -44,106 +44,94 @@ export interface BookingResult {
 export const toolDeclarations: Tool = {
   functionDeclarations: [
     {
+      name: 'listServices',
+      description: 'Lista todos os serviços, preços e durações oferecidos pela empresa.',
+      parameters: { type: SchemaType.OBJECT, properties: {}, required: [] },
+    },
+    {
       name: 'checkAvailability',
       description:
-        'Consulta os horários disponíveis para agendamento nos próximos 7 dias. ' +
-        'Use esta ferramenta quando o lead demonstrar interesse em agendar uma reunião ' +
-        'ou pedir para ver os horários disponíveis.',
+        'Consulta horários disponíveis nos próximos dias. ' +
+        'Obrigatório informar o service_id para calcular a duração correta.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          days_ahead: {
-            type: SchemaType.NUMBER,
-            description: 'Quantos dias à frente verificar (padrão: 7, máximo: 14)',
-          },
+          service_id: { type: SchemaType.STRING, description: 'ID do serviço desejado' },
+          days_ahead: { type: SchemaType.NUMBER, description: 'Dias à frente (padrão 7)' },
         },
-        required: [],
+        required: ['service_id'],
       },
     },
     {
-      name: 'bookMeeting',
+      name: 'bookAppointment',
       description:
-        'Agenda uma reunião para o lead num horário específico. ' +
-        'Só use esta ferramenta após o lead confirmar explicitamente o horário desejado. ' +
-        'O horário deve ser um dos retornados por checkAvailability.',
+        'Cria um novo agendamento. Use após o lead escolher um horário de checkAvailability.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          start_time: {
-            type: SchemaType.STRING,
-            description: 'Data e hora de início em ISO 8601 (ex: "2026-05-15T10:00:00-03:00")',
-          },
-          end_time: {
-            type: SchemaType.STRING,
-            description: 'Data e hora de fim em ISO 8601 (ex: "2026-05-15T11:00:00-03:00")',
-          },
-          title: {
-            type: SchemaType.STRING,
-            description: 'Título do evento (ex: "Reunião com João — Agendra Demo")',
-          },
+          service_id: { type: SchemaType.STRING, description: 'ID do serviço' },
+          start_time: { type: SchemaType.STRING, description: 'ISO 8601 (ex: 2026-05-15T14:00:00Z)' },
+          notes: { type: SchemaType.STRING, description: 'Observações adicionais' },
         },
-        required: ['start_time', 'end_time', 'title'],
+        required: ['service_id', 'start_time'],
       },
+    },
+    {
+      name: 'cancelAppointment',
+      description: 'Cancela um agendamento existente do lead.',
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          event_id: { type: SchemaType.STRING, description: 'ID do agendamento (do myAppointments)' },
+          reason: { type: SchemaType.STRING, description: 'Motivo do cancelamento' },
+        },
+        required: ['event_id'],
+      },
+    },
+    {
+      name: 'rescheduleAppointment',
+      description: 'Altera o horário de um agendamento existente.',
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          event_id: { type: SchemaType.STRING, description: 'ID do agendamento' },
+          new_start_time: { type: SchemaType.STRING, description: 'Novo ISO 8601 de início' },
+        },
+        required: ['event_id', 'new_start_time'],
+      },
+    },
+    {
+      name: 'myAppointments',
+      description: 'Lista todos os agendamentos futuros do lead.',
+      parameters: { type: SchemaType.OBJECT, properties: {}, required: [] },
     },
     {
       name: 'updateLeadInfo',
-      description:
-        'Atualiza informações básicas do lead (email, cidade, origem) no banco de dados. ' +
-        'Use silenciosamente sempre que o lead fornecer esses dados.',
+      description: 'Atualiza email, cidade ou origem do lead.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          email: { type: SchemaType.STRING, description: 'Email do lead' },
-          city: { type: SchemaType.STRING, description: 'Cidade do lead' },
-          source: { type: SchemaType.STRING, description: 'Como conheceu a empresa' },
+          email: { type: SchemaType.STRING },
+          city: { type: SchemaType.STRING },
+          source: { type: SchemaType.STRING },
         },
-        required: [],
       },
     },
     {
       name: 'updateLeadMemory',
-      description:
-        'Atualiza a memória estratégica e comportamental do lead. ' +
-        'Use para registrar interesse em serviços, objeções levantadas, respostas de qualificação ' +
-        'ou mudanças significativas no status do lead (ex: desqualificado).',
+      description: 'Atualiza a memória estratégica e comportamental do lead.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
           event_type: {
             type: SchemaType.STRING,
-            enum: [
-              'showed_interest',
-              'objection_raised',
-              'slot_shown',
-              'slot_declined',
-              'booked',
-              'no_show',
-              'reactivated',
-              'disqualified'
-            ],
-            description: 'Tipo de evento sendo registrado na linha do tempo',
+            enum: ['showed_interest', 'objection_raised', 'slot_shown', 'slot_declined', 'booked', 'no_show', 'reactivated', 'disqualified'],
           },
-          note: {
-            type: SchemaType.STRING,
-            description: 'Descrição breve do contexto do evento',
-          },
-          services_mentioned: {
-            type: SchemaType.ARRAY,
-            items: { type: SchemaType.STRING },
-            description: 'Lista de serviços que o lead demonstrou interesse',
-          },
-          objection: {
-            type: SchemaType.STRING,
-            description: 'Objeção específica levantada pelo lead',
-          },
-          answers: {
-            type: SchemaType.OBJECT,
-            description: 'Pares de pergunta:resposta coletados (ex: {"orcamento": "R$ 5.000"})',
-          },
-          intent_signal: {
-            type: SchemaType.STRING,
-            description: 'Frase curta resumindo a intenção atual',
-          },
+          note: { type: SchemaType.STRING },
+          services_mentioned: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+          objection: { type: SchemaType.STRING },
+          answers: { type: SchemaType.OBJECT },
+          intent_signal: { type: SchemaType.STRING },
         },
         required: ['event_type'],
       },
@@ -153,262 +141,288 @@ export const toolDeclarations: Tool = {
 
 // ─── Tool Handlers ────────────────────────────────────────────────────────────
 
-/**
- * checkAvailability — retorna slots livres formatados para o Gemini responder.
- *
- * Estratégia: consulta a tabela `events` para conflitos locais.
- * Se a empresa tiver Google Calendar configurado, usa a API Free/Busy.
- */
+export async function handleListServices(args: any, ctx: ToolContext) {
+  const admin = createAdminClient();
+  const { data: services, error } = await admin
+    .from('services')
+    .select('id, name, description, duration, price')
+    .eq('company_id', ctx.companyId)
+    .eq('active', true);
+
+  if (error) throw new Error(`Erro ao listar serviços: ${error.message}`);
+  
+  if (!services?.length) {
+    return { message: 'A empresa ainda não cadastrou serviços disponíveis.' };
+  }
+
+  const list = services.map(s => 
+    `- ${s.name} (${s.duration}min)${s.price ? ` - R$ ${s.price}` : ''} [ID: ${s.id}]`
+  ).join('\n');
+
+  return { message: `Serviços disponíveis:\n${list}`, services };
+}
+
 export async function handleCheckAvailability(
-  args: { days_ahead?: number },
+  args: { service_id: string; days_ahead?: number },
   ctx: ToolContext,
-): Promise<{ slots: AvailableSlot[]; message: string }> {
+) {
   const admin = createAdminClient();
   const daysAhead = Math.min(args.days_ahead ?? 7, 14);
 
-  // Buscar configuração da empresa (timezone, working_hours, slot_duration, google_refresh_token)
-  const { data: company } = await admin
-    .from('companies')
-    .select('persona_config, google_refresh_token, google_calendar_id')
-    .eq('id', ctx.companyId)
-    .single();
+  // 1. Buscar serviço e config da empresa
+  const [svcRes, coRes] = await Promise.all([
+    admin.from('services').select('duration').eq('id', args.service_id).single(),
+    admin.from('companies').select('persona_config, google_refresh_token, google_calendar_id').eq('id', ctx.companyId).single()
+  ]);
 
-  const persona = (company?.persona_config ?? {}) as Record<string, unknown>;
-  const timezone = (persona.timezone as string) ?? 'America/Sao_Paulo';
-  const slotDuration = (persona.slot_duration_minutes as number) ?? 60;
-  const workingHours = (persona.working_hours as Record<string, [string, string]>) ?? {
-    mon: ['09:00', '18:00'],
-    tue: ['09:00', '18:00'],
-    wed: ['09:00', '18:00'],
-    thu: ['09:00', '18:00'],
-    fri: ['09:00', '18:00'],
-  };
-
+  if (!svcRes.data) throw new Error('Serviço não encontrado.');
+  const company = coRes.data;
+  const persona = (company?.persona_config ?? {}) as any;
+  
   const now = new Date();
   const rangeEnd = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
 
-  // Buscar eventos já agendados no banco local
-  const { data: existingEvents } = await admin
+  // 2. Buscar bloqueios (Local + GCal)
+  const { data: localEvents } = await admin
     .from('events')
     .select('start_time, end_time')
     .eq('company_id', ctx.companyId)
+    .neq('status', 'cancelled')
     .gte('start_time', now.toISOString())
     .lte('end_time', rangeEnd.toISOString());
 
-  // Buscar bloqueios do Google Calendar se configurado
-  let gcalBusySlots: Array<{ start: string; end: string }> = [];
+  let gcalBusy: any[] = [];
   if (company?.google_refresh_token && company?.google_calendar_id) {
     try {
-      gcalBusySlots = await getFreeBusySlots(
+      gcalBusy = await getFreeBusySlots(
         company.google_refresh_token,
         company.google_calendar_id,
         now.toISOString(),
-        rangeEnd.toISOString(),
+        rangeEnd.toISOString()
       );
-    } catch (err) {
-      console.warn('[Tools] ⚠️ Google Calendar Free/Busy falhou — usando apenas banco local', err);
+    } catch (e) {
+      console.warn('[Tools] GCal Free/Busy failed, using local only.');
     }
   }
 
-  // Consolidar bloqueados (local + GCal)
   const busyIntervals = [
-    ...(existingEvents ?? []).map((e) => ({ start: e.start_time, end: e.end_time })),
-    ...gcalBusySlots,
+    ...(localEvents ?? []).map(e => ({ start: new Date(e.start_time), end: new Date(e.end_time) })),
+    ...gcalBusy.map(b => ({ start: new Date(b.start), end: new Date(b.end) }))
   ];
 
-  // Gerar slots candidatos
-  const dayNames: Record<number, string> = { 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat', 0: 'sun' };
-  const ptDays: Record<string, string> = {
-    mon: 'Segunda', tue: 'Terça', wed: 'Quarta', thu: 'Quinta',
-    fri: 'Sexta', sat: 'Sábado', sun: 'Domingo',
-  };
-  const ptMonths = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  // 3. Calcular slots
+  const slots = calculateAvailableSlots({
+    timezone: persona.timezone ?? 'America/Sao_Paulo',
+    workingHours: persona.working_hours ?? {
+      mon: ['09:00', '18:00'], tue: ['09:00', '18:00'], wed: ['09:00', '18:00'],
+      thu: ['09:00', '18:00'], fri: ['09:00', '18:00']
+    },
+    durationMinutes: svcRes.data.duration,
+    busyIntervals,
+    daysAhead,
+    bufferMinutes: persona.buffer_minutes ?? 0
+  });
 
-  const availableSlots: AvailableSlot[] = [];
-  let cursor = new Date(now);
-  cursor.setMinutes(0, 0, 0);
-  cursor.setHours(cursor.getHours() + 1); // começa na próxima hora cheia
+  if (!slots.length) return { message: 'Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.' };
 
-  // Returns UTC offset in minutes for a given timezone at a given UTC moment.
-  // e.g., America/Sao_Paulo (UTC-3) returns -180
-  function getOffsetMinutes(utcDate: Date, tz: string): number {
-    const utcStr = utcDate.toLocaleString('en-CA', {
-      timeZone: 'UTC',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false,
-    });
-    const localStr = utcDate.toLocaleString('en-CA', {
-      timeZone: tz,
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false,
-    });
-    return (new Date(localStr.replace(' ', 'T')).getTime() -
-            new Date(utcStr.replace(' ', 'T')).getTime()) / 60000;
-  }
-
-  console.log(`[Tools] 🔍 Verificando disponibilidade: now=${now.toISOString()} timezone=${timezone}`);
-  console.log(`[Tools] 🗓️ Bloqueios encontrados: ${busyIntervals.length} (Local + GCal)`);
-
-  while (cursor < rangeEnd && availableSlots.length < 10) {
-    const offsetMs = getOffsetMinutes(cursor, timezone) * 60000;
-    const localCursor = new Date(cursor.getTime() + offsetMs);
-    const localDayOfWeek = localCursor.getUTCDay();
-    const localHour = localCursor.getUTCHours();
-    const localMinute = localCursor.getUTCMinutes();
-
-    const dayKey = dayNames[localDayOfWeek];
-    const hours = workingHours[dayKey];
-
-    if (hours) {
-      const [startHH, startMM] = hours[0].split(':').map(Number);
-      const [endHH, endMM] = hours[1].split(':').map(Number);
-      const localMinutes = localHour * 60 + localMinute;
-      const workStart = startHH * 60 + startMM;
-      const workEnd = endHH * 60 + endMM;
-      const slotEndLocalMinutes = localMinutes + slotDuration;
-
-      if (localMinutes >= workStart && slotEndLocalMinutes <= workEnd) {
-        const slotEnd = new Date(cursor.getTime() + slotDuration * 60000);
-        const isBusy = busyIntervals.some(
-          (busy) => new Date(busy.start) < slotEnd && new Date(busy.end) > cursor,
-        );
-
-        if (!isBusy) {
-          const pad = (n: number) => String(n).padStart(2, '0');
-          const label = `${ptDays[dayKey]}, ${pad(localCursor.getUTCDate())} ${ptMonths[localCursor.getUTCMonth()]} · ${pad(localHour)}:${pad(localMinute)}–${pad(Math.floor(slotEndLocalMinutes / 60))}:${pad(slotEndLocalMinutes % 60)}`;
-          availableSlots.push({ start: cursor.toISOString(), end: slotEnd.toISOString(), label });
-        }
-      }
-
-      cursor = new Date(cursor.getTime() + slotDuration * 60000);
-
-      if (slotEndLocalMinutes >= workEnd) {
-        const nextLocalMidnight = new Date(localCursor.getTime() + 24 * 60 * 60 * 1000);
-        nextLocalMidnight.setUTCHours(0, 0, 0, 0);
-        cursor = new Date(nextLocalMidnight.getTime() - offsetMs);
-      }
-    } else {
-      const nextLocalMidnight = new Date(localCursor.getTime() + 24 * 60 * 60 * 1000);
-      nextLocalMidnight.setUTCHours(0, 0, 0, 0);
-      cursor = new Date(nextLocalMidnight.getTime() - offsetMs);
-    }
-  }
-
-  console.log(`[Tools] ✨ Slots encontrados: ${availableSlots.length}`);
-
-  if (availableSlots.length === 0) {
-    return { slots: [], message: 'Nenhum horário disponível nos próximos ' + daysAhead + ' dias.' };
-  }
-
-  const message =
-    'Horários disponíveis:\n' +
-    availableSlots.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
-
-  return { slots: availableSlots, message };
+  const message = 'Aqui estão os horários que encontrei:\n' + slots.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
+  return { slots, message };
 }
 
-/**
- * bookMeeting — cria o evento no banco e no Google Calendar (se configurado).
- */
-export async function handleBookMeeting(
-  args: { start_time: string; end_time: string; title: string },
-  ctx: ToolContext,
-): Promise<BookingResult> {
+export async function handleBookAppointment(
+  args: { service_id: string; start_time: string; notes?: string },
+  ctx: ToolContext
+) {
   const admin = createAdminClient();
 
-  // Verificar colisão antes de gravar
+  // 1. Buscar detalhes do serviço e lead
+  const [svcRes, leadRes] = await Promise.all([
+    admin.from('services').select('name, duration').eq('id', args.service_id).single(),
+    admin.from('leads').select('name, email').eq('id', ctx.leadId).single()
+  ]);
+
+  if (!svcRes.data) throw new Error('Serviço não encontrado.');
+  const service = svcRes.data;
+  const lead = leadRes.data;
+  const startTime = new Date(args.start_time);
+  const endTime = new Date(startTime.getTime() + service.duration * 60000);
+
+  // 2. Check colisão
   const { data: collision } = await admin
     .from('events')
     .select('id')
     .eq('company_id', ctx.companyId)
-    .lt('start_time', args.end_time)
-    .gt('end_time', args.start_time)
+    .neq('status', 'cancelled')
+    .lt('start_time', endTime.toISOString())
+    .gt('end_time', startTime.toISOString())
     .maybeSingle();
 
-  if (collision) {
-    throw new Error('Este horário já foi reservado. Use checkAvailability para ver os horários disponíveis.');
-  }
+  if (collision) throw new Error('Este horário acabou de ser ocupado. Por favor, escolha outro.');
 
-  // Buscar token do Google Calendar
+  // 3. Sync GCal
   const { data: company } = await admin
     .from('companies')
-    .select('google_refresh_token, google_calendar_id')
+    .select('google_refresh_token, google_calendar_id, persona_config')
     .eq('id', ctx.companyId)
     .single();
 
-  let gcalEventId: string | null = null;
-
+  let gcalId: string | null = null;
   if (company?.google_refresh_token) {
     try {
-      gcalEventId = await createGoogleCalendarEvent(
+      gcalId = await createGoogleCalendarEvent(
         company.google_refresh_token,
         company.google_calendar_id ?? 'primary',
         {
-          title: args.title,
-          start: args.start_time,
-          end: args.end_time,
-          description: `Lead ID: ${ctx.leadId} — Agendado via Agendra AI`,
-        },
+          title: `${service.name} - ${lead?.name || 'Cliente'}`,
+          start: startTime.toISOString(),
+          end: endTime.toISOString(),
+          description: args.notes || `Agendamento realizado via Agendra AI.\nLead ID: ${ctx.leadId}`,
+          attendeeEmail: lead?.email || undefined,
+          timeZone: (company.persona_config as any)?.timezone
+        }
       );
-    } catch (err) {
-      console.error('[Tools] ❌ Falha ao criar evento no Google Calendar:', err);
-      // Continua — salva no banco mesmo sem GCal
+    } catch (e) {
+      console.error('[Tools] GCal sync failed during booking');
     }
   }
 
-  // Gravar no banco local
+  // 4. Salvar no banco
   const { data: event, error } = await admin
     .from('events')
     .insert({
       lead_id: ctx.leadId,
       company_id: ctx.companyId,
-      title: args.title,
-      start_time: args.start_time,
-      end_time: args.end_time,
-      gcal_event_id: gcalEventId,
+      service_id: args.service_id,
+      title: `${service.name} - ${lead?.name || 'Cliente'}`,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      gcal_event_id: gcalId,
+      notes: args.notes,
+      status: 'confirmed'
     })
     .select()
     .single();
 
-  if (error || !event) {
-    throw new Error(`Falha ao gravar evento: ${error?.message}`);
-  }
+  if (error) throw error;
 
   return {
-    event_id: event.id,
-    gcal_event_id: gcalEventId,
-    start_time: event.start_time,
-    end_time: event.end_time,
-    title: event.title,
+    message: `Perfeito! Agendamento confirmado para ${service.name} em ${args.start_time}.`,
+    event
   };
 }
 
-/**
- * updateLeadInfo — atualiza campos do lead quando o usuário os compartilha.
- */
+export async function handleCancelAppointment(args: { event_id: string; reason?: string }, ctx: ToolContext) {
+  const admin = createAdminClient();
+  
+  const { data: event } = await admin
+    .from('events')
+    .select('gcal_event_id, company_id, companies(google_refresh_token, google_calendar_id)')
+    .eq('id', args.event_id)
+    .single();
+
+  if (!event) throw new Error('Agendamento não encontrado.');
+
+  // Cancel local
+  await admin.from('events').update({ status: 'cancelled', notes: args.reason }).eq('id', args.event_id);
+
+  // Sync GCal
+  const co = event.companies as any;
+  if (event.gcal_event_id && co?.google_refresh_token) {
+    try {
+      await deleteGCalEvent(co.google_refresh_token, co.google_calendar_id ?? 'primary', event.gcal_event_id);
+    } catch (e) {
+      console.warn('[Tools] Failed to delete GCal event');
+    }
+  }
+
+  return { message: 'Agendamento cancelado com sucesso.' };
+}
+
+export async function handleRescheduleAppointment(args: { event_id: string; new_start_time: string }, ctx: ToolContext) {
+  const admin = createAdminClient();
+
+  const { data: event } = await admin
+    .from('events')
+    .select('*, services(duration), companies(google_refresh_token, google_calendar_id, persona_config)')
+    .eq('id', args.event_id)
+    .single();
+
+  if (!event) throw new Error('Agendamento não encontrado.');
+  
+  const duration = (event.services as any)?.duration || 60;
+  const newStart = new Date(args.new_start_time);
+  const newEnd = new Date(newStart.getTime() + duration * 60000);
+
+  // Check collision
+  const { data: collision } = await admin
+    .from('events')
+    .select('id')
+    .eq('company_id', ctx.companyId)
+    .neq('id', args.event_id)
+    .neq('status', 'cancelled')
+    .lt('start_time', newEnd.toISOString())
+    .gt('end_time', newStart.toISOString())
+    .maybeSingle();
+
+  if (collision) throw new Error('Infelizmente este novo horário já está ocupado.');
+
+  // Update local
+  await admin.from('events').update({
+    start_time: newStart.toISOString(),
+    end_time: newEnd.toISOString(),
+    status: 'rescheduled'
+  }).eq('id', args.event_id);
+
+  // Sync GCal
+  const co = event.companies as any;
+  if (event.gcal_event_id && co?.google_refresh_token) {
+    try {
+      await updateGCalEvent(co.google_refresh_token, co.google_calendar_id ?? 'primary', event.gcal_event_id, {
+        title: event.title,
+        start: newStart.toISOString(),
+        end: newEnd.toISOString(),
+        timeZone: co.persona_config?.timezone
+      });
+    } catch (e) {
+      console.warn('[Tools] Failed to update GCal event');
+    }
+  }
+
+  return { message: 'Reagendamento concluído com sucesso.' };
+}
+
+export async function handleMyAppointments(args: any, ctx: ToolContext) {
+  const admin = createAdminClient();
+  const { data: events } = await admin
+    .from('events')
+    .select('id, title, start_time, status')
+    .eq('lead_id', ctx.leadId)
+    .neq('status', 'cancelled')
+    .gte('start_time', new Date().toISOString())
+    .order('start_time', { ascending: true });
+
+  if (!events?.length) return { message: 'Você não possui agendamentos futuros.' };
+
+  const list = events.map(e => `- ${e.title} em ${e.start_time} [ID: ${e.id}]`).join('\n');
+  return { message: `Seus agendamentos:\n${list}`, appointments: events };
+}
+
 export async function handleUpdateLeadInfo(
   args: { email?: string; city?: string; source?: string },
   ctx: ToolContext,
-): Promise<{ updated: boolean; fields: string[] }> {
+) {
   const admin = createAdminClient();
-
-  const patch: Record<string, string> = {};
+  const patch: any = {};
   if (args.email) patch.email = args.email.trim().toLowerCase();
   if (args.city) patch.city = args.city.trim();
   if (args.source) patch.source = args.source.trim();
 
-  if (Object.keys(patch).length === 0) {
-    return { updated: false, fields: [] };
-  }
+  if (Object.keys(patch).length === 0) return { updated: false };
 
-  const { error } = await admin
-    .from('leads')
-    .update(patch)
-    .eq('id', ctx.leadId);
-
-  if (error) {
-    throw new Error(`Falha ao atualizar lead: ${error.message}`);
-  }
-
+  const { error } = await admin.from('leads').update(patch).eq('id', ctx.leadId);
+  if (error) throw error;
   return { updated: true, fields: Object.keys(patch) };
 }
+
+// Alias for backwards compatibility if any old engine code calls it
+export const handleBookMeeting = handleBookAppointment;

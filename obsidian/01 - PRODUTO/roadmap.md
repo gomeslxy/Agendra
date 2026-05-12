@@ -9,7 +9,8 @@
 ## 🔄 Fase 2: Robustez & Realtime (Em Progresso)
 - [x] **Google Calendar**: Integração OAuth2 bidirecional (Sync Token logic).
 - [x] **Realtime**: Sincronização automática do Inbox (Supabase Channels).
-- [ ] **Human Handoff**: Interface para pausar IA e intervir manualmente (flag `is_paused` na tabela `leads`).
+- [x] **Human Handoff**: Interface para pausar IA e intervir manualmente (Botões "Assumir" e "Automatizar").
+- [x] **Health Monitoring**: Worker proativo (Cron) e Alerta Global (AppShell) para canais com erro.
 - [ ] **Persona Settings**: Configuração de tom de voz via UI e atualização dinâmica do `SYSTEM_PROMPT`.
 
 ## 💸 Fase 3: Monetização & Arquitetura Multitenancy

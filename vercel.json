@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/check-channels?secret=agendra_982341765",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

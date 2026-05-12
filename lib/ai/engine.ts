@@ -31,11 +31,19 @@ const MAIN_MODEL = 'gemini-3.1-flash-lite';
 
 // ─── System Prompt Builder ────────────────────────────────────────────────────
 
+interface Service {
+  id: string;
+  name: string;
+  duration: number;
+  price: number | null;
+}
+
 interface PersonaConfig {
   name?: string;
   business_name?: string;
   business_type?: string;
-  services?: string[];
+  services?: string[]; // Legacy strings from persona_config
+  realServices?: Service[]; // Real services from DB
   tone?: string;
   greeting?: string;
   timezone?: string;
@@ -63,17 +71,27 @@ function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: st
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
 
+  // Build services string with IDs for tool calling
+  let servicesDisplay = persona.services?.length ? persona.services.join(', ') : 'nossos serviços';
+  if (persona.realServices?.length) {
+    servicesDisplay = persona.realServices.map(s => 
+      `- ${s.name} (${s.duration}min)${s.price ? ` - R$ ${s.price}` : ''} [ID: ${s.id}]`
+    ).join('\n');
+  }
+
   return `Você é ${aiName}, assistente de vendas estratégica do(a) ${businessName} (${businessType}).
 Tom: ${tone}. Use o primeiro nome do lead: "${firstName}". Seja concisa, empática e focada em conversão.
 
 Tipo de negócio: ${businessType}.
-Serviços: ${services}.
+Serviços disponíveis:
+${servicesDisplay}
 Fuso horário: ${timezone}.
 
 ${memoryContext}
 
 ## Missão
-Sua meta é qualificar o lead e agendar uma reunião. Se o lead estiver pronto, use as ferramentas de agenda. Se tiver dúvidas, responda com base nos serviços.
+Sua meta é qualificar o lead e agendar uma reunião. Se o lead estiver pronto, use as ferramentas de agenda. 
+IMPORTANTE: Para checkAvailability ou bookAppointment, use SEMPRE o UUID [ID: ...] listado acima. Se não tiver certeza de qual serviço o lead quer, pergunte ou use listServices.
 
 ## Regras de Ouro
 1. NUNCA invente horários. Use \`checkAvailability\`.
@@ -231,11 +249,18 @@ export async function handleIncomingMessage(
 
   if (!company) throw new Error('Empresa não encontrada');
 
+  const { data: services } = await admin
+    .from('services')
+    .select('id, name, duration, price')
+    .eq('company_id', companyId)
+    .eq('active', true);
+
   const persona: PersonaConfig = {
     ...((company.persona_config as any) ?? {}),
     name: company.ai_name || (company.persona_config as any)?.name,
     tone: company.ai_tone || (company.persona_config as any)?.tone,
     ai_forbidden: company.ai_forbidden || (company.persona_config as any)?.ai_forbidden,
+    realServices: (services as any[]) || [],
   };
 
   // 2. Lead Upsert
@@ -372,43 +397,4 @@ export async function handleIncomingMessage(
       console.error('[AI Engine] Background processing failed', e);
     }
   })();
-}
-��─
-  const leadPatch: Record<string, unknown> = { heat_score, status, summary };
-
-  const autoEscalate = (persona as PersonaConfig).auto_escalate ?? false;
-  const escalationThreshold = (persona as PersonaConfig).escalation_threshold ?? 25;
-  const wasAutoRespond = !lead.is_paused;
-  const shouldEscalate = autoEscalate && heat_score < escalationThreshold && wasAutoRespond;
-
-  if (shouldEscalate) {
-    leadPatch.is_paused = true;
-    console.log(`[AI Engine] Auto-escalation triggered for lead ${lead.id} — score ${heat_score} < ${escalationThreshold}`);
-  }
-
-  await admin
-    .from('leads')
-    .update(leadPatch)
-    .eq('id', lead.id);
-
-  // ── Persistir resposta da IA ─────────────────────────────────────────────
-  await admin.from('messages').insert({
-    lead_id: lead.id,
-    company_id: companyId,
-    role: 'assistant',
-    content: finalReply,
-  });
-
-  // ── Nota interna se escalou ───────────────────────────────────────────────
-  if (shouldEscalate) {
-    await admin.from('messages').insert({
-      lead_id: lead.id,
-      company_id: companyId,
-      role: 'note',
-      content: `IA pausou atendimento — score ${heat_score} (abaixo de ${escalationThreshold}). Aguardando atendente humano.`,
-    });
-  }
-
-  // ── Enviar via WhatsApp ───────────────────────────────────────────────────
-  await sendWhatsAppMessage(phone, finalReply, companyId);
 }

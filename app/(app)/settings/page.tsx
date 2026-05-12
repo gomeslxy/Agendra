@@ -14,7 +14,7 @@ export default async function SettingsPage() {
 
   const supabase = await createClient();
 
-  const [{ data: company }, { data: memberships }, { data: channels }] = await Promise.all([
+  const [{ data: company }, { data: memberships }, { data: channels }, { data: servicesData }] = await Promise.all([
     supabase
       .from("companies")
       .select("id, name, ai_name, ai_tone, ai_greeting, ai_forbidden, persona_config, google_calendar_email, google_calendar_id, plan_type, subscription_status, stripe_customer_id, cancel_at_period_end, current_period_end")
@@ -28,7 +28,15 @@ export default async function SettingsPage() {
       .from("channels")
       .select("id, provider, provider_id, status, last_error")
       .eq("company_id", companyId),
+    supabase
+      .from("services")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("active", true)
+      .order("name"),
   ]);
+
+  const services = servicesData ?? [];
 
   const usage = await getCompanyUsage(companyId).catch(() => null);
 
@@ -38,6 +46,7 @@ export default async function SettingsPage() {
         company={company ?? null}
         memberships={memberships ?? []}
         channels={channels ?? []}
+        services={services}
         usage={usage}
       />
     </Suspense>

@@ -23,6 +23,10 @@ import {
   Loader2,
   Zap,
   Clock,
+  Briefcase,
+  Plus,
+  Trash2,
+  Edit3,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,16 +36,18 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding } from "./actions";
+import { createService, updateService, deleteService } from "./services/actions";
 import Script from "next/script";
 import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
 import { STRIPE_PRICE_IDS, PLANS_META } from "@/lib/billing/plans";
 import type { PlanType } from "@/lib/billing/plans";
 
-type TabId = "persona" | "channels" | "flows" | "team" | "billing";
+type TabId = "persona" | "services" | "channels" | "flows" | "team" | "billing";
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "persona",  label: "Persona",   icon: Cpu },
+  { id: "services", label: "Serviços",  icon: Briefcase },
   { id: "channels", label: "Canais",    icon: MessageSquare },
   { id: "flows",    label: "Fluxos",    icon: GitBranch },
   { id: "team",     label: "Time",      icon: Users },
@@ -97,14 +103,24 @@ interface ChannelRow {
   last_error?: string | null;
 }
 
+interface Service {
+  id: string;
+  name: string;
+  description?: string | null;
+  duration: number;
+  price?: number | null;
+  active: boolean;
+}
+
 interface SettingsShellProps {
   company: Company | null;
   memberships: Member[];
   channels: ChannelRow[];
+  services: Service[];
   usage: any;
 }
 
-export function SettingsShell({ company, memberships, channels, usage }: SettingsShellProps) {
+export function SettingsShell({ company, memberships, channels, services, usage }: SettingsShellProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -243,7 +259,8 @@ export function SettingsShell({ company, memberships, channels, usage }: Setting
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
       >
-        {tab === "persona"  && <Persona company={company} />}
+        {tab === "persona"  && <Persona company={company} services={services} onChangeTab={changeTab} />}
+        {tab === "services" && <Services companyId={company?.id} services={services} />}
         {tab === "channels" && <Channels company={company} channels={channels} />}
         {tab === "flows"    && <Flows />}
         {tab === "team"     && <Team memberships={memberships} />}
@@ -456,7 +473,15 @@ function ServicesInput({ defaultValue }: { defaultValue: string }) {
   );
 }
 
-function Persona({ company }: { company: Company | null }) {
+function Persona({ 
+  company, 
+  services, 
+  onChangeTab 
+}: { 
+  company: Company | null; 
+  services: Service[];
+  onChangeTab: (tab: TabId) => void;
+}) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -512,7 +537,29 @@ function Persona({ company }: { company: Company | null }) {
             <ToneSelect defaultValue={company?.ai_tone ?? "warm"} />
           </Field>
           <Field label="Serviços oferecidos">
-            <ServicesInput defaultValue={(pc.services ?? []).join(", ")} />
+            <div className="flex flex-col gap-2 rounded-xl border border-brand-blue-500/10 bg-brand-blue-500/5 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-white/60">Gerenciado na aba "Serviços"</span>
+                <button 
+                  type="button"
+                  onClick={() => onChangeTab("services")}
+                  className="text-[11px] font-bold text-brand-blue-400 hover:underline"
+                >
+                  Configurar →
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {services.length > 0 ? (
+                  services.map((s) => (
+                    <Badge key={s.id} variant="outline" className="border-brand-blue-500/20 bg-brand-blue-500/10 text-brand-blue-300 text-[10px]">
+                      {s.name}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-[10px] text-white/20 italic">Nenhum serviço configurado.</span>
+                )}
+              </div>
+            </div>
           </Field>
         </CardContent>
       </Card>
@@ -1400,6 +1447,157 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
           };
         }}
       />
+    </div>
+  );
+}
+
+function Services({ companyId, services }: { companyId?: string; services: Service[] }) {
+  const [pending, startTransition] = useTransition();
+  const [isAdding, setIsAdding] = useState(false);
+
+  async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    if (companyId) formData.set("company_id", companyId);
+    
+    startTransition(async () => {
+      try {
+        await createService(formData);
+        setIsAdding(false);
+        toast.success("Serviço criado com sucesso!");
+      } catch (err: any) {
+        toast.error("Erro ao criar serviço: " + err.message);
+      }
+    });
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Tem certeza que deseja remover este serviço?")) return;
+    
+    startTransition(async () => {
+      try {
+        await deleteService(id);
+        toast.success("Serviço removido.");
+      } catch (err: any) {
+        toast.error("Erro ao remover: " + err.message);
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold">Serviços</h3>
+          <p className="text-xs text-white/40">Gerencie os serviços que sua IA pode agendar.</p>
+        </div>
+        <Button 
+          variant="blue" 
+          size="sm" 
+          onClick={() => setIsAdding(true)}
+          disabled={isAdding}
+        >
+          <Plus size={16} className="mr-2" /> Novo Serviço
+        </Button>
+      </div>
+
+      <AnimatePresence>
+        {isAdding && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="glass p-5 rounded-2xl border border-white/10"
+          >
+            <form onSubmit={handleAdd} className="grid gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Nome do Serviço">
+                  <Input name="name" placeholder="Ex: Corte Masculino" required />
+                </Field>
+                <Field label="Preço (R$)">
+                  <Input name="price" type="number" step="0.01" placeholder="Ex: 50.00" />
+                </Field>
+              </div>
+              <Field label="Duração (minutos)">
+                <select 
+                  name="duration" 
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#0A0A0A] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
+                  defaultValue="60"
+                >
+                  <option value="15">15 min</option>
+                  <option value="30">30 min</option>
+                  <option value="45">45 min</option>
+                  <option value="60">1 hora</option>
+                  <option value="90">1h 30min</option>
+                  <option value="120">2 horas</option>
+                </select>
+              </Field>
+              <Field label="Descrição (opcional)">
+                <textarea 
+                  name="description" 
+                  placeholder="Breve descrição para ajudar a IA a explicar o serviço..."
+                  className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none resize-none h-20"
+                />
+              </Field>
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>Cancelar</Button>
+                <Button variant="blue" size="sm" type="submit" disabled={pending}>
+                  {pending ? "Salvando..." : "Salvar Serviço"}
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid gap-3">
+        {services.length === 0 && !isAdding && (
+          <div className="text-center py-12 glass rounded-2xl border border-dashed border-white/10">
+            <p className="text-sm text-white/30">Nenhum serviço cadastrado ainda.</p>
+          </div>
+        )}
+        {services.map((s) => (
+          <motion.div
+            key={s.id}
+            layout
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="glass flex items-center justify-between p-4 rounded-xl border border-white/5 hover:border-white/10 transition-all group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-10 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400">
+                <Briefcase size={20} />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm">{s.name}</h4>
+                <div className="flex items-center gap-3 mt-0.5">
+                  <span className="text-[11px] text-white/40 flex items-center gap-1">
+                    <Clock size={12} /> {s.duration} min
+                  </span>
+                  {s.price && (
+                    <span className="text-[11px] text-brand-teal-400 font-medium">
+                      R$ {s.price.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white">
+                <Edit3 size={14} />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-white/40 hover:text-red-400"
+                onClick={() => handleDelete(s.id)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
     </div>
   );
 }
