@@ -186,11 +186,13 @@ export async function POST(req: Request) {
     }
 
     case 'invoice.payment_succeeded': {
-      // Reativar empresa se estava past_due
+      // Reativar empresa se estava past_due + atualizar período de billing
       const inv = event.data.object as Stripe.Invoice;
       const invAny2 = inv as any;
       let companyId: string | null = null;
       let currentPlanType = 'starter';
+      let periodStart: number | undefined;
+      let periodEnd: number | undefined;
 
       if (invAny2.subscription) {
         try {
@@ -199,6 +201,9 @@ export async function POST(req: Request) {
             || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
           const priceId = sub.items.data[0]?.price?.id;
           currentPlanType = planFromPriceId(priceId) || sub.metadata?.planType || 'starter';
+          // [FIX A3] Persistir período de billing para resetar o contador de leads
+          periodStart = (sub as any).current_period_start;
+          periodEnd   = (sub as any).current_period_end;
         } catch (err) {
           console.error('[Stripe Webhook] ❌ Failed to retrieve subscription for payment_succeeded:', err);
         }
@@ -209,7 +214,7 @@ export async function POST(req: Request) {
       }
 
       if (companyId) {
-        await updateCompanyStatus(companyId, 'active', currentPlanType);
+        await updateCompanyStatus(companyId, 'active', currentPlanType, undefined, undefined, periodStart, periodEnd);
       }
       break;
     }

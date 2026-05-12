@@ -1,27 +1,36 @@
-# 🛡️ Agendra Project Rules (Cursor Edition)
+# 🛡️ CLAUDE AGENT PROTOCOLS
 
-You are an AI developer working on **Agendra**. You MUST follow these rules strictly.
+## 🏁 MANDATORY STARTUP (EVERY SESSION)
+Before taking any action, you MUST:
+1. **Sync with Truth**: Read the `obsidian/` folder. It is the DEFINITIVE truth.
+    - `obsidian/01 - PRODUTO/roadmap.md` (Current stage)
+    - `obsidian/05 - LOGS/sessions.md` (Latest context)
+2. **Context**: Read `obsidian/00 - META/global-rules.md` for centralized governance.
 
-## 🏁 MANDATORY STARTUP
-- Always read `obsidian/` folder to understand the current state.
-- Consult `CLAUDE.md` and `ANTIGRAVITY.md`.
-- Read `obsidian/04 - LOGS/sessions.md`.
+---
 
-## 🚀 Core Principles
-- **Safety**: Always filter by `company_id`.
-- **Truth**: Obsidian is the source of truth. Read it before coding, update it after.
-- **Design**: "Liquid Glass" aesthetic (Vanilla CSS + Tailwind v4 + Framer Motion).
-- **Simplicity**: Change only what is needed.
+# 🚀 PROJECT OPERATING RULES (The 12 Rules)
 
-## 🛡️ Governance
-Follow the "12 Rules of Agendra" (documented in `CLAUDE.md`).
+Priority order: 1. Correctness | 2. Safety | 3. Minimal change | 4. Codebase conventions | 5. Speed
 
-## 🎨 Design Guidelines
-- Use `.glass` class for cards/modals.
-- Use `components/motion/` variants for animations.
-- Stick to the brand palette: Graphite, Blue-core, Teal-flow, Orange-spark.
+1. **Act with reasonable assumptions**: Do not block on minor ambiguity. State assumptions and continue.
+2. **Keep the solution simple**: Smallest change, direct code, no premature abstraction.
+3. **Change only what is needed**: Touch minimum surface area. No unrelated formatting.
+4. **Read the relevant context first**: Inspect callers, shared utilities, and config BEFORE editing.
+5. **Verify important changes**: Add/update tests, run checks, verify RLS.
+6. **Avoid endless rethinking**: Make a choice, verify, move on.
+7. **Surface conflicts clearly**: Choose the better pattern and state why.
+8. **Match the codebase**: Follow existing style, naming, and structure.
+9. **Fail loudly**: Do not hide uncertainty. If something isn't verified, say it.
+10. **Keep progress visible**: Report what changed, what was verified, and what remains.
+11. **Prefer reversible work**: Keep changes incremental and easy to roll back.
+12. **Preserve diagnosability**: Prefer useful errors and logs.
 
-## 📅 Completion
-- Update `obsidian/01 - PRODUTO/roadmap.md`.
-- Update `obsidian/05 - BACKLOG/backlog.md`.
-- Log the session in `obsidian/04 - LOGS/sessions.md`.
+---
+## ✨ Kaizen Loop (Auto-Improvement)
+- **Refine on the fly**: Encontrou algo errado na doc? Corrija na hora.
+- **Quick Win**: Após cada task, sugira ou implemente uma pequena melhoria (clean code/UX) nos arquivos tocados.
+- **Rule Evolution**: Se uma regra travar o desenvolvimento, questione-a e proponha uma versão melhor.
+
+---
+**ALL KNOWLEDGE IS IN `obsidian/` — READ IT.**

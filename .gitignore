@@ -26,18 +26,20 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# AI Agents & Automation (State/Ephemeral)
+# AI Agents & Documentation (NO GITHUB)
 .gemini/
 brain/
 .antigravity/
 .memories/
 .claude/
 .cursor/
-
-# DO NOT IGNORE CORE AGENT RULES
-# !CLAUDE.md
-# !ANTIGRAVITY.md
-# !.agents/
+.agents/
+obsidian/
+CLAUDE.md
+ANTIGRAVITY.md
+rules.md
+.clauderules
+.cursorrules
 
 # Project Specific Exclusions
 _design/
@@ -46,16 +48,6 @@ _scripts/
 scratch/
 omnirepo.config.json
 omnirepo.db*
-
-# Obsidian Vault Governance
-# We want the content in Git, but ignore ephemeral view state
-obsidian/.obsidian/workspace.json
-obsidian/.obsidian/workspace-mobile.json
-obsidian/.obsidian/graph.json
-obsidian/.obsidian/appearance.json
-obsidian/.obsidian/core-plugins.json
-obsidian/.obsidian/plugins/
-obsidian/.obsidian/themes/
 
 # Temporary & Debug
 check_db*.mjs

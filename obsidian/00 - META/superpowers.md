@@ -12,7 +12,7 @@ Este projeto utiliza "Skills" para guiar os agentes de IA em tarefas complexas.
 
 ## 🛠️ Folder Skills (Local)
 - **app/api/**: [[obsidian/02 - ARQUITETURA/padroes-api.md|Padrões de API]] (Multitenancy & Zod).
-- **components/**: [[obsidian/03 - DESIGN/design-system.md|Liquid Glass]] (Glassmorphism & Framer Motion).
+- **components/**: [[obsidian/04 - DESIGN/design-system.md|Liquid Glass]] (Glassmorphism & Framer Motion).
 - **obsidian/**: [[obsidian/00 - META/superpowers.md|Obsidian Truth]] (Sincronização de Conhecimento).
 
 ## 🛡️ Regras de Ouro (Global Rules)

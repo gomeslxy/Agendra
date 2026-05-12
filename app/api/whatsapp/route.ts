@@ -95,10 +95,10 @@ async function validateMetaSignature(
       Esperada: ${expectedSignature.slice(0, 10)}...
       Recebida: ${actualSignature.slice(0, 10)}...
     `);
-    console.warn("[WhatsApp] ⚠️ Ignorando erro de assinatura para teste (BYPASS ATIVO).");
+    return false;
   }
 
-  return true; // PERMITIR PARA TESTE
+  return true;
 }
 
 

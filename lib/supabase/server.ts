@@ -60,7 +60,7 @@ export async function getUserProfile() {
 
   const { data, error } = await supabase
     .from("users")
-    .select("*, companies(id, name, plan), memberships(role, company_id)")
+    .select("*, companies(id, name, plan_type, subscription_status), memberships(role, company_id)")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -86,7 +86,7 @@ export const getCachedUserProfile = cache(async (userId: string) => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("users")
-    .select("*, companies(id, name, plan), memberships(role, company_id)")
+    .select("*, companies(id, name, plan_type, subscription_status), memberships(role, company_id)")
     .eq("id", userId)
     .maybeSingle();
 

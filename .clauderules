@@ -1,46 +1,36 @@
----
-trigger: always_on
----
-
-# 🛡️ Agendra Project Rules (CLAUDE.md)
-
-You are an AI developer working on **Agendra**, a premium AI-driven SaaS. You MUST follow these rules strictly.
+# 🛡️ CLAUDE AGENT PROTOCOLS
 
 ## 🏁 MANDATORY STARTUP (EVERY SESSION)
-1. **Read the Source of Truth**: Before any task, list the contents of the `obsidian/` folder and read the relevant `.md` files (Roadmap, Architecture, Design).
-2. **Consult CLAUDE.md / ANTIGRAVITY.md**: These files contain your operational protocols.
-3. **Verify State**: Check `obsidian/04 - LOGS/sessions.md` for the latest context.
-
-## 🚀 Core Principles
-1. **Correctness & Safety First**: Never compromise on multitenancy (`company_id`) or data integrity.
-2. **Obsidian-First**: The `obsidian/` folder is the DEFINITIVE source of truth.
-3. **Liquid Glass Aesthetic**: Every UI change MUST follow the premium "Liquid Glass" design system (tokens in `globals.css`).
-4. **Minimal Surface Area**: Change only what is needed. Simple > Clever.
-
-## 🛡️ Project Governance (The 12 Rules)
-1. **Act with reasonable assumptions**: Do not block on minor ambiguity.
-2. **Keep the solution simple**: Use the smallest change.
-3. **Change only what is needed**: Touch the minimum surface area.
-4. **Read the relevant context first**: Inspect callers, exports, and config.
-5. **Verify important changes**: Update tests and run checks.
-6. **Avoid endless rethinking**: Make the best choice and move on.
-7. **Surface conflicts clearly**: Choose the better pattern and state why.
-8. **Match the codebase**: Follow existing style and naming.
-9. **Fail loudly**: Say what remains unverified.
-10. **Keep progress visible**: Report what changed and what remains.
-11. **Prefer reversible work**: Keep changes incremental.
-12. **Preserve diagnosability**: Prefer clear errors and logs.
-
-## 📅 Synchronization
-- **Sync Obsidian**: Update `roadmap.md`, `backlog.md`, and `sessions.md` upon completion.
-- **Multitenancy**: Always filter by `company_id`.
-- **Motion**: Ensure animations follow `prefers-reduced-motion`.
-
-## 🎨 Design System (Liquid Glass)
-- Use `.glass` utility.
-- Palette: Graphite, Blue-core, Teal-flow, Orange-spark.
-- Typography: Inter Tight (headings), Inter Italic VF (emphasis).
-- Framer Motion: Use `components/motion/` variants.
+Before taking any action, you MUST:
+1. **Sync with Truth**: Read the `obsidian/` folder. It is the DEFINITIVE truth.
+    - `obsidian/01 - PRODUTO/roadmap.md` (Current stage)
+    - `obsidian/05 - LOGS/sessions.md` (Latest context)
+2. **Context**: Read `obsidian/00 - META/global-rules.md` for centralized governance.
 
 ---
-**ALWAYS READ `obsidian/` BEFORE STARTING.**
+
+# 🚀 PROJECT OPERATING RULES (The 12 Rules)
+
+Priority order: 1. Correctness | 2. Safety | 3. Minimal change | 4. Codebase conventions | 5. Speed
+
+1. **Act with reasonable assumptions**: Do not block on minor ambiguity. State assumptions and continue.
+2. **Keep the solution simple**: Smallest change, direct code, no premature abstraction.
+3. **Change only what is needed**: Touch minimum surface area. No unrelated formatting.
+4. **Read the relevant context first**: Inspect callers, shared utilities, and config BEFORE editing.
+5. **Verify important changes**: Add/update tests, run checks, verify RLS.
+6. **Avoid endless rethinking**: Make a choice, verify, move on.
+7. **Surface conflicts clearly**: Choose the better pattern and state why.
+8. **Match the codebase**: Follow existing style, naming, and structure.
+9. **Fail loudly**: Do not hide uncertainty. If something isn't verified, say it.
+10. **Keep progress visible**: Report what changed, what was verified, and what remains.
+11. **Prefer reversible work**: Keep changes incremental and easy to roll back.
+12. **Preserve diagnosability**: Prefer useful errors and logs.
+
+---
+## ✨ Kaizen Loop (Auto-Improvement)
+- **Refine on the fly**: Encontrou algo errado na doc? Corrija na hora.
+- **Quick Win**: Após cada task, sugira ou implemente uma pequena melhoria (clean code/UX) nos arquivos tocados.
+- **Rule Evolution**: Se uma regra travar o desenvolvimento, questione-a e proponha uma versão melhor.
+
+---
+**ALL KNOWLEDGE IS IN `obsidian/` — READ IT.**

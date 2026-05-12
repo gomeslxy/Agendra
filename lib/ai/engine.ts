@@ -336,8 +336,8 @@ export async function handleIncomingMessage(
   // ── Verifica Limites de Billing ──────────────────────────────────────────
   const usage = await getCompanyUsage(companyId);
   
-  if (usage.isLimitReached && isNewLead) {
-    console.log(`[AI Engine] 🚨 Company ${companyId} atingiu o limite de ${usage.limits.maxLeads} leads. Pausando atendimento para novo lead.`);
+  if (usage.isLimitReached) {
+    console.log(`[AI Engine] 🚨 Company ${companyId} — limite atingido (leads: ${usage.usage.leads}/${usage.limits.maxLeads}, trial: ${usage.trialDaysRemaining}d, isNew: ${isNewLead}). Pausando atendimento.`);
     
     // Salva a mensagem recebida para não perder histórico
     await admin.from('messages').insert({

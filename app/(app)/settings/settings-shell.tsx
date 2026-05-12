@@ -985,7 +985,10 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
   };
 
   const currentPlan = company?.plan_type || "trial";
-  const isSubscriptionActive = company?.subscription_status === "active";
+  const subscriptionStatus = company?.subscription_status;
+  const isSubscriptionActive = subscriptionStatus === "active";
+  // [FIX M3] past_due também bloqueia novo checkout — cliente deve ir ao portal
+  const isSubscriptionManageable = subscriptionStatus === "active" || subscriptionStatus === "past_due";
 
   // [FIX ARCH-1] Price IDs agora vêm do single source of truth
   const plans = PLANS_META.map((p) => ({
@@ -1019,7 +1022,7 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
               <p className="text-[11px] text-brand-orange-400 mt-2 font-medium">Você está perto do limite do seu plano. Faça upgrade para não pausar a IA.</p>
             )}
           </div>
-          {isSubscriptionActive ? (
+          {isSubscriptionManageable ? (
             <Button
               variant="secondary"
               size="sm"
@@ -1064,7 +1067,9 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
 
       <div className="grid gap-4 md:grid-cols-3">
         {plans.map((p) => {
+          // [FIX M3] past_due com mesmo plano também desabilita novo checkout
           const isActive = isSubscriptionActive && currentPlan === p.id;
+          const isPastDueSamePlan = subscriptionStatus === "past_due" && currentPlan === p.id;
           const isButtonLoading = loading === p.id;
 
           return (
@@ -1106,7 +1111,7 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
               <Button
                 variant={isActive ? "ghost" : p.recommended ? "blue" : "secondary"}
                 className={cn("w-full mb-6 font-bold", p.recommended && "shadow-glow-blue/20")}
-                disabled={isActive || loading !== null}
+                disabled={isActive || isPastDueSamePlan || loading !== null}
                 onClick={() => handleCheckout(p.priceId, p.id)}
               >
                 {isButtonLoading ? "Processando..." : isActive ? "Plano Atual" : "Assinar " + p.name}

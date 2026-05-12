@@ -51,11 +51,9 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> 
       .gte('created_at', company.current_period_start)
       .lte('created_at', company.current_period_end);
   } else if (company.created_at) {
-    // Trial: conta desde o início do mês atual (reseta mensalmente)
-    const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-    query = query.gte('created_at', periodStart).lte('created_at', periodEnd);
+    // [FIX M2] Trial: conta desde o cadastro (não desde o início do mês).
+    // O trial dura 7 dias desde created_at — o contador deve ser o mesmo intervalo.
+    query = query.gte('created_at', company.created_at);
   }
 
   const { count, error } = await query;
@@ -63,12 +61,18 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> 
 
   const leadsUsed = count || 0;
 
-  // ── Trial calculation ──────────────────────────────────────────────────────
+  // ── Trial / paid status ────────────────────────────────────────────────────
+  // [FIX A1] 'canceled' nunca deve ser tratado como trial — bloqueio imediato.
+  const isCanceled = company.subscription_status === 'canceled';
+  const isPastDue  = company.subscription_status === 'past_due';
+  const isActive   = company.subscription_status === 'active';
+
+  // Considera trial quando não tem assinatura ativa, past_due ou canceled
+  const isOnTrial = !isActive && !isPastDue && !isCanceled &&
+    (planType === 'trial' || !company.subscription_status || company.subscription_status === 'trial');
+
   let trialDaysRemaining: number | null = null;
   const trialStartedAt = company.created_at ?? null;
-
-  const isOnTrial = planType === 'trial' || 
-    (company.subscription_status !== 'active' && company.subscription_status !== 'past_due');
 
   if (isOnTrial && trialStartedAt) {
     const elapsed = Math.floor(
@@ -77,10 +81,11 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> 
     trialDaysRemaining = Math.max(0, TRIAL_DAYS - elapsed);
   }
 
-  // [FIX] Atingiu limite se: estourou leads OU se o trial expirou
-  const isTrialExpired = isOnTrial && trialDaysRemaining === 0;
+  // [FIX A2] past_due = sem acesso imediato (inadimplente).
+  // [FIX A1] canceled = sem acesso imediato.
+  const isTrialExpired  = isOnTrial && trialDaysRemaining === 0;
   const isLeadsExceeded = leadsUsed >= limits.maxLeads;
-  const isLimitReached = isLeadsExceeded || isTrialExpired;
+  const isLimitReached  = isLeadsExceeded || isTrialExpired || isPastDue || isCanceled;
 
   return {
     planType,

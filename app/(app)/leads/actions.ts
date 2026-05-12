@@ -63,6 +63,13 @@ export async function createLead(formData: FormData) {
     throw new Error("Email inválido");
   }
 
+  const { getCompanyUsage } = await import("@/lib/billing/limits");
+  const usage = await getCompanyUsage(companyId);
+
+  if (usage.isLimitReached) {
+    throw new Error("Limite de leads atingido ou trial expirado. Faça upgrade do seu plano.");
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.from("leads").insert({
     company_id: companyId,

@@ -1,23 +1,17 @@
-# 🚀 Agendra: Visão Geral do Produto
+# 🚀 Agendra — Visão Geral do Projeto
 
-**Agendra** é um SaaS (Software as a Service) de automação com Inteligência Artificial (Gemini 2.0 Flash) projetado para gerenciar leads de ponta a ponta.
+**Agendra** é um SaaS (Software as a Service) de automação com Inteligência Artificial projetado para transformar a gestão de leads em vendas reais. O sistema responde, qualifica e agenda leads provenientes de WhatsApp, Instagram e formulários, utilizando uma voz de marca configurável e focada no português brasileiro.
 
-## 🎯 Objetivo
-Transformar leads frios em agendamentos quentes sem intervenção humana.
-- **Captura**: Recebe payloads do WhatsApp Cloud API.
-- **Qualificação**: IA classifica intenção e urgência.
-- **Agendamento**: Integração autônoma com calendários.
+## 🎯 Objetivos do Projeto
+- **Conversão Máxima**: Evitar a perda de leads por demora no atendimento.
+- **Qualificação Automática**: Identificar intenção, urgência e orçamento sem intervenção humana inicial.
+- **Agendamento Autônomo**: Conectar diretamente com agendas (Google Calendar) para fechar horários de venda.
+- **Experiência Premium**: Interface de alto nível, fluida e sofisticada (nível startup internacional).
 
-## 🔗 Estado Atual (Maio 2026)
-- **Auth**: Implementado via OTP Supabase.
-- **Webhook**: Ativo e funcional para WhatsApp (multi-tenant ready).
-- **IA Engine**: Loop agêntico com Gemini 2.0 Flash ativo.
-- **UI**: Dashboard premium "Liquid Glass" em Next.js 15.
-
-## 💎 Diferenciais
-- **Liquid Glass Interface**: Estética de alto nível com aurora gradients.
-- **Context Awareness**: IA que entende o tom de voz da marca.
-- **Multitenancy Estrita**: Isolamento de dados garantido via RLS e `company_id`.
+## 💡 A Solução (Core)
+1. **Captura**: Entrada via WhatsApp Cloud API / Webhooks.
+2. **Qualificação**: IA classifica o lead como 🔥 Quente, 🟡 Morno ou ❄️ Frio.
+3. **Ação**: Resposta imediata -> Perguntas de Filtro -> Agendamento -> Follow-up.
 
 ---
-[[05 - Roadmap & Próximos Passos|Ver Roadmap]] | [[01 - Arquitetura & Stack|Ver Arquitetura]]
+[[01 - PRODUTO/roadmap|Próximo: Roadmap ➡️]]
