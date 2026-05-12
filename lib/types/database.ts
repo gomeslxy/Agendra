@@ -16,7 +16,7 @@ export interface Lead {
   summary: string | null;
   heat_score: number;
   conversation_tone: "cold" | "warm" | "hot";
-  auto_respond: boolean;
+
   city: string | null;
   email: string | null;
   is_paused: boolean;

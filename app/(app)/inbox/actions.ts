@@ -61,7 +61,7 @@ export async function takeOverLead(leadId: string) {
 
   await supabase
     .from("leads")
-    .update({ auto_respond: false })
+    .update({ is_paused: true })
     .eq("id", leadId);
 
   const { error } = await supabase.from("messages").insert({
@@ -86,7 +86,7 @@ export async function automatizeLead(leadId: string) {
 
   await supabase
     .from("leads")
-    .update({ auto_respond: true })
+    .update({ is_paused: false })
     .eq("id", leadId);
 
   const { error } = await supabase.from("messages").insert({

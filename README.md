@@ -95,17 +95,19 @@ Distribuído sob a licença **MIT**. Veja [LICENSE](LICENSE) para mais informaç
 
 Este projeto utiliza diretrizes estritas para agentes de IA para garantir consistência e qualidade:
 
-- **Claude**: Consulte [CLAUDE.md](./CLAUDE.md) para regras de operação e padrões de código.
-- **Antigravity**: Consulte [ANTIGRAVITY.md](./ANTIGRAVITY.md) para protocolos de design premium e integração.
-- **Rules**: Regras globais de gatilho estão em [.agents/rules/rules.md](./.agents/rules/rules.md).
+- **Claude**: Consulte [.claude/CLAUDE.md](./.claude/CLAUDE.md) para regras de operação e padrões de código.
+- **Antigravity**: Consulte [.agents/ANTIGRAVITY.md](./.agents/ANTIGRAVITY.md) para protocolos de design premium e integração.
+- **Unified Rules**: As regras de gatilho estão centralizadas em [.agents/rules/](./.agents/rules/).
 
 ### 🗺️ Mapa de Documentação (Obsidian)
 O cofre em [obsidian/](./obsidian/) contém a alma do projeto:
+- `00 - META/`: [Governança & Superpoderes](./obsidian/00%20-%20META/global-rules.md).
 - `01 - PRODUTO/`: [Visão Geral](./obsidian/01%20-%20PRODUTO/visao-geral.md) e [Roadmap](./obsidian/01%20-%20PRODUTO/roadmap.md).
-- `02 - ARQUITETURA/`: [Stack Técnica](./obsidian/02%20-%20ARQUITETURA/stack-tecnica.md) e APIs.
-- `03 - DESIGN/`: [Design System](./obsidian/03%20-%20DESIGN/design-system.md) e Tokens.
-- `04 - LOGS/`: [Histórico de Sessões](./obsidian/04%20-%20LOGS/sessions.md).
-- `05 - BACKLOG/`: [Dívida Técnica](./obsidian/05%20-%20BACKLOG/backlog.md).
+- `02 - ARQUITETURA/`: [Stack Técnica](./obsidian/02%20-%20ARQUITETURA/stack.md) e APIs.
+- `03 - SPECS/`: [Especificações Funcionais](./obsidian/03%20-%20SPECS/).
+- `04 - DESIGN/`: [Design System](./obsidian/04%20-%20DESIGN/design-system.md) e Tokens.
+- `05 - LOGS/`: [Histórico de Sessões](./obsidian/05%20-%20LOGS/sessions.md).
+- `06 - BACKLOG/`: [Dívida Técnica](./obsidian/06%20-%20BACKLOG/backlog.md).
 
 ---
 

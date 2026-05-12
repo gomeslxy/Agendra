@@ -359,7 +359,7 @@ export async function handleIncomingMessage(
     await sendWhatsAppMessage(phone, fallbackMessage);
     
     // Define o lead como 'paused' ou atualiza status para avisar no dashboard
-    await admin.from('leads').update({ auto_respond: false, summary: 'Límite de plano excedido' }).eq('id', lead.id);
+    await admin.from('leads').update({ is_paused: true, summary: 'Límite de plano excedido' }).eq('id', lead.id);
     return;
   }
 
@@ -384,8 +384,8 @@ export async function handleIncomingMessage(
     console.log(`[AI Engine] 🕒 Última mensagem do histórico: ${history[history.length - 1].role} - ${history[history.length - 1].content.substring(0, 20)}...`);
   }
 
-  // ── Processar com Gemini + Tools (Apenas se auto_respond estiver ativo e não estiver em pausa) ───
-  if (!lead.auto_respond || lead.is_paused) {
+  // ── Processar com Gemini + Tools (Apenas se não estiver em pausa) ───
+  if (lead.is_paused) {
     console.log(`[AI Engine] 🔇 Automação pausada ou desligada para o lead ${lead.id}. Apenas registrando mensagem.`);
     return;
   }
@@ -413,11 +413,11 @@ export async function handleIncomingMessage(
 
   const autoEscalate = (persona as PersonaConfig).auto_escalate ?? false;
   const escalationThreshold = (persona as PersonaConfig).escalation_threshold ?? 25;
-  const wasAutoRespond = lead.auto_respond;
+  const wasAutoRespond = !lead.is_paused;
   const shouldEscalate = autoEscalate && heat_score < escalationThreshold && wasAutoRespond;
 
   if (shouldEscalate) {
-    leadPatch.auto_respond = false;
+    leadPatch.is_paused = true;
     console.log(`[AI Engine] Auto-escalation triggered for lead ${lead.id} — score ${heat_score} < ${escalationThreshold}`);
   }
 

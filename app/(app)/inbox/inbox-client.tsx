@@ -237,7 +237,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     };
 
     setLeads((prev) =>
-      prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: false, messages: [...l.messages, tempNote] } : l)),
+      prev.map((l) => (l.id === selected.id ? { ...l, is_paused: true, messages: [...l.messages, tempNote] } : l)),
     );
 
     startTake(async () => {
@@ -247,7 +247,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
       } catch (e) {
         // revert
         setLeads((prev) =>
-          prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: true, messages: l.messages.filter(m => m.id !== tempId) } : l)),
+          prev.map((l) => (l.id === selected.id ? { ...l, is_paused: false, messages: l.messages.filter(m => m.id !== tempId) } : l)),
         );
         setInboxError((e as Error).message);
       }
@@ -258,7 +258,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     if (!selected) return;
     setInboxError(null);
     setLeads((prev) =>
-      prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: true } : l)),
+      prev.map((l) => (l.id === selected.id ? { ...l, is_paused: false } : l)),
     );
     startTake(async () => {
       try {
@@ -266,7 +266,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
         trackEvent("lead_automatize", { lead_id: selected.id });
       } catch (e) {
         setLeads((prev) =>
-          prev.map((l) => (l.id === selected.id ? { ...l, auto_respond: false } : l)),
+          prev.map((l) => (l.id === selected.id ? { ...l, is_paused: true } : l)),
         );
         setInboxError((e as Error).message);
       }
@@ -378,8 +378,8 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
   const { hot: hotCount, warm: warmCount, cold: coldCount } = counts;
   const sortedMessages = selected ? selected.messages : [];
-  const isAutoRespond = selected?.auto_respond ?? true;
-  const inputBlocked = isAutoRespond || sendPending;
+  const isPaused = selected?.is_paused ?? false;
+  const inputBlocked = !isPaused || sendPending;
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
@@ -535,16 +535,16 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
               <div className="flex items-center gap-2">
                 <Button
-                  variant={isAutoRespond ? "secondary" : "blue"}
+                  variant={!isPaused ? "secondary" : "blue"}
                   size="sm"
                   className={cn(
                     "h-8 rounded-lg px-3 text-[11px] font-black uppercase tracking-wider transition-all",
-                    !isAutoRespond && "shadow-glow-blue/20"
+                    isPaused && "shadow-glow-blue/20"
                   )}
                   disabled={takePending}
-                  onClick={isAutoRespond ? handleTakeOver : handleAutomatize}
+                  onClick={!isPaused ? handleTakeOver : handleAutomatize}
                 >
-                  {takePending ? "…" : isAutoRespond ? "Assumir" : "Automatizar"}
+                  {takePending ? "…" : !isPaused ? "Assumir" : "Automatizar"}
                 </Button>
                 <div className="hidden sm:block">
                   <ToneDropdown compact />
@@ -561,7 +561,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                 transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
                 className="flex flex-col gap-3 p-4 sm:p-6"
               >
-                {isAutoRespond && (
+                {!isPaused && (
                   <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
                 )}
 
@@ -625,7 +625,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
             {/* Input Area */}
             <div className="relative bg-background/95 backdrop-blur-2xl border-t border-white/[0.08] p-3 sm:p-4 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-[env(safe-area-inset-bottom,16px)] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
               <div className="max-w-5xl mx-auto relative group">
-                {isAutoRespond && (
+                {!isPaused && (
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -650,7 +650,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
                 <div className={cn(
                   "flex items-center gap-2 sm:gap-3 transition-all duration-300",
-                  isAutoRespond && "blur-[2px] scale-[0.98] opacity-50"
+                  !isPaused && "blur-[2px] scale-[0.98] opacity-50"
                 )}>
                   <div className="flex-1 relative flex items-end gap-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl px-3 py-1.5 transition-all focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.06] focus-within:shadow-glow-blue/5">
                     <Button
@@ -726,7 +726,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                 </div>
               </div>
 
-              {isAutoRespond && (
+              {!isPaused && (
                 <p className="mt-3 text-center text-[9px] font-black uppercase tracking-[0.2em] text-brand-blue-400 animate-pulse">
                   Modo Automático Ativo · Agendra IA está no controle
                 </p>
