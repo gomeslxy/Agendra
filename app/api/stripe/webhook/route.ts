@@ -113,17 +113,36 @@ export async function POST(req: Request) {
 
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription;
+      const priceId = sub.items.data[0]?.price?.id;
+      const resolvedPlan = planFromPriceId(priceId);
+      
+      console.log('[Stripe Webhook] 📋 subscription.updated details:', {
+        subId: sub.id,
+        customerId: sub.customer,
+        priceId,
+        resolvedPlan,
+        metadataCompanyId: sub.metadata?.companyId,
+        metadataPlanType: sub.metadata?.planType,
+        status: sub.status,
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+      });
+
       const companyId = sub.metadata?.companyId 
         || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
 
-      if (companyId) {
+      if (!companyId) {
+        console.error('[Stripe Webhook] ❌ subscription.updated: Could not resolve companyId! customer:', sub.customer);
+      } else {
         const status = sub.status === 'active' ? 'active' : 
                        sub.status === 'past_due' ? 'past_due' : sub.status;
+        const finalPlan = resolvedPlan || sub.metadata?.planType || 'pro';
+
+        console.log(`[Stripe Webhook] 🔄 Updating company ${companyId} → plan=${finalPlan} status=${status}`);
 
         await updateCompanyStatus(
           companyId,
           status,
-          planFromPriceId(sub.items.data[0]?.price?.id) || sub.metadata?.planType || 'pro',
+          finalPlan,
           sub.id,
           undefined,
           (sub as any).current_period_start,
