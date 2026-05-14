@@ -1,7 +1,15 @@
 {
   "crons": [
     {
-      "path": "/api/cron/check-channels?secret=agendra_982341765",
+      "path": "/api/cron/reminders?secret=agendra_cron_2026_s9k2m1p4v8l3",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/followup?secret=agendra_cron_2026_s9k2m1p4v8l3",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/check-channels?secret=agendra_cron_2026_s9k2m1p4v8l3",
       "schedule": "0 * * * *"
     }
   ]

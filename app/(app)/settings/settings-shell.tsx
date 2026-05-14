@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding } from "./actions";
+import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel } from "./actions";
 import { createService, updateService, deleteService } from "./services/actions";
 import Script from "next/script";
 import { toast } from "sonner";
@@ -551,7 +551,7 @@ function Persona({
               <div className="flex flex-wrap gap-1">
                 {services.length > 0 ? (
                   services.map((s) => (
-                    <Badge key={s.id} variant="outline" className="border-brand-blue-500/20 bg-brand-blue-500/10 text-brand-blue-300 text-[10px]">
+                    <Badge key={s.id} variant="neutral" className="border-brand-blue-500/20 bg-brand-blue-500/10 text-brand-blue-300 text-[10px]">
                       {s.name}
                     </Badge>
                   ))
@@ -773,6 +773,8 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const waAction = c.action.kind === "whatsapp-connected" ? c.action : null;
+
 
   async function handleConnect(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -808,13 +810,17 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
   }
 
   async function handleDisconnect() {
+    const action = c.action;
+    if (action.kind !== "whatsapp-connected") return;
+    const providerId = action.provider_id;
+
     if (!confirm("Tem certeza que deseja desconectar este canal? Todas as mensagens enviadas para este número deixarão de ser processadas pela IA.")) {
       return;
     }
 
     startTransition(async () => {
       try {
-        const channel = channels.find(ch => ch.provider_id === c.action.provider_id);
+        const channel = channels.find(ch => ch.provider_id === providerId);
         if (!channel) throw new Error("Canal não encontrado");
         
         await disconnectWhatsAppChannel(channel.id);
@@ -1024,17 +1030,17 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
                 <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
                   <MessageCircle size={13} className="text-brand-teal-300" />
                   <span className="font-mono text-[12px] text-white/70">
-                    Phone ID: {c.action.provider_id}
+                    Phone ID: {waAction?.provider_id}
                   </span>
                 </div>
               </div>
 
               {/* Display Error if any */}
-              {channels.find(ch => ch.id === c.action.provider_id || ch.provider_id === c.action.provider_id)?.last_error && (
+              {channels.find(ch => ch.id === waAction?.provider_id || ch.provider_id === waAction?.provider_id)?.last_error && (
                 <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
                   <p className="text-[10px] uppercase tracking-wider text-red-400 font-bold mb-1">Erro de Conexão</p>
                   <p className="text-[11px] text-red-200/80 font-mono break-all">
-                    {channels.find(ch => ch.provider_id === c.action.provider_id)?.last_error}
+                    {channels.find(ch => ch.provider_id === waAction?.provider_id)?.last_error}
                   </p>
                 </div>
               )}

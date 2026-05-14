@@ -315,6 +315,7 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
             msg.from,
             contact.profile.name,
             messageText,
+            msg.id, // Passando providerMessageId para deduplicação
           );
           console.log(`[WhatsApp] ✅ handleIncomingMessage finalizado com sucesso.`);
         } catch (err: any) {

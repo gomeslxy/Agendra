@@ -34,6 +34,7 @@ brain/
 .claude/
 .cursor/
 .agents/
+.agents/rules
 obsidian/
 CLAUDE.md
 ANTIGRAVITY.md

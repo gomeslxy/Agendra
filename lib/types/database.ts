@@ -20,6 +20,8 @@ export interface Lead {
   city: string | null;
   email: string | null;
   is_paused: boolean;
+  is_processing: boolean;
+  last_message_id: string | null;
   created_at: string;
   updated_at: string;
   lead_memory?: LeadMemory | null; // optional: added in schema_v6

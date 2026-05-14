@@ -24,6 +24,7 @@ export default async function LeadsPage({
       id, name, email, phone, status, channel, heat_score,
       source, summary, city,
       conversation_tone, is_paused,
+      is_processing, last_message_id,
       created_at, updated_at, company_id,
       messages(content, created_at, role)
     `)

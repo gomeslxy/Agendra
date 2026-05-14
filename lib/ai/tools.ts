@@ -125,15 +125,26 @@ export const toolDeclarations: Tool = {
         properties: {
           event_type: {
             type: SchemaType.STRING,
+            format: 'enum',
             enum: ['showed_interest', 'objection_raised', 'slot_shown', 'slot_declined', 'booked', 'no_show', 'reactivated', 'disqualified'],
           },
           note: { type: SchemaType.STRING },
           services_mentioned: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
           objection: { type: SchemaType.STRING },
-          answers: { type: SchemaType.OBJECT },
+          answers: { type: SchemaType.OBJECT, properties: {} },
           intent_signal: { type: SchemaType.STRING },
         },
         required: ['event_type'],
+      },
+    },
+    {
+      name: 'requestHumanAgent',
+      description: 'Pausa o atendimento da IA e solicita a intervenção de um atendente humano. Use quando o lead demonstrar irritação, pedir explicitamente por um humano ou se o problema for complexo demais para a IA.',
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          reason: { type: SchemaType.STRING, description: 'Breve motivo da transferência' },
+        },
       },
     },
   ],
@@ -223,6 +234,11 @@ export async function handleCheckAvailability(
     bufferMinutes: persona.buffer_minutes ?? 0
   });
 
+  console.log(`[Tools] checkAvailability: found ${slots.length} slots for svc ${args.service_id} (duration ${svcRes.data.duration}m)`);
+  if (busyIntervals.length > 0) {
+    console.log(`[Tools] busyIntervals count: ${busyIntervals.length}`);
+  }
+
   if (!slots.length) return { message: 'Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.' };
 
   const message = 'Aqui estão os horários que encontrei:\n' + slots.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
@@ -247,7 +263,7 @@ export async function handleBookAppointment(
   const startTime = new Date(args.start_time);
   const endTime = new Date(startTime.getTime() + service.duration * 60000);
 
-  // 2. Check colisão
+  // 2. Check colisão local
   const { data: collision } = await admin
     .from('events')
     .select('id')
@@ -259,7 +275,7 @@ export async function handleBookAppointment(
 
   if (collision) throw new Error('Este horário acabou de ser ocupado. Por favor, escolha outro.');
 
-  // 3. Sync GCal
+  // 3. Sync GCal & Double-Check External
   const { data: company } = await admin
     .from('companies')
     .select('google_refresh_token, google_calendar_id, persona_config')
@@ -269,6 +285,18 @@ export async function handleBookAppointment(
   let gcalId: string | null = null;
   if (company?.google_refresh_token) {
     try {
+      // DOUBLE-CHECK: Verificar se o GCal ainda está livre neste exato momento
+      const gcalBusy = await getFreeBusySlots(
+        company.google_refresh_token,
+        company.google_calendar_id ?? 'primary',
+        startTime.toISOString(),
+        endTime.toISOString()
+      );
+
+      if (gcalBusy.length > 0) {
+        throw new Error('Este horário foi ocupado recentemente no calendário externo. Por favor, tente outro.');
+      }
+
       gcalId = await createGoogleCalendarEvent(
         company.google_refresh_token,
         company.google_calendar_id ?? 'primary',
@@ -281,8 +309,9 @@ export async function handleBookAppointment(
           timeZone: (company.persona_config as any)?.timezone
         }
       );
-    } catch (e) {
-      console.error('[Tools] GCal sync failed during booking');
+    } catch (e: any) {
+      console.error('[Tools] GCal double-check or creation failed:', e.message);
+      if (e.message.includes('calendário externo')) throw e; // Rethrow business error
     }
   }
 
@@ -305,6 +334,22 @@ export async function handleBookAppointment(
 
   if (error) throw error;
 
+  // 5. Agendar Lembrete Automático (ex: 2h antes)
+  try {
+    const remindAt = new Date(startTime.getTime() - 2 * 60 * 60 * 1000); // 2h antes
+    if (remindAt > new Date()) {
+      await admin.from('reminders').insert({
+        event_id: event.id,
+        company_id: ctx.companyId,
+        lead_id: ctx.leadId,
+        remind_at: remindAt.toISOString(),
+        status: 'pending'
+      });
+    }
+  } catch (remErr) {
+    console.error('[Tools] Falha ao agendar lembrete:', remErr);
+  }
+
   return {
     message: `Perfeito! Agendamento confirmado para ${service.name} em ${args.start_time}.`,
     event
@@ -324,6 +369,12 @@ export async function handleCancelAppointment(args: { event_id: string; reason?:
 
   // Cancel local
   await admin.from('events').update({ status: 'cancelled', notes: args.reason }).eq('id', args.event_id);
+  
+  // Cancelar lembretes pendentes
+  await admin.from('reminders')
+    .update({ status: 'cancelled' })
+    .eq('event_id', args.event_id)
+    .eq('status', 'pending');
 
   // Sync GCal
   const co = event.companies as any;
@@ -372,6 +423,21 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
     end_time: newEnd.toISOString(),
     status: 'rescheduled'
   }).eq('id', args.event_id);
+  
+  // Atualizar lembrete (2h antes do novo horário)
+  const newRemindAt = new Date(newStart.getTime() - 2 * 60 * 60 * 1000);
+  if (newRemindAt > new Date()) {
+    await admin.from('reminders')
+      .update({ remind_at: newRemindAt.toISOString() })
+      .eq('event_id', args.event_id)
+      .eq('status', 'pending');
+  } else {
+    // Se o novo horário for muito em cima, cancelamos o lembrete pendente
+    await admin.from('reminders')
+      .update({ status: 'cancelled' })
+      .eq('event_id', args.event_id)
+      .eq('status', 'pending');
+  }
 
   // Sync GCal
   const co = event.companies as any;
@@ -406,7 +472,6 @@ export async function handleMyAppointments(args: any, ctx: ToolContext) {
   const list = events.map(e => `- ${e.title} em ${e.start_time} [ID: ${e.id}]`).join('\n');
   return { message: `Seus agendamentos:\n${list}`, appointments: events };
 }
-
 export async function handleUpdateLeadInfo(
   args: { email?: string; city?: string; source?: string },
   ctx: ToolContext,
@@ -422,6 +487,29 @@ export async function handleUpdateLeadInfo(
   const { error } = await admin.from('leads').update(patch).eq('id', ctx.leadId);
   if (error) throw error;
   return { updated: true, fields: Object.keys(patch) };
+}
+
+export async function handleRequestHumanAgent(
+  args: { reason?: string },
+  ctx: ToolContext,
+) {
+  const admin = createAdminClient();
+  
+  const { error } = await admin
+    .from('leads')
+    .update({ 
+      is_paused: true, 
+      status: 'manual',
+      summary: `[TRANSFERÊNCIA] ${args.reason || 'Lead solicitou falar com humano.'}`
+    })
+    .eq('id', ctx.leadId);
+
+  if (error) throw error;
+
+  return { 
+    message: 'Entendido. Estou pausando meu atendimento e notificando um atendente humano para te ajudar. Por favor, aguarde um momento.',
+    paused: true 
+  };
 }
 
 // Alias for backwards compatibility if any old engine code calls it

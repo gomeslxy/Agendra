@@ -19,6 +19,7 @@ import {
   handleBookMeeting,
   handleUpdateLeadInfo,
   handleUpdateLeadMemory,
+  handleRequestHumanAgent,
   type ToolContext,
 } from './tools';
 import { getCompanyUsage } from '@/lib/billing/limits';
@@ -79,6 +80,9 @@ function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: st
     ).join('\n');
   }
 
+  const extraInstructions = persona.extra_instructions ? `\n## Instruções Adicionais da Empresa\n${persona.extra_instructions}` : '';
+  const forbidden = persona.ai_forbidden ? `\n## O que NÃO fazer (PROIBIDO)\n${persona.ai_forbidden}` : '';
+
   return `Você é ${aiName}, assistente de vendas estratégica do(a) ${businessName} (${businessType}).
 Tom: ${tone}. Use o primeiro nome do lead: "${firstName}". Seja concisa, empática e focada em conversão.
 
@@ -94,10 +98,10 @@ Sua meta é qualificar o lead e agendar uma reunião. Se o lead estiver pronto, 
 IMPORTANTE: Para checkAvailability ou bookAppointment, use SEMPRE o UUID [ID: ...] listado acima. Se não tiver certeza de qual serviço o lead quer, pergunte ou use listServices.
 
 ## Regras de Ouro
-1. NUNCA invente horários. Use \`checkAvailability\`.
+1. NUNCA invente horários. Use \`checkAvailability\`. Se o lead pedir um horário que não aparece nos slots, diga que não há disponibilidade e sugira os mais próximos.
 2. Use \`updateLeadMemory\` para registrar interesses, objeções ou respostas de qualificação.
 3. Se o lead parecer desinteressado ou agressivo, use \`updateLeadMemory\` com \`event_type: "disqualified"\`.
-4. Após sua resposta, adicione SEMPRE o bloco JSON para atualização de métricas.
+4. Após sua resposta, adicione SEMPRE o bloco JSON para atualização de métricas.${extraInstructions}${forbidden}
 
 ---JSON---
 {
@@ -183,6 +187,7 @@ export async function processLeadMessage(
           else if (name === 'bookMeeting') result = await handleBookMeeting(args, ctx);
           else if (name === 'updateLeadInfo') result = await handleUpdateLeadInfo(args, ctx);
           else if (name === 'updateLeadMemory') result = await handleUpdateLeadMemory(args, ctx);
+          else if (name === 'requestHumanAgent') result = await handleRequestHumanAgent(args, ctx);
           else result = { error: 'Ferramenta desconhecida' };
 
           return { name, response: result };
@@ -236,9 +241,33 @@ export async function handleIncomingMessage(
   phone: string,
   senderName: string,
   messageText: string,
+  providerMessageId?: string,
 ): Promise<void> {
   const admin = createAdminClient();
   const timer = createTimer();
+
+  // 1. Deduplicação (Idempotência)
+  if (providerMessageId) {
+    const { data: existing } = await admin
+      .from('processed_messages')
+      .select('status')
+      .eq('provider_message_id', providerMessageId)
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.status === 'completed' || existing.status === 'processing') {
+        console.log(`[AI Engine] ⏭️ Mensagem ${providerMessageId} já processada ou em curso. Ignorando.`);
+        return;
+      }
+    }
+
+    // Registrar início do processamento
+    await admin.from('processed_messages').upsert({
+      provider_message_id: providerMessageId,
+      company_id: companyId,
+      status: 'processing'
+    });
+  }
 
   // 1. Context Loading
   const { data: company } = await admin
@@ -274,10 +303,26 @@ export async function handleIncomingMessage(
   let activeLead: Lead;
   if (lead) {
     activeLead = lead as Lead;
+    
+    // 2.1 Trava de Concorrência (Anti-Race Condition)
+    if (activeLead.is_processing) {
+      console.warn(`[AI Engine] ⏳ Lead ${phone} já está sendo processado. Abortando turno concorrente.`);
+      return;
+    }
+
+    // Ativar lock
+    await admin.from('leads').update({ is_processing: true }).eq('id', activeLead.id);
   } else {
     const { data: created } = await admin
       .from('leads')
-      .insert({ company_id: companyId, name: senderName, phone, channel: 'whatsapp', lead_memory: mountContext(null, null) })
+      .insert({ 
+        company_id: companyId, 
+        name: senderName, 
+        phone, 
+        channel: 'whatsapp', 
+        lead_memory: mountContext(null, null),
+        is_processing: true // Já nasce travado
+      })
       .select()
       .single();
     activeLead = created as Lead;
@@ -373,7 +418,6 @@ export async function handleIncomingMessage(
   });
 
   // 10. Post-turn Background Processing
-  // Perform deeper extraction and summarization without blocking the response
   (async () => {
     try {
       const facts = await extractRelevantFacts(messageText);
@@ -391,10 +435,75 @@ export async function handleIncomingMessage(
 
       await admin.from('leads').update({
         lead_memory: furtherUpdatedMem,
-        summary: newSummary
+        summary: newSummary,
+        is_processing: false,
+        last_message_id: providerMessageId
       }).eq('id', activeLead.id);
+
+      if (providerMessageId) {
+        await admin.from('processed_messages').update({ status: 'completed' }).eq('provider_message_id', providerMessageId);
+      }
     } catch (e) {
       console.error('[AI Engine] Background processing failed', e);
+      // Fallback release lock if background fails
+      await admin.from('leads').update({ is_processing: false }).eq('id', activeLead.id);
     }
   })();
+}
+
+/**
+ * triggerAutoFollowUp — Gera e envia uma mensagem de re-engajamento contextual.
+ */
+export async function triggerAutoFollowUp(leadId: string): Promise<void> {
+  const admin = createAdminClient();
+  
+  const { data: lead } = await admin
+    .from('leads')
+    .select('*, companies(*)')
+    .eq('id', leadId)
+    .single();
+
+  if (!lead || lead.is_paused || lead.status === 'success' || lead.status === 'disqualified') return;
+
+  const company = lead.companies as any;
+  const { data: messages } = await admin
+    .from('messages')
+    .select('*')
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const lastMsg = messages?.[0];
+  if (!lastMsg || lastMsg.role !== 'assistant') return; // Só segue se a última palavra foi nossa
+
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-8b' });
+  const memoryContext = mountContext(lead.lead_memory, lead.summary);
+  
+  const prompt = `Você é ${company.ai_name || 'Agendra'}, assistente do(a) ${company.name}.
+O lead ${lead.name} parou de responder após nossa última mensagem.
+Contexto: ${memoryContext}
+Última mensagem enviada: "${lastMsg.content}"
+
+Objetivo: Envie um follow-up curto (máximo 2 frases), gentil e sem pressão para ver se ele ainda tem interesse ou se ficou com alguma dúvida. Não use "Oi, você está aí?". Seja profissional e amigável.
+
+Mensagem de follow-up:`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const followupText = result.response.text().trim().replace(/^"|"$/g, '');
+
+    await sendWhatsAppMessage(lead.phone, followupText, lead.company_id);
+    
+    await admin.from('messages').insert({
+      lead_id: lead.id,
+      company_id: lead.company_id,
+      role: 'assistant',
+      content: followupText,
+      metadata: { type: 'auto-followup' }
+    });
+
+    await admin.from('leads').update({ last_followup_at: new Date().toISOString() }).eq('id', lead.id);
+  } catch (err) {
+    console.error('[AI Engine] Follow-up failed:', err);
+  }
 }

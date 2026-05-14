@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 type Variant = "primary" | "secondary" | "ghost" | "blue";
-type Size = "sm" | "md" | "lg";
+type Size = "sm" | "md" | "lg" | "icon";
 
 interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "ref"> {
   variant?: Variant;
@@ -30,6 +30,7 @@ const SIZE: Record<Size, string> = {
   sm: "px-3 py-1.5 text-xs",
   md: "px-5 py-3 text-sm",
   lg: "px-6 py-3.5 text-base",
+  icon: "p-0 flex items-center justify-center",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

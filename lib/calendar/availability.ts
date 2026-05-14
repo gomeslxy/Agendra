@@ -134,6 +134,8 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
             end: slotEnd.toISOString(), 
             label 
           });
+        } else {
+          // console.log(`[Avail] Slot ${localHour}:${localMinute} is BUSY`);
         }
       }
 
