@@ -46,7 +46,7 @@ interface PersonaConfig {
   escalation_threshold?: number;
 }
 
-function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: string): string {
+function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: string, isNewConversation: boolean): string {
   const aiName = persona.name ?? 'Agendra';
   const businessName = persona.business_name ?? 'nossa empresa';
   const businessType = persona.business_type ?? 'negocio';
@@ -94,7 +94,8 @@ IMPORTANTE: Para checkAvailability ou bookAppointment, use SEMPRE o UUID [ID: ..
 1. NUNCA invente horarios. Use checkAvailability. Se o lead pedir um horario que nao aparece nos slots, diga que nao ha disponibilidade e sugira os mais proximos.
 2. Use updateLeadMemory para registrar interesses, objecoes ou respostas de qualificacao.
 3. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".
-4. Apos sua resposta, adicione SEMPRE o bloco JSON para atualizacao de metricas.${extraInstructions}${forbidden}
+4. Apos sua resposta, adicione SEMPRE o bloco JSON para atualizacao de metricas.
+5. ${isNewConversation ? 'Esta e a PRIMEIRA mensagem deste lead. Pode cumprimentar normalmente.' : 'Conversa JA iniciada. NAO cumprimente novamente (sem "Ola", "Tudo bem?", "Opa"). Responda diretamente ao que o lead disse.'}${extraInstructions}${forbidden}
 
 ---JSON---
 {
@@ -120,12 +121,13 @@ export async function processLeadMessage(
   newMessage: string,
   companyId: string,
   persona: PersonaConfig,
+  isNewConversation: boolean,
 ): Promise<AIResult> {
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
 
   const model = genAI.getGenerativeModel({
     model: MAIN_MODEL,
-    systemInstruction: buildSystemPrompt(persona, lead, memoryContext),
+    systemInstruction: buildSystemPrompt(persona, lead, memoryContext, isNewConversation),
     tools: [toolDeclarations],
     toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
   });
@@ -323,12 +325,21 @@ export async function handleIncomingMessage(
     .from('messages')
     .insert({ lead_id: activeLead.id, company_id: companyId, role: 'user', content: messageText });
 
-  const { data: history } = await admin
+  // Fetch last 20 for Gemini context (most recent, then reverse for chronological order)
+  const { data: historyRaw } = await admin
     .from('messages')
     .select('*')
     .eq('lead_id', activeLead.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(20);
+  const history = (historyRaw ?? []).reverse();
+
+  // Reliable first-response check: query count directly, not from the windowed history
+  const { count: assistantTotal } = await admin
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('lead_id', activeLead.id)
+    .eq('role', 'assistant');
 
   if (activeLead.is_paused) {
     await releaseLock();
@@ -336,14 +347,18 @@ export async function handleIncomingMessage(
   }
 
   // 6. AI turn
+  const historyList = history as Message[];
+  const isNewConversation = (assistantTotal ?? 0) === 0;
+
   let aiResult: Awaited<ReturnType<typeof processLeadMessage>>;
   try {
     aiResult = await processLeadMessage(
       activeLead,
-      (history ?? []) as Message[],
+      historyList,
       messageText,
       companyId,
       persona,
+      isNewConversation,
     );
   } catch (aiErr) {
     console.error('[AI Engine] processLeadMessage failed:', aiErr);
@@ -359,10 +374,9 @@ export async function handleIncomingMessage(
     messageText,
   );
 
-  // 8. Watermark
+  // 8. Watermark — only on truly first assistant response
   let finalReply = aiResult.reply;
-  const isFirstResponse = (history ?? []).filter((m) => m.role === 'assistant').length === 0;
-  if (usage.limits.hasWatermark && isFirstResponse) {
+  if (usage.limits.hasWatermark && isNewConversation) {
     finalReply += '\n\n Atendimento por Agendra';
   }
 
