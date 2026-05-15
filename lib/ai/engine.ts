@@ -61,6 +61,11 @@ function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: st
   const tone = toneMap[selectedToneKey] ?? (persona.tone || 'amigavel, profissional e objetivo');
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
+  const nowInTz = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: timezone,
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(new Date());
 
   let servicesDisplay = persona.services?.length ? persona.services.join(', ') : 'nossos servicos';
   if (persona.realServices?.length) {
@@ -79,10 +84,16 @@ function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: st
   return `Voce e ${aiName}, assistente de vendas estrategica do(a) ${businessName} (${businessType}).
 Tom: ${tone}. Use o primeiro nome do lead: "${firstName}". Seja concisa, empatica e focada em conversao.
 
+Data e hora atual: ${nowInTz} (${timezone}).
 Tipo de negocio: ${businessType}.
 Servicos disponiveis:
 ${servicesDisplay}
 Fuso horario: ${timezone}.
+
+FORMATACAO (CRITICO): Esta conversa e via WhatsApp. Use APENAS formatacao WhatsApp:
+- Negrito: *texto* (UM asterisco). NUNCA use **texto** (dois asteriscos).
+- Italico: _texto_. NUNCA use markdown como #, ##, ---, backticks.
+- Listas: use hifen simples "-" ou numero "1."
 
 ${memoryContext}
 
