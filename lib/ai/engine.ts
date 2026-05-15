@@ -401,7 +401,20 @@ export async function handleIncomingMessage(
 
   await admin.from('leads').update(leadPatch).eq('id', activeLead.id);
 
-  // 10. Observability
+  // 10. Release lock + mark processed BEFORE background tasks
+  await admin
+    .from('leads')
+    .update({ is_processing: false, last_message_id: providerMessageId ?? null })
+    .eq('id', activeLead.id);
+
+  if (providerMessageId) {
+    await admin
+      .from('processed_messages')
+      .update({ status: 'completed' })
+      .eq('provider_message_id', providerMessageId);
+  }
+
+  // 11. Observability
   await persistAILog({
     company_id: companyId,
     lead_id: activeLead.id,
@@ -421,7 +434,7 @@ export async function handleIncomingMessage(
     error: null,
   });
 
-  // 11. Background post-processing — releases lock in all paths
+  // 12. Background post-processing (memory/summary enrichment) — lock already released
   (async () => {
     try {
       const facts = await extractRelevantFacts(messageText);
@@ -432,7 +445,7 @@ export async function handleIncomingMessage(
         .select('lead_memory')
         .eq('id', activeLead.id)
         .single();
-      const currentMem = latestLead?.lead_memory as any;
+      const currentMem = (latestLead?.lead_memory as any) ?? { ...EMPTY_MEMORY };
 
       const furtherUpdatedMem = {
         ...currentMem,
@@ -450,23 +463,10 @@ export async function handleIncomingMessage(
 
       await admin
         .from('leads')
-        .update({
-          lead_memory: furtherUpdatedMem,
-          summary: newSummary,
-          is_processing: false,
-          last_message_id: providerMessageId,
-        })
+        .update({ lead_memory: furtherUpdatedMem, summary: newSummary })
         .eq('id', activeLead.id);
-
-      if (providerMessageId) {
-        await admin
-          .from('processed_messages')
-          .update({ status: 'completed' })
-          .eq('provider_message_id', providerMessageId);
-      }
     } catch (e) {
-      console.error('[AI Engine] Background processing failed', e);
-      await releaseLock();
+      console.error('[AI Engine] Background enrichment failed (non-critical):', e);
     }
   })();
 }

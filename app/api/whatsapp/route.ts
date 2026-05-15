@@ -130,12 +130,6 @@ async function resolveChannel(
       return null;
     }
 
-    // Atualizar telemetria (last_seen) de forma assíncrona
-    admin.from("channels")
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq("id", data.id)
-      .then();
-
     return data;
   } catch (err: any) {
     console.error(`[Nexus] 💥 Erro ao resolver canal:`, err.message);
