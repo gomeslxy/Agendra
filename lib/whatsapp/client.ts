@@ -14,13 +14,15 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
   
   if (companyId) {
     const admin = createAdminClient();
-    const { data: channel } = await admin
+    const { data: channels } = await admin
       .from("channels")
       .select("provider_id, access_token")
       .eq("company_id", companyId)
       .eq("provider", "whatsapp")
       .eq("status", "active")
-      .single();
+      .not("access_token", "is", null)
+      .limit(1);
+    const channel = channels?.[0];
 
     if (channel?.provider_id && channel?.access_token) {
       phoneId = channel.provider_id;
@@ -60,15 +62,13 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
     const err = await res.text();
     const errorMessage = `WhatsApp API error ${res.status}: ${err}`;
     
-    // Telemetria de erro para o Nexus Dashboard
     if (companyId) {
       const admin = createAdminClient();
       const isAuthError = res.status === 401 || res.status === 403;
-      
       admin.from("channels")
-        .update({ 
-          last_error: errorMessage,
-          status: isAuthError ? "error" : "active", // Pausa se for erro de token
+        .update({
+          meta: { last_error: errorMessage },
+          status: isAuthError ? "error" : "active",
           updated_at: new Date().toISOString()
         })
         .eq("company_id", companyId)
@@ -79,14 +79,13 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
     throw new Error(errorMessage);
   }
 
-  // Sucesso: limpa erros anteriores e atualiza last_seen_at
   if (companyId) {
     const admin = createAdminClient();
     admin.from("channels")
-      .update({ 
-        last_error: null, 
-        last_seen_at: new Date().toISOString(),
+      .update({
+        meta: { last_error: null },
         status: 'active',
+        updated_at: new Date().toISOString(),
       })
       .eq("company_id", companyId)
       .eq("provider", "whatsapp")
