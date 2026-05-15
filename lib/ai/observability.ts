@@ -3,16 +3,16 @@ import type { AILog, AITrace } from '@/lib/types/database';
 
 /**
  * Calculates estimated cost for current Gemini models.
- * gemini-3.1-flash-lite: $0.10/$0.40 per 1M tokens (in/out)
+ * gemini-2.5-flash: $0.30/$2.50 per 1M tokens (in/out) — paid tier estimate
  * gemini-2.5-flash-lite: $0.10/$0.40 per 1M tokens (in/out)
  * Free tier: $0 — rates here used for observability estimation only.
  */
 export function calculateGeminiCost(inputTokens: number, outputTokens: number, model: string): number {
-  const isLite = model.includes('flash-lite');
-  const inputRate = isLite ? 0.10 / 1_000_000 : 0.30 / 1_000_000;
-  const outputRate = isLite ? 0.40 / 1_000_000 : 1.00 / 1_000_000;
-
-  return (inputTokens * inputRate) + (outputTokens * outputRate);
+  if (model.includes('flash-lite')) {
+    return (inputTokens * 0.10 / 1_000_000) + (outputTokens * 0.40 / 1_000_000);
+  }
+  // gemini-2.5-flash
+  return (inputTokens * 0.30 / 1_000_000) + (outputTokens * 2.50 / 1_000_000);
 }
 
 /**

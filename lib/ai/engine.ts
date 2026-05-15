@@ -21,7 +21,7 @@ import { EMPTY_MEMORY, mountContext, summarizeConversation, extractRelevantFacts
 import { validateAndNormalizeScore } from './scoring';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
-const MAIN_MODEL = 'gemini-3.1-flash-lite';
+const MAIN_MODEL = 'gemini-2.5-flash';
 
 interface Service {
   id: string;
@@ -507,7 +507,7 @@ export async function triggerAutoFollowUp(leadId: string): Promise<void> {
   const lastMsg = messages?.[0];
   if (!lastMsg || lastMsg.role !== 'assistant') return;
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
 
   const prompt = `Voce e ${company.ai_name || 'Agendra'}, assistente do(a) ${company.name}.
