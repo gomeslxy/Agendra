@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import { triggerAutoFollowUp } from '@/lib/ai/engine';
+import { buildReminderMessage, formatDateTime } from '@/lib/whatsapp/messages';
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const now = new Date().toISOString();
     const { data: reminders } = await admin
       .from('reminders')
-      .select('*, leads(phone, name), events(start_time, title), companies(persona_config)')
+      .select('*, leads(phone, name), events(start_time, title), companies(persona_config, name)')
       .eq('status', 'pending')
       .lte('remind_at', now)
       .limit(30);
@@ -78,18 +79,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
 
         const tz = (rem.companies as any)?.persona_config?.timezone ?? 'America/Sao_Paulo';
-        const fmt = new Intl.DateTimeFormat('pt-BR', {
-          timeZone: tz,
-          hour: '2-digit',
-          minute: '2-digit',
-          day: '2-digit',
-          month: '2-digit',
+        const businessName = (rem.companies as any)?.name ?? 'nossa empresa';
+        const eventDate = new Date(event.start_time);
+        const hoursUntil = (eventDate.getTime() - Date.now()) / 3600000;
+        const { dateStr, timeStr } = formatDateTime(eventDate, tz);
+        const msg = buildReminderMessage({
+          leadFirstName: lead.name.split(' ')[0],
+          serviceName: event.title,
+          dateStr,
+          timeStr,
+          businessName,
+          hoursAhead: Math.round(hoursUntil),
         });
-        const parts = fmt.formatToParts(new Date(event.start_time));
-        const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
-        const timeStr = `${get('hour')}:${get('minute')} do dia ${get('day')}/${get('month')}`;
-
-        const msg = `Olá ${lead.name.split(' ')[0]}! Passando para lembrar do seu agendamento de "${event.title}" amanhã às ${timeStr}. Nos vemos em breve! 🗓`;
         await sendWhatsAppMessage(lead.phone, msg, rem.company_id);
         await admin.from('reminders').update({ status: 'sent' }).eq('id', rem.id);
         sent++;

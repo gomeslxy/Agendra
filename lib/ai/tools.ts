@@ -12,15 +12,16 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
-import { 
-  createGoogleCalendarEvent, 
-  getFreeBusySlots, 
-  deleteGCalEvent, 
-  updateGCalEvent 
+import {
+  createGoogleCalendarEvent,
+  getFreeBusySlots,
+  deleteGCalEvent,
+  updateGCalEvent
 } from '@/lib/calendar/google';
 import { calculateAvailableSlots } from '@/lib/calendar/availability';
 import { type Tool, SchemaType } from '@google/generative-ai';
 import { handleUpdateLeadMemory } from './memory';
+import { buildBookingConfirmation, formatDateTime } from '@/lib/whatsapp/messages';
 
 export { handleUpdateLeadMemory };
 
@@ -278,7 +279,7 @@ export async function handleBookAppointment(
   // 3. Sync GCal & Double-Check External
   const { data: company } = await admin
     .from('companies')
-    .select('google_refresh_token, google_calendar_id, persona_config')
+    .select('google_refresh_token, google_calendar_id, persona_config, name')
     .eq('id', ctx.companyId)
     .single();
 
@@ -350,22 +351,18 @@ export async function handleBookAppointment(
     console.error('[Tools] Falha ao agendar lembrete:', remErr);
   }
 
-  // Format start time in company timezone for the confirmation message
   const companyTimezone = (company?.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
-  const fmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: companyTimezone,
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
+  const { dateStr, timeStr } = formatDateTime(startTime, companyTimezone);
+  const confirmationMsg = buildBookingConfirmation({
+    leadFirstName: lead?.name?.split(' ')[0] ?? 'cliente',
+    serviceName: service.name,
+    dateStr,
+    timeStr,
+    businessName: company?.name ?? 'nossa empresa',
+    notes: args.notes,
   });
-  const friendlyDate = fmt.format(startTime);
 
-  return {
-    message: `Perfeito! Agendamento confirmado: *${service.name}* em ${friendlyDate}.`,
-    event,
-  };
+  return { message: confirmationMsg, event };
 }
 
 export async function handleCancelAppointment(args: { event_id: string; reason?: string }, _ctx: ToolContext) {

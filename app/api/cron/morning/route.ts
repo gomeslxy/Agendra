@@ -11,6 +11,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import { syncCompanyCalendar } from '@/lib/calendar/sync';
 import { validateWhatsAppToken } from '@/lib/whatsapp/validate';
+import { buildReminderMessage, formatDateTime } from '@/lib/whatsapp/messages';
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const now = new Date().toISOString();
     const { data: reminders } = await admin
       .from('reminders')
-      .select('*, leads(phone, name), events(start_time, title), companies(persona_config)')
+      .select('*, leads(phone, name), events(start_time, title), companies(persona_config, name)')
       .eq('status', 'pending')
       .lte('remind_at', now)
       .limit(30);
@@ -70,18 +71,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
 
         const tz = (rem.companies as any)?.persona_config?.timezone ?? 'America/Sao_Paulo';
-        const fmt = new Intl.DateTimeFormat('pt-BR', {
-          timeZone: tz,
-          hour: '2-digit',
-          minute: '2-digit',
-          day: '2-digit',
-          month: '2-digit',
+        const businessName = (rem.companies as any)?.name ?? 'nossa empresa';
+        const eventDate = new Date(event.start_time);
+        const hoursUntil = (eventDate.getTime() - Date.now()) / 3600000;
+        const { dateStr, timeStr } = formatDateTime(eventDate, tz);
+        const msg = buildReminderMessage({
+          leadFirstName: lead.name.split(' ')[0],
+          serviceName: event.title,
+          dateStr,
+          timeStr,
+          businessName,
+          hoursAhead: Math.round(hoursUntil),
         });
-        const parts = fmt.formatToParts(new Date(event.start_time));
-        const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
-        const timeStr = `${get('hour')}:${get('minute')} do dia ${get('day')}/${get('month')}`;
-
-        const msg = `Olá ${lead.name.split(' ')[0]}! Passando para lembrar do seu agendamento de "${event.title}" às ${timeStr}. Nos vemos em breve! 🗓`;
         await sendWhatsAppMessage(lead.phone, msg, rem.company_id);
         await admin.from('reminders').update({ status: 'sent' }).eq('id', rem.id);
         sent++;
@@ -99,21 +100,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // ── 3. Channel Health ────────────────────────────────────────────────────────
   try {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { data: channels } = await admin
       .from('channels')
       .select('*')
-      .or(`status.eq.error,last_seen_at.lt.${oneHourAgo}`);
+      .eq('status', 'error');
 
     let healthy = 0;
     let broken = 0;
     for (const ch of channels ?? []) {
       const validation = await validateWhatsAppToken(ch.provider_id, ch.access_token);
       if (!validation.ok) {
-        await admin.from('channels').update({ status: 'error', last_error: validation.error ?? 'Token inválido' }).eq('id', ch.id);
+        await admin.from('channels').update({ status: 'error', updated_at: new Date().toISOString() }).eq('id', ch.id);
         broken++;
       } else {
-        await admin.from('channels').update({ status: 'active', last_error: null, last_seen_at: new Date().toISOString() }).eq('id', ch.id);
+        await admin.from('channels').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', ch.id);
         healthy++;
       }
     }
