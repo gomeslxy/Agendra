@@ -2,15 +2,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import type { AILog, AITrace } from '@/lib/types/database';
 
 /**
- * Calculates estimated cost for Gemini 1.5 Flash.
+ * Calculates estimated cost for current Gemini models.
+ * gemini-3.1-flash-lite: $0.10/$0.40 per 1M tokens (in/out)
+ * gemini-2.5-flash-lite: $0.10/$0.40 per 1M tokens (in/out)
+ * Free tier: $0 — rates here used for observability estimation only.
  */
 export function calculateGeminiCost(inputTokens: number, outputTokens: number, model: string): number {
-  // Approximate pricing for Gemini 1.5 Flash
-  // Input: $0.075 / 1M tokens
-  // Output: $0.30 / 1M tokens
-  const is8b = model.includes('8b');
-  const inputRate = is8b ? 0.0375 / 1_000_000 : 0.075 / 1_000_000;
-  const outputRate = is8b ? 0.15 / 1_000_000 : 0.30 / 1_000_000;
+  const isLite = model.includes('flash-lite');
+  const inputRate = isLite ? 0.10 / 1_000_000 : 0.30 / 1_000_000;
+  const outputRate = isLite ? 0.40 / 1_000_000 : 1.00 / 1_000_000;
 
   return (inputTokens * inputRate) + (outputTokens * outputRate);
 }

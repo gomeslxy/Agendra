@@ -1,36 +1,27 @@
-/**
- * Agendra — AI Engine v3
- *
- * Core intelligence of the platform:
- * - Real Contextual Memory (LeadMemory + Summary)
- * - Deterministic Scoring (AI + Rule-based normalization)
- * - Strategic Tool Calling (Booking, Availability, Memory Updates)
- * - High-fidelity Observability (Cost, Tokens, Latency, Deltas)
- * - Post-turn Background Tasks (Auto-summarization, Fact extraction)
- */
-
 import { GoogleGenerativeAI, type Content, FunctionCallingMode } from '@google/generative-ai';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import type { Lead, Message } from '@/lib/types/database';
 import {
   toolDeclarations,
+  handleListServices,
   handleCheckAvailability,
-  handleBookMeeting,
+  handleBookAppointment,
+  handleCancelAppointment,
+  handleRescheduleAppointment,
+  handleMyAppointments,
   handleUpdateLeadInfo,
   handleUpdateLeadMemory,
   handleRequestHumanAgent,
   type ToolContext,
 } from './tools';
 import { getCompanyUsage } from '@/lib/billing/limits';
-import { persistAITrace, persistAILog, createTimer } from '@/lib/ai/observability';
-import { mountContext, summarizeConversation, extractRelevantFacts, appendScoreHistory } from './memory';
+import { persistAILog, createTimer } from '@/lib/ai/observability';
+import { EMPTY_MEMORY, mountContext, summarizeConversation, extractRelevantFacts, appendScoreHistory } from './memory';
 import { validateAndNormalizeScore } from './scoring';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 const MAIN_MODEL = 'gemini-3.1-flash-lite';
-
-// ─── System Prompt Builder ────────────────────────────────────────────────────
 
 interface Service {
   id: string;
@@ -43,8 +34,8 @@ interface PersonaConfig {
   name?: string;
   business_name?: string;
   business_type?: string;
-  services?: string[]; // Legacy strings from persona_config
-  realServices?: Service[]; // Real services from DB
+  services?: string[];
+  realServices?: Service[];
   tone?: string;
   greeting?: string;
   timezone?: string;
@@ -58,60 +49,60 @@ interface PersonaConfig {
 function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: string): string {
   const aiName = persona.name ?? 'Agendra';
   const businessName = persona.business_name ?? 'nossa empresa';
-  const businessType = persona.business_type ?? 'negócio';
-  const services = persona.services?.length ? persona.services.join(', ') : 'nossos serviços';
-  
-  const toneMap = {
-    cold: "Formal: Profissional, breve e direto ao ponto. Evite emojis ou intimidade.",
-    warm: "Amigável: Atencioso, profissional e equilibrado. Pode usar emojis moderadamente.",
-    hot:  "Persuasivo: Entusiasta, ágil e próximo. Use emojis e linguagem persuasiva para converter.",
+  const businessType = persona.business_type ?? 'negocio';
+
+  const toneMap: Record<string, string> = {
+    cold: 'Formal: Profissional, breve e direto ao ponto. Evite emojis ou intimidade.',
+    warm: 'Amigavel: Atencioso, profissional e equilibrado. Pode usar emojis moderadamente.',
+    hot: 'Persuasivo: Entusiasta, agil e proximo. Use emojis e linguagem persuasiva para converter.',
   };
 
-  const selectedToneKey = (lead.conversation_tone || persona.tone) as keyof typeof toneMap;
-  const tone = toneMap[selectedToneKey] ?? (persona.tone || 'amigável, profissional e objetivo');
+  const selectedToneKey = (lead.conversation_tone || persona.tone) as string;
+  const tone = toneMap[selectedToneKey] ?? (persona.tone || 'amigavel, profissional e objetivo');
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
 
-  // Build services string with IDs for tool calling
-  let servicesDisplay = persona.services?.length ? persona.services.join(', ') : 'nossos serviços';
+  let servicesDisplay = persona.services?.length ? persona.services.join(', ') : 'nossos servicos';
   if (persona.realServices?.length) {
-    servicesDisplay = persona.realServices.map(s => 
-      `- ${s.name} (${s.duration}min)${s.price ? ` - R$ ${s.price}` : ''} [ID: ${s.id}]`
-    ).join('\n');
+    servicesDisplay = persona.realServices
+      .map((s) => `- ${s.name} (${s.duration}min)${s.price ? ` - R$ ${s.price}` : ''} [ID: ${s.id}]`)
+      .join('\n');
   }
 
-  const extraInstructions = persona.extra_instructions ? `\n## Instruções Adicionais da Empresa\n${persona.extra_instructions}` : '';
-  const forbidden = persona.ai_forbidden ? `\n## O que NÃO fazer (PROIBIDO)\n${persona.ai_forbidden}` : '';
+  const extraInstructions = persona.extra_instructions
+    ? `\n## Instrucoes Adicionais da Empresa\n${persona.extra_instructions}`
+    : '';
+  const forbidden = persona.ai_forbidden
+    ? `\n## O que NAO fazer (PROIBIDO)\n${persona.ai_forbidden}`
+    : '';
 
-  return `Você é ${aiName}, assistente de vendas estratégica do(a) ${businessName} (${businessType}).
-Tom: ${tone}. Use o primeiro nome do lead: "${firstName}". Seja concisa, empática e focada em conversão.
+  return `Voce e ${aiName}, assistente de vendas estrategica do(a) ${businessName} (${businessType}).
+Tom: ${tone}. Use o primeiro nome do lead: "${firstName}". Seja concisa, empatica e focada em conversao.
 
-Tipo de negócio: ${businessType}.
-Serviços disponíveis:
+Tipo de negocio: ${businessType}.
+Servicos disponiveis:
 ${servicesDisplay}
-Fuso horário: ${timezone}.
+Fuso horario: ${timezone}.
 
 ${memoryContext}
 
-## Missão
-Sua meta é qualificar o lead e agendar uma reunião. Se o lead estiver pronto, use as ferramentas de agenda. 
-IMPORTANTE: Para checkAvailability ou bookAppointment, use SEMPRE o UUID [ID: ...] listado acima. Se não tiver certeza de qual serviço o lead quer, pergunte ou use listServices.
+## Missao
+Sua meta e qualificar o lead e agendar uma reuniao. Se o lead estiver pronto, use as ferramentas de agenda.
+IMPORTANTE: Para checkAvailability ou bookAppointment, use SEMPRE o UUID [ID: ...] listado acima. Se nao tiver certeza de qual servico o lead quer, pergunte ou use listServices.
 
 ## Regras de Ouro
-1. NUNCA invente horários. Use \`checkAvailability\`. Se o lead pedir um horário que não aparece nos slots, diga que não há disponibilidade e sugira os mais próximos.
-2. Use \`updateLeadMemory\` para registrar interesses, objeções ou respostas de qualificação.
-3. Se o lead parecer desinteressado ou agressivo, use \`updateLeadMemory\` com \`event_type: "disqualified"\`.
-4. Após sua resposta, adicione SEMPRE o bloco JSON para atualização de métricas.${extraInstructions}${forbidden}
+1. NUNCA invente horarios. Use checkAvailability. Se o lead pedir um horario que nao aparece nos slots, diga que nao ha disponibilidade e sugira os mais proximos.
+2. Use updateLeadMemory para registrar interesses, objecoes ou respostas de qualificacao.
+3. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".
+4. Apos sua resposta, adicione SEMPRE o bloco JSON para atualizacao de metricas.${extraInstructions}${forbidden}
 
 ---JSON---
 {
   "heat_score": <0-100>,
   "status": "cold" | "warm" | "hot" | "success",
-  "summary": "<resumo curtíssimo da última interação>"
+  "summary": "<resumo curtissimo da ultima interacao>"
 }`;
 }
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AIResult {
   reply: string;
@@ -123,8 +114,6 @@ interface AIResult {
   tools_called: any[];
 }
 
-// ─── Core: processLeadMessage ─────────────────────────────────────────────────
-
 export async function processLeadMessage(
   lead: Lead,
   history: Message[],
@@ -132,9 +121,8 @@ export async function processLeadMessage(
   companyId: string,
   persona: PersonaConfig,
 ): Promise<AIResult> {
-  const timer = createTimer();
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
-  
+
   const model = genAI.getGenerativeModel({
     model: MAIN_MODEL,
     systemInstruction: buildSystemPrompt(persona, lead, memoryContext),
@@ -144,22 +132,21 @@ export async function processLeadMessage(
 
   const ctx: ToolContext = { companyId, leadId: lead.id };
   let geminiHistory: Content[] = history
-    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => ({
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.content }],
     }));
 
-  // Gemini history alignment
-  const firstUserIndex = geminiHistory.findIndex(h => h.role === 'user');
+  const firstUserIndex = geminiHistory.findIndex((h) => h.role === 'user');
   geminiHistory = firstUserIndex !== -1 ? geminiHistory.slice(firstUserIndex) : [];
 
   const chat = model.startChat({ history: geminiHistory });
-  
+
   let iterations = 0;
   const MAX_ITERATIONS = 5;
   let response = await chat.sendMessage(newMessage);
-  
+
   const toolsCalled: any[] = [];
   let totalInputTokens = response.response.usageMetadata?.promptTokenCount ?? 0;
   let totalOutputTokens = response.response.usageMetadata?.candidatesTokenCount ?? 0;
@@ -183,8 +170,12 @@ export async function processLeadMessage(
 
         try {
           let result: any;
-          if (name === 'checkAvailability') result = await handleCheckAvailability(args, ctx);
-          else if (name === 'bookMeeting') result = await handleBookMeeting(args, ctx);
+          if (name === 'listServices') result = await handleListServices(args, ctx);
+          else if (name === 'checkAvailability') result = await handleCheckAvailability(args, ctx);
+          else if (name === 'bookAppointment') result = await handleBookAppointment(args, ctx);
+          else if (name === 'cancelAppointment') result = await handleCancelAppointment(args, ctx);
+          else if (name === 'rescheduleAppointment') result = await handleRescheduleAppointment(args, ctx);
+          else if (name === 'myAppointments') result = await handleMyAppointments(args, ctx);
           else if (name === 'updateLeadInfo') result = await handleUpdateLeadInfo(args, ctx);
           else if (name === 'updateLeadMemory') result = await handleUpdateLeadMemory(args, ctx);
           else if (name === 'requestHumanAgent') result = await handleRequestHumanAgent(args, ctx);
@@ -194,12 +185,12 @@ export async function processLeadMessage(
         } catch (err) {
           return { name, response: { error: err instanceof Error ? err.message : String(err) } };
         }
-      })
+      }),
     );
 
-    const functionResponses = toolResults.map(r => ({ functionResponse: r }));
+    const functionResponses = toolResults.map((r) => ({ functionResponse: r }));
     response = await chat.sendMessage(functionResponses);
-    
+
     totalInputTokens += response.response.usageMetadata?.promptTokenCount ?? 0;
     totalOutputTokens += response.response.usageMetadata?.candidatesTokenCount ?? 0;
   }
@@ -223,18 +214,16 @@ export async function processLeadMessage(
     }
   }
 
-  return { 
-    reply, 
-    heat_score, 
-    status, 
-    summary, 
-    tokens_input: totalInputTokens, 
+  return {
+    reply,
+    heat_score,
+    status,
+    summary,
+    tokens_input: totalInputTokens,
     tokens_output: totalOutputTokens,
-    tools_called: toolsCalled
+    tools_called: toolsCalled,
   };
 }
-
-// ─── Entry Point: handleIncomingMessage ──────────────────────────────────────
 
 export async function handleIncomingMessage(
   companyId: string,
@@ -246,7 +235,7 @@ export async function handleIncomingMessage(
   const admin = createAdminClient();
   const timer = createTimer();
 
-  // 1. Deduplicação (Idempotência)
+  // 1. Deduplication
   if (providerMessageId) {
     const { data: existing } = await admin
       .from('processed_messages')
@@ -254,29 +243,21 @@ export async function handleIncomingMessage(
       .eq('provider_message_id', providerMessageId)
       .maybeSingle();
 
-    if (existing) {
-      if (existing.status === 'completed' || existing.status === 'processing') {
-        console.log(`[AI Engine] ⏭️ Mensagem ${providerMessageId} já processada ou em curso. Ignorando.`);
-        return;
-      }
+    if (existing?.status === 'completed' || existing?.status === 'processing') {
+      console.log(`[AI Engine] Mensagem ${providerMessageId} ja processada. Ignorando.`);
+      return;
     }
 
-    // Registrar início do processamento
     await admin.from('processed_messages').upsert({
       provider_message_id: providerMessageId,
       company_id: companyId,
-      status: 'processing'
+      status: 'processing',
     });
   }
 
-  // 1. Context Loading
-  const { data: company } = await admin
-    .from('companies')
-    .select('*')
-    .eq('id', companyId)
-    .single();
-
-  if (!company) throw new Error('Empresa não encontrada');
+  // 2. Context loading
+  const { data: company } = await admin.from('companies').select('*').eq('id', companyId).single();
+  if (!company) throw new Error('Empresa nao encontrada');
 
   const { data: services } = await admin
     .from('services')
@@ -292,7 +273,7 @@ export async function handleIncomingMessage(
     realServices: (services as any[]) || [],
   };
 
-  // 2. Lead Upsert
+  // 3. Lead upsert
   const { data: lead } = await admin
     .from('leads')
     .select('*')
@@ -303,41 +284,45 @@ export async function handleIncomingMessage(
   let activeLead: Lead;
   if (lead) {
     activeLead = lead as Lead;
-    
-    // 2.1 Trava de Concorrência (Anti-Race Condition)
     if (activeLead.is_processing) {
-      console.warn(`[AI Engine] ⏳ Lead ${phone} já está sendo processado. Abortando turno concorrente.`);
+      console.warn(`[AI Engine] Lead ${phone} ja esta sendo processado. Abortando.`);
       return;
     }
-
-    // Ativar lock
     await admin.from('leads').update({ is_processing: true }).eq('id', activeLead.id);
   } else {
     const { data: created } = await admin
       .from('leads')
-      .insert({ 
-        company_id: companyId, 
-        name: senderName, 
-        phone, 
-        channel: 'whatsapp', 
-        lead_memory: mountContext(null, null),
-        is_processing: true // Já nasce travado
+      .insert({
+        company_id: companyId,
+        name: senderName,
+        phone,
+        channel: 'whatsapp',
+        lead_memory: EMPTY_MEMORY,
+        is_processing: true,
       })
       .select()
       .single();
     activeLead = created as Lead;
   }
 
-  // 3. Billing Gate
+  const releaseLock = () =>
+    admin.from('leads').update({ is_processing: false }).eq('id', activeLead.id);
+
+  // 4. Billing gate
   const usage = await getCompanyUsage(companyId);
   if (usage.isLimitReached) {
-    const fallback = "Olá! No momento estamos com alta demanda. Recebemos sua mensagem e um consultor humano entrará em contato em breve.";
+    const fallback =
+      'Ola! No momento estamos com alta demanda. Recebemos sua mensagem e um consultor humano entrara em contato em breve.';
     await sendWhatsAppMessage(phone, fallback, companyId);
+    await releaseLock();
     return;
   }
 
-  // 4. Persistence & History
-  await admin.from('messages').insert({ lead_id: activeLead.id, company_id: companyId, role: 'user', content: messageText });
+  // 5. Persist incoming message + load history
+  await admin
+    .from('messages')
+    .insert({ lead_id: activeLead.id, company_id: companyId, role: 'user', content: messageText });
+
   const { data: history } = await admin
     .from('messages')
     .select('*')
@@ -345,38 +330,58 @@ export async function handleIncomingMessage(
     .order('created_at', { ascending: true })
     .limit(20);
 
-  if (activeLead.is_paused) return;
+  if (activeLead.is_paused) {
+    await releaseLock();
+    return;
+  }
 
-  // 5. AI Turn
-  const aiResult = await processLeadMessage(activeLead, (history ?? []) as Message[], messageText, companyId, persona);
-  
-  // 6. Deterministic Scoring
+  // 6. AI turn
+  let aiResult: Awaited<ReturnType<typeof processLeadMessage>>;
+  try {
+    aiResult = await processLeadMessage(
+      activeLead,
+      (history ?? []) as Message[],
+      messageText,
+      companyId,
+      persona,
+    );
+  } catch (aiErr) {
+    console.error('[AI Engine] processLeadMessage failed:', aiErr);
+    await releaseLock();
+    throw aiErr;
+  }
+
+  // 7. Deterministic scoring
   const { score: finalScore, reason: scoreReason } = validateAndNormalizeScore(
     aiResult.heat_score,
     activeLead.heat_score,
-    activeLead.lead_memory || mountContext(null, null) as any,
-    messageText
+    activeLead.lead_memory || EMPTY_MEMORY,
+    messageText,
   );
 
-  // 7. Watermark & Response
+  // 8. Watermark
   let finalReply = aiResult.reply;
-  const isFirstResponse = (history ?? []).filter(m => m.role === 'assistant').length === 0;
+  const isFirstResponse = (history ?? []).filter((m) => m.role === 'assistant').length === 0;
   if (usage.limits.hasWatermark && isFirstResponse) {
-    finalReply += '\n\n⚡ _Atendimento por Agendra_';
+    finalReply += '\n\n Atendimento por Agendra';
   }
 
-  const { data: sentMessage } = await admin.from('messages').insert({
-    lead_id: activeLead.id,
-    company_id: companyId,
-    role: 'assistant',
-    content: finalReply,
-  }).select().single();
+  const { data: sentMessage } = await admin
+    .from('messages')
+    .insert({
+      lead_id: activeLead.id,
+      company_id: companyId,
+      role: 'assistant',
+      content: finalReply,
+    })
+    .select()
+    .single();
 
   await sendWhatsAppMessage(phone, finalReply, companyId);
 
-  // 8. Update Lead State
+  // 9. Update lead state
   const updatedMemory = appendScoreHistory(activeLead.lead_memory, finalScore, scoreReason);
-  
+
   const leadPatch: any = {
     heat_score: finalScore,
     status: aiResult.status,
@@ -384,7 +389,6 @@ export async function handleIncomingMessage(
     lead_memory: updatedMemory,
   };
 
-  // Auto-escalation
   if (persona.auto_escalate && finalScore < (persona.escalation_threshold ?? 25)) {
     leadPatch.is_paused = true;
     await admin.from('messages').insert({
@@ -397,7 +401,7 @@ export async function handleIncomingMessage(
 
   await admin.from('leads').update(leadPatch).eq('id', activeLead.id);
 
-  // 9. Observability (AILog)
+  // 10. Observability
   await persistAILog({
     company_id: companyId,
     lead_id: activeLead.id,
@@ -412,51 +416,64 @@ export async function handleIncomingMessage(
     model: MAIN_MODEL,
     tokens_input: aiResult.tokens_input,
     tokens_output: aiResult.tokens_output,
-    cost: null, // calculated in persistAILog
+    cost: null,
     retries: 0,
     error: null,
   });
 
-  // 10. Post-turn Background Processing
+  // 11. Background post-processing — releases lock in all paths
   (async () => {
     try {
       const facts = await extractRelevantFacts(messageText);
       const newSummary = await summarizeConversation((history ?? []) as Message[], aiResult.summary);
-      
-      const { data: latestLead } = await admin.from('leads').select('lead_memory').eq('id', activeLead.id).single();
+
+      const { data: latestLead } = await admin
+        .from('leads')
+        .select('lead_memory')
+        .eq('id', activeLead.id)
+        .single();
       const currentMem = latestLead?.lead_memory as any;
-      
+
       const furtherUpdatedMem = {
         ...currentMem,
-        services_mentioned: [...new Set([...(currentMem.services_mentioned || []), ...(facts.services || [])])],
-        objections_raised: [...new Set([...(currentMem.objections_raised || []), ...(facts.objections || [])])],
-        qualification_answers: { ...(currentMem.qualification_answers || {}), ...(facts.answers || {}) },
+        services_mentioned: [
+          ...new Set([...(currentMem.services_mentioned || []), ...(facts.services || [])]),
+        ],
+        objections_raised: [
+          ...new Set([...(currentMem.objections_raised || []), ...(facts.objections || [])]),
+        ],
+        qualification_answers: {
+          ...(currentMem.qualification_answers || {}),
+          ...(facts.answers || {}),
+        },
       };
 
-      await admin.from('leads').update({
-        lead_memory: furtherUpdatedMem,
-        summary: newSummary,
-        is_processing: false,
-        last_message_id: providerMessageId
-      }).eq('id', activeLead.id);
+      await admin
+        .from('leads')
+        .update({
+          lead_memory: furtherUpdatedMem,
+          summary: newSummary,
+          is_processing: false,
+          last_message_id: providerMessageId,
+        })
+        .eq('id', activeLead.id);
 
       if (providerMessageId) {
-        await admin.from('processed_messages').update({ status: 'completed' }).eq('provider_message_id', providerMessageId);
+        await admin
+          .from('processed_messages')
+          .update({ status: 'completed' })
+          .eq('provider_message_id', providerMessageId);
       }
     } catch (e) {
       console.error('[AI Engine] Background processing failed', e);
-      // Fallback release lock if background fails
-      await admin.from('leads').update({ is_processing: false }).eq('id', activeLead.id);
+      await releaseLock();
     }
   })();
 }
 
-/**
- * triggerAutoFollowUp — Gera e envia uma mensagem de re-engajamento contextual.
- */
 export async function triggerAutoFollowUp(leadId: string): Promise<void> {
   const admin = createAdminClient();
-  
+
   const { data: lead } = await admin
     .from('leads')
     .select('*, companies(*)')
@@ -474,17 +491,17 @@ export async function triggerAutoFollowUp(leadId: string): Promise<void> {
     .limit(5);
 
   const lastMsg = messages?.[0];
-  if (!lastMsg || lastMsg.role !== 'assistant') return; // Só segue se a última palavra foi nossa
+  if (!lastMsg || lastMsg.role !== 'assistant') return;
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-8b' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
-  
-  const prompt = `Você é ${company.ai_name || 'Agendra'}, assistente do(a) ${company.name}.
-O lead ${lead.name} parou de responder após nossa última mensagem.
-Contexto: ${memoryContext}
-Última mensagem enviada: "${lastMsg.content}"
 
-Objetivo: Envie um follow-up curto (máximo 2 frases), gentil e sem pressão para ver se ele ainda tem interesse ou se ficou com alguma dúvida. Não use "Oi, você está aí?". Seja profissional e amigável.
+  const prompt = `Voce e ${company.ai_name || 'Agendra'}, assistente do(a) ${company.name}.
+O lead ${lead.name} parou de responder apos nossa ultima mensagem.
+Contexto: ${memoryContext}
+Ultima mensagem enviada: "${lastMsg.content}"
+
+Objetivo: Envie um follow-up curto (maximo 2 frases), gentil e sem pressao para ver se ele ainda tem interesse ou se ficou com alguma duvida. Nao use "Oi, voce esta ai?". Seja profissional e amigavel.
 
 Mensagem de follow-up:`;
 
@@ -493,13 +510,13 @@ Mensagem de follow-up:`;
     const followupText = result.response.text().trim().replace(/^"|"$/g, '');
 
     await sendWhatsAppMessage(lead.phone, followupText, lead.company_id);
-    
+
     await admin.from('messages').insert({
       lead_id: lead.id,
       company_id: lead.company_id,
       role: 'assistant',
       content: followupText,
-      metadata: { type: 'auto-followup' }
+      metadata: { type: 'auto-followup' },
     });
 
     await admin.from('leads').update({ last_followup_at: new Date().toISOString() }).eq('id', lead.id);

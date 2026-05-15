@@ -8,8 +8,16 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
  * Execução recomendada: a cada 5 ou 10 minutos.
  */
 export async function GET(req: NextRequest) {
+  // Accept both Vercel-injected Authorization header and legacy ?secret= query param
   const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const querySecret = new URL(req.url).searchParams.get('secret');
+  const cronSecret = process.env.CRON_SECRET;
+
+  const isAuthorized =
+    (authHeader && cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+    (querySecret && cronSecret && querySecret === cronSecret);
+
+  if (!isAuthorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -22,7 +30,8 @@ export async function GET(req: NextRequest) {
     .select(`
       *,
       leads (phone, name),
-      events (start_time, title)
+      events (start_time, title),
+      companies (persona_config)
     `)
     .eq('status', 'pending')
     .lte('remind_at', now)
@@ -45,11 +54,23 @@ export async function GET(req: NextRequest) {
           throw new Error('Dados incompletos para o lembrete.');
         }
 
-        // Formatar data para exibição amigável (pode ser melhorado com Intl)
-        const dateObj = new Date(event.start_time);
-        const timeStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const company = rem.companies as any;
+        const timezone = (company?.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
 
-        const message = `Olá ${lead.name.split(' ')[0]}! Passando para lembrar do seu agendamento de "${event.title}" hoje às ${timeStr}. Nos vemos em breve! 🚀`;
+        const dateObj = new Date(event.start_time);
+        // Use Intl explicitly so Node/Vercel server doesn't default to UTC
+        const fmt = new Intl.DateTimeFormat('pt-BR', {
+          timeZone: timezone,
+          hour: '2-digit',
+          minute: '2-digit',
+          day: '2-digit',
+          month: '2-digit',
+        });
+        const parts = fmt.formatToParts(dateObj);
+        const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+        const timeStr = `${get('hour')}:${get('minute')} do dia ${get('day')}/${get('month')}`;
+
+        const message = `Olá ${lead.name.split(' ')[0]}! Passando para lembrar do seu agendamento de "${event.title}" às ${timeStr}. Nos vemos em breve! 🗓`;
 
         await sendWhatsAppMessage(lead.phone, message, rem.company_id);
 

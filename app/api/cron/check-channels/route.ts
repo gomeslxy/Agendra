@@ -13,11 +13,14 @@ import { NextResponse } from "next/server";
  */
 export async function GET(req: Request) {
   // 1. Proteção via Secret (Configurar CRON_SECRET nas envs)
-  const { searchParams } = new URL(req.url);
-  const secret = searchParams.get("secret");
-
-  if (process.env.NODE_ENV === "production" && secret !== process.env.CRON_SECRET) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const url = new URL((req as any).url);
+    const authHeader = (req as any).headers?.get?.('authorization') ?? '';
+    const querySecret = url.searchParams.get('secret') ?? '';
+    if (authHeader !== `Bearer ${cronSecret}` && querySecret !== cronSecret) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
   }
 
   const supabase = createAdminClient();

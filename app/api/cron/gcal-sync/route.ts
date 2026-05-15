@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { syncCompanyCalendar } from '@/lib/calendar/sync';
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function handleGCalSync(request: NextRequest): Promise<NextResponse> {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     console.error('[Cron/GCal] CRON_SECRET env var not configured');
@@ -17,7 +17,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const authHeader = request.headers.get('Authorization');
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  const querySecret = new URL(request.url).searchParams.get('secret') ?? '';
+  if (authHeader !== `Bearer ${cronSecret}` && querySecret !== cronSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -58,3 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   console.log('[Cron/GCal] Sync complete:', summary);
   return NextResponse.json({ ok: true, ...summary });
 }
+
+// Vercel Cron calls GET; keep POST for manual triggers
+export const GET = handleGCalSync;
+export const POST = handleGCalSync;

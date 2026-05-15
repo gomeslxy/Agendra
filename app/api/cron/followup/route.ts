@@ -3,11 +3,13 @@ import { triggerAutoFollowUp } from "@/lib/ai/engine";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const secret = searchParams.get("secret");
-
-  if (process.env.NODE_ENV === "production" && secret !== process.env.CRON_SECRET) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = (req as any).headers?.get?.('authorization') ?? '';
+    const querySecret = new URL(req.url).searchParams.get('secret') ?? '';
+    if (authHeader !== `Bearer ${cronSecret}` && querySecret !== cronSecret) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
   }
 
   const supabase = createAdminClient();

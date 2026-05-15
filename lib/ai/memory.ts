@@ -79,7 +79,7 @@ export async function summarizeConversation(
   history: Message[],
   currentSummary: string | null
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-8b' }); // Using a fast, cheap model for summarization
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' }); // Fast, free-tier model for summarization
   
   const conversation = history
     .filter(m => m.role === 'user' || m.role === 'assistant')
@@ -113,8 +113,8 @@ export async function extractRelevantFacts(message: string): Promise<{
   answers?: Record<string, string>;
   intent_signal?: string;
 }> {
-  const model = genAI.getGenerativeModel({ 
-    model: 'gemini-1.5-flash-8b',
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash-lite',
     generationConfig: { responseMimeType: 'application/json' }
   });
 

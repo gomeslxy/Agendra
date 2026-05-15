@@ -18,7 +18,7 @@ import {
   deleteGCalEvent, 
   updateGCalEvent 
 } from '@/lib/calendar/google';
-import { calculateAvailableSlots, AvailableSlot } from '@/lib/calendar/availability';
+import { calculateAvailableSlots } from '@/lib/calendar/availability';
 import { type Tool, SchemaType } from '@google/generative-ai';
 import { handleUpdateLeadMemory } from './memory';
 
@@ -152,7 +152,7 @@ export const toolDeclarations: Tool = {
 
 // ─── Tool Handlers ────────────────────────────────────────────────────────────
 
-export async function handleListServices(args: any, ctx: ToolContext) {
+export async function handleListServices(_args: any, ctx: ToolContext) {
   const admin = createAdminClient();
   const { data: services, error } = await admin
     .from('services')
@@ -350,13 +350,25 @@ export async function handleBookAppointment(
     console.error('[Tools] Falha ao agendar lembrete:', remErr);
   }
 
+  // Format start time in company timezone for the confirmation message
+  const companyTimezone = (company?.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
+  const fmt = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: companyTimezone,
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const friendlyDate = fmt.format(startTime);
+
   return {
-    message: `Perfeito! Agendamento confirmado para ${service.name} em ${args.start_time}.`,
-    event
+    message: `Perfeito! Agendamento confirmado: *${service.name}* em ${friendlyDate}.`,
+    event,
   };
 }
 
-export async function handleCancelAppointment(args: { event_id: string; reason?: string }, ctx: ToolContext) {
+export async function handleCancelAppointment(args: { event_id: string; reason?: string }, _ctx: ToolContext) {
   const admin = createAdminClient();
   
   const { data: event } = await admin
@@ -457,7 +469,7 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
   return { message: 'Reagendamento concluído com sucesso.' };
 }
 
-export async function handleMyAppointments(args: any, ctx: ToolContext) {
+export async function handleMyAppointments(_args: any, ctx: ToolContext) {
   const admin = createAdminClient();
   const { data: events } = await admin
     .from('events')
