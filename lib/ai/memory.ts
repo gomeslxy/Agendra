@@ -99,8 +99,10 @@ export async function processBackgroundAnalytics(
     generationConfig: { responseMimeType: 'application/json' }
   });
 
+  // [FIX P2-3] Limita o histórico do analytics para as últimas 5 mensagens (economiza mais de 60% dos tokens)
   const conversation = history
     .filter(m => m.role === 'user' || m.role === 'assistant')
+    .slice(-5)
     .map(m => `${m.role === 'user' ? 'Lead' : 'IA'}: ${m.content}`)
     .join('\n');
 

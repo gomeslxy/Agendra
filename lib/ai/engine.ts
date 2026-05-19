@@ -398,7 +398,7 @@ export async function handleIncomingMessage(
     // Two concurrent webhooks for the same lead cannot both win.
     const { data: locked } = await admin
       .from('leads')
-      .update({ is_processing: true })
+      .update({ is_processing: true, processing_started_at: new Date().toISOString() })
       .eq('id', activeLead.id)
       .eq('is_processing', false)
       .select('id')
@@ -424,6 +424,7 @@ export async function handleIncomingMessage(
         channel: 'whatsapp',
         lead_memory: EMPTY_MEMORY,
         is_processing: true,
+        processing_started_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -473,7 +474,7 @@ export async function handleIncomingMessage(
   }
 
   const releaseLock = () =>
-    admin.from('leads').update({ is_processing: false }).eq('id', activeLead.id);
+    admin.from('leads').update({ is_processing: false, processing_started_at: null }).eq('id', activeLead.id);
 
   // 4. Billing gate
   const usage = await getCompanyUsage(companyId);
@@ -593,7 +594,7 @@ export async function handleIncomingMessage(
   // 10. Release lock + mark processed BEFORE background tasks
   await admin
     .from('leads')
-    .update({ is_processing: false, last_message_id: providerMessageId ?? null })
+    .update({ is_processing: false, last_message_id: providerMessageId ?? null, processing_started_at: null })
     .eq('id', activeLead.id);
 
   if (providerMessageId) {

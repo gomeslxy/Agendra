@@ -28,6 +28,9 @@
 - [x] **Plan Gates**: `maxChannels` e `maxCalendars` enforced em todos os pontos de conexão.
 - [x] **TTL Cleanup**: pg_cron deleta `processed_messages` com mais de 7 dias (migration 018).
 - [x] **Metadata Schema Sync**: Coluna `metadata` adicionada na tabela `messages` (migration 023), corrigindo o erro PGRST204 de produção e restaurando o histórico de conversas da IA para agendamento.
+- [x] **Watchdog & Lock TTL**: Coluna `processing_started_at` e watchdog `pg_cron` de 3 minutos previnem leads congelados permanentemente por timeout ou crash (migration 024).
+- [x] **Morning Cron Multi-tenant**: Lembretes iterados por empresa com limite de 10 cada (evita starvation global) e GCal Sync desabilitado para planos cancelados.
+- [x] **Analytics Token Optimization**: Redução do histórico no prompt do analytics de 20 para as últimas 5 mensagens mais recentes, economizando mais de 60% dos tokens de analytics.
 
 ## 💅 Fase 4: Polimento Premium & Escala
 - [x] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
@@ -52,10 +55,10 @@
 - [ ] Notificação visual de alta prioridade quando draft gerado
 - [ ] Banner de nudge: "Você aprovou 95% das sugestões — ativar modo Autônomo?"
 
-### Épico 3 — Brain Central & RAG (🔜 Fase 2)
-- [ ] UI na aba "Flows" → renomear para "Brain / Cérebro"
+### Épico 3 — Brain Central & Control Center (✅ Fase 1 Concluída)
+- [x] Refatoração do `/settings` para layout de Sidebar Vertical (Control Center).
+- [x] Sliders de personalidade e limpeza de UI (Canais "em breve" removidos).
 - [ ] Drag-and-drop / upload de PDFs (Tabela de Preços, FAQ) → `company_knowledge` + pgvector
-- [ ] Sliders de personalidade: Formalidade (1–10), Agressividade de Vendas (1–10)
 - [ ] Explainability Log: "Por que a IA disse isso?" — lê `ai_decision_logs` com source e confiança
 - [ ] `match_knowledge()` RPC já definida em `plano-estrategico-evolucao.md` — implementar
 

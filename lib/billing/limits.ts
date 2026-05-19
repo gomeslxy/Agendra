@@ -22,9 +22,6 @@ export interface CompanyUsage {
 
 export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> {
   const admin = createAdminClient();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  console.log(`[Billing] 🌐 Usando Supabase URL: ${supabaseUrl.split('//')[1]?.split('.')[0]}...`);
-  console.log(`[Billing] 🔍 Buscando uso para companyId: "${companyId}"`);
 
   // Buscamos apenas o básico primeiro para evitar erro de coluna inexistente
   const { data: company, error: companyError } = await admin

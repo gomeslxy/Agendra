@@ -29,15 +29,29 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const admin = createAdminClient();
   const summary: Record<string, any> = {};
 
+  // Fetch active companies (active or trial status)
+  const { data: activeCompanies, error: companiesError } = await admin
+    .from('companies')
+    .select('id, name, subscription_status, google_refresh_token')
+    .in('subscription_status', ['active', 'trial'])
+    .not('subscription_status', 'eq', 'canceled');
+
+  if (companiesError) {
+    console.error('[morning-cron] Failed to fetch companies:', companiesError.message);
+    return NextResponse.json({ error: companiesError.message }, { status: 500 });
+  }
+
+  const companiesList = activeCompanies ?? [];
+  console.log(`[morning-cron] Processing ${companiesList.length} active companies`);
+
   // ── 1. GCal Sync ────────────────────────────────────────────────────────────
   try {
-    const { data: companies } = await admin
-      .from('companies')
-      .select('id')
-      .not('google_refresh_token', 'is', null);
-
     const gcal = { synced: 0, skipped: 0, errors: 0 };
-    for (const co of companies ?? []) {
+    for (const co of companiesList) {
+      if (!co.google_refresh_token) {
+        gcal.skipped++;
+        continue;
+      }
       try {
         const r = await syncCompanyCalendar(co.id);
         r.skipped ? gcal.skipped++ : gcal.synced++;
@@ -55,50 +69,59 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── 2. Reminders ────────────────────────────────────────────────────────────
   try {
     const now = new Date().toISOString();
-    const { data: reminders } = await admin
-      .from('reminders')
-      .select('*, leads(phone, name), events(start_time, title), companies(persona_config, name)')
-      .eq('status', 'pending')
-      .lte('remind_at', now)
-      .limit(30);
-
     let sent = 0;
     let failed = 0;
-    for (const rem of reminders ?? []) {
-      try {
-        // Atomic claim — skip if /api/cron/reminders (5min job) already sent this
-        const { data: claimed } = await admin
-          .from('reminders')
-          .update({ status: 'sent' })
-          .eq('id', rem.id)
-          .eq('status', 'pending')
-          .select('id')
-          .maybeSingle();
 
-        if (!claimed) continue;
+    for (const company of companiesList) {
+      const { data: reminders, error: remErr } = await admin
+        .from('reminders')
+        .select('*, leads(phone, name), events(start_time, title), companies(persona_config, name)')
+        .eq('company_id', company.id)
+        .eq('status', 'pending')
+        .lte('remind_at', now)
+        .limit(10);
 
-        const lead = rem.leads as any;
-        const event = rem.events as any;
-        if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
+      if (remErr) {
+        console.error(`[morning-cron] reminders error for company ${company.id}:`, remErr.message);
+        continue;
+      }
 
-        const tz = (rem.companies as any)?.persona_config?.timezone ?? 'America/Sao_Paulo';
-        const businessName = (rem.companies as any)?.name ?? 'nossa empresa';
-        const eventDate = new Date(event.start_time);
-        const hoursUntil = (eventDate.getTime() - Date.now()) / 3600000;
-        const { dateStr, timeStr } = formatDateTime(eventDate, tz);
-        const msg = buildReminderMessage({
-          leadFirstName: lead.name.split(' ')[0],
-          serviceName: event.title,
-          dateStr,
-          timeStr,
-          businessName,
-          hoursAhead: Math.round(hoursUntil),
-        });
-        await sendWhatsAppMessage(lead.phone, msg, rem.company_id);
-        sent++;
-      } catch (err: any) {
-        await admin.from('reminders').update({ status: 'failed', error_log: err.message }).eq('id', rem.id);
-        failed++;
+      for (const rem of reminders ?? []) {
+        try {
+          // Atomic claim — skip if another process already claimed
+          const { data: claimed } = await admin
+            .from('reminders')
+            .update({ status: 'sent' })
+            .eq('id', rem.id)
+            .eq('status', 'pending')
+            .select('id')
+            .maybeSingle();
+
+          if (!claimed) continue;
+
+          const lead = rem.leads as any;
+          const event = rem.events as any;
+          if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
+
+          const tz = (rem.companies as any)?.persona_config?.timezone ?? 'America/Sao_Paulo';
+          const businessName = (rem.companies as any)?.name ?? 'nossa empresa';
+          const eventDate = new Date(event.start_time);
+          const hoursUntil = (eventDate.getTime() - Date.now()) / 3600000;
+          const { dateStr, timeStr } = formatDateTime(eventDate, tz);
+          const msg = buildReminderMessage({
+            leadFirstName: lead.name.split(' ')[0],
+            serviceName: event.title,
+            dateStr,
+            timeStr,
+            businessName,
+            hoursAhead: Math.round(hoursUntil),
+          });
+          await sendWhatsAppMessage(lead.phone, msg, rem.company_id);
+          sent++;
+        } catch (err: any) {
+          await admin.from('reminders').update({ status: 'failed', error_log: err.message }).eq('id', rem.id);
+          failed++;
+        }
       }
     }
     summary.reminders = { sent, failed };

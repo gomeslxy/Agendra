@@ -35,7 +35,7 @@ export async function updatePersona(formData: FormData) {
   }
 
   const escalationThreshold = parseInt(formData.get("escalation_threshold") as string, 10);
-  const autoEscalate = formData.get("auto_escalate") === "true";
+  const autoEscalateRaw = formData.get("auto_escalate");
   const slotDuration = parseInt(formData.get("slot_duration_minutes") as string, 10);
 
   // Read current persona_config to merge (single round-trip)
@@ -57,7 +57,7 @@ export async function updatePersona(formData: FormData) {
   if ((formData.get("business_type") as string)) personaConfigPatch.business_type = formData.get("business_type") as string;
   if (services.length > 0) personaConfigPatch.services = services;
   if (!isNaN(escalationThreshold)) personaConfigPatch.escalation_threshold = escalationThreshold;
-  personaConfigPatch.auto_escalate = autoEscalate;
+  if (autoEscalateRaw !== null) personaConfigPatch.auto_escalate = autoEscalateRaw === "true";
   if (!isNaN(slotDuration)) personaConfigPatch.slot_duration_minutes = slotDuration;
   if (formData.get("timezone") as string) personaConfigPatch.timezone = formData.get("timezone") as string;
   if (working_hours) personaConfigPatch.working_hours = working_hours;

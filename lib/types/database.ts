@@ -21,6 +21,7 @@ export interface Lead {
   email: string | null;
   is_paused: boolean;
   is_processing: boolean;
+  processing_started_at?: string | null;
   last_message_id: string | null;
   control_mode?: 'autonomous' | 'shadow' | 'manual';
   last_sentiment?: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';

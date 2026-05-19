@@ -43,15 +43,17 @@ import { trackEvent } from "@/lib/analytics";
 import { STRIPE_PRICE_IDS, PLANS_META } from "@/lib/billing/plans";
 import type { PlanType } from "@/lib/billing/plans";
 
-type TabId = "persona" | "services" | "channels" | "flows" | "team" | "billing";
+type TabId = "account" | "rules" | "services" | "brain" | "channels" | "automation" | "logs" | "billing";
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: "persona",  label: "Persona",   icon: Cpu },
-  { id: "services", label: "Serviços",  icon: Briefcase },
-  { id: "channels", label: "Canais",    icon: MessageSquare },
-  { id: "flows",    label: "Fluxos",    icon: GitBranch },
-  { id: "team",     label: "Time",      icon: Users },
-  { id: "billing",  label: "Cobrança",  icon: CreditCard },
+  { id: "account",    label: "Conta & Empresa",   icon: Users },
+  { id: "rules",      label: "Horários & Regras", icon: Clock },
+  { id: "services",   label: "Serviços",          icon: Briefcase },
+  { id: "brain",      label: "Cérebro da IA",     icon: Cpu },
+  { id: "channels",   label: "Canais",            icon: MessageSquare },
+  { id: "automation", label: "Automação",         icon: GitBranch },
+  { id: "logs",       label: "Mente da IA",       icon: Zap },
+  { id: "billing",    label: "Assinatura",        icon: CreditCard },
 ];
 
 interface MemberUser {
@@ -129,7 +131,7 @@ export function SettingsShell({ company, memberships, channels, services, usage 
   // Initialized from URL so deep-links and OAuth redirects work.
   const rawTab = searchParams.get("tab") as TabId | null;
   const [tab, setTab] = useState<TabId>(() =>
-    rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "persona"
+    rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "brain"
   );
 
   function changeTab(newTab: TabId) {
@@ -213,59 +215,89 @@ export function SettingsShell({ company, memberships, channels, services, usage 
         </p>
       </header>
 
-      <div className="relative mb-8 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => changeTab(t.id)}
-              className={cn(
-                "group relative flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-bold tracking-tight transition-all duration-300 outline-none cursor-pointer",
-                active 
-                  ? "text-white" 
-                  : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
-              )}
-            >
-              <t.icon size={16} className={cn(
-                "transition-transform duration-300 group-hover:scale-110",
-                active ? "text-brand-blue-400" : "text-white/20 group-hover:text-white/40"
-              )} />
-              <span className="relative z-10">{t.label}</span>
-              
-              {active && (
-                <motion.div
-                  layoutId="active-tab-glow"
-                  className="absolute inset-0 z-0 rounded-xl border border-brand-blue-500/20 bg-brand-blue-500/5 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-              
-              {active && (
-                <motion.div
-                  layoutId="active-tab-underline"
-                  className="absolute -bottom-1 left-3 right-3 h-0.5 rounded-full bg-brand-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start">
+        {/* Mobile Tabs (Horizontal) */}
+        <div className="lg:hidden relative w-full flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => changeTab(t.id)}
+                className={cn(
+                  "group relative flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-bold tracking-tight transition-all duration-300 outline-none cursor-pointer shrink-0",
+                  active 
+                    ? "text-white" 
+                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
+                )}
+              >
+                <t.icon size={16} className={cn(
+                  "transition-transform duration-300 group-hover:scale-110",
+                  active ? "text-brand-blue-400" : "text-white/20 group-hover:text-white/40"
+                )} />
+                <span className="relative z-10">{t.label}</span>
+                {active && (
+                  <motion.div
+                    layoutId="active-tab-mobile-glow"
+                    className="absolute inset-0 z-0 rounded-xl border border-brand-blue-500/20 bg-brand-blue-500/5 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-      <motion.div
-        key={tab}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-      >
-        {tab === "persona"  && <Persona company={company} services={services} onChangeTab={changeTab} />}
-        {tab === "services" && <Services companyId={company?.id} services={services} />}
-        {tab === "channels" && <Channels company={company} channels={channels} />}
-        {tab === "flows"    && <Flows />}
-        {tab === "team"     && <Team memberships={memberships} />}
-        {tab === "billing"  && <Billing company={company} usage={usage} />}
-      </motion.div>
+        {/* Desktop Sidebar (Vertical) */}
+        <div className="hidden lg:flex flex-col w-64 shrink-0 gap-1.5 sticky top-7">
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => changeTab(t.id)}
+                className={cn(
+                  "group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold tracking-tight transition-all duration-300 outline-none cursor-pointer text-left w-full",
+                  active 
+                    ? "text-white" 
+                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
+                )}
+              >
+                <t.icon size={18} className={cn(
+                  "transition-transform duration-300 group-hover:scale-110",
+                  active ? "text-brand-blue-400" : "text-white/20 group-hover:text-white/40"
+                )} />
+                <span className="relative z-10 flex-1">{t.label}</span>
+                {active && (
+                  <motion.div
+                    layoutId="active-tab-desktop-glow"
+                    className="absolute inset-0 z-0 rounded-xl border border-brand-blue-500/20 bg-brand-blue-500/5 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Main Content Area */}
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 6, filter: "blur(4px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          className="flex-1 w-full max-w-3xl min-w-0"
+        >
+          {tab === "account"    && <Team memberships={memberships} />}
+          {tab === "rules"      && <Rules company={company} />}
+          {tab === "services"   && <Services companyId={company?.id} services={services} />}
+          {tab === "brain"      && <Persona company={company} services={services} onChangeTab={changeTab} />}
+          {tab === "channels"   && <Channels company={company} channels={channels} />}
+          {tab === "automation" && <Flows />}
+          {tab === "logs"       && <LogsPlaceholder />}
+          {tab === "billing"    && <Billing company={company} usage={usage} />}
+        </motion.div>
+      </div>
     </div>
   );
 }
@@ -285,69 +317,42 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 
 function ToneSelect({ defaultValue }: { defaultValue: string }) {
-  const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(defaultValue);
   
   const options = [
-    { value: "cold", label: "Formal", sub: "Direto e profissional", color: "bg-blue-400" },
-    { value: "warm", label: "Amigável", sub: "Equilibrado e atencioso", color: "bg-yellow-400" },
-    { value: "hot", label: "Persuasivo", sub: "Enérgico e focado em vendas", color: "bg-orange-400" },
+    { value: "cold", label: "Formal", desc: "Direto e objetivo" },
+    { value: "warm", label: "Amigável", desc: "Equilibrado e empático" },
+    { value: "hot", label: "Persuasivo", desc: "Focado em vendas" },
   ];
 
-  const current = options.find(o => o.value === selected) || options[1];
-
   return (
-    <div className="relative">
+    <div className="flex flex-col gap-3">
       <input type="hidden" name="ai_tone" value={selected} />
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm transition-all hover:bg-white/10 focus:border-brand-blue-500/50 outline-none"
-      >
-        <div className="flex items-center gap-3">
-          <div className={cn("h-2 w-2 rounded-full", current.color)} />
-          <div className="text-left">
-            <div className="font-bold text-white/90">{current.label}</div>
-            <div className="text-[10px] text-white/40">{current.sub}</div>
-          </div>
-        </div>
-        <GitBranch size={14} className={cn("text-white/20 transition-transform duration-300", open && "rotate-180")} />
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 4, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              className="absolute left-0 right-0 z-50 overflow-hidden rounded-2xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1.5 shadow-2xl shadow-black/50"
-            >
-              {options.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => {
-                    setSelected(o.value);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all",
-                    selected === o.value ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
-                  )}
-                >
-                  <div className={cn("h-2 w-2 rounded-full", o.color)} />
-                  <div className="text-left">
-                    <div className="text-[13px] font-bold">{o.label}</div>
-                    <div className="text-[10px] opacity-60">{o.sub}</div>
-                  </div>
-                </button>
-              ))}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <div className="grid grid-cols-3 gap-2 p-1 bg-white/[0.04] rounded-xl border border-white/[0.08]">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => setSelected(o.value)}
+            className={cn(
+              "relative px-3 py-2 text-xs font-bold transition-all rounded-lg z-10",
+              selected === o.value ? "text-white" : "text-white/40 hover:text-white/70"
+            )}
+          >
+            {o.label}
+            {selected === o.value && (
+              <motion.div
+                layoutId="tone-slider"
+                className="absolute inset-0 bg-brand-blue-500/20 border border-brand-blue-500/30 rounded-lg -z-10 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="text-[11px] text-brand-blue-300/70 italic text-center h-4">
+        {options.find(o => o.value === selected)?.desc}
+      </div>
     </div>
   );
 }
@@ -487,19 +492,10 @@ function Persona({
   const [error, setError] = useState<string | null>(null);
 
   const pc = company?.persona_config ?? {};
-  const [workingHours, setWorkingHours] = useState<Record<string, [string, string]>>(
-    (pc.working_hours as Record<string, [string, string]>) ?? DEFAULT_WH
-  );
-  const [escalationThreshold, setEscalationThreshold] = useState(pc.escalation_threshold ?? 25);
-  const [autoEscalate, setAutoEscalate] = useState(pc.auto_escalate ?? false);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    // Inject working_hours as JSON since it's controlled state
-    formData.set("working_hours", JSON.stringify(workingHours));
-    formData.set("escalation_threshold", String(escalationThreshold));
-    formData.set("auto_escalate", String(autoEscalate));
     setSaved(false);
     setError(null);
     startTransition(async () => {
@@ -564,82 +560,23 @@ function Persona({
         </CardContent>
       </Card>
 
-      {/* ── A2: Regras Operacionais ────────────────────────────── */}
+      {/* ── A2: Conhecimento e RAG ────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle>Regras Operacionais</CardTitle>
-          <CardDescription>Quando a IA age, quando escala e como se organiza.</CardDescription>
+          <CardTitle>Base de Conhecimento</CardTitle>
+          <CardDescription>Treine a IA com materiais da sua empresa.</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Auto-escalation */}
-          <div className="mb-5 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-[13px] font-bold">Escalar lead frio para humano</div>
-                <div className="text-[11px] mt-0.5" style={{ color: "var(--color-fg-3)" }}>
-                  IA pausa atendimento automaticamente quando score cai abaixo do limite
-                </div>
-              </div>
-              <Switch checked={autoEscalate} onChange={setAutoEscalate} label="Auto-escalar" />
-            </div>
-            {autoEscalate && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="flex flex-col gap-2"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
-                    Escalar quando score abaixo de:
-                  </span>
-                  <span className="font-mono text-sm font-bold text-brand-blue-400">{escalationThreshold}</span>
-                </div>
-                <input
-                  type="range"
-                  min={5}
-                  max={50}
-                  step={5}
-                  value={escalationThreshold}
-                  onChange={(e) => setEscalationThreshold(Number(e.target.value))}
-                  className="w-full accent-brand-blue-500"
-                />
-                <div className="flex justify-between text-[10px]" style={{ color: "var(--color-fg-3)" }}>
-                  <span>5 (só muito frio)</span>
-                  <span>50 (qualquer morno)</span>
-                </div>
-              </motion.div>
-            )}
+          <div className="flex flex-col items-center justify-center p-6 border border-dashed border-white/20 rounded-xl bg-white/[0.02] group cursor-not-allowed">
+            <Cpu size={32} className="text-white/20 mb-3 group-hover:text-brand-blue-400 transition-colors" />
+            <p className="text-sm font-medium text-white/60 mb-1">Upload de PDFs e Links</p>
+            <p className="text-[11px] text-white/40 text-center max-w-[200px] mb-4">
+              Permita que a IA leia seus catálogos, FAQs e tabelas de preços.
+            </p>
+            <Button type="button" variant="secondary" size="sm" onClick={(e) => { e.preventDefault(); alert("Em breve: Base de conhecimento RAG para planos Pro/Business."); }}>
+              Configurar Treinamento
+            </Button>
           </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Duração do slot">
-              <select
-                name="slot_duration_minutes"
-                defaultValue={pc.slot_duration_minutes ?? 60}
-                className="w-full rounded-xl border border-white/[0.08] bg-[rgb(11,18,34)] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
-              >
-                {SLOT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Fuso horário">
-              <select
-                name="timezone"
-                defaultValue={pc.timezone ?? "America/Sao_Paulo"}
-                className="w-full rounded-xl border border-white/[0.08] bg-[rgb(11,18,34)] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
-              >
-                {TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value}>{tz.label}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
-
-          <Field label="Horário de atendimento">
-            <WorkingHoursEditor value={workingHours} onChange={setWorkingHours} />
-          </Field>
         </CardContent>
       </Card>
 
@@ -717,30 +654,6 @@ function Channels({ company, channels }: { company: Company | null; channels: Ch
       sub: waConnected ? `ID: ${waChannel!.provider_id}` : undefined,
     },
     {
-      name: "Instagram DM",
-      Icon: Instagram,
-      ok: false,
-      bg: "rgba(255,255,255,0.05)",
-      col: "var(--color-fg-3)",
-      action: { kind: "coming-soon" },
-    },
-    {
-      name: "Site (formulário)",
-      Icon: Globe,
-      ok: false,
-      bg: "rgba(255,255,255,0.05)",
-      col: "var(--color-fg-3)",
-      action: { kind: "coming-soon" },
-    },
-    {
-      name: "Facebook Messenger",
-      Icon: Facebook,
-      ok: false,
-      bg: "rgba(255,255,255,0.05)",
-      col: "var(--color-fg-3)",
-      action: { kind: "coming-soon" },
-    },
-    {
       name: "Google Calendar",
       Icon: Calendar,
       ok: gcalConnected,
@@ -749,14 +662,6 @@ function Channels({ company, channels }: { company: Company | null; channels: Ch
       action: gcalConnected
         ? { kind: "google-manage", email: company!.google_calendar_email! }
         : { kind: "google-connect" },
-    },
-    {
-      name: "Slack",
-      Icon: Slack,
-      ok: false,
-      bg: "rgba(255,255,255,0.05)",
-      col: "var(--color-fg-3)",
-      action: { kind: "coming-soon" },
     },
   ];
 
@@ -1605,5 +1510,144 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
         ))}
       </div>
     </div>
+  );
+}
+
+function Rules({ company }: { company: Company | null }) {
+  const [pending, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pc = company?.persona_config ?? {};
+  const [workingHours, setWorkingHours] = useState<Record<string, [string, string]>>(
+    (pc.working_hours as Record<string, [string, string]>) ?? DEFAULT_WH
+  );
+  const [escalationThreshold, setEscalationThreshold] = useState(pc.escalation_threshold ?? 25);
+  const [autoEscalate, setAutoEscalate] = useState(pc.auto_escalate ?? false);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    formData.set("working_hours", JSON.stringify(workingHours));
+    formData.set("escalation_threshold", String(escalationThreshold));
+    formData.set("auto_escalate", String(autoEscalate));
+    
+    setSaved(false);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await updatePersona(formData);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <Card>
+        <CardHeader>
+          <CardTitle>Regras Operacionais</CardTitle>
+          <CardDescription>Quando a IA age, quando escala e como se organiza.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Auto-escalation */}
+          <div className="mb-5 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-[13px] font-bold">Escalar lead frio para humano</div>
+                <div className="text-[11px] mt-0.5" style={{ color: "var(--color-fg-3)" }}>
+                  IA pausa atendimento automaticamente quando score cai abaixo do limite
+                </div>
+              </div>
+              <Switch checked={autoEscalate} onChange={setAutoEscalate} label="Auto-escalar" />
+            </div>
+            {autoEscalate && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="flex flex-col gap-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
+                    Escalar quando score abaixo de:
+                  </span>
+                  <span className="font-mono text-sm font-bold text-brand-blue-400">{escalationThreshold}</span>
+                </div>
+                <input
+                  type="range"
+                  min={5}
+                  max={50}
+                  step={5}
+                  value={escalationThreshold}
+                  onChange={(e) => setEscalationThreshold(Number(e.target.value))}
+                  className="w-full accent-brand-blue-500"
+                />
+                <div className="flex justify-between text-[10px]" style={{ color: "var(--color-fg-3)" }}>
+                  <span>5 (só muito frio)</span>
+                  <span>50 (qualquer morno)</span>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Duração do slot">
+              <select
+                name="slot_duration_minutes"
+                defaultValue={pc.slot_duration_minutes ?? 60}
+                className="w-full rounded-xl border border-white/[0.08] bg-[rgb(11,18,34)] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
+              >
+                {SLOT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Fuso horário">
+              <select
+                name="timezone"
+                defaultValue={pc.timezone ?? "America/Sao_Paulo"}
+                className="w-full rounded-xl border border-white/[0.08] bg-[rgb(11,18,34)] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
+              >
+                {TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value}>{tz.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Horário de atendimento">
+            <WorkingHoursEditor value={workingHours} onChange={setWorkingHours} />
+          </Field>
+          
+          {error && <p className="mb-4 text-xs text-red-400 font-medium mt-4">{error}</p>}
+          <Button type="submit" variant="blue" size="sm" className="w-full font-bold h-10 mt-4" disabled={pending}>
+            {saved ? <><Check size={14} className="mr-2" /> Salvo ✓</> : pending ? "Salvando…" : "Salvar regras"}
+          </Button>
+        </CardContent>
+      </Card>
+    </form>
+  );
+}
+
+function LogsPlaceholder() {
+  return (
+    <Card className="border-brand-blue-500/20 bg-brand-blue-500/5">
+      <CardContent className="p-5 flex gap-4 items-start">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-blue-500/10 text-brand-blue-400">
+          <Zap size={20} />
+        </div>
+        <div>
+          <div className="text-[13px] font-bold text-white mb-1">Mente da IA (Explainability)</div>
+          <div className="text-[12px] leading-relaxed text-white/60">
+            Acompanhe em tempo real por que a IA tomou determinadas decisões e refine as orientações.
+            Disponível em breve para planos Pro e Business.
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
