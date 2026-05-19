@@ -21,6 +21,7 @@ export type AnalyticsEvent =
   | "lead_automatize"
   | "tone_changed"
   | "message_sent"
+  | "control_mode_changed"
   | "checkout_started"
   | "stripe_success";
 

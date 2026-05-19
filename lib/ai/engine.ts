@@ -13,6 +13,7 @@ import {
   handleUpdateLeadInfo,
   handleUpdateLeadMemory,
   handleRequestHumanAgent,
+  handleGeneratePixCharge,
   type ToolContext,
 } from './tools';
 import { getCompanyUsage } from '@/lib/billing/limits';
@@ -224,6 +225,7 @@ export async function processLeadMessage(
           else if (name === 'updateLeadInfo') result = await handleUpdateLeadInfo(args, ctx);
           else if (name === 'updateLeadMemory') result = await handleUpdateLeadMemory(args, ctx);
           else if (name === 'requestHumanAgent') result = await handleRequestHumanAgent(args, ctx);
+          else if (name === 'generatePixCharge') result = await handleGeneratePixCharge(args, ctx);
           else result = { error: 'Ferramenta desconhecida' };
 
           return { name, response: result };
@@ -268,6 +270,108 @@ export async function processLeadMessage(
     tokens_output: totalOutputTokens,
     tools_called: toolsCalled,
   };
+}
+
+/**
+ * getSemanticKnowledge — Busca no Supabase conhecimento vetorial relevante
+ * e ajusta embeddings do Gemini 768 para 1536 dimensões compatíveis com o banco.
+ */
+async function getSemanticKnowledge(companyId: string, query: string, admin: any): Promise<string> {
+  try {
+    if (!process.env.GOOGLE_AI_API_KEY) return '';
+    const embedModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const result = await embedModel.embedContent(query);
+    let values = result.embedding?.values;
+    if (!values || values.length === 0) return '';
+    
+    // Ajusta para 1536 dimensões (pgvector VECTOR(1536) na tabela)
+    if (values.length < 1536) {
+      const padding = new Array(1536 - values.length).fill(0);
+      values = [...values, ...padding];
+    } else if (values.length > 1536) {
+      values = values.slice(0, 1536);
+    }
+    
+    const { data: matches, error } = await admin.rpc('match_knowledge', {
+      p_company_id: companyId,
+      p_embedding: values,
+      p_match_threshold: 0.7,
+      p_match_count: 3
+    });
+
+    if (error) {
+      console.error('[RAG] match_knowledge RPC error:', error);
+      return '';
+    }
+
+    if (matches && matches.length > 0) {
+      const formatted = matches.map((m: any) => `- ${m.content}`).join('\n');
+      return `\n## Informações de Suporte Encontradas (RAG)\nUse estes dados de FAQ e base de conhecimento se forem relevantes à dúvida do lead:\n${formatted}\n`;
+    }
+  } catch (err) {
+    console.error('[RAG] Semantic search failed, fallback to none:', err);
+  }
+  return '';
+}
+
+/**
+ * analyzeLeadSentimentAndCognition — Analisa cognitivamente a interação
+ * para preenchimento de Explainability (ai_decision_logs) e atualização de last_sentiment no lead.
+ */
+async function analyzeLeadSentimentAndCognition(
+  message: string,
+  reply: string,
+  toolsCalled: any[]
+): Promise<{
+  sentiment: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';
+  sentiment_score: number;
+  intent_detected: string;
+  urgency_detected: boolean;
+  objection_handled: string | null;
+  rationale: string;
+}> {
+  try {
+    if (!process.env.GOOGLE_AI_API_KEY) throw new Error('Chave de API do Gemini nao configurada');
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { responseMimeType: 'application/json' }
+    });
+
+    const prompt = `Analise a mensagem recebida do lead e a resposta gerada pela IA (e tools chamadas: ${JSON.stringify(toolsCalled)}) e retorne um objeto JSON contendo:
+- sentiment: "positive" | "neutral" | "frustrated" | "aggressively_cold"
+- sentiment_score: float de -1.0 (muito frustrado) a 1.0 (muito feliz)
+- intent_detected: intenção principal identificada (ex: "solicitou preços", "tentativa de agendamento", "dúvida técnica", "cancelamento")
+- urgency_detected: true se o lead demonstrou urgência/pressa ou false caso contrário
+- objection_handled: objeção que foi tratada nesta resposta (ou null se nenhuma)
+- rationale: raciocínio cognitivo conciso que descreve o porquê desta resposta ter sido estruturada dessa forma.
+
+Mensagem do lead: "${message}"
+Resposta da IA: "${reply}"
+
+JSON:`;
+
+    const result = await model.generateContent(prompt);
+    const parsed = JSON.parse(result.response.text());
+    
+    return {
+      sentiment: parsed.sentiment || 'neutral',
+      sentiment_score: parsed.sentiment_score ?? 0.0,
+      intent_detected: parsed.intent_detected || 'conversação',
+      urgency_detected: !!parsed.urgency_detected,
+      objection_handled: parsed.objection_handled || null,
+      rationale: parsed.rationale || 'Interação padrão.',
+    };
+  } catch (err) {
+    console.error('[AI Audit] Falha na analise cognitiva de decisão:', err);
+    return {
+      sentiment: 'neutral',
+      sentiment_score: 0.0,
+      intent_detected: 'conversação',
+      urgency_detected: false,
+      objection_handled: null,
+      rationale: 'Análise indisponível por erro técnico.',
+    };
+  }
 }
 
 export async function handleIncomingMessage(
@@ -366,6 +470,48 @@ export async function handleIncomingMessage(
     activeLead = created as Lead;
   }
 
+  // v4: Testes A/B e Versionamento de Prompts (Cognitive Control)
+  let activeVersionId: string | null = null;
+  let activeVariantGroup: string | null = null;
+  
+  try {
+    const { data: experiment } = await admin
+      .from('prompt_experiments')
+      .select('*, version_a:version_a_id(*), version_b:version_b_id(*)')
+      .eq('company_id', companyId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (experiment) {
+      const leadHash = parseInt(activeLead.id.replace(/-/g, '').substring(0, 8), 16);
+      const group = (leadHash % 100) < experiment.traffic_split ? 'A' : 'B';
+      const selectedVersion = group === 'A' ? experiment.version_a : experiment.version_b;
+
+      if (selectedVersion) {
+        persona.name = selectedVersion.ai_name;
+        persona.tone = selectedVersion.ai_tone;
+        persona.extra_instructions = selectedVersion.system_instructions;
+        persona.ai_forbidden = selectedVersion.ai_forbidden;
+        activeVersionId = selectedVersion.id;
+        activeVariantGroup = group;
+        console.log(`[AI Engine] Experimento A/B ativo. Lead roteado para Grupo ${group} (Versao ${selectedVersion.version})`);
+      }
+    }
+  } catch (err) {
+    console.warn('[AI Engine] Falha ao carregar experimento A/B (tabela pode nao existir):', err);
+  }
+
+  // v4: RAG Semântico (Retrieval-Augmented Generation)
+  try {
+    const semanticContext = await getSemanticKnowledge(companyId, messageText, admin);
+    if (semanticContext) {
+      persona.extra_instructions = (persona.extra_instructions || '') + '\n' + semanticContext;
+      console.log('[AI Engine] RAG Semantico injetado com sucesso.');
+    }
+  } catch (err) {
+    console.warn('[AI Engine] Falha ao carregar RAG Semantico:', err);
+  }
+
   const releaseLock = () =>
     admin.from('leads').update({ is_processing: false }).eq('id', activeLead.id);
 
@@ -442,6 +588,8 @@ export async function handleIncomingMessage(
     finalReply += '\n\n_Atendimento via Agendra_ ✦';
   }
 
+  const isShadowMode = activeLead.control_mode === 'shadow';
+
   const { data: sentMessage } = await admin
     .from('messages')
     .insert({
@@ -449,11 +597,16 @@ export async function handleIncomingMessage(
       company_id: companyId,
       role: 'assistant',
       content: finalReply,
+      metadata: isShadowMode ? { is_draft: true } : null,
     })
     .select()
     .single();
 
-  await sendWhatsAppMessage(phone, finalReply, companyId);
+  if (!isShadowMode) {
+    await sendWhatsAppMessage(phone, finalReply, companyId);
+  } else {
+    console.log(`[AI Engine] Modo Shadow ativo para lead ${phone}. Mensagem persistida como rascunho (is_draft: true).`);
+  }
 
   // 9. Update lead state
   const updatedMemory = appendScoreHistory(activeLead.lead_memory, finalScore, scoreReason);
@@ -464,6 +617,31 @@ export async function handleIncomingMessage(
     summary: aiResult.summary,
     lead_memory: updatedMemory,
   };
+
+  // v4: Analise cognitiva, explainability e sentimento
+  let decisionLog: any = null;
+  try {
+    const cognitiveAnalysis = await analyzeLeadSentimentAndCognition(
+      messageText,
+      finalReply,
+      aiResult.tools_called || []
+    );
+    
+    leadPatch.last_sentiment = cognitiveAnalysis.sentiment;
+    
+    decisionLog = {
+      company_id: companyId,
+      lead_id: activeLead.id,
+      message_id: sentMessage?.id ?? null,
+      intent_detected: cognitiveAnalysis.intent_detected,
+      sentiment_score: cognitiveAnalysis.sentiment_score,
+      urgency_detected: cognitiveAnalysis.urgency_detected,
+      objection_handled: cognitiveAnalysis.objection_handled,
+      rationale: cognitiveAnalysis.rationale,
+    };
+  } catch (err) {
+    console.warn('[AI Engine] Falha ao calcular sentimento/explainability:', err);
+  }
 
   if (persona.auto_escalate && finalScore < (persona.escalation_threshold ?? 25)) {
     leadPatch.is_paused = true;
@@ -488,6 +666,16 @@ export async function handleIncomingMessage(
       .from('processed_messages')
       .update({ status: 'completed' })
       .eq('provider_message_id', providerMessageId);
+  }
+
+  // v4: Persistencia da Auditoria Cognitiva
+  if (decisionLog) {
+    try {
+      await admin.from('ai_decision_logs').insert(decisionLog);
+      console.log('[AI Engine] Log cognitivo e de explainability gravado com sucesso.');
+    } catch (dbErr) {
+      console.warn('[AI Engine] Falha ao persistir ai_decision_logs (tabela pode nao existir):', dbErr);
+    }
   }
 
   // 11. Observability

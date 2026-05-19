@@ -62,13 +62,13 @@ export async function takeOverLead(leadId: string) {
 
   await supabase
     .from("leads")
-    .update({ is_paused: true })
+    .update({ is_paused: true, control_mode: 'manual' })
     .eq("id", leadId);
 
   const { error } = await supabase.from("messages").insert({
     lead_id: leadId,
     company_id,
-    content: "Atendente assumiu a conversa.",
+    content: "Atendente assumiu a conversa (Modo Manual).",
     role: "note",
   });
 
@@ -98,13 +98,13 @@ export async function automatizeLead(leadId: string) {
 
   await supabase
     .from("leads")
-    .update({ is_paused: false })
+    .update({ is_paused: false, control_mode: 'autonomous' })
     .eq("id", leadId);
 
   const { error } = await supabase.from("messages").insert({
     lead_id: leadId,
     company_id,
-    content: "Conversa voltou para atendimento automático.",
+    content: "Conversa voltou para atendimento automático (Modo Autônomo).",
     role: "note",
   });
 
@@ -138,4 +138,94 @@ export async function setConversationTone(leadId: string, tone: "cold" | "warm" 
   if (error) throw new Error(error.message);
 
   revalidatePath("/inbox");
+}
+
+export async function setControlMode(leadId: string, mode: 'autonomous' | 'shadow' | 'manual') {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const supabase = await createClient();
+  const { company_id } = await getLeadInfo(supabase, leadId);
+  await requireOnboarding(company_id);
+
+  const isPaused = mode !== 'autonomous';
+
+  await supabase
+    .from("leads")
+    .update({ 
+      control_mode: mode,
+      is_paused: isPaused
+    })
+    .eq("id", leadId);
+
+  const modeLabels = {
+    autonomous: "automático (Modo Autônomo)",
+    shadow: "Copiloto / Shadow (rascunhos inteligentes)",
+    manual: "manual (Modo Manual)"
+  };
+
+  const { error } = await supabase.from("messages").insert({
+    lead_id: leadId,
+    company_id,
+    content: `Modo de controle alterado para ${modeLabels[mode]}.`,
+    role: "note",
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/inbox");
+}
+
+export async function approveDraftMessage(messageId: string) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const supabase = await createClient();
+
+  // 1. Buscar a mensagem de rascunho
+  const { data: msg, error: fetchError } = await supabase
+    .from("messages")
+    .select("*, lead:leads(phone)")
+    .eq("id", messageId)
+    .single();
+
+  if (fetchError || !msg) throw new Error("Mensagem não encontrada");
+  const phone = (msg.lead as any)?.phone;
+  if (!phone) throw new Error("Telefone do lead não encontrado");
+
+  // 2. Enviar WhatsApp via API no backend
+  await sendWhatsAppMessage(phone, msg.content, msg.company_id);
+
+  // 3. Atualizar metadados do rascunho (remover is_draft)
+  const newMetadata = msg.metadata ? { ...msg.metadata } : {};
+  delete newMetadata.is_draft;
+
+  const { error: updateError } = await supabase
+    .from("messages")
+    .update({
+      metadata: newMetadata,
+    })
+    .eq("id", messageId);
+
+  if (updateError) throw new Error(updateError.message);
+
+  revalidatePath("/inbox");
+  return { success: true };
+}
+
+export async function deleteDraftMessage(messageId: string) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("messages")
+    .delete()
+    .eq("id", messageId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/inbox");
+  return { success: true };
 }

@@ -22,6 +22,8 @@ export interface Lead {
   is_paused: boolean;
   is_processing: boolean;
   last_message_id: string | null;
+  control_mode?: 'autonomous' | 'shadow' | 'manual';
+  last_sentiment?: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';
   created_at: string;
   updated_at: string;
   lead_memory?: LeadMemory | null; // optional: added in schema_v6
@@ -33,6 +35,7 @@ export interface Message {
   company_id: string;
   role: MessageRole;
   content: string;
+  metadata?: any;
   created_at: string;
 }
 

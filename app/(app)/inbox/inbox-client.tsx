@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap } from "lucide-react";
+import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { stagger } from "@/components/motion/variants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import type { LeadWithMessages } from "./page";
-import { sendNote, takeOverLead, automatizeLead, setConversationTone } from "./actions";
+import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage } from "./actions";
 import { createBrowserClient } from "@supabase/ssr";
 import { trackEvent } from "@/lib/analytics";
 
@@ -50,6 +50,8 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const [takePending, startTake] = useTransition();
   const [tonePending, startTone] = useTransition();
   const [toneOpen, setToneOpen] = useState(false);
+  const [controlPending, startControl] = useTransition();
+  const [controlOpen, setControlOpen] = useState(false);
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -366,6 +368,127 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                       )}
                     />
                     {TONE_LABEL[t]}
+                  </button>
+                ))}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  const CONTROL_MODES: Array<"autonomous" | "shadow" | "manual"> = ["autonomous", "shadow", "manual"];
+  const CONTROL_LABEL: Record<string, string> = {
+    autonomous: "Autônomo",
+    shadow: "Copiloto (Shadow)",
+    manual: "Manual"
+  };
+
+  const handleControlModeChange = useCallback((mode: "autonomous" | "shadow" | "manual") => {
+    if (!selected) return;
+    const current = selected.control_mode ?? (selected.is_paused ? "manual" : "autonomous");
+    if (current === mode) return;
+
+    // optimistic update
+    setLeads((prev) =>
+      prev.map((l) => (l.id === selected.id ? { ...l, control_mode: mode, is_paused: mode !== 'autonomous' } : l)),
+    );
+
+    startControl(async () => {
+      try {
+        await setControlMode(selected.id, mode);
+        trackEvent("control_mode_changed", { lead_id: selected.id, mode });
+      } catch (e) {
+        // revert
+        setLeads((prev) =>
+          prev.map((l) => (l.id === selected.id ? { ...l, control_mode: current, is_paused: current !== 'autonomous' } : l)),
+        );
+        setInboxError((e as Error).message);
+      }
+    });
+  }, [selected]);
+
+  const ControlModeDropdown = ({ compact = false }: { compact?: boolean }) => {
+    if (!selected) return null;
+    const currentMode = selected.control_mode ?? (selected.is_paused ? "manual" : "autonomous");
+    return (
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setControlOpen(!controlOpen);
+          }}
+          disabled={controlPending}
+          className={cn(
+            "flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/10 disabled:opacity-50",
+            controlOpen && "border-brand-blue-500/30 bg-white/10",
+            compact ? "h-8 px-2" : "w-full"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                currentMode === "autonomous" ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" :
+                currentMode === "shadow" ? "bg-brand-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)]" :
+                "bg-white/40"
+              )}
+            />
+            <span className={cn(
+              "text-[10px] sm:text-[11px]",
+              currentMode === "autonomous" ? "text-emerald-400" :
+              currentMode === "shadow" ? "text-brand-blue-400" :
+              "text-white/60"
+            )}>
+              {CONTROL_LABEL[currentMode]}
+            </span>
+          </div>
+          <ChevronDown size={12} className={cn("text-white/40 transition-transform duration-300", controlOpen && "rotate-180")} />
+        </button>
+
+        <AnimatePresence>
+          {controlOpen && (
+            <>
+              <div className="fixed inset-0 z-[100]" onClick={() => setControlOpen(false)} />
+              <motion.div
+                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                animate={{ opacity: 1, y: 4, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                className={cn(
+                  "absolute z-[101] overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1 shadow-2xl shadow-black/50",
+                  compact ? "right-0 top-full mt-1 w-44" : "left-0 top-full w-full"
+                )}
+              >
+                {CONTROL_MODES.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      handleControlModeChange(m);
+                      setControlOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors text-left",
+                      currentMode === m
+                        ? "bg-white/10 text-white"
+                        : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        m === "autonomous" ? "bg-emerald-400" :
+                        m === "shadow" ? "bg-brand-blue-400" : "bg-white/40"
+                      )}
+                    />
+                    <div className="flex flex-col">
+                      <span>{CONTROL_LABEL[m]}</span>
+                      <span className="text-[8px] font-medium text-white/20 tracking-normal normal-case">
+                        {m === "autonomous" ? "IA responde automaticamente" :
+                         m === "shadow" ? "Gera rascunhos para aprovar" :
+                         "IA desativada para este lead"}
+                      </span>
+                    </div>
                   </button>
                 ))}
               </motion.div>

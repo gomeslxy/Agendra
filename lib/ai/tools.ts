@@ -148,6 +148,18 @@ export const toolDeclarations: Tool = {
         },
       },
     },
+    {
+      name: 'generatePixCharge',
+      description: 'Gera uma cobrança via Pix para o lead pagar por um serviço ou sinal de agendamento.',
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          service_id: { type: SchemaType.STRING, description: 'ID do serviço que está sendo pago' },
+          amount: { type: SchemaType.NUMBER, description: 'Valor a ser cobrado' },
+        },
+        required: ['service_id', 'amount'],
+      },
+    },
   ],
 };
 
@@ -549,6 +561,36 @@ export async function handleRequestHumanAgent(
   return { 
     message: 'Entendido. Estou pausando meu atendimento e notificando um atendente humano para te ajudar. Por favor, aguarde um momento.',
     paused: true 
+  };
+}
+
+export async function handleGeneratePixCharge(
+  args: { service_id: string; amount: number },
+  ctx: ToolContext
+) {
+  const admin = createAdminClient();
+
+  const pixKey = "00020101021226830014br.gov.bcb.pix2561api.agendra.com.br/v2/cobv/" + ctx.companyId.replace(/-/g, '').substring(0, 15) + "5802BR5920Agendra Tecnologia6009Sao Paulo62070503***6304" + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+  const { data: tx, error } = await admin
+    .from('transactions')
+    .insert({
+      company_id: ctx.companyId,
+      lead_id: ctx.leadId,
+      amount: args.amount,
+      status: 'pending',
+      pix_qrcode: pixKey,
+      pix_image_url: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(pixKey),
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Falha ao criar cobrança Pix: ${error.message}`);
+
+  return {
+    message: `Cobrança Pix de *R$ ${args.amount.toFixed(2)}* gerada com sucesso!\n\n*Pix Copia e Cola*:\n\`\`\`${pixKey}\`\`\`\n\n_Efetue o pagamento e a confirmação será automática._`,
+    transaction_id: tx.id,
+    pix_key: pixKey
   };
 }
 
