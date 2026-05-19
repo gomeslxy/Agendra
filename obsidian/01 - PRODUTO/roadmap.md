@@ -20,6 +20,14 @@
 - [x] **Gating**: Bloqueio de respostas de IA caso a assinatura em `companies.plan` expire (Billing Gate).
 - [x] **Plan-Aware Engine**: Motor de IA consulta `PLAN_LIMITS` via `getCompanyUsage` e injeta contexto real de plano no system prompt. `triggerAutoFollowUp` gateado por `hasFollowUp`. Watermark single-fire corrigido.
 
+## 🔒 Fase 3.5: Estabilização & Hardening (Concluído 19/05/2026)
+- [x] **Schema Fixes**: `events.source` e `events.gcal_sync_status` adicionados (migration 017). GCal sync agora distingue eventos de origem.
+- [x] **Health Monitoring Real**: `channels.last_error` e `last_seen_at` agora persistidos corretamente. Bug de escrita em coluna JSONB inexistente corrigido.
+- [x] **Reminders Idempotentes**: Claim atômico em morning/nightly evita envio duplicado de lembretes.
+- [x] **Multitenancy Completo**: Followup cron filtra leads por `company_id` (não mais query global).
+- [x] **Plan Gates**: `maxChannels` e `maxCalendars` enforced em todos os pontos de conexão.
+- [x] **TTL Cleanup**: pg_cron deleta `processed_messages` com mais de 7 dias (migration 018).
+
 ## 💅 Fase 4: Polimento Premium & Escala
 - [x] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.
