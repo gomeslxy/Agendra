@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerAutoFollowUp } from "@/lib/ai/engine";
+import { getPlanLimits } from "@/lib/billing/plans";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -17,12 +18,11 @@ export async function GET(req: Request) {
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
   try {
-    // Scope by company: only process companies with business plan (hasFollowUp=true).
+    // Fetch all active companies and filter by plan limits at runtime.
     // Enforces company_id isolation — every leads query must filter by company_id.
     const { data: companies, error: coErr } = await supabase
       .from('companies')
-      .select('id')
-      .eq('plan_type', 'business')
+      .select('id, plan_type')
       .eq('subscription_status', 'active');
 
     if (coErr) throw coErr;
@@ -30,6 +30,8 @@ export async function GET(req: Request) {
     const results: { id: string; company_id: string; status: string; error?: string }[] = [];
 
     for (const company of companies ?? []) {
+      if (!getPlanLimits(company.plan_type).hasFollowUp) continue;
+
       const { data: leads, error } = await supabase
         .from('leads')
         .select('id')

@@ -4,10 +4,24 @@
  * Called by Supabase pg_cron every 30 minutes.
  * Syncs GCal for ALL companies that have Google Calendar connected.
  * Protected by CRON_SECRET header.
+ *
+ * Parallelism: batches of CONCURRENCY companies run simultaneously.
+ * Jitter: each company is offset by (id hash % 30) seconds to avoid
+ * thundering herd against the Google Calendar API.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { syncCompanyCalendar } from '@/lib/calendar/sync';
+
+const CONCURRENCY = 5;
+
+function jitterMs(companyId: string): number {
+  let hash = 0;
+  for (let i = 0; i < companyId.length; i++) {
+    hash = (hash * 31 + companyId.charCodeAt(i)) >>> 0;
+  }
+  return (hash % 30) * 1000;
+}
 
 async function handleGCalSync(request: NextRequest): Promise<NextResponse> {
   const cronSecret = process.env.CRON_SECRET;
@@ -39,20 +53,33 @@ async function handleGCalSync(request: NextRequest): Promise<NextResponse> {
 
   const summary = { synced: 0, skipped: 0, inserted: 0, updated: 0, deleted: 0, errors: 0 };
 
-  for (const company of companies) {
-    try {
-      const result = await syncCompanyCalendar(company.id);
-      if (result.skipped) {
-        summary.skipped++;
+  // Process in batches of CONCURRENCY — parallel within batch, sequential between batches
+  for (let i = 0; i < companies.length; i += CONCURRENCY) {
+    const batch = companies.slice(i, i + CONCURRENCY);
+
+    const results = await Promise.allSettled(
+      batch.map(async (company) => {
+        const delay = jitterMs(company.id);
+        if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+        return syncCompanyCalendar(company.id);
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const r = result.value;
+        if (r.skipped) {
+          summary.skipped++;
+        } else {
+          summary.synced++;
+          summary.inserted += r.inserted;
+          summary.updated += r.updated;
+          summary.deleted += r.deleted;
+        }
       } else {
-        summary.synced++;
-        summary.inserted += result.inserted;
-        summary.updated += result.updated;
-        summary.deleted += result.deleted;
+        summary.errors++;
+        console.error('[Cron/GCal] Sync failed:', result.reason);
       }
-    } catch (err) {
-      summary.errors++;
-      console.error(`[Cron/GCal] Sync failed for company ${company.id}:`, err);
     }
   }
 

@@ -2,14 +2,17 @@
  * /api/cron/nightly — Vercel Free Tier unified cron (runs once daily at 20:00 BRT)
  *
  * Executes:
- *   1. Auto Follow-up — re-engages leads silent for 24h+ (max 10 per run)
- *   2. Reminders (evening) — catches any reminders missed by morning run
+ *   1. Auto Follow-up — re-engages leads silent for 24h+ (max 10 per company per run)
+ *   2. Reminders (evening) — catches any reminders missed by morning run (per company)
+ *
+ * Multi-tenant: all queries scoped by company_id — no cross-tenant data access.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import { triggerAutoFollowUp } from '@/lib/ai/engine';
 import { buildReminderMessage, formatDateTime } from '@/lib/whatsapp/messages';
+import { getPlanLimits } from '@/lib/billing/plans';
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -27,33 +30,60 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const admin = createAdminClient();
   const summary: Record<string, any> = {};
 
+  // Fetch all active companies once — both tasks iterate over this list
+  const { data: companies, error: companiesError } = await admin
+    .from('companies')
+    .select('id, plan_type, subscription_status, persona_config, name')
+    .in('subscription_status', ['active', 'trial'])
+    .not('subscription_status', 'eq', 'canceled');
+
+  if (companiesError) {
+    console.error('[nightly-cron] Failed to fetch companies:', companiesError.message);
+    return NextResponse.json({ error: companiesError.message }, { status: 500 });
+  }
+
+  const activeCompanies = companies ?? [];
+  console.log(`[nightly-cron] Processing ${activeCompanies.length} active companies`);
+
   // ── 1. Auto Follow-up ────────────────────────────────────────────────────────
   try {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
-    const { data: leads, error } = await admin
-      .from('leads')
-      .select('id')
-      .eq('is_paused', false)
-      .not('status', 'in', '("success","disqualified")')
-      .lt('updated_at', twentyFourHoursAgo)
-      .or(`last_followup_at.is.null,last_followup_at.lt.${fortyEightHoursAgo}`)
-      .limit(10);
+    let totalSent = 0;
+    let totalFailed = 0;
 
-    if (error) throw error;
+    for (const company of activeCompanies) {
+      const limits = getPlanLimits(company.plan_type);
+      if (!limits.hasFollowUp) continue;
 
-    let sent = 0;
-    let failed = 0;
-    for (const lead of leads ?? []) {
-      try {
-        await triggerAutoFollowUp(lead.id);
-        sent++;
-      } catch {
-        failed++;
+      const { data: leads, error } = await admin
+        .from('leads')
+        .select('id')
+        .eq('company_id', company.id)
+        .eq('is_paused', false)
+        .not('status', 'in', '("success","disqualified")')
+        .lt('updated_at', twentyFourHoursAgo)
+        .or(`last_followup_at.is.null,last_followup_at.lt.${fortyEightHoursAgo}`)
+        .limit(10);
+
+      if (error) {
+        console.error(`[nightly-cron] followup error for company ${company.id}:`, error.message);
+        totalFailed++;
+        continue;
+      }
+
+      for (const lead of leads ?? []) {
+        try {
+          await triggerAutoFollowUp(lead.id);
+          totalSent++;
+        } catch {
+          totalFailed++;
+        }
       }
     }
-    summary.followup = { sent, failed };
+
+    summary.followup = { sent: totalSent, failed: totalFailed };
     console.log('[nightly-cron] followup:', summary.followup);
   } catch (err: any) {
     summary.followup = { error: err.message };
@@ -63,53 +93,65 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── 2. Reminders (evening sweep) ─────────────────────────────────────────────
   try {
     const now = new Date().toISOString();
-    const { data: reminders } = await admin
-      .from('reminders')
-      .select('*, leads(phone, name), events(start_time, title), companies(persona_config, name)')
-      .eq('status', 'pending')
-      .lte('remind_at', now)
-      .limit(30);
 
-    let sent = 0;
-    let failed = 0;
-    for (const rem of reminders ?? []) {
-      try {
-        // Atomic claim — skip if /api/cron/reminders (5min job) already sent this
-        const { data: claimed } = await admin
-          .from('reminders')
-          .update({ status: 'sent' })
-          .eq('id', rem.id)
-          .eq('status', 'pending')
-          .select('id')
-          .maybeSingle();
+    let totalSent = 0;
+    let totalFailed = 0;
 
-        if (!claimed) continue;
+    for (const company of activeCompanies) {
+      const { data: reminders, error: remErr } = await admin
+        .from('reminders')
+        .select('*, leads(phone, name), events(start_time, title)')
+        .eq('company_id', company.id)
+        .eq('status', 'pending')
+        .lte('remind_at', now)
+        .limit(10);
 
-        const lead = rem.leads as any;
-        const event = rem.events as any;
-        if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
+      if (remErr) {
+        console.error(`[nightly-cron] reminders error for company ${company.id}:`, remErr.message);
+        continue;
+      }
 
-        const tz = (rem.companies as any)?.persona_config?.timezone ?? 'America/Sao_Paulo';
-        const businessName = (rem.companies as any)?.name ?? 'nossa empresa';
-        const eventDate = new Date(event.start_time);
-        const hoursUntil = (eventDate.getTime() - Date.now()) / 3600000;
-        const { dateStr, timeStr } = formatDateTime(eventDate, tz);
-        const msg = buildReminderMessage({
-          leadFirstName: lead.name.split(' ')[0],
-          serviceName: event.title,
-          dateStr,
-          timeStr,
-          businessName,
-          hoursAhead: Math.round(hoursUntil),
-        });
-        await sendWhatsAppMessage(lead.phone, msg, rem.company_id);
-        sent++;
-      } catch (err: any) {
-        await admin.from('reminders').update({ status: 'failed', error_log: err.message }).eq('id', rem.id);
-        failed++;
+      const tz = (company.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
+      const businessName = company.name ?? 'nossa empresa';
+
+      for (const rem of reminders ?? []) {
+        try {
+          // Atomic claim — skip if /api/cron/reminders (5min job) already sent this
+          const { data: claimed } = await admin
+            .from('reminders')
+            .update({ status: 'sent' })
+            .eq('id', rem.id)
+            .eq('status', 'pending')
+            .select('id')
+            .maybeSingle();
+
+          if (!claimed) continue;
+
+          const lead = rem.leads as any;
+          const event = rem.events as any;
+          if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
+
+          const eventDate = new Date(event.start_time);
+          const hoursUntil = (eventDate.getTime() - Date.now()) / 3600000;
+          const { dateStr, timeStr } = formatDateTime(eventDate, tz);
+          const msg = buildReminderMessage({
+            leadFirstName: lead.name.split(' ')[0],
+            serviceName: event.title,
+            dateStr,
+            timeStr,
+            businessName,
+            hoursAhead: Math.round(hoursUntil),
+          });
+          await sendWhatsAppMessage(lead.phone, msg, rem.company_id);
+          totalSent++;
+        } catch (err: any) {
+          await admin.from('reminders').update({ status: 'failed', error_log: err.message }).eq('id', rem.id);
+          totalFailed++;
+        }
       }
     }
-    summary.reminders_evening = { sent, failed };
+
+    summary.reminders_evening = { sent: totalSent, failed: totalFailed };
     console.log('[nightly-cron] reminders_evening:', summary.reminders_evening);
   } catch (err: any) {
     summary.reminders_evening = { error: err.message };

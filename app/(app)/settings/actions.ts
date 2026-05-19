@@ -16,6 +16,11 @@ export async function updatePersona(formData: FormData) {
 
   const supabase = await createClient();
 
+  const aiName = (formData.get("ai_name") as string)?.trim() || null;
+  const aiTone = (formData.get("ai_tone") as string)?.trim() || null;
+  const aiGreeting = (formData.get("ai_greeting") as string)?.trim() || null;
+  const aiForbidden = (formData.get("ai_forbidden") as string)?.trim() || null;
+
   // Parse services from comma-separated string
   const servicesRaw = formData.get("services") as string | null;
   const services = servicesRaw
@@ -33,48 +38,44 @@ export async function updatePersona(formData: FormData) {
   const autoEscalate = formData.get("auto_escalate") === "true";
   const slotDuration = parseInt(formData.get("slot_duration_minutes") as string, 10);
 
-  const personaConfigPatch = {
-    business_type: (formData.get("business_type") as string) || undefined,
-    services: services.length > 0 ? services : undefined,
-    escalation_threshold: !isNaN(escalationThreshold) ? escalationThreshold : undefined,
-    auto_escalate: autoEscalate,
-    slot_duration_minutes: !isNaN(slotDuration) ? slotDuration : undefined,
-    timezone: (formData.get("timezone") as string) || undefined,
-    working_hours: working_hours || undefined,
-    extra_instructions: (formData.get("extra_instructions") as string) || undefined,
+  // Read current persona_config to merge (single round-trip)
+  const { data: existing } = await supabase
+    .from("companies")
+    .select("persona_config")
+    .eq("id", companyId)
+    .single();
+
+  const currentConfig = (existing?.persona_config ?? {}) as Record<string, unknown>;
+
+  const personaConfigPatch: Record<string, unknown> = {
+    ...currentConfig,
+    // Keep denormalized fields in sync with direct columns — single source of truth
+    name: aiName ?? currentConfig.name,
+    tone: aiTone ?? currentConfig.tone,
   };
 
-  // Remove undefined keys before merging
-  const patch = Object.fromEntries(
-    Object.entries(personaConfigPatch).filter(([, v]) => v !== undefined)
-  );
+  if ((formData.get("business_type") as string)) personaConfigPatch.business_type = formData.get("business_type") as string;
+  if (services.length > 0) personaConfigPatch.services = services;
+  if (!isNaN(escalationThreshold)) personaConfigPatch.escalation_threshold = escalationThreshold;
+  personaConfigPatch.auto_escalate = autoEscalate;
+  if (!isNaN(slotDuration)) personaConfigPatch.slot_duration_minutes = slotDuration;
+  if (formData.get("timezone") as string) personaConfigPatch.timezone = formData.get("timezone") as string;
+  if (working_hours) personaConfigPatch.working_hours = working_hours;
+  if (formData.get("extra_instructions") as string) personaConfigPatch.extra_instructions = formData.get("extra_instructions") as string;
 
+  // Single atomic UPDATE — columns and JSONB in one query, no race condition
   const { error } = await supabase
     .from("companies")
     .update({
-      ai_name: formData.get("ai_name") as string,
-      ai_tone: formData.get("ai_tone") as string,
-      ai_greeting: formData.get("ai_greeting") as string,
-      ai_forbidden: formData.get("ai_forbidden") as string,
+      ai_name: aiName,
+      ai_tone: aiTone,
+      ai_greeting: aiGreeting,
+      ai_forbidden: aiForbidden,
+      persona_config: personaConfigPatch,
     })
     .eq("id", companyId);
 
   if (error) throw new Error(error.message);
-
-  // Merge persona_config: read current value, merge patch, write back
-  if (Object.keys(patch).length > 0) {
-    const { data: existing } = await supabase
-      .from("companies")
-      .select("persona_config")
-      .eq("id", companyId)
-      .single();
-    const merged = { ...(existing?.persona_config ?? {}), ...patch };
-    const { error: pcError } = await supabase
-      .from("companies")
-      .update({ persona_config: merged })
-      .eq("id", companyId);
-    if (pcError) throw new Error(pcError.message);
-  }
 
   revalidatePath("/settings");
 }

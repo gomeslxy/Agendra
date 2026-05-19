@@ -251,6 +251,26 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
 
       const companyId = channel.company_id;
 
+      // ─── COMPANY GUARD: Validar empresa existe e está ativa ───────────────────
+      {
+        const adminGuard = createAdminClient();
+        const { data: company } = await adminGuard
+          .from("companies")
+          .select("id, subscription_status")
+          .eq("id", companyId)
+          .maybeSingle();
+
+        if (!company) {
+          console.warn(`[WhatsApp] ⚠️ Empresa ${companyId} não encontrada — channel órfão. Ignorando.`);
+          continue;
+        }
+
+        if (company.subscription_status === "canceled") {
+          console.warn(`[WhatsApp] 🚫 Empresa ${companyId} cancelada. Ignorando mensagem.`);
+          continue;
+        }
+      }
+
       // ─── BILLING GATE: Proteção de Margem ─────────────────────────────────────
       console.log(`[WhatsApp] 🛡️ Verificando limites para empresa: ${companyId}`);
       try {

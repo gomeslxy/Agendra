@@ -246,7 +246,7 @@ export async function handleUpdateLeadMemory(
     intent_signal?: string;
     answers?: Record<string, string>;
   },
-  ctx: { leadId: string },
+  ctx: { leadId: string; companyId: string },
 ): Promise<{ updated: boolean }> {
   const admin = createAdminClient();
 
@@ -254,6 +254,7 @@ export async function handleUpdateLeadMemory(
     .from('leads')
     .select('lead_memory')
     .eq('id', ctx.leadId)
+    .eq('company_id', ctx.companyId)
     .single();
 
   const current = (lead?.lead_memory ?? null) as LeadMemory | null;
@@ -269,7 +270,8 @@ export async function handleUpdateLeadMemory(
   const { error } = await admin
     .from('leads')
     .update({ lead_memory: updated })
-    .eq('id', ctx.leadId);
+    .eq('id', ctx.leadId)
+    .eq('company_id', ctx.companyId);
 
   if (error) throw new Error(`Failed to update lead memory: ${error.message}`);
 
