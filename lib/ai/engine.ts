@@ -19,7 +19,7 @@ import {
 import { getCompanyUsage } from '@/lib/billing/limits';
 import type { PlanLimits, PlanType } from '@/lib/billing/plans';
 import { persistAILog, createTimer } from '@/lib/ai/observability';
-import { EMPTY_MEMORY, mountContext, summarizeConversation, extractRelevantFacts, appendScoreHistory } from './memory';
+import { EMPTY_MEMORY, mountContext, processBackgroundAnalytics, appendScoreHistory } from './memory';
 import { validateAndNormalizeScore } from './scoring';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
@@ -155,6 +155,7 @@ interface AIResult {
   tokens_input: number;
   tokens_output: number;
   tools_called: any[];
+  model_used: string;
 }
 
 export async function processLeadMessage(
@@ -169,13 +170,6 @@ export async function processLeadMessage(
 ): Promise<AIResult> {
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
 
-  const model = genAI.getGenerativeModel({
-    model: MAIN_MODEL,
-    systemInstruction: buildSystemPrompt(persona, lead, memoryContext, isNewConversation, planType, planLimits),
-    tools: [toolDeclarations],
-    toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
-  });
-
   const ctx: ToolContext = { companyId, leadId: lead.id };
   let geminiHistory: Content[] = history
     .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -187,11 +181,34 @@ export async function processLeadMessage(
   const firstUserIndex = geminiHistory.findIndex((h) => h.role === 'user');
   geminiHistory = firstUserIndex !== -1 ? geminiHistory.slice(firstUserIndex) : [];
 
-  const chat = model.startChat({ history: geminiHistory });
+  let response: any;
+  let chat: any;
+  let modelUsed = MAIN_MODEL;
+  let lastErr: any;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const currentModel = attempt === 0 ? MAIN_MODEL : 'gemini-2.5-flash-lite';
+      const model = genAI.getGenerativeModel({
+        model: currentModel,
+        systemInstruction: buildSystemPrompt(persona, lead, memoryContext, isNewConversation, planType, planLimits),
+        tools: [toolDeclarations],
+        toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
+      });
+      chat = model.startChat({ history: geminiHistory });
+      response = await chat.sendMessage(newMessage);
+      modelUsed = currentModel;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 1) throw err;
+      console.log(`[AI Engine] 🔄 Fallback para gemini-2.5-flash-lite`);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
 
   let iterations = 0;
   const MAX_ITERATIONS = 5;
-  let response = await chat.sendMessage(newMessage);
 
   const toolsCalled: any[] = [];
   let totalInputTokens = response.response.usageMetadata?.promptTokenCount ?? 0;
@@ -203,13 +220,13 @@ export async function processLeadMessage(
     if (!candidate) break;
 
     const functionCalls = candidate.content.parts
-      .filter((p) => p.functionCall)
-      .map((p) => p.functionCall!);
+      .filter((p: any) => p.functionCall)
+      .map((p: any) => p.functionCall!);
 
     if (functionCalls.length === 0) break;
 
     const toolResults = await Promise.all(
-      functionCalls.map(async (fc) => {
+      functionCalls.map(async (fc: any) => {
         const name = fc.name;
         const args = (fc.args ?? {}) as any;
         toolsCalled.push({ name, args_summary: JSON.stringify(args).substring(0, 100) });
@@ -269,6 +286,7 @@ export async function processLeadMessage(
     tokens_input: totalInputTokens,
     tokens_output: totalOutputTokens,
     tools_called: toolsCalled,
+    model_used: modelUsed,
   };
 }
 
@@ -279,7 +297,7 @@ export async function processLeadMessage(
 async function getSemanticKnowledge(companyId: string, query: string, admin: any): Promise<string> {
   try {
     if (!process.env.GOOGLE_AI_API_KEY) return '';
-    const embedModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const embedModel = genAI.getGenerativeModel({ model: 'text-embedding-005' });
     const result = await embedModel.embedContent(query);
     let values = result.embedding?.values;
     if (!values || values.length === 0) return '';
@@ -314,65 +332,7 @@ async function getSemanticKnowledge(companyId: string, query: string, admin: any
   return '';
 }
 
-/**
- * analyzeLeadSentimentAndCognition — Analisa cognitivamente a interação
- * para preenchimento de Explainability (ai_decision_logs) e atualização de last_sentiment no lead.
- */
-async function analyzeLeadSentimentAndCognition(
-  message: string,
-  reply: string,
-  toolsCalled: any[]
-): Promise<{
-  sentiment: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';
-  sentiment_score: number;
-  intent_detected: string;
-  urgency_detected: boolean;
-  objection_handled: string | null;
-  rationale: string;
-}> {
-  try {
-    if (!process.env.GOOGLE_AI_API_KEY) throw new Error('Chave de API do Gemini nao configurada');
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: { responseMimeType: 'application/json' }
-    });
 
-    const prompt = `Analise a mensagem recebida do lead e a resposta gerada pela IA (e tools chamadas: ${JSON.stringify(toolsCalled)}) e retorne um objeto JSON contendo:
-- sentiment: "positive" | "neutral" | "frustrated" | "aggressively_cold"
-- sentiment_score: float de -1.0 (muito frustrado) a 1.0 (muito feliz)
-- intent_detected: intenção principal identificada (ex: "solicitou preços", "tentativa de agendamento", "dúvida técnica", "cancelamento")
-- urgency_detected: true se o lead demonstrou urgência/pressa ou false caso contrário
-- objection_handled: objeção que foi tratada nesta resposta (ou null se nenhuma)
-- rationale: raciocínio cognitivo conciso que descreve o porquê desta resposta ter sido estruturada dessa forma.
-
-Mensagem do lead: "${message}"
-Resposta da IA: "${reply}"
-
-JSON:`;
-
-    const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.text());
-    
-    return {
-      sentiment: parsed.sentiment || 'neutral',
-      sentiment_score: parsed.sentiment_score ?? 0.0,
-      intent_detected: parsed.intent_detected || 'conversação',
-      urgency_detected: !!parsed.urgency_detected,
-      objection_handled: parsed.objection_handled || null,
-      rationale: parsed.rationale || 'Interação padrão.',
-    };
-  } catch (err) {
-    console.error('[AI Audit] Falha na analise cognitiva de decisão:', err);
-    return {
-      sentiment: 'neutral',
-      sentiment_score: 0.0,
-      intent_detected: 'conversação',
-      urgency_detected: false,
-      objection_handled: null,
-      rationale: 'Análise indisponível por erro técnico.',
-    };
-  }
-}
 
 export async function handleIncomingMessage(
   companyId: string,
@@ -618,31 +578,6 @@ export async function handleIncomingMessage(
     lead_memory: updatedMemory,
   };
 
-  // v4: Analise cognitiva, explainability e sentimento
-  let decisionLog: any = null;
-  try {
-    const cognitiveAnalysis = await analyzeLeadSentimentAndCognition(
-      messageText,
-      finalReply,
-      aiResult.tools_called || []
-    );
-    
-    leadPatch.last_sentiment = cognitiveAnalysis.sentiment;
-    
-    decisionLog = {
-      company_id: companyId,
-      lead_id: activeLead.id,
-      message_id: sentMessage?.id ?? null,
-      intent_detected: cognitiveAnalysis.intent_detected,
-      sentiment_score: cognitiveAnalysis.sentiment_score,
-      urgency_detected: cognitiveAnalysis.urgency_detected,
-      objection_handled: cognitiveAnalysis.objection_handled,
-      rationale: cognitiveAnalysis.rationale,
-    };
-  } catch (err) {
-    console.warn('[AI Engine] Falha ao calcular sentimento/explainability:', err);
-  }
-
   if (persona.auto_escalate && finalScore < (persona.escalation_threshold ?? 25)) {
     leadPatch.is_paused = true;
     await admin.from('messages').insert({
@@ -668,16 +603,6 @@ export async function handleIncomingMessage(
       .eq('provider_message_id', providerMessageId);
   }
 
-  // v4: Persistencia da Auditoria Cognitiva
-  if (decisionLog) {
-    try {
-      await admin.from('ai_decision_logs').insert(decisionLog);
-      console.log('[AI Engine] Log cognitivo e de explainability gravado com sucesso.');
-    } catch (dbErr) {
-      console.warn('[AI Engine] Falha ao persistir ai_decision_logs (tabela pode nao existir):', dbErr);
-    }
-  }
-
   // 11. Observability
   await persistAILog({
     company_id: companyId,
@@ -690,7 +615,7 @@ export async function handleIncomingMessage(
     score_validated_to: finalScore,
     score_delta: finalScore - activeLead.heat_score,
     latency_ms: timer(),
-    model: MAIN_MODEL,
+    model: aiResult.model_used,
     tokens_input: aiResult.tokens_input,
     tokens_output: aiResult.tokens_output,
     cost: null,
@@ -698,11 +623,22 @@ export async function handleIncomingMessage(
     error: null,
   });
 
-  // 12. Background post-processing (memory/summary enrichment) — lock already released
+  // 12. Background post-processing (P2 Analytics) — lock already released
   (async () => {
     try {
-      const facts = await extractRelevantFacts(messageText);
-      const newSummary = await summarizeConversation((history ?? []) as Message[], aiResult.summary);
+      // Load Shedding: If we used lite for the main reply, the system is degraded. Skip P2.
+      if (aiResult.model_used === 'gemini-2.5-flash-lite') {
+        console.log(`[AI Engine] ⚠️ Load Shedding: Pulando P2 Analytics para lead ${phone} devido a degradação.`);
+        return;
+      }
+
+      const analytics = await processBackgroundAnalytics(
+        historyList,
+        messageText,
+        finalReply,
+        aiResult.tools_called || [],
+        aiResult.summary
+      );
 
       const { data: latestLead } = await admin
         .from('leads')
@@ -714,23 +650,40 @@ export async function handleIncomingMessage(
       const furtherUpdatedMem = {
         ...currentMem,
         services_mentioned: [
-          ...new Set([...(currentMem.services_mentioned || []), ...(facts.services || [])]),
+          ...new Set([...(currentMem.services_mentioned || []), ...(analytics.services || [])]),
         ],
         objections_raised: [
-          ...new Set([...(currentMem.objections_raised || []), ...(facts.objections || [])]),
+          ...new Set([...(currentMem.objections_raised || []), ...(analytics.objections || [])]),
         ],
         qualification_answers: {
           ...(currentMem.qualification_answers || {}),
-          ...(facts.answers || {}),
+          ...(analytics.answers || {}),
         },
       };
 
       await admin
         .from('leads')
-        .update({ lead_memory: furtherUpdatedMem, summary: newSummary })
+        .update({ 
+          lead_memory: furtherUpdatedMem, 
+          summary: analytics.new_summary,
+          last_sentiment: analytics.sentiment
+        })
         .eq('id', activeLead.id);
+
+      await admin.from('ai_decision_logs').insert({
+        company_id: companyId,
+        lead_id: activeLead.id,
+        message_id: sentMessage?.id ?? null,
+        intent_detected: analytics.intent_detected,
+        sentiment_score: analytics.sentiment_score,
+        urgency_detected: analytics.urgency_detected,
+        objection_handled: analytics.objection_handled,
+        rationale: analytics.rationale,
+      });
+      console.log('[AI Engine] Log cognitivo e de background gravado com sucesso.');
+
     } catch (e) {
-      console.error('[AI Engine] Background enrichment failed (non-critical):', e);
+      console.error('[AI Engine] Background analytics failed (non-critical):', e);
     }
   })();
 }

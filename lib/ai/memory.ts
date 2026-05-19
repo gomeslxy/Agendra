@@ -73,68 +73,92 @@ export function mountContext(memory: LeadMemory | null | undefined, summary: str
 }
 
 /**
- * summarizeConversation — Uses AI to generate a compact, one-sentence summary of the lead's state.
+ * processBackgroundAnalytics — Consolidated background task to extract memory facts, summary, and cognitive audit.
+ * Runs on gemini-2.5-flash-lite to save tokens and quota.
  */
-export async function summarizeConversation(
+export async function processBackgroundAnalytics(
   history: Message[],
+  message: string,
+  reply: string,
+  toolsCalled: any[],
   currentSummary: string | null
-): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-  
+): Promise<{
+  sentiment: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';
+  sentiment_score: number;
+  intent_detected: string;
+  urgency_detected: boolean;
+  objection_handled: string | null;
+  rationale: string;
+  services: string[];
+  objections: string[];
+  answers: Record<string, string>;
+  new_summary: string;
+}> {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash-lite',
+    generationConfig: { responseMimeType: 'application/json' }
+  });
+
   const conversation = history
     .filter(m => m.role === 'user' || m.role === 'assistant')
     .map(m => `${m.role === 'user' ? 'Lead' : 'IA'}: ${m.content}`)
     .join('\n');
 
-  const prompt = `Resuma o estado atual deste lead em UMA frase curta e direta em português.
-Foco: O que ele quer? Em que estágio da venda está?
-Resumo anterior: ${currentSummary || 'Nenhum'}
+  const prompt = `Analise a última interação do lead e extraia metadados estruturados para o CRM e auditoria no formato JSON.
+  
+Resumo anterior do estado do lead: ${currentSummary || 'Nenhum'}
 
-Conversa:
+Histórico recente:
 ${conversation}
 
-Resumo:`;
+Última mensagem do lead: "${message}"
+Última resposta gerada pela IA: "${reply}"
+Ferramentas chamadas pela IA: ${JSON.stringify(toolsCalled)}
 
-  try {
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim().replace(/^"|"$/g, '');
-  } catch (err) {
-    console.error('[Memory] Summarization failed:', err);
-    return currentSummary || 'Lead em conversação.';
-  }
-}
-
-/**
- * extractRelevantFacts — AI handler to extract specific fields for the memory structure.
- */
-export async function extractRelevantFacts(message: string): Promise<{
-  services?: string[];
-  objections?: string[];
-  answers?: Record<string, string>;
-  intent_signal?: string;
-}> {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: { responseMimeType: 'application/json' }
-  });
-
-  const prompt = `Analise a mensagem do lead e extraia fatos relevantes para o CRM no formato JSON.
-Campos:
-- services: lista de serviços/produtos de interesse mencionados
-- objections: lista de preocupações ou motivos para não fechar citados
-- answers: dicionário de perguntas respondidas (ex: {"orçamento": "5k", "prazo": "imediato"})
-- intent_signal: uma frase curta descrevendo a intenção atual (ex: "querendo agendar", "apenas pesquisando")
-
-Mensagem: "${message}"
+Retorne um objeto JSON estritamente com os seguintes campos:
+- sentiment: "positive" | "neutral" | "frustrated" | "aggressively_cold"
+- sentiment_score: float de -1.0 a 1.0
+- intent_detected: intenção principal identificada do lead
+- urgency_detected: true se o lead demonstrou urgência, senao false
+- objection_handled: objeção tratada pela IA nesta resposta (ou null)
+- rationale: raciocínio que descreve o porquê a IA respondeu dessa forma
+- services: lista de strings com serviços/produtos de interesse mencionados pelo lead (se houver)
+- objections: lista de strings com preocupações ou motivos para não fechar citados (se houver)
+- answers: objeto chave-valor de perguntas de qualificação respondidas (ex: {"orçamento": "5k"})
+- new_summary: UMA frase curta e direta resumindo o novo estado do lead.
 
 JSON:`;
 
   try {
     const result = await model.generateContent(prompt);
-    return JSON.parse(result.response.text());
+    const parsed = JSON.parse(result.response.text());
+    
+    return {
+      sentiment: parsed.sentiment || 'neutral',
+      sentiment_score: parsed.sentiment_score ?? 0.0,
+      intent_detected: parsed.intent_detected || 'conversação',
+      urgency_detected: !!parsed.urgency_detected,
+      objection_handled: parsed.objection_handled || null,
+      rationale: parsed.rationale || 'Interação padrão.',
+      services: Array.isArray(parsed.services) ? parsed.services : [],
+      objections: Array.isArray(parsed.objections) ? parsed.objections : [],
+      answers: typeof parsed.answers === 'object' && parsed.answers !== null ? parsed.answers : {},
+      new_summary: parsed.new_summary || currentSummary || 'Lead em conversação.',
+    };
   } catch (err) {
-    console.error('[Memory] Fact extraction failed:', err);
-    return {};
+    console.error('[AI Audit] Falha na analise de background (Lite):', err);
+    return {
+      sentiment: 'neutral',
+      sentiment_score: 0.0,
+      intent_detected: 'conversação',
+      urgency_detected: false,
+      objection_handled: null,
+      rationale: 'Análise indisponível.',
+      services: [],
+      objections: [],
+      answers: {},
+      new_summary: currentSummary || 'Lead em conversação.',
+    };
   }
 }
 

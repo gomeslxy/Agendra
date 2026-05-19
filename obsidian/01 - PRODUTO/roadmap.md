@@ -31,7 +31,45 @@
 ## 💅 Fase 4: Polimento Premium & Escala
 - [x] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.
-- [ ] **Analytics**: Dashboard de performance de conversão e BI avançado.
+- [x] **Analytics**: Dashboard de performance de conversão e BI avançado.
+
+## 🚀 Fase 5: Agendra v4 — Sistema Operacional Comercial (Em Progresso)
+> Estratégia completa em `obsidian/01 - PRODUTO/plano-estrategico-evolucao.md`
+> Auditoria UX/Produto em `obsidian/01 - PRODUTO/product_strategy_audit.md`
+
+### Épico 1 — ROI Dashboard (✅ Concluído 19/05/2026)
+- [x] `reports-client.tsx`: ROI Hero Card (receita / horas economizadas / conversão)
+- [x] KPI Cards financeiros: Receita Gerada + Ticket Médio com delta vs período anterior
+- [x] What-If Simulator: slider de reativação → projeta agendamentos + receita + horas liberadas
+- [x] `page.tsx`: fetch de `transactions`, aggregação de revenue por dia em `DayBucket`
+
+### Épico 2 — Modo Shadow / Copiloto IA na Inbox (🔜 Próximo)
+- [ ] `inbox-client.tsx`: exibir rascunhos da IA (`role='draft'`) em bubble translúcida separada
+- [ ] Botões "✨ Aprovar e Enviar" e "✏️ Editar" com animação holográfica
+- [ ] `handleIncomingMessage`: quando `lead.control_mode='shadow'`, salvar resposta como `draft` (não enviar ao WhatsApp)
+- [ ] Supabase Realtime propagar `draft` messages instantaneamente para o atendente
+- [ ] Notificação visual de alta prioridade quando draft gerado
+- [ ] Banner de nudge: "Você aprovou 95% das sugestões — ativar modo Autônomo?"
+
+### Épico 3 — Brain Central & RAG (🔜 Fase 2)
+- [ ] UI na aba "Flows" → renomear para "Brain / Cérebro"
+- [ ] Drag-and-drop / upload de PDFs (Tabela de Preços, FAQ) → `company_knowledge` + pgvector
+- [ ] Sliders de personalidade: Formalidade (1–10), Agressividade de Vendas (1–10)
+- [ ] Explainability Log: "Por que a IA disse isso?" — lê `ai_decision_logs` com source e confiança
+- [ ] `match_knowledge()` RPC já definida em `plano-estrategico-evolucao.md` — implementar
+
+### Épico 4 — Fintech Conversacional (🔜 Fase 3)
+- [ ] Tabela `transactions` já existe (migration 019) — implementar geração de Pix dinâmico
+- [ ] Tool `generateCharge` para a IA: cria cobrança Pix via Stripe/MercadoPago, retorna QR Code
+- [ ] Tool `checkPaymentStatus`: IA verifica se pagamento foi liquidado
+- [ ] Webhook de confirmação: atualiza `transactions.status='paid'`, confirma agendamento, notifica lead
+- [ ] Card "Venda Realizada!" no dashboard no momento exato do webhook
+
+### Épico 5 — Voice & Reativação Inteligente (🔜 Fase 4 — Arquitetural)
+- [ ] Infraestrutura para transcrição de áudio (Whisper / Gemini Audio)
+- [ ] Envio de áudio sintético (TTS) pelo WhatsApp Cloud API
+- [ ] Reativação automática de leads frios com base em `ai_decision_logs.objection_handled`
+- [ ] Análise de sentimento em tempo real → ajuste de `lead.last_sentiment`
 
 ---
 [[visao-geral|⬅️ Voltar]]

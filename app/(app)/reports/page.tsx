@@ -13,7 +13,7 @@ export default async function ReportsPage() {
   const since90 = new Date();
   since90.setDate(since90.getDate() - 90);
 
-  const [{ data: leads }, { data: events }, { data: messages }] = await Promise.all([
+  const [{ data: leads }, { data: events }, { data: messages }, { data: transactions }] = await Promise.all([
     supabase.from("leads")
       .select("id, status, channel, created_at, heat_score")
       .eq("company_id", companyId).gte("created_at", since90.toISOString()),
@@ -23,11 +23,15 @@ export default async function ReportsPage() {
     supabase.from("messages")
       .select("id, role, created_at, lead_id")
       .eq("company_id", companyId).gte("created_at", since90.toISOString()),
+    supabase.from("transactions")
+      .select("id, amount, status, created_at, paid_at")
+      .eq("company_id", companyId).gte("created_at", since90.toISOString()),
   ]);
 
-  const allLeads   = leads    ?? [];
-  const allEvents  = events   ?? [];
-  const allMessages = messages ?? [];
+  const allLeads        = leads        ?? [];
+  const allEvents       = events       ?? [];
+  const allMessages     = messages     ?? [];
+  const allTransactions = transactions ?? [];
 
   // ── Build 90-day map ────────────────────────────────────────────
   const now = new Date();
@@ -36,13 +40,14 @@ export default async function ReportsPage() {
     cold: number; converted: number; events: number;
     messages: number; aiMessages: number;
     whatsapp: number; instagram: number; form: number;
+    revenue: number; transactionCount: number;
   };
   const dailyMap = new Map<string, DayBucket>();
   const dailyOrder: string[] = [];
   for (let i = 89; i >= 0; i--) {
     const d = new Date(now); d.setDate(d.getDate() - i);
     const k = d.toISOString().slice(0, 10);
-    dailyMap.set(k, { date: k, leads: 0, hot: 0, warm: 0, cold: 0, converted: 0, events: 0, messages: 0, aiMessages: 0, whatsapp: 0, instagram: 0, form: 0 });
+    dailyMap.set(k, { date: k, leads: 0, hot: 0, warm: 0, cold: 0, converted: 0, events: 0, messages: 0, aiMessages: 0, whatsapp: 0, instagram: 0, form: 0, revenue: 0, transactionCount: 0 });
     dailyOrder.push(k);
   }
 
@@ -61,6 +66,14 @@ export default async function ReportsPage() {
     const k = m.created_at.slice(0, 10);
     const b = dailyMap.get(k);
     if (b) { b.messages++; if (m.role === "assistant") b.aiMessages++; }
+  }
+
+  // ── Transactions ─────────────────────────────────────────────
+  for (const t of allTransactions) {
+    if (t.status !== "paid") continue;
+    const k = (t.paid_at ?? t.created_at).slice(0, 10);
+    const b = dailyMap.get(k);
+    if (b) { b.revenue += Number(t.amount); b.transactionCount++; }
   }
 
   // ── Leads (main pass) ────────────────────────────────────────
@@ -119,12 +132,21 @@ export default async function ReportsPage() {
   );
   const avgHeatScore = tot > 0 ? Math.round(heatSum / tot) : 0;
 
+  const totalRevenue90d = allTransactions
+    .filter((t) => t.status === "paid")
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const avgTicket = allTransactions.filter((t) => t.status === "paid").length > 0
+    ? totalRevenue90d / allTransactions.filter((t) => t.status === "paid").length
+    : 0;
+
   return (
     <ReportsClient
       dailyDetails={dailyDetails}
       funnelStages={funnelStages}
       heatmapData={heatmapData}
       avgHeatScore={avgHeatScore}
+      totalRevenue90d={totalRevenue90d}
+      avgTicket={avgTicket}
     />
   );
 }

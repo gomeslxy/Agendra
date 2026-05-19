@@ -8,7 +8,8 @@ import {
 } from "recharts";
 import {
   Download, Users, TrendingUp, CalendarCheck, Zap,
-  MessageCircle, Star, Bot, Activity, ArrowUpRight, ArrowDownRight, Info
+  Bot, Activity, ArrowUpRight, ArrowDownRight, Info,
+  DollarSign, Sparkles, ChevronRight, BarChart3, Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -47,15 +48,18 @@ interface DayBucket {
   cold: number; converted: number; events: number;
   messages: number; aiMessages: number;
   whatsapp: number; instagram: number; form: number;
+  revenue: number; transactionCount: number;
 }
 interface HeatCell     { weekday: number; hour: number; value: number }
 interface FunnelStage  { label: string; value: number; color: string }
 
 interface ReportsClientProps {
   dailyDetails: DayBucket[];
-  funnelStages: FunnelStage[]; // This is still 90d snapshot as before, we'll recompute later if needed
+  funnelStages: FunnelStage[];
   heatmapData: HeatCell[];
   avgHeatScore: number;
+  totalRevenue90d: number;
+  avgTicket: number;
 }
 
 /* ─── Custom tooltip for area chart ──────────────────────────── */
@@ -252,6 +256,186 @@ function KpiCard({
   );
 }
 
+/* ─── Currency formatter ─────────────────────────────────────── */
+function formatBRL(value: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+}
+
+/* ─── ROI Hero Card ──────────────────────────────────────────── */
+function RoiHero({
+  revenue, timeSaved, converted, totalLeads,
+}: {
+  revenue: number; timeSaved: number; converted: number; totalLeads: number;
+}) {
+  const convRate = totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      className="relative mb-6 overflow-hidden rounded-2xl border border-white/[0.08] p-6 lg:p-8"
+      style={{
+        background: "linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(139,92,246,0.08) 50%, rgba(20,184,166,0.10) 100%)",
+      }}
+    >
+      {/* Glow effect */}
+      <div className="pointer-events-none absolute -top-20 left-1/4 h-40 w-96 rounded-full opacity-20 blur-3xl"
+        style={{ background: "radial-gradient(circle, #3B82F6 0%, transparent 70%)" }} />
+      <div className="pointer-events-none absolute -bottom-20 right-1/4 h-40 w-96 rounded-full opacity-15 blur-3xl"
+        style={{ background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)" }} />
+
+      <div className="relative">
+        <div className="mb-1 flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/20">
+            <Sparkles size={12} className="text-blue-400" />
+          </div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-blue-300/70">ROI do Período</span>
+        </div>
+
+        <div className="mt-4 grid gap-6 md:grid-cols-3">
+          {/* Revenue */}
+          <div>
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">Receita Gerada pelo Agendra</p>
+            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-white">
+              {revenue > 0
+                ? <AnimatedNumber value={Math.round(revenue)} prefix="R$ " />
+                : <span className="text-2xl text-white/30">Sem transações ainda</span>
+              }
+            </div>
+            {revenue > 0 && (
+              <p className="mt-2 text-[12px] text-white/50">
+                em vendas fechadas automaticamente
+              </p>
+            )}
+          </div>
+
+          {/* Time saved */}
+          <div>
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">Horas do Time Economizadas</p>
+            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-teal-400">
+              <AnimatedNumber value={timeSaved} suffix="h" />
+            </div>
+            <p className="mt-2 text-[12px] text-white/50">
+              de atendimento manual evitado
+            </p>
+          </div>
+
+          {/* Conversion */}
+          <div>
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">Taxa de Conversão Real</p>
+            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-violet-400">
+              <AnimatedNumber value={convRate} suffix="%" />
+            </div>
+            <p className="mt-2 text-[12px] text-white/50">
+              {converted} de {totalLeads} leads convertidos
+            </p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ─── What-If Simulator ───────────────────────────────────────── */
+function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLeads: number }) {
+  const [followUpRate, setFollowUpRate] = useState(30);
+  const ticket = avgTicket > 0 ? avgTicket : 350;
+  const extraConversions = Math.round((totalLeads * (followUpRate / 100)) * 0.18);
+  const extraRevenue = extraConversions * ticket;
+  const extraHours = Math.round(extraConversions * 0.8);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.25, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="glass mb-4 rounded-2xl p-5"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <BarChart3 size={14} className="text-violet-400" />
+            <h3 className="text-sm font-semibold">Simulador de Ganhos — What If?</h3>
+          </div>
+          <p className="mt-0.5 text-xs" style={{ color: "var(--color-fg-3)" }}>
+            Arraste o slider para simular o impacto do Follow-up Inteligente (Plano PRO)
+          </p>
+        </div>
+        <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-violet-300">
+          PRO
+        </span>
+      </div>
+
+      <div className="mb-5">
+        <div className="mb-2 flex items-center justify-between">
+          <label className="text-xs font-medium" style={{ color: "var(--color-fg-2)" }}>
+            Leads reativados com follow-up automático
+          </label>
+          <span className="font-mono text-sm font-bold text-violet-400">{followUpRate}%</span>
+        </div>
+        <input
+          type="range"
+          min={10}
+          max={80}
+          step={5}
+          value={followUpRate}
+          onChange={(e) => setFollowUpRate(Number(e.target.value))}
+          className="h-2 w-full cursor-pointer appearance-none rounded-full"
+          style={{
+            background: `linear-gradient(to right, #8B5CF6 0%, #8B5CF6 ${((followUpRate - 10) / 70) * 100}%, rgba(255,255,255,0.08) ${((followUpRate - 10) / 70) * 100}%, rgba(255,255,255,0.08) 100%)`,
+          }}
+        />
+        <div className="mt-1 flex justify-between">
+          <span className="font-mono text-[10px]" style={{ color: "var(--color-fg-3)" }}>10%</span>
+          <span className="font-mono text-[10px]" style={{ color: "var(--color-fg-3)" }}>80%</span>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <motion.div
+          key={extraConversions}
+          initial={{ opacity: 0.6, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4"
+        >
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">Agendamentos extras</p>
+          <p className="font-mono text-2xl font-bold text-white">+{extraConversions}</p>
+          <p className="mt-1 text-[11px] text-white/50">no próximo mês</p>
+        </motion.div>
+        <motion.div
+          key={extraRevenue}
+          initial={{ opacity: 0.6, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="rounded-xl border border-violet-500/20 bg-violet-500/[0.06] p-4"
+        >
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-violet-300/60">Receita projetada</p>
+          <p className="font-mono text-2xl font-bold text-violet-300">+{formatBRL(extraRevenue)}</p>
+          <p className="mt-1 text-[11px] text-violet-300/50">estimativa baseada no ticket médio</p>
+        </motion.div>
+        <motion.div
+          key={extraHours}
+          initial={{ opacity: 0.6, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="rounded-xl border border-teal-500/20 bg-teal-500/[0.06] p-4"
+        >
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-teal-300/60">Horas liberadas</p>
+          <p className="font-mono text-2xl font-bold text-teal-300">+{extraHours}h</p>
+          <p className="mt-1 text-[11px] text-teal-300/50">do time para foco estratégico</p>
+        </motion.div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-3">
+        <p className="text-[12px] font-medium text-violet-200">
+          Ative o Follow-up Inteligente no Plano PRO e comece a ver esses resultados
+        </p>
+        <button className="flex shrink-0 items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-[11px] font-semibold text-white transition-opacity hover:opacity-90">
+          Ver Planos <ChevronRight size={12} />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 /* ─── Main component ──────────────────────────────────────────── */
 type Period = "7d" | "30d" | "all";
 const PERIODS: { id: Period; label: string; days: number }[] = [
@@ -268,6 +452,7 @@ const CHANNEL_COLORS: Record<string, string> = {
 
 export function ReportsClient({
   dailyDetails, funnelStages, heatmapData, avgHeatScore,
+  totalRevenue90d, avgTicket,
 }: ReportsClientProps) {
   const [period, setPeriod] = useState<Period>("7d");
   const [exportPending, startExport] = useTransition();
@@ -289,11 +474,17 @@ export function ReportsClient({
   const aiMessages = currentSeries.reduce((s, d) => s + d.aiMessages, 0);
   
   const aiRatio = totalMessages > 0 ? Math.round((aiMessages / totalMessages) * 100) : 0;
-  
+  const periodRevenue = currentSeries.reduce((s, d) => s + d.revenue, 0);
+  const periodTransactions = currentSeries.reduce((s, d) => s + d.transactionCount, 0);
+  const periodAvgTicket = periodTransactions > 0 ? periodRevenue / periodTransactions : avgTicket;
+  // 1 atendimento humano completo ≈ 12 min; IA resolve em 0 min humano
+  const timeSavedHours = Math.round((aiMessages * 12) / 60);
+
   // Recompute KPIs for previous period
   const prevLeads = prevSeries.reduce((s, d) => s + d.leads, 0);
   const prevConverted = prevSeries.reduce((s, d) => s + d.converted, 0);
   const prevEvents = prevSeries.reduce((s, d) => s + d.events, 0);
+  const prevRevenue = prevSeries.reduce((s, d) => s + d.revenue, 0);
   
   // By Channel & Status for current period
   const channels = [
@@ -380,6 +571,14 @@ export function ReportsClient({
         </div>
       </header>
       
+      {/* ── ROI Hero ── */}
+      <RoiHero
+        revenue={periodRevenue}
+        timeSaved={timeSavedHours}
+        converted={converted}
+        totalLeads={totalLeads}
+      />
+
       {/* ── Insights Top Bar ── */}
       <div className="mb-6 grid gap-3 lg:grid-cols-3">
         {topChannel && (
@@ -419,36 +618,87 @@ export function ReportsClient({
       <motion.div
         initial="hidden" animate="show"
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
-        className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       >
-        <KpiCard 
-          label="NOVOS LEADS" 
-          value={totalLeads} 
-          icon={Users} 
-          color="#60A5FA" 
-          prevValue={prevLeads} 
+        <KpiCard
+          label="NOVOS LEADS"
+          value={totalLeads}
+          icon={Users}
+          color="#60A5FA"
+          prevValue={prevLeads}
         />
-        <KpiCard 
-          label="CONVERTIDOS" 
-          value={converted} 
-          icon={TrendingUp} 
-          color="#5EEAD4" 
-          prevValue={prevConverted} 
+        <KpiCard
+          label="CONVERTIDOS"
+          value={converted}
+          icon={TrendingUp}
+          color="#5EEAD4"
+          prevValue={prevConverted}
         />
-        <KpiCard 
-          label="AGENDAMENTOS" 
-          value={totalEvents} 
-          icon={CalendarCheck} 
-          color="#A78BFA" 
-          prevValue={prevEvents} 
+        <KpiCard
+          label="AGENDAMENTOS"
+          value={totalEvents}
+          icon={CalendarCheck}
+          color="#A78BFA"
+          prevValue={prevEvents}
         />
-        <KpiCard 
-          label="EFICIÊNCIA IA" 
-          value={aiRatio} 
+        <KpiCard
+          label="EFICIÊNCIA IA"
+          value={aiRatio}
           suffix="%"
-          icon={Bot} 
-          color="#FB923C" 
+          icon={Bot}
+          color="#FB923C"
         />
+        <motion.div
+          variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
+          whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 26 } }}
+          className="glass rounded-2xl p-5 sm:col-span-2 xl:col-span-1"
+        >
+          <div className="flex items-start justify-between">
+            <span className="font-mono text-[10px] tracking-[0.16em] text-white/40">RECEITA GERADA</span>
+            <DollarSign size={14} className="text-emerald-400/60" />
+          </div>
+          <div className="mt-3 text-[28px] font-bold leading-none tracking-[-0.03em] text-emerald-400">
+            {periodRevenue > 0
+              ? formatBRL(periodRevenue)
+              : <span className="text-base text-white/20">—</span>
+            }
+          </div>
+          {prevRevenue > 0 && periodRevenue > 0 && (() => {
+            const delta = Math.round(((periodRevenue - prevRevenue) / prevRevenue) * 100);
+            return (
+              <div className="mt-3 flex items-center gap-2">
+                <span className={cn(
+                  "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-mono text-[10px] font-medium",
+                  delta > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400",
+                )}>
+                  {delta > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                  {delta > 0 ? "+" : ""}{delta}%
+                </span>
+                <span className="text-[10px] text-white/30">vs anterior</span>
+              </div>
+            );
+          })()}
+          {periodRevenue === 0 && (
+            <p className="mt-2 text-[10px] text-white/30">Ative Fintech para rastrear</p>
+          )}
+        </motion.div>
+        <motion.div
+          variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
+          whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 26 } }}
+          className="glass rounded-2xl p-5 sm:col-span-2 xl:col-span-1"
+        >
+          <div className="flex items-start justify-between">
+            <span className="font-mono text-[10px] tracking-[0.16em] text-white/40">TICKET MÉDIO</span>
+            <Banknote size={14} className="text-amber-400/60" />
+          </div>
+          <div className="mt-3 text-[28px] font-bold leading-none tracking-[-0.03em] text-amber-400">
+            {periodAvgTicket > 0
+              ? formatBRL(periodAvgTicket)
+              : <span className="text-base text-white/20">—</span>
+            }
+          </div>
+          <p className="mt-2 text-[10px] text-white/30">por venda fechada no período</p>
+        </motion.div>
       </motion.div>
 
       {/* ── Area Chart + Funnel ── */}
@@ -542,6 +792,9 @@ export function ReportsClient({
           <ConversionFunnel stages={funnelStages} />
         </motion.div>
       </div>
+
+      {/* ── What-If Simulator ── */}
+      <WhatIfSimulator avgTicket={periodAvgTicket} totalLeads={totalLeads} />
 
       {/* ── Heatmap ── */}
       <motion.div
