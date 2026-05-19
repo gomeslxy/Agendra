@@ -17,6 +17,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildGoogleOAuthUrl, exchangeCodeForTokens } from '@/lib/calendar/google';
+import { getCompanyUsage } from '@/lib/billing/limits';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,20 @@ async function handleOAuthCallback(
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
   try {
+    // Gate: maxCalendars — current model is 1 calendar per company
+    const usage = await getCompanyUsage(companyId);
+    const adminCheck = createAdminClient();
+    const { data: co } = await adminCheck
+      .from('companies')
+      .select('google_refresh_token')
+      .eq('id', companyId)
+      .single();
+    const currentCalendars = co?.google_refresh_token ? 1 : 0;
+    if (currentCalendars >= usage.limits.maxCalendars) {
+      console.warn(`[GCal OAuth] ⛔ maxCalendars atingido para empresa=${companyId} plano=${usage.planType}`);
+      return NextResponse.redirect(new URL('/settings?gcal=limit_reached', baseUrl));
+    }
+
     // Trocar code por tokens
     const { refresh_token, email } = await exchangeCodeForTokens(code);
 

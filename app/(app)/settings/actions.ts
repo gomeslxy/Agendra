@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient, getUserProfile } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { exchangeForLongLivedToken, getWhatsAppNumberDetails } from "@/lib/whatsapp/meta-api";
 import { validateWhatsAppToken } from "@/lib/whatsapp/validate";
+import { getCompanyUsage } from "@/lib/billing/limits";
 import { revalidatePath } from "next/cache";
 
 export async function updatePersona(formData: FormData) {
@@ -90,6 +92,20 @@ export async function saveWhatsAppChannel(formData: FormData) {
 
   if (!phoneId || !accessToken) throw new Error("Campos obrigatórios ausentes");
 
+  // ── Gate: maxChannels ──────────────────────────────────────────────────────
+  const usage = await getCompanyUsage(companyId);
+  const admin = createAdminClient();
+  const { count: channelCount } = await admin
+    .from("channels")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("status", "active");
+  if ((channelCount ?? 0) >= usage.limits.maxChannels) {
+    throw new Error(
+      `Seu plano ${usage.planType.toUpperCase()} permite até ${usage.limits.maxChannels} canal(is) ativo(s). Faça upgrade para adicionar mais.`
+    );
+  }
+
   // ── Validar token via Meta API ANTES de salvar ─────────────────────────────
   const validation = await validateWhatsAppToken(phoneId, accessToken.trim());
   if (!validation.ok) {
@@ -175,6 +191,21 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
   if (!companyId) throw new Error("Empresa não encontrada no perfil");
 
   try {
+    // Gate: maxChannels
+    const usage = await getCompanyUsage(companyId);
+    const adminForGate = createAdminClient();
+    const { count: chCount } = await adminForGate
+      .from("channels")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("status", "active");
+    if ((chCount ?? 0) >= usage.limits.maxChannels) {
+      return {
+        success: false,
+        error: `Seu plano ${usage.planType.toUpperCase()} permite até ${usage.limits.maxChannels} canal(is) ativo(s). Faça upgrade para adicionar mais.`,
+      };
+    }
+
     // 1. Trocar por token de longa duração
     const longLivedToken = await exchangeForLongLivedToken(shortLivedToken);
 
