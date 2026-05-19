@@ -24,17 +24,18 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient();
   const now = new Date().toISOString();
 
-  // 1. Buscar lembretes pendentes
+  // 1. Buscar lembretes pendentes (com filtro de evento ativo)
   const { data: reminders, error } = await admin
     .from('reminders')
     .select(`
       *,
       leads (phone, name),
-      events (start_time, title),
+      events!inner (start_time, title, status),
       companies (persona_config)
     `)
     .eq('status', 'pending')
     .lte('remind_at', now)
+    .neq('events.status', 'cancelled')
     .limit(20);
 
   if (error) {
@@ -47,6 +48,20 @@ export async function GET(req: NextRequest) {
   const results = await Promise.allSettled(
     (reminders ?? []).map(async (rem) => {
       try {
+        // Atomic claim: only one worker can transition pending → sent for this row.
+        const { data: claimed } = await admin
+          .from('reminders')
+          .update({ status: 'sent' })
+          .eq('id', rem.id)
+          .eq('status', 'pending')
+          .select('id')
+          .maybeSingle();
+
+        if (!claimed) {
+          // Another worker already claimed it.
+          return { id: rem.id, success: true, skipped: true };
+        }
+
         const lead = rem.leads as any;
         const event = rem.events as any;
 
@@ -74,11 +89,19 @@ export async function GET(req: NextRequest) {
 
         await sendWhatsAppMessage(lead.phone, message, rem.company_id);
 
-        await admin.from('reminders').update({ status: 'sent' }).eq('id', rem.id);
-        
+        // Registrar mensagem no histórico do lead para manter contexto
+        await admin.from('messages').insert({
+          lead_id: rem.lead_id,
+          company_id: rem.company_id,
+          role: 'assistant',
+          content: message,
+          metadata: { type: 'reminder', event_id: rem.event_id },
+        });
+
         return { id: rem.id, success: true };
       } catch (err: any) {
         console.error(`[Cron Reminders] Erro no lembrete ${rem.id}:`, err.message);
+        // Reverter status para failed (status já é 'sent' pelo claim atômico).
         await admin.from('reminders').update({ status: 'failed', error_log: err.message }).eq('id', rem.id);
         return { id: rem.id, success: false, error: err.message };
       }

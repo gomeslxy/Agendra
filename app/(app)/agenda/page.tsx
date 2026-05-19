@@ -47,16 +47,17 @@ export default async function AgendaPage() {
   }
 
   const now = new Date();
-  const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
-  const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59).toISOString();
+  // Janela: 3 meses passados → 6 meses futuros. Garante que agendamentos de longa data aparecem.
+  const startWindow = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
+  const endWindow = new Date(now.getFullYear(), now.getMonth() + 7, 0, 23, 59, 59).toISOString();
 
   const [{ data: events, error }, { data: leads }] = await Promise.all([
     supabase
       .from("events")
       .select("*, leads(name, status, phone)")
       .eq("company_id", companyId)
-      .gte("start_time", startOfPrevMonth)
-      .lte("start_time", endOfNextMonth)
+      .gte("start_time", startWindow)
+      .lte("start_time", endWindow)
       .order("start_time", { ascending: true }),
     supabase
       .from("leads")

@@ -21,7 +21,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://agendra.com.br"),
+  metadataBase: new URL("https://www.agendra.site"),
   title: {
     default: "Agendra — Lead novo, reunião marcada.",
     template: "%s | Agendra",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Agendra — Lead novo, reunião marcada.",
     description: "IA que responde, qualifica e agenda seus leads 24/7. Converta mais com agendamentos automáticos no WhatsApp e Instagram.",
-    url: "https://agendra.com.br",
+    url: "https://www.agendra.site",
     siteName: "Agendra",
     images: [
       {

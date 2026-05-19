@@ -262,9 +262,11 @@ export async function handleBookAppointment(
   const service = svcRes.data;
   const lead = leadRes.data;
   const startTime = new Date(args.start_time);
+  if (isNaN(startTime.getTime())) throw new Error('Horário inválido. Informe um ISO 8601 válido.');
+  if (startTime.getTime() < Date.now()) throw new Error('Não é possível agendar no passado.');
   const endTime = new Date(startTime.getTime() + service.duration * 60000);
 
-  // 2. Check colisão local
+  // 2a. Check colisão geral (empresa)
   const { data: collision } = await admin
     .from('events')
     .select('id')
@@ -275,6 +277,35 @@ export async function handleBookAppointment(
     .maybeSingle();
 
   if (collision) throw new Error('Este horário acabou de ser ocupado. Por favor, escolha outro.');
+
+  // 2b. Anti-abuso: limite de 3 agendamentos futuros por lead
+  const { count: futureCount } = await admin
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('lead_id', ctx.leadId)
+    .neq('status', 'cancelled')
+    .gte('start_time', new Date().toISOString());
+
+  if ((futureCount ?? 0) >= 3) {
+    throw new Error('Você já possui 3 agendamentos futuros. Cancele ou conclua algum antes de marcar mais.');
+  }
+
+  // 2c. Anti-duplicidade: mesmo serviço já agendado no mesmo dia
+  const dayStart = new Date(startTime); dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(startTime); dayEnd.setHours(23, 59, 59, 999);
+  const { data: sameDay } = await admin
+    .from('events')
+    .select('id')
+    .eq('lead_id', ctx.leadId)
+    .eq('service_id', args.service_id)
+    .neq('status', 'cancelled')
+    .gte('start_time', dayStart.toISOString())
+    .lte('start_time', dayEnd.toISOString())
+    .maybeSingle();
+
+  if (sameDay) {
+    throw new Error('Você já tem este mesmo serviço agendado neste dia. Quer reagendar o existente?');
+  }
 
   // 3. Sync GCal & Double-Check External
   const { data: company } = await admin

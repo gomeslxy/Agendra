@@ -5,8 +5,8 @@ export function JsonLd() {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Agendra",
-    "url": "https://agendra.com.br",
-    "logo": "https://agendra.com.br/assets/agendra-logo.svg",
+    "url": "https://www.agendra.site",
+    "logo": "https://www.agendra.site/assets/agendra-logo.svg",
     "description": "IA que responde, qualifica e agenda leads 24/7 no WhatsApp e Instagram.",
     "sameAs": [
       "https://www.instagram.com/agendra.ai",
@@ -18,10 +18,10 @@ export function JsonLd() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "Agendra",
-    "url": "https://agendra.com.br",
+    "url": "https://www.agendra.site",
     "potentialAction": {
       "@type": "SearchAction",
-      "target": "https://agendra.com.br/search?q={search_term_string}",
+      "target": "https://www.agendra.site/search?q={search_term_string}",
       "query-input": "required name=search_term_string"
     }
   };
@@ -37,7 +37,7 @@ export function JsonLd() {
     },
     "offers": {
       "@type": "Offer",
-      "url": "https://agendra.com.br/pricing",
+      "url": "https://www.agendra.site/planos",
       "priceCurrency": "BRL",
       "availability": "https://schema.org/InStock"
     }

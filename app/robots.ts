@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/api/', '/dashboard/'],
     },
-    sitemap: 'https://agendra.com.br/sitemap.xml',
+    sitemap: 'https://www.agendra.site/sitemap.xml',
   }
 }
