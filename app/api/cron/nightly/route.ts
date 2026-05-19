@@ -74,6 +74,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let failed = 0;
     for (const rem of reminders ?? []) {
       try {
+        // Atomic claim — skip if /api/cron/reminders (5min job) already sent this
+        const { data: claimed } = await admin
+          .from('reminders')
+          .update({ status: 'sent' })
+          .eq('id', rem.id)
+          .eq('status', 'pending')
+          .select('id')
+          .maybeSingle();
+
+        if (!claimed) continue;
+
         const lead = rem.leads as any;
         const event = rem.events as any;
         if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
@@ -92,7 +103,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           hoursAhead: Math.round(hoursUntil),
         });
         await sendWhatsAppMessage(lead.phone, msg, rem.company_id);
-        await admin.from('reminders').update({ status: 'sent' }).eq('id', rem.id);
         sent++;
       } catch (err: any) {
         await admin.from('reminders').update({ status: 'failed', error_log: err.message }).eq('id', rem.id);
