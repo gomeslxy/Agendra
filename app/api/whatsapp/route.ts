@@ -76,8 +76,14 @@ async function validateMetaSignature(
   const appSecret = process.env.WHATSAPP_APP_SECRET;
 
   if (!appSecret) {
-    console.warn("[WhatsApp] ⚠️  WHATSAPP_APP_SECRET não configurado.");
-    return true;
+    // [FIX P2-4] Em desenvolvimento, permite sem secret para facilitar testes locais.
+    // Em produção, qualquer POST sem secret configurado é REJEITADO — evita injeção de mensagens falsas.
+    if (process.env.NODE_ENV === 'development') {
+      console.warn("[WhatsApp] ⚠️  WHATSAPP_APP_SECRET não configurado — permitindo em dev.");
+      return true;
+    }
+    console.error("[WhatsApp] ❌ WHATSAPP_APP_SECRET ausente em produção. Request rejeitada.");
+    return false;
   }
 
   const signature = request.headers.get("x-hub-signature-256");

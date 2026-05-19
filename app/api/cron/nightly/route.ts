@@ -45,50 +45,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const activeCompanies = companies ?? [];
   console.log(`[nightly-cron] Processing ${activeCompanies.length} active companies`);
 
-  // ── 1. Auto Follow-up ────────────────────────────────────────────────────────
-  try {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  // ── 1. Auto Follow-up ─────────────────────────────────────────────────────────
+  // [FIX P1-5] Follow-up removido do nightly. Já roda hourly via pg_cron → /api/cron/followup.
+  // Manter aqui causava disparo duplicado simultâneo às 23h UTC, com double-billing do Gemini
+  // e corrida desnecessária na claim atômica de last_followup_at.
+  summary.followup = { skipped: 'handled by pg_cron hourly job (/api/cron/followup)' };
+  console.log('[nightly-cron] followup: delegado ao pg_cron hourly. Sem ação aqui.');
 
-    let totalSent = 0;
-    let totalFailed = 0;
-
-    for (const company of activeCompanies) {
-      const limits = getPlanLimits(company.plan_type);
-      if (!limits.hasFollowUp) continue;
-
-      const { data: leads, error } = await admin
-        .from('leads')
-        .select('id')
-        .eq('company_id', company.id)
-        .eq('is_paused', false)
-        .not('status', 'in', '("success","disqualified")')
-        .lt('updated_at', twentyFourHoursAgo)
-        .or(`last_followup_at.is.null,last_followup_at.lt.${fortyEightHoursAgo}`)
-        .limit(10);
-
-      if (error) {
-        console.error(`[nightly-cron] followup error for company ${company.id}:`, error.message);
-        totalFailed++;
-        continue;
-      }
-
-      for (const lead of leads ?? []) {
-        try {
-          await triggerAutoFollowUp(lead.id);
-          totalSent++;
-        } catch {
-          totalFailed++;
-        }
-      }
-    }
-
-    summary.followup = { sent: totalSent, failed: totalFailed };
-    console.log('[nightly-cron] followup:', summary.followup);
-  } catch (err: any) {
-    summary.followup = { error: err.message };
-    console.error('[nightly-cron] followup failed:', err.message);
-  }
 
   // ── 2. Reminders (evening sweep) ─────────────────────────────────────────────
   try {

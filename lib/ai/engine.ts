@@ -604,6 +604,7 @@ export async function handleIncomingMessage(
   }
 
   // 11. Observability
+  // [FIX P2-1] retries reflete se fallback para flash-lite foi acionado
   await persistAILog({
     company_id: companyId,
     lead_id: activeLead.id,
@@ -619,7 +620,7 @@ export async function handleIncomingMessage(
     tokens_input: aiResult.tokens_input,
     tokens_output: aiResult.tokens_output,
     cost: null,
-    retries: 0,
+    retries: aiResult.model_used === 'gemini-2.5-flash-lite' ? 1 : 0,
     error: null,
   });
 
@@ -632,13 +633,23 @@ export async function handleIncomingMessage(
         return;
       }
 
-      const analytics = await processBackgroundAnalytics(
-        historyList,
-        messageText,
-        finalReply,
-        aiResult.tools_called || [],
-        aiResult.summary
+      // [FIX P1-2] Timeout de 20s no analytics para evitar memory leak / hang em alta concorrência
+      // [FIX P2-3] Limitar histórico a 5 mensagens — reduz ~60% dos tokens de input do analytics
+      const recentHistory = historyList.slice(-5);
+      const analyticsTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Analytics timeout (20s)')), 20_000)
       );
+
+      const analytics = await Promise.race([
+        processBackgroundAnalytics(
+          recentHistory,
+          messageText,
+          finalReply,
+          aiResult.tools_called || [],
+          aiResult.summary
+        ),
+        analyticsTimeout,
+      ]) as Awaited<ReturnType<typeof processBackgroundAnalytics>>;
 
       const { data: latestLead } = await admin
         .from('leads')
@@ -691,9 +702,10 @@ export async function handleIncomingMessage(
 export async function triggerAutoFollowUp(leadId: string): Promise<void> {
   const admin = createAdminClient();
 
+  // [FIX P1-4] Seleciona apenas os campos necessários em vez de companies(*) (evita dados sensíveis em memória)
   const { data: lead } = await admin
     .from('leads')
-    .select('*, companies(*)')
+    .select('*, companies(id, name, ai_name, ai_tone, persona_config)')
     .eq('id', leadId)
     .single();
 
@@ -745,7 +757,6 @@ export async function triggerAutoFollowUp(leadId: string): Promise<void> {
 
   if (!claimed) return;
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
 
   const prompt = `Voce e ${company.ai_name || 'Agendra'}, assistente do(a) ${company.name}.
@@ -757,10 +768,29 @@ Objetivo: Envie um follow-up curto (maximo 2 frases), gentil e sem pressao para 
 
 Mensagem de follow-up:`;
 
-  try {
-    const result = await model.generateContent(prompt);
-    const followupText = result.response.text().trim().replace(/^"|"$/g, '');
+  // [FIX P0-1] Retry + fallback idêntico ao processLeadMessage para proteger contra throttle do Gemini
+  let followupText = '';
+  let lastFollowupErr: any;
+  for (const modelName of ['gemini-2.5-flash', 'gemini-2.5-flash-lite']) {
+    try {
+      const m = genAI.getGenerativeModel({ model: modelName });
+      const result = await m.generateContent(prompt);
+      followupText = result.response.text().trim().replace(/^"|"$/g, '');
+      break;
+    } catch (err: any) {
+      lastFollowupErr = err;
+      if (modelName === 'gemini-2.5-flash-lite') break;
+      console.warn(`[AI Engine] Follow-up: fallback para gemini-2.5-flash-lite (${err.message})`);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
 
+  if (!followupText) {
+    console.error('[AI Engine] Follow-up failed (all models):', lastFollowupErr);
+    return;
+  }
+
+  try {
     await sendWhatsAppMessage(lead.phone, followupText, lead.company_id);
 
     await admin.from('messages').insert({
@@ -771,6 +801,6 @@ Mensagem de follow-up:`;
       metadata: { type: 'auto-followup' },
     });
   } catch (err) {
-    console.error('[AI Engine] Follow-up failed:', err);
+    console.error('[AI Engine] Follow-up send failed:', err);
   }
 }

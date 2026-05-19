@@ -27,6 +27,7 @@
 - [x] **Multitenancy Completo**: Followup cron filtra leads por `company_id` (não mais query global).
 - [x] **Plan Gates**: `maxChannels` e `maxCalendars` enforced em todos os pontos de conexão.
 - [x] **TTL Cleanup**: pg_cron deleta `processed_messages` com mais de 7 dias (migration 018).
+- [x] **Metadata Schema Sync**: Coluna `metadata` adicionada na tabela `messages` (migration 023), corrigindo o erro PGRST204 de produção e restaurando o histórico de conversas da IA para agendamento.
 
 ## 💅 Fase 4: Polimento Premium & Escala
 - [x] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
