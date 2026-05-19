@@ -16,6 +16,7 @@ import {
   type ToolContext,
 } from './tools';
 import { getCompanyUsage } from '@/lib/billing/limits';
+import type { PlanLimits, PlanType } from '@/lib/billing/plans';
 import { persistAILog, createTimer } from '@/lib/ai/observability';
 import { EMPTY_MEMORY, mountContext, summarizeConversation, extractRelevantFacts, appendScoreHistory } from './memory';
 import { validateAndNormalizeScore } from './scoring';
@@ -46,7 +47,32 @@ interface PersonaConfig {
   escalation_threshold?: number;
 }
 
-function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: string, isNewConversation: boolean): string {
+/** Formata os limites de plano em linguagem natural para o system prompt. */
+function buildPlanContext(planType: PlanType, limits: PlanLimits): string {
+  const yn = (v: boolean) => (v ? 'Liberado' : 'BLOQUEADO');
+  return `## Plano Ativo desta Empresa
+Plano contratado: *${planType.toUpperCase()}*
+- Limite de leads/mês: ${limits.maxLeads}
+- WhatsApps conectados: até ${limits.maxChannels}
+- Calendários sincronizados: até ${limits.maxCalendars}
+- Marca d'água Agendra: ${limits.hasWatermark ? 'Sim (somente 1ª mensagem por lead)' : 'Não'}
+- Follow-up automático: ${yn(limits.hasFollowUp)}
+- Webhooks (Zapier/Make): ${yn(limits.hasWebhooks)}
+- Onboarding dedicado: ${yn(limits.hasDedicatedOnboarding)}
+
+REGRA DE OURO: Você NUNCA deve oferecer, prometer, mencionar ou insinuar recursos marcados como BLOQUEADO acima.
+Se o cliente perguntar sobre um recurso bloqueado, informe de forma direta, educada e breve que não está disponível no plano atual.
+Se houver upgrade disponível, sugira de forma natural e sem insistência. Nunca invente permissões.`;
+}
+
+function buildSystemPrompt(
+  persona: PersonaConfig,
+  lead: Lead,
+  memoryContext: string,
+  isNewConversation: boolean,
+  planType: PlanType,
+  planLimits: PlanLimits,
+): string {
   const aiName = persona.name ?? 'Agendra';
   const businessName = persona.business_name ?? 'nossa empresa';
   const businessType = persona.business_type ?? 'negocio';
@@ -81,6 +107,8 @@ function buildSystemPrompt(persona: PersonaConfig, lead: Lead, memoryContext: st
     ? `\n## O que NAO fazer (PROIBIDO)\n${persona.ai_forbidden}`
     : '';
 
+  const planContext = buildPlanContext(planType, planLimits);
+
   return `Voce e ${aiName}, assistente de vendas estrategica do(a) ${businessName} (${businessType}).
 Tom: ${tone}. Use o primeiro nome do lead: "${firstName}". Seja concisa, empatica e focada em conversao.
 
@@ -94,6 +122,8 @@ FORMATACAO (CRITICO): Esta conversa e via WhatsApp. Use APENAS formatacao WhatsA
 - Negrito: *texto* (UM asterisco). NUNCA use **texto** (dois asteriscos).
 - Italico: _texto_. NUNCA use markdown como #, ##, ---, backticks.
 - Listas: use hifen simples "-" ou numero "1."
+
+${planContext}
 
 ${memoryContext}
 
@@ -133,12 +163,14 @@ export async function processLeadMessage(
   companyId: string,
   persona: PersonaConfig,
   isNewConversation: boolean,
+  planType: PlanType = 'trial',
+  planLimits: PlanLimits = {} as PlanLimits,
 ): Promise<AIResult> {
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
 
   const model = genAI.getGenerativeModel({
     model: MAIN_MODEL,
-    systemInstruction: buildSystemPrompt(persona, lead, memoryContext, isNewConversation),
+    systemInstruction: buildSystemPrompt(persona, lead, memoryContext, isNewConversation, planType, planLimits),
     tools: [toolDeclarations],
     toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
   });
@@ -248,24 +280,25 @@ export async function handleIncomingMessage(
   const admin = createAdminClient();
   const timer = createTimer();
 
-  // 1. Deduplication
+  // 1. Atomic deduplication — INSERT with PK conflict means duplicate webhook.
+  // Race-safe: PostgreSQL guarantees only one inserter wins.
   if (providerMessageId) {
-    const { data: existing } = await admin
-      .from('processed_messages')
-      .select('status')
-      .eq('provider_message_id', providerMessageId)
-      .maybeSingle();
-
-    if (existing?.status === 'completed' || existing?.status === 'processing') {
-      console.log(`[AI Engine] Mensagem ${providerMessageId} ja processada. Ignorando.`);
-      return;
-    }
-
-    await admin.from('processed_messages').upsert({
+    const { error: insErr } = await admin.from('processed_messages').insert({
       provider_message_id: providerMessageId,
       company_id: companyId,
       status: 'processing',
     });
+
+    if (insErr) {
+      // Unique violation = already being processed or completed by another worker.
+      // Any other error: surface and abort to avoid blind retries.
+      if ((insErr as any).code === '23505') {
+        console.log(`[AI Engine] Mensagem ${providerMessageId} ja em processamento (race detectada). Ignorando.`);
+        return;
+      }
+      console.error('[AI Engine] processed_messages insert failed:', insErr);
+      return;
+    }
   }
 
   // 2. Context loading
@@ -297,11 +330,26 @@ export async function handleIncomingMessage(
   let activeLead: Lead;
   if (lead) {
     activeLead = lead as Lead;
-    if (activeLead.is_processing) {
-      console.warn(`[AI Engine] Lead ${phone} ja esta sendo processado. Abortando.`);
+    // Atomic lock acquisition: only succeeds if is_processing was false.
+    // Two concurrent webhooks for the same lead cannot both win.
+    const { data: locked } = await admin
+      .from('leads')
+      .update({ is_processing: true })
+      .eq('id', activeLead.id)
+      .eq('is_processing', false)
+      .select('id')
+      .maybeSingle();
+
+    if (!locked) {
+      console.warn(`[AI Engine] Lead ${phone} ja esta sendo processado (lock atomico). Abortando.`);
+      if (providerMessageId) {
+        await admin
+          .from('processed_messages')
+          .update({ status: 'error', error_message: 'lead lock contention' })
+          .eq('provider_message_id', providerMessageId);
+      }
       return;
     }
-    await admin.from('leads').update({ is_processing: true }).eq('id', activeLead.id);
   } else {
     const { data: created } = await admin
       .from('leads')
@@ -370,6 +418,8 @@ export async function handleIncomingMessage(
       companyId,
       persona,
       isNewConversation,
+      usage.planType,
+      usage.limits,
     );
   } catch (aiErr) {
     console.error('[AI Engine] processLeadMessage failed:', aiErr);
@@ -385,10 +435,11 @@ export async function handleIncomingMessage(
     messageText,
   );
 
-  // 8. Watermark — only on truly first assistant response
+  // 8. Watermark — only on truly first assistant response, never repeated
   let finalReply = aiResult.reply;
   if (usage.limits.hasWatermark && isNewConversation) {
-    finalReply += '\n\n Atendimento por Agendra';
+    // Single-fire: isNewConversation = assistantTotal === 0 (db-level check, not history window)
+    finalReply += '\n\n_Atendimento via Agendra_ ✦';
   }
 
   const { data: sentMessage } = await admin
@@ -507,6 +558,28 @@ export async function triggerAutoFollowUp(leadId: string): Promise<void> {
 
   if (!lead || lead.is_paused || lead.status === 'success' || lead.status === 'disqualified') return;
 
+  // ── Plan gate: follow-up only for plans that allow it ──────────────────────
+  try {
+    const usage = await getCompanyUsage(lead.company_id);
+    if (!usage.limits.hasFollowUp) {
+      console.log(`[AI Engine] triggerAutoFollowUp bloqueado — plano ${usage.planType} nao inclui follow-up automatico. Lead: ${leadId}`);
+      return;
+    }
+  } catch (billingErr) {
+    console.error('[AI Engine] triggerAutoFollowUp: billing check failed, abortando por seguranca.', billingErr);
+    return;
+  }
+
+  // Skip se lead já tem agendamento futuro ativo — sem necessidade de follow-up.
+  const { count: activeBookings } = await admin
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('lead_id', leadId)
+    .neq('status', 'cancelled')
+    .gte('start_time', new Date().toISOString());
+
+  if ((activeBookings ?? 0) > 0) return;
+
   const company = lead.companies as any;
   const { data: messages } = await admin
     .from('messages')
@@ -517,6 +590,19 @@ export async function triggerAutoFollowUp(leadId: string): Promise<void> {
 
   const lastMsg = messages?.[0];
   if (!lastMsg || lastMsg.role !== 'assistant') return;
+
+  // Atomic claim: marca last_followup_at agora pra evitar disparo duplicado por crons concorrentes.
+  // Se outro worker já fez follow-up nas últimas 48h, abortamos.
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const { data: claimed } = await admin
+    .from('leads')
+    .update({ last_followup_at: new Date().toISOString() })
+    .eq('id', leadId)
+    .or(`last_followup_at.is.null,last_followup_at.lt.${fortyEightHoursAgo}`)
+    .select('id')
+    .maybeSingle();
+
+  if (!claimed) return;
 
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
@@ -543,8 +629,6 @@ Mensagem de follow-up:`;
       content: followupText,
       metadata: { type: 'auto-followup' },
     });
-
-    await admin.from('leads').update({ last_followup_at: new Date().toISOString() }).eq('id', lead.id);
   } catch (err) {
     console.error('[AI Engine] Follow-up failed:', err);
   }
