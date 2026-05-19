@@ -67,9 +67,9 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
       const isAuthError = res.status === 401 || res.status === 403;
       admin.from("channels")
         .update({
-          meta: { last_error: errorMessage },
+          last_error: errorMessage,
           status: isAuthError ? "error" : "active",
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq("company_id", companyId)
         .eq("provider", "whatsapp")
@@ -83,8 +83,9 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
     const admin = createAdminClient();
     admin.from("channels")
       .update({
-        meta: { last_error: null },
-        status: 'active',
+        last_error: null,
+        last_seen_at: new Date().toISOString(),
+        status: "active",
         updated_at: new Date().toISOString(),
       })
       .eq("company_id", companyId)
