@@ -271,6 +271,21 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
     // 2. Descobrir detalhes do número
     const details = await getWhatsAppNumberDetails(longLivedToken);
 
+    // Cross-tenant guard: garantir que esse phone_number_id não pertence a outra empresa
+    const { data: existingCross } = await supabase
+      .from("channels")
+      .select("company_id")
+      .eq("provider", "whatsapp")
+      .eq("provider_id", details.phone_number_id)
+      .maybeSingle();
+
+    if (existingCross && existingCross.company_id !== companyId) {
+      return {
+        success: false,
+        error: "Este número de WhatsApp já está vinculado a outra conta Agendra. Contate o suporte.",
+      };
+    }
+
     // 3. Salvar no banco
     const { error } = await supabase.from("channels").upsert({
       company_id: companyId,
@@ -286,7 +301,7 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
       },
       last_error: null
     }, {
-      onConflict: 'company_id,provider'
+      onConflict: 'provider,provider_id'
     });
 
     if (error) throw error;

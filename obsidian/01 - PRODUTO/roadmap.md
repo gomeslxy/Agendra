@@ -68,7 +68,7 @@
 - [ ] Integração Backend: salvar documentos no `company_knowledge` + pgvector.
 - [ ] Integração Backend: ler `ai_decision_logs` com source e confiança na UI da Mente da IA.
 - [ ] `match_knowledge()` RPC já definida em `plano-estrategico-evolucao.md` — implementar
-- [ ] `followup_max_retries` lido pelo engine (config salva mas engine ainda usa limit(10) fixo).
+- [x] `followup_max_retries` lido pelo engine (config salva e respeitada pelo loop do cron no AI engine).
 
 ### Épico 4 — Fintech Conversacional (🔜 Fase 3)
 - [ ] Tabela `transactions` já existe (migration 019) — implementar geração de Pix dinâmico

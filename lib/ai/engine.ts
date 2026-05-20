@@ -693,6 +693,12 @@ export async function triggerAutoFollowUp(leadId: string): Promise<void> {
     return;
   }
 
+  const maxRetries = (lead.companies?.persona_config as any)?.followup_max_retries ?? 2;
+  if ((lead.followup_count ?? 0) >= maxRetries) {
+    console.log(`[AI Engine] triggerAutoFollowUp: lead ${leadId} atingiu max retries (${maxRetries}).`);
+    return;
+  }
+
   // Skip se lead já tem agendamento futuro ativo — sem necessidade de follow-up.
   const { count: activeBookings } = await admin
     .from('events')
@@ -770,6 +776,11 @@ Mensagem de follow-up:`;
       content: followupText,
       metadata: { type: 'auto-followup' },
     });
+
+    await admin
+      .from('leads')
+      .update({ followup_count: (lead.followup_count ?? 0) + 1 })
+      .eq('id', lead.id);
 
     // Registrar no feed de automações (silencioso — falha não interrompe)
     admin.from('automation_events').insert({

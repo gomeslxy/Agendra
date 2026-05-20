@@ -25,6 +25,7 @@ export interface Lead {
   last_message_id: string | null;
   control_mode?: 'autonomous' | 'shadow' | 'manual';
   last_sentiment?: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';
+  followup_count: number;
   created_at: string;
   updated_at: string;
   lead_memory?: LeadMemory | null; // optional: added in schema_v6

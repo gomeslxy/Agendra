@@ -298,7 +298,7 @@ export function SettingsShell({ company, memberships, channels, services, usage,
           {tab === "rules"      && <Rules company={company} />}
           {tab === "services"   && <Services companyId={company?.id} services={services} />}
           {tab === "brain"      && <Persona company={company} services={services} onChangeTab={changeTab} planType={company?.plan_type} />}
-          {tab === "channels"   && <Channels company={company} channels={channels} />}
+          {tab === "channels"   && <Channels company={company} channels={channels} usage={usage} />}
           {tab === "automation" && (
             <Flows
               company={company}
@@ -471,12 +471,16 @@ function WorkingHoursEditor({
   function toggleDay(key: string) {
     const next = { ...value };
     if (next[key]) {
+      if (Object.keys(next).length === 1) {
+        toast.warning("Mantenha ao menos 1 dia ativo. Para pausar tudo, use o controle de pausa da IA.");
+        return;
+      }
       delete next[key];
     } else {
       const anyDay = Object.values(value)[0] ?? ["09:00", "18:00"];
       next[key] = [anyDay[0], anyDay[1]];
     }
-    onChange(Object.keys(next).length > 0 ? next : DEFAULT_WH);
+    onChange(next);
   }
 
   function setDayTime(day: string, field: 0 | 1, v: string) {
@@ -650,18 +654,19 @@ function Persona({
           <CardDescription>Treine a IA com catálogos, FAQs e tabelas de preços.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="group relative flex flex-col items-center justify-center p-8 border-2 border-dashed border-brand-blue-500/20 rounded-2xl bg-brand-blue-500/5 hover:bg-brand-blue-500/10 hover:border-brand-blue-500/40 transition-all cursor-pointer overflow-hidden">
-            <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept=".pdf,.txt,.docx" />
-            
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-brand-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            
-            <div className="h-14 w-14 rounded-full bg-brand-blue-500/20 flex items-center justify-center text-brand-blue-400 mb-4 ring-4 ring-brand-blue-500/10 group-hover:scale-110 transition-transform">
+          <div className="group relative flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/[0.08] rounded-2xl bg-white/[0.02] cursor-not-allowed overflow-hidden opacity-60">
+            <input
+              type="file"
+              disabled
+              className="absolute inset-0 w-full h-full opacity-0 cursor-not-allowed z-10"
+              accept=".pdf,.txt,.docx"
+            />
+            <div className="h-14 w-14 rounded-full bg-white/[0.05] flex items-center justify-center text-white/30 mb-4 ring-4 ring-white/[0.03]">
               <Cpu size={24} />
             </div>
-            
-            <p className="text-sm font-bold text-white mb-1">Clique ou arraste um arquivo</p>
-            <p className="text-xs text-white/50 text-center max-w-[250px]">
-              Suporta PDF, DOCX ou TXT até 10MB.
+            <p className="text-sm font-bold text-white/70 mb-1">Upload de documentos — em breve</p>
+            <p className="text-xs text-white/40 text-center max-w-[260px]">
+              Enquanto isso, use o campo "Instruções adicionais" abaixo para treinar a IA.
             </p>
           </div>
 
@@ -735,12 +740,19 @@ interface ChannelItem {
   sub?: string;
 }
 
-function Channels({ company, channels }: { company: Company | null; channels: ChannelRow[] }) {
+function Channels({
+  company,
+  channels,
+  usage,
+}: {
+  company: Company | null;
+  channels: ChannelRow[];
+  usage: any;
+}) {
   const gcalConnected = !!company?.google_calendar_email;
   const waChannels = channels.filter((c) => c.provider === "whatsapp" && c.status === "active");
 
-  const planType = company?.plan_type ?? "trial";
-  const maxWaChannels = planType === "business" ? 10 : planType === "pro" ? 3 : 1;
+  const maxWaChannels = usage?.limits?.maxChannels ?? 1;
   const canAddMore = waChannels.length < maxWaChannels;
 
   // One card per connected WA channel
@@ -1447,48 +1459,18 @@ function Flows({
         </div>
 
         {/* Webhooks */}
-        {isPro ? (
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
-            <div className="flex items-center gap-3 p-4">
-              <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-blue-500/10 flex items-center justify-center">
-                <GitBranch size={16} className="text-brand-blue-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-semibold text-white">Webhooks</div>
-                <div className="text-[11px] text-white/40 mt-0.5">Conecte ao Zapier, Make e sistemas externos</div>
-              </div>
-              <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20 shrink-0">Pro</Badge>
-            </div>
-            <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] uppercase tracking-widest text-white/30 font-bold">Eventos disponíveis</label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {["lead.created", "appointment.booked", "appointment.reminder", "followup.sent"].map(ev => (
-                    <div key={ev} className="flex items-center gap-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] px-2 py-1.5">
-                      <span className="h-1 w-1 rounded-full bg-brand-teal-400/60 shrink-0" />
-                      <code className="text-[10px] text-white/50 font-mono truncate">{ev}</code>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <p className="text-[10px] text-white/25 leading-relaxed">
-                Endpoint configurável via suporte. Documentação completa em breve.
-              </p>
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 flex items-center gap-3 opacity-50">
+          <div className="h-9 w-9 shrink-0 rounded-lg bg-white/[0.04] flex items-center justify-center">
+            <GitBranch size={16} className="text-white/20" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold text-white/50">Webhooks (Zapier / Make)</div>
+            <div className="text-[11px] text-white/25 mt-0.5">
+              Integração com sistemas externos via eventos
             </div>
           </div>
-        ) : (
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 flex items-center gap-3 opacity-60">
-            <div className="h-9 w-9 shrink-0 rounded-lg bg-white/[0.04] flex items-center justify-center">
-              <GitBranch size={16} className="text-white/20" />
-            </div>
-            <div className="flex-1">
-              <div className="text-[13px] font-semibold text-white/40">Webhooks (Zapier / Make)</div>
-              <button onClick={() => onChangeTab("billing")} className="text-[11px] font-bold text-brand-blue-400 hover:underline">
-                Disponível no plano Pro →
-              </button>
-            </div>
-          </div>
-        )}
+          <Badge variant="cold" className="text-[10px] px-2 py-0.5 shrink-0">Em breve</Badge>
+        </div>
       </div>
 
       {/* ── Atividade Recente ──────────────────────────────────── */}
