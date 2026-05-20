@@ -16,6 +16,14 @@
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GCAL_API_BASE = 'https://www.googleapis.com/calendar/v3';
 
+// ─── In-Memory Caches (W2.11) ─────────────────────────────────────────────
+// Shared across serverless invocations in the same Node.js process instance.
+// TTLs well within token validity (1h) and freshness requirements.
+interface TokenCacheEntry { accessToken: string; expiresAt: number; }
+interface FreeBusyCacheEntry { slots: BusySlot[]; expiresAt: number; }
+const tokenCache = new Map<string, TokenCacheEntry>();
+const freeBusyCache = new Map<string, FreeBusyCacheEntry>();
+
 // ─── OAuth Config ─────────────────────────────────────────────────────────────
 
 function getOAuthConfig() {
@@ -38,6 +46,10 @@ function getOAuthConfig() {
  * Chamado antes de qualquer requisição à API do Google Calendar.
  */
 export async function refreshAccessToken(refreshToken: string): Promise<string> {
+  // W2.11: Check in-memory cache (50-minute TTL — well within 1h Google token validity)
+  const cached = tokenCache.get(refreshToken);
+  if (cached && cached.expiresAt > Date.now()) return cached.accessToken;
+
   const { clientId, clientSecret } = getOAuthConfig();
 
   const res = await fetch(GOOGLE_TOKEN_URL, {
@@ -57,6 +69,8 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
   }
 
   const json = (await res.json()) as { access_token: string };
+  // Store in cache with 50-minute TTL
+  tokenCache.set(refreshToken, { accessToken: json.access_token, expiresAt: Date.now() + 50 * 60 * 1000 });
   return json.access_token;
 }
 
@@ -77,6 +91,11 @@ export async function getFreeBusySlots(
   timeMin: string,
   timeMax: string,
 ): Promise<BusySlot[]> {
+  // W2.11: Check in-memory cache (90-second TTL — safe for concurrent lead messages)
+  const cacheKey = `${refreshToken.slice(-8)}:${calendarId}:${timeMin}:${timeMax}`;
+  const cached = freeBusyCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.slots;
+
   const accessToken = await refreshAccessToken(refreshToken);
 
   const res = await fetch(`${GCAL_API_BASE}/freeBusy`, {
@@ -101,7 +120,10 @@ export async function getFreeBusySlots(
     calendars: Record<string, { busy: BusySlot[] }>;
   };
 
-  return json.calendars[calendarId]?.busy ?? [];
+  const slots = json.calendars[calendarId]?.busy ?? [];
+  // Cache for 90 seconds
+  freeBusyCache.set(cacheKey, { slots, expiresAt: Date.now() + 90 * 1000 });
+  return slots;
 }
 
 // ─── Event Listing (for sync) ─────────────────────────────────────────────────
@@ -274,6 +296,7 @@ export interface CalendarEventInput {
   description?: string;
   attendeeEmail?: string; // lead's email, if available
   timeZone?: string;   // IANA timezone, e.g. 'America/Sao_Paulo'
+  reminderMinutes?: number; // W2.13: Override popup/email reminder advance (in minutes)
 }
 
 /**
@@ -295,8 +318,9 @@ export async function createGoogleCalendarEvent(
     reminders: {
       useDefault: false,
       overrides: [
-        { method: 'email', minutes: 60 },
-        { method: 'popup', minutes: 15 },
+        // W2.13: Use configured advance hours; default to 60min/15min if not set
+        { method: 'email', minutes: event.reminderMinutes ?? 60 },
+        { method: 'popup', minutes: event.reminderMinutes ?? 15 },
       ],
     },
   };

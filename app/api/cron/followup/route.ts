@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerAutoFollowUp } from "@/lib/ai/engine";
 import { getPlanLimits } from "@/lib/billing/plans";
+import { getCompanyUsage } from "@/lib/billing/limits";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -51,9 +52,18 @@ export async function GET(req: Request) {
         continue;
       }
 
+      // [FIX W2.4] Preload usage once per company to avoid N+1 billing queries
+      let usage;
+      try {
+        usage = await getCompanyUsage(company.id);
+      } catch (usageErr: any) {
+        console.error(`[Cron Followup] Erro ao buscar usage da empresa ${company.id}:`, usageErr.message);
+        continue;
+      }
+
       for (const lead of leads ?? []) {
         try {
-          await triggerAutoFollowUp(lead.id);
+          await triggerAutoFollowUp(lead.id, usage);
           results.push({ id: lead.id, company_id: company.id, status: 'success' });
         } catch (err: any) {
           results.push({ id: lead.id, company_id: company.id, status: 'error', error: err.message });

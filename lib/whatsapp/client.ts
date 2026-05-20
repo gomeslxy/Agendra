@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const WHATSAPP_API_BASE = 'https://graph.facebook.com/v19.0';
 
 export async function sendWhatsAppMessage(to: string, text: string, companyId?: string): Promise<void> {
+  // W2.9: Create admin client once and reuse across all DB operations in this function
+  const admin = companyId ? createAdminClient() : null;
+
   // Fallback para env vars APENAS em dev (evita usar seu token pessoal em produção)
   let phoneId: string | undefined;
   let token: string | undefined;
@@ -11,9 +14,8 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
     phoneId = process.env.WHATSAPP_PHONE_ID;
     token = process.env.WHATSAPP_TOKEN;
   }
-  
-  if (companyId) {
-    const admin = createAdminClient();
+
+  if (companyId && admin) {
     const { data: channels } = await admin
       .from("channels")
       .select("provider_id, access_token")
@@ -61,9 +63,8 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
   if (!res.ok) {
     const err = await res.text();
     const errorMessage = `WhatsApp API error ${res.status}: ${err}`;
-    
-    if (companyId) {
-      const admin = createAdminClient();
+
+    if (companyId && admin) {
       const isAuthError = res.status === 401 || res.status === 403;
       admin.from("channels")
         .update({
@@ -79,8 +80,7 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
     throw new Error(errorMessage);
   }
 
-  if (companyId) {
-    const admin = createAdminClient();
+  if (companyId && admin) {
     admin.from("channels")
       .update({
         last_error: null,

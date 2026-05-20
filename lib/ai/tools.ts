@@ -30,6 +30,7 @@ export { handleUpdateLeadMemory };
 export interface ToolContext {
   companyId: string;
   leadId: string;
+  traceId?: string;
 }
 
 export interface BookingResult {
@@ -148,18 +149,6 @@ export const toolDeclarations: Tool = {
         },
       },
     },
-    {
-      name: 'generatePixCharge',
-      description: 'Gera uma cobrança via Pix para o lead pagar por um serviço ou sinal de agendamento.',
-      parameters: {
-        type: SchemaType.OBJECT,
-        properties: {
-          service_id: { type: SchemaType.STRING, description: 'ID do serviço que está sendo pago' },
-          amount: { type: SchemaType.NUMBER, description: 'Valor a ser cobrado' },
-        },
-        required: ['service_id', 'amount'],
-      },
-    },
   ],
 };
 
@@ -195,7 +184,7 @@ export async function handleCheckAvailability(
 
   // 1. Buscar serviço e config da empresa
   const [svcRes, coRes] = await Promise.all([
-    admin.from('services').select('duration').eq('id', args.service_id).single(),
+    admin.from('services').select('duration').eq('id', args.service_id).eq('company_id', ctx.companyId).single(),
     admin.from('companies').select('persona_config, google_refresh_token, google_calendar_id').eq('id', ctx.companyId).single()
   ]);
 
@@ -266,8 +255,8 @@ export async function handleBookAppointment(
 
   // 1. Buscar detalhes do serviço e lead
   const [svcRes, leadRes] = await Promise.all([
-    admin.from('services').select('name, duration').eq('id', args.service_id).single(),
-    admin.from('leads').select('name, email').eq('id', ctx.leadId).single()
+    admin.from('services').select('name, duration').eq('id', args.service_id).eq('company_id', ctx.companyId).single(),
+    admin.from('leads').select('name, email').eq('id', ctx.leadId).eq('company_id', ctx.companyId).single()
   ]);
 
   if (!svcRes.data) throw new Error('Serviço não encontrado.');
@@ -295,6 +284,7 @@ export async function handleBookAppointment(
     .from('events')
     .select('id', { count: 'exact', head: true })
     .eq('lead_id', ctx.leadId)
+    .eq('company_id', ctx.companyId)
     .neq('status', 'cancelled')
     .gte('start_time', new Date().toISOString());
 
@@ -309,6 +299,7 @@ export async function handleBookAppointment(
     .from('events')
     .select('id')
     .eq('lead_id', ctx.leadId)
+    .eq('company_id', ctx.companyId)
     .eq('service_id', args.service_id)
     .neq('status', 'cancelled')
     .gte('start_time', dayStart.toISOString())
@@ -341,58 +332,79 @@ export async function handleBookAppointment(
         throw new Error('Este horário foi ocupado recentemente no calendário externo. Por favor, tente outro.');
       }
 
-      gcalId = await createGoogleCalendarEvent(
-        company.google_refresh_token,
-        company.google_calendar_id ?? 'primary',
-        {
-          title: `${service.name} - ${lead?.name || 'Cliente'}`,
-          start: startTime.toISOString(),
-          end: endTime.toISOString(),
-          description: args.notes || `Agendamento realizado via Agendra AI.\nLead ID: ${ctx.leadId}`,
-          attendeeEmail: lead?.email || undefined,
-          timeZone: (company.persona_config as any)?.timezone
-        }
-      );
-    } catch (e: any) {
-      console.error('[Tools] GCal double-check or creation failed:', e.message);
-      if (e.message.includes('calendário externo')) throw e; // Rethrow business error
+        const advanceHours = (company?.persona_config as any)?.reminder_advance_hours ?? 2;
+        const reminderMinutes = advanceHours * 60;
+
+        gcalId = await createGoogleCalendarEvent(
+          company.google_refresh_token,
+          company.google_calendar_id ?? 'primary',
+          {
+            title: `${service.name} - ${lead?.name || 'Cliente'}`,
+            start: startTime.toISOString(),
+            end: endTime.toISOString(),
+            description: args.notes || `Agendamento realizado via Agendra AI.\nLead ID: ${ctx.leadId}`,
+            attendeeEmail: lead?.email || undefined,
+            timeZone: (company.persona_config as any)?.timezone,
+            reminderMinutes
+          }
+        );
+      } catch (e: any) {
+        console.error('[Tools] GCal double-check or creation failed:', e.message);
+        if (e.message.includes('calendário externo')) throw e; // Rethrow business error
+      }
     }
-  }
 
-  // 4. Salvar no banco
-  const { data: event, error } = await admin
-    .from('events')
-    .insert({
-      lead_id: ctx.leadId,
-      company_id: ctx.companyId,
-      service_id: args.service_id,
-      title: `${service.name} - ${lead?.name || 'Cliente'}`,
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
-      gcal_event_id: gcalId,
-      notes: args.notes,
-      status: 'confirmed'
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  // 5. Agendar Lembrete Automático (antecedência configurável via persona_config)
+  // 4. Salvar no banco com compensação atômica em caso de falha
+  let event: any;
   try {
-    const advanceHours = (company?.persona_config as any)?.reminder_advance_hours ?? 2;
-    const remindAt = new Date(startTime.getTime() - advanceHours * 60 * 60 * 1000);
-    if (remindAt > new Date()) {
-      await admin.from('reminders').insert({
-        event_id: event.id,
-        company_id: ctx.companyId,
+    const { data, error } = await admin
+      .from('events')
+      .insert({
         lead_id: ctx.leadId,
-        remind_at: remindAt.toISOString(),
-        status: 'pending'
-      });
+        company_id: ctx.companyId,
+        service_id: args.service_id,
+        title: `${service.name} - ${lead?.name || 'Cliente'}`,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        gcal_event_id: gcalId,
+        notes: args.notes,
+        status: 'confirmed'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    event = data;
+
+    // 5. Agendar Lembrete Automático (antecedência configurável via persona_config)
+    try {
+      const advanceHours = (company?.persona_config as any)?.reminder_advance_hours ?? 2;
+      const remindAt = new Date(startTime.getTime() - advanceHours * 60 * 60 * 1000);
+      if (remindAt > new Date()) {
+        await admin.from('reminders').insert({
+          event_id: event.id,
+          company_id: ctx.companyId,
+          lead_id: ctx.leadId,
+          remind_at: remindAt.toISOString(),
+          status: 'pending'
+        });
+      }
+    } catch (remErr) {
+      console.error('[Tools] Falha ao agendar lembrete:', remErr);
     }
-  } catch (remErr) {
-    console.error('[Tools] Falha ao agendar lembrete:', remErr);
+
+    // Reset followup_count on success
+    await admin.from('leads').update({ followup_count: 0 }).eq('id', ctx.leadId).eq('company_id', ctx.companyId);
+  } catch (dbErr: any) {
+    console.error('[Tools] DB transaction failed in bookAppointment, compensating GCal creation:', dbErr.message);
+    if (gcalId && company?.google_refresh_token) {
+      try {
+        await deleteGCalEvent(company.google_refresh_token, company.google_calendar_id ?? 'primary', gcalId);
+      } catch (compensateErr: any) {
+        console.error('[Tools] Compensation failed (could not delete GCal event):', compensateErr.message);
+      }
+    }
+    throw dbErr;
   }
 
   const companyTimezone = (company?.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
@@ -416,18 +428,23 @@ export async function handleCancelAppointment(args: { event_id: string; reason?:
     .from('events')
     .select('gcal_event_id, company_id, companies(google_refresh_token, google_calendar_id)')
     .eq('id', args.event_id)
+    .eq('company_id', _ctx.companyId)
     .single();
 
   if (!event) throw new Error('Agendamento não encontrado.');
 
   // Cancel local
-  await admin.from('events').update({ status: 'cancelled', notes: args.reason }).eq('id', args.event_id);
+  await admin.from('events').update({ status: 'cancelled', notes: args.reason }).eq('id', args.event_id).eq('company_id', _ctx.companyId);
   
   // Cancelar lembretes pendentes
   await admin.from('reminders')
     .update({ status: 'cancelled' })
     .eq('event_id', args.event_id)
+    .eq('company_id', _ctx.companyId)
     .eq('status', 'pending');
+
+  // Reset followup_count on success
+  await admin.from('leads').update({ followup_count: 0 }).eq('id', _ctx.leadId).eq('company_id', _ctx.companyId);
 
   // Sync GCal
   const co = event.companies as any;
@@ -449,6 +466,7 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
     .from('events')
     .select('*, services(duration), companies(google_refresh_token, google_calendar_id, persona_config)')
     .eq('id', args.event_id)
+    .eq('company_id', ctx.companyId)
     .single();
 
   if (!event) throw new Error('Agendamento não encontrado.');
@@ -475,7 +493,7 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
     start_time: newStart.toISOString(),
     end_time: newEnd.toISOString(),
     status: 'rescheduled'
-  }).eq('id', args.event_id);
+  }).eq('id', args.event_id).eq('company_id', ctx.companyId);
   
   // Atualizar lembrete (2h antes do novo horário)
   const newRemindAt = new Date(newStart.getTime() - 2 * 60 * 60 * 1000);
@@ -483,12 +501,14 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
     await admin.from('reminders')
       .update({ remind_at: newRemindAt.toISOString() })
       .eq('event_id', args.event_id)
+      .eq('company_id', ctx.companyId)
       .eq('status', 'pending');
   } else {
     // Se o novo horário for muito em cima, cancelamos o lembrete pendente
     await admin.from('reminders')
       .update({ status: 'cancelled' })
       .eq('event_id', args.event_id)
+      .eq('company_id', ctx.companyId)
       .eq('status', 'pending');
   }
 
@@ -537,7 +557,7 @@ export async function handleUpdateLeadInfo(
 
   if (Object.keys(patch).length === 0) return { updated: false };
 
-  const { error } = await admin.from('leads').update(patch).eq('id', ctx.leadId);
+  const { error } = await admin.from('leads').update(patch).eq('id', ctx.leadId).eq('company_id', ctx.companyId);
   if (error) throw error;
   return { updated: true, fields: Object.keys(patch) };
 }
@@ -555,7 +575,8 @@ export async function handleRequestHumanAgent(
       status: 'manual',
       summary: `[TRANSFERÊNCIA] ${args.reason || 'Lead solicitou falar com humano.'}`
     })
-    .eq('id', ctx.leadId);
+    .eq('id', ctx.leadId)
+    .eq('company_id', ctx.companyId);
 
   if (error) throw error;
 
@@ -569,6 +590,10 @@ export async function handleGeneratePixCharge(
   args: { service_id: string; amount: number },
   ctx: ToolContext
 ) {
+  if (process.env.ENABLE_FINTECH !== 'true') {
+    throw new Error('Fintech feature desativada');
+  }
+
   const admin = createAdminClient();
 
   const pixKey = "00020101021226830014br.gov.bcb.pix2561api.agendra.com.br/v2/cobv/" + ctx.companyId.replace(/-/g, '').substring(0, 15) + "5802BR5920Agendra Tecnologia6009Sao Paulo62070503***6304" + Math.random().toString(36).substring(2, 6).toUpperCase();

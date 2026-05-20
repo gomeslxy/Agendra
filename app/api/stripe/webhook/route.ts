@@ -97,14 +97,16 @@ export async function POST(req: Request) {
         )) as any;
 
         // [HIGH-2] Determinar planType a partir do price_id (fonte mais confiável)
+        // [FIX W2.10] Stripe API 2026-04-22: read period from items.data[0] with root fallback
+        const item0 = subscription.items?.data?.[0];
         await updateCompanyStatus(
           companyId,
           subscription.status,
           planFromPriceId(subscription.items.data[0].price.id) || 'pro',
           subscription.id,
           subscription.customer as string,
-          subscription.current_period_start,
-          subscription.current_period_end,
+          item0?.current_period_start ?? subscription.current_period_start,
+          item0?.current_period_end   ?? subscription.current_period_end,
           subscription.cancel_at_period_end
         );
       }
@@ -139,14 +141,16 @@ export async function POST(req: Request) {
 
         console.log(`[Stripe Webhook] 🔄 Updating company ${companyId} → plan=${finalPlan} status=${status}`);
 
+        // [FIX W2.10] Stripe API 2026-04-22: read period from items.data[0] with root fallback
+        const item0upd = sub.items?.data?.[0] as any;
         await updateCompanyStatus(
           companyId,
           status,
           finalPlan,
           sub.id,
           undefined,
-          (sub as any).current_period_start,
-          (sub as any).current_period_end,
+          item0upd?.current_period_start ?? (sub as any).current_period_start,
+          item0upd?.current_period_end   ?? (sub as any).current_period_end,
           sub.cancel_at_period_end
         );
       }
@@ -224,9 +228,10 @@ export async function POST(req: Request) {
             || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
           const priceId = sub.items.data[0]?.price?.id;
           currentPlanType = planFromPriceId(priceId) || sub.metadata?.planType || 'starter';
-          // [FIX A3] Persistir período de billing para resetar o contador de leads
-          periodStart = (sub as any).current_period_start;
-          periodEnd   = (sub as any).current_period_end;
+          // [FIX A3 + W2.10] Persistir período de billing — lê de items.data[0] (API 2026-04-22)
+          const item0inv = sub.items?.data?.[0] as any;
+          periodStart = item0inv?.current_period_start ?? (sub as any).current_period_start;
+          periodEnd   = item0inv?.current_period_end   ?? (sub as any).current_period_end;
         } catch (err) {
           console.error('[Stripe Webhook] ❌ Failed to retrieve subscription for payment_succeeded:', err);
         }

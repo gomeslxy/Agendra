@@ -26,6 +26,9 @@ export interface Lead {
   control_mode?: 'autonomous' | 'shadow' | 'manual';
   last_sentiment?: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';
   followup_count: number;
+  last_message_at?: string | null;
+  followup_in_progress?: boolean;
+  last_followup_at?: string | null;
   created_at: string;
   updated_at: string;
   lead_memory?: LeadMemory | null; // optional: added in schema_v6
@@ -169,6 +172,8 @@ export interface AILog {
   retries: number;
   error: string | null;
   created_at: string;
+  trace_id?: string | null;
+  rag_status?: 'ok' | 'empty' | 'failed' | 'timeout' | null;
 }
 
 export interface AITrace {

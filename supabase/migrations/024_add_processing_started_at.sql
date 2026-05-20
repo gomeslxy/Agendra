@@ -4,7 +4,12 @@
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMPTZ;
 
 -- Remove watchdog antigo se existir para evitar colisão ao reinstalar
-SELECT cron.unschedule('agendra_unlock_stale_leads');
+DO $$ BEGIN
+  PERFORM cron.unschedule('agendra_unlock_stale_leads');
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
+
 
 -- Job pg_cron que roda a cada 1 minuto liberando locks presos por mais de 3 minutos
 SELECT cron.schedule(

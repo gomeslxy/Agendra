@@ -32,6 +32,29 @@
 - [x] **Morning Cron Multi-tenant**: Lembretes iterados por empresa com limite de 10 cada (evita starvation global) e GCal Sync desabilitado para planos cancelados.
 - [x] **Analytics Token Optimization**: Redução do histórico no prompt do analytics de 20 para as últimas 5 mensagens mais recentes, economizando mais de 60% dos tokens de analytics.
 
+## 🛡️ Fase 3.6: Hardening do Motor de IA — Auditoria W1+W2 (✅ Concluído 20/05/2026)
+- [x] **W1.1** Fintech gate: `generatePixCharge` removido do schema de tools; handler gateado por `ENABLE_FINTECH`.
+- [x] **W1.2** Try/catch global em `handleIncomingMessage` cobrindo todo o pós-processamento.
+- [x] **W1.3 + W1.4** Rate limiter + lock atômico de follow-up: colunas `last_message_at`, `followup_in_progress`, `last_followup_at` adicionadas (migration 029). Interface `Lead` atualizada em `database.ts`.
+- [x] **W1.5** IDOR fix: todos os tool actions filtram por `company_id`.
+- [x] **W1.6** GCal sync propagando status `'cancelled'` corretamente.
+- [x] **W2.1** Migration 029: HNSW 768D index + colunas de rate-limit/lock em `leads`.
+- [x] **W2.2** Embedding timeout 4 000ms via `Promise.race`.
+- [x] **W2.3** Reset de `followup_count=0` em lock, booking e cancellation.
+- [x] **W2.4** Cron de follow-up pré-carrega `usage` uma vez por empresa (elimina N+1 billing queries).
+- [x] **W2.5** Migration 030: colunas `trace_id` e `rag_status` em `ai_logs`, `ai_decision_logs`, `automation_events` + indexes.
+- [x] **W2.6** `triggerAutoFollowUp` gera `traceId = crypto.randomUUID()` e propaga para `automation_events`.
+- [x] **W2.7** Loop de follow-up tenta `gemini-2.5-flash-lite` primeiro, fallback para `gemini-2.5-flash`.
+- [x] **W2.8** Migration 031: TTL crons escalonados em 03:00, 03:05 e 03:10 UTC (sem sobreposição).
+- [x] **W2.9** Singleton admin client em `sendWhatsAppMessage`.
+- [x] **W2.10** Stripe webhook lê `current_period_start/end` de `items.data[0]` (fix API 2026-04-22).
+- [x] **W2.11** Cache de access token GCal (50 min) e Free/Busy (90s) ativos.
+- [x] **W2.12** Migration 024 `cron.unschedule` idempotente (bloco `DO $$ EXCEPTION WHEN OTHERS THEN NULL`).
+- [x] **W2.13** `reminderMinutes` aceito e repassado para o GCal.
+- [x] **W2.14** GCal sync com bulk query `.in()` e inserts em chunks de 100.
+- [x] **W2.15** Booking com compensação atômica: `deleteGCalEvent` desfaz criação se DB insert falhar.
+- [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅
+
 ## 💅 Fase 4: Polimento Premium & Escala
 - [x] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.

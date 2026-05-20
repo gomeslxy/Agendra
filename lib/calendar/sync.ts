@@ -10,7 +10,10 @@
  *   - eventType !== 'default' → skipped
  *
  * GCal-origin events (source='gcal') are never pushed back to GCal.
- * Agendra-origin events (source='agendra') keep gcal_event_id for delete propagation.
+ * Agendra-origin events (source='agendra') keep gcal_event_id for cancel propagation.
+ *
+ * W1.6: Cancelled GCal events mark ALL matching rows as status='cancelled' (any source).
+ * W2.14: Bulk-loads existing events in one query; batch inserts in groups of 100.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -70,61 +73,82 @@ export async function syncCompanyCalendar(companyId: string): Promise<SyncResult
   let updated = 0;
   let deleted = 0;
 
-  for (const gcalEvent of gcalResult.events) {
-    // Cancelled events: remove from Agendra only if GCal-origin
-    if (gcalEvent.status === 'cancelled') {
-      const { error } = await admin
-        .from('events')
-        .delete()
-        .eq('gcal_event_id', gcalEvent.id)
-        .eq('company_id', companyId)
-        .eq('source', 'gcal');
+  // ── Pass 1: Process cancelled events (W1.6) ───────────────────────────────
+  // Mark cancelled events as status='cancelled' for ANY source — not just 'gcal'.
+  // Prevents agendra-origin bookings from staying 'confirmed' after owner deletes in GCal.
+  // Physical delete is avoided to preserve audit history and UI reporting.
+  const cancelledGcalIds = gcalResult.events
+    .filter(e => e.status === 'cancelled')
+    .map(e => e.id);
 
-      if (!error) deleted++;
-      continue;
+  for (const gcalId of cancelledGcalIds) {
+    const { error } = await admin
+      .from('events')
+      .update({ status: 'cancelled' })
+      .eq('gcal_event_id', gcalId)
+      .eq('company_id', companyId);
+    if (!error) deleted++;
+  }
+
+  // ── Pass 2: Active events — bulk-load existing then batch insert (W2.14) ──
+  const activeEvents = gcalResult.events.filter(
+    e => e.status !== 'cancelled' && e.start?.dateTime && e.end?.dateTime
+  );
+
+  if (activeEvents.length > 0) {
+    // Single query to load all existing rows by gcal_event_id (avoids N+1)
+    const gcalEventIds = activeEvents.map(e => e.id);
+    const { data: existingRows } = await admin
+      .from('events')
+      .select('id, gcal_event_id, title, start_time, end_time')
+      .eq('company_id', companyId)
+      .in('gcal_event_id', gcalEventIds);
+
+    const existingMap = new Map<string, { id: string; title: string; start_time: string; end_time: string }>();
+    for (const row of existingRows ?? []) {
+      if (row.gcal_event_id) existingMap.set(row.gcal_event_id, row);
     }
 
-    // Safety: skip if no dateTime (all-day already filtered but double-check)
-    if (!gcalEvent.start?.dateTime || !gcalEvent.end?.dateTime) continue;
+    const toInsert: any[] = [];
 
-    const title = gcalEvent.summary?.trim() || 'Evento sem título';
-    const startTime = gcalEvent.start.dateTime;
-    const endTime = gcalEvent.end.dateTime;
+    for (const gcalEvent of activeEvents) {
+      const title = gcalEvent.summary?.trim() || 'Evento sem título';
+      const startTime = gcalEvent.start.dateTime!;
+      const endTime = gcalEvent.end.dateTime!;
 
-    // Check if event already exists in Agendra
-    const { data: existing } = await admin
-      .from('events')
-      .select('id, title, start_time, end_time')
-      .eq('gcal_event_id', gcalEvent.id)
-      .eq('company_id', companyId)
-      .maybeSingle();
-
-    if (existing) {
-      // Update only if something changed
-      if (
-        existing.title !== title ||
-        existing.start_time !== startTime ||
-        existing.end_time !== endTime
-      ) {
-        await admin
-          .from('events')
-          .update({ title, start_time: startTime, end_time: endTime })
-          .eq('id', existing.id);
-        updated++;
+      const existing = existingMap.get(gcalEvent.id);
+      if (existing) {
+        // Update only if something changed (title or times)
+        if (
+          existing.title !== title ||
+          existing.start_time !== startTime ||
+          existing.end_time !== endTime
+        ) {
+          await admin
+            .from('events')
+            .update({ title, start_time: startTime, end_time: endTime })
+            .eq('id', existing.id);
+          updated++;
+        }
+      } else {
+        // Queue for bulk insert
+        toInsert.push({
+          company_id: companyId,
+          lead_id: null,
+          title,
+          start_time: startTime,
+          end_time: endTime,
+          gcal_event_id: gcalEvent.id,
+          source: 'gcal',
+          gcal_sync_status: null,
+        });
+        inserted++;
       }
-    } else {
-      // Insert new GCal-origin event
-      await admin.from('events').insert({
-        company_id: companyId,
-        lead_id: null,
-        title,
-        start_time: startTime,
-        end_time: endTime,
-        gcal_event_id: gcalEvent.id,
-        source: 'gcal',
-        gcal_sync_status: null,
-      });
-      inserted++;
+    }
+
+    // Bulk insert in batches of 100 (W2.14)
+    for (let i = 0; i < toInsert.length; i += 100) {
+      await admin.from('events').insert(toInsert.slice(i, i + 100));
     }
   }
 
