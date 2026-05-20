@@ -55,11 +55,14 @@
 - [ ] Notificação visual de alta prioridade quando draft gerado
 - [ ] Banner de nudge: "Você aprovou 95% das sugestões — ativar modo Autônomo?"
 
-### Épico 3 — Brain Central & Control Center (✅ Fase 1 Concluída)
+### Épico 3 — Brain Central & Control Center (✅ UX/UI Concluída)
 - [x] Refatoração do `/settings` para layout de Sidebar Vertical (Control Center).
 - [x] Sliders de personalidade e limpeza de UI (Canais "em breve" removidos).
-- [ ] Drag-and-drop / upload de PDFs (Tabela de Preços, FAQ) → `company_knowledge` + pgvector
-- [ ] Explainability Log: "Por que a IA disse isso?" — lê `ai_decision_logs` com source e confiança
+- [x] Gating Inteligente: bloqueio de features premium com Blur (Liquid Glass) baseado no `getPlanLimits()`.
+- [x] UI de Drag-and-drop / upload de PDFs (Tabela de Preços, FAQ) na aba Cérebro.
+- [x] UI de Explainability Log ("Mente da IA") projetada para exibir decisões em tempo real.
+- [ ] Integração Backend: salvar documentos no `company_knowledge` + pgvector.
+- [ ] Integração Backend: ler `ai_decision_logs` com source e confiança na UI da Mente da IA.
 - [ ] `match_knowledge()` RPC já definida em `plano-estrategico-evolucao.md` — implementar
 
 ### Épico 4 — Fintech Conversacional (🔜 Fase 3)

@@ -291,12 +291,81 @@ export function SettingsShell({ company, memberships, channels, services, usage 
           {tab === "account"    && <Team memberships={memberships} />}
           {tab === "rules"      && <Rules company={company} />}
           {tab === "services"   && <Services companyId={company?.id} services={services} />}
-          {tab === "brain"      && <Persona company={company} services={services} onChangeTab={changeTab} />}
+          {tab === "brain"      && (
+            <FeatureGate planType={company?.plan_type} requiredPlan="pro" onChangeTab={changeTab} title="Cérebro da IA" desc="Faça upload de PDFs, Tabelas de Preços e treine sua IA com seus próprios dados.">
+              <Persona company={company} services={services} onChangeTab={changeTab} />
+            </FeatureGate>
+          )}
           {tab === "channels"   && <Channels company={company} channels={channels} />}
-          {tab === "automation" && <Flows />}
-          {tab === "logs"       && <LogsPlaceholder />}
+          {tab === "automation" && (
+            <FeatureGate planType={company?.plan_type} requiredPlan="pro" onChangeTab={changeTab} title="Automações Avançadas" desc="Conecte seu Agendra ao Zapier, Make e qualquer outro sistema via Webhooks.">
+              <Flows />
+            </FeatureGate>
+          )}
+          {tab === "logs"       && (
+            <FeatureGate planType={company?.plan_type} requiredPlan="pro" onChangeTab={changeTab} title="Mente da IA (Explainability)" desc="Acompanhe em tempo real por que a IA tomou determinadas decisões e refine as orientações.">
+              <LogsPlaceholder />
+            </FeatureGate>
+          )}
           {tab === "billing"    && <Billing company={company} usage={usage} />}
         </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function FeatureGate({ 
+  planType, 
+  requiredPlan, 
+  onChangeTab,
+  title,
+  desc,
+  children 
+}: { 
+  planType: string | null | undefined; 
+  requiredPlan: "pro" | "business"; 
+  onChangeTab: (tab: TabId) => void;
+  title: string;
+  desc: string;
+  children: React.ReactNode; 
+}) {
+  const PLAN_WEIGHTS: Record<string, number> = { trial: 0, starter: 1, pro: 2, business: 3 };
+  const currentWeight = PLAN_WEIGHTS[planType ?? "trial"] ?? 0;
+  const requiredWeight = PLAN_WEIGHTS[requiredPlan];
+
+  if (currentWeight >= requiredWeight) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/10">
+      {/* Blurred Content */}
+      <div className="opacity-30 blur-[6px] pointer-events-none select-none">
+        {children}
+      </div>
+      
+      {/* Overlay */}
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-black/40 bg-gradient-to-t from-[rgb(11,18,34)] to-transparent">
+        <div className="glass p-6 sm:p-8 rounded-2xl border border-brand-blue-500/20 shadow-2xl max-w-md w-full relative overflow-hidden">
+          <div className="absolute inset-0 bg-brand-blue-500/10 pointer-events-none" />
+          
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-blue-500/20 text-brand-blue-400 mb-4 ring-1 ring-brand-blue-500/30">
+            <Zap size={24} className="animate-pulse" />
+          </div>
+          
+          <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+          <p className="text-sm text-white/70 mb-6 leading-relaxed">
+            {desc} Recurso exclusivo para o plano {requiredPlan === "pro" ? "Pro ou superior" : "Business"}.
+          </p>
+          
+          <Button 
+            variant="blue" 
+            className="w-full font-bold shadow-lg shadow-brand-blue-500/20"
+            onClick={() => onChangeTab("billing")}
+          >
+            Fazer Upgrade Agora
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -564,18 +633,42 @@ function Persona({
       <Card>
         <CardHeader>
           <CardTitle>Base de Conhecimento</CardTitle>
-          <CardDescription>Treine a IA com materiais da sua empresa.</CardDescription>
+          <CardDescription>Treine a IA com catálogos, FAQs e tabelas de preços.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center p-6 border border-dashed border-white/20 rounded-xl bg-white/[0.02] group cursor-not-allowed">
-            <Cpu size={32} className="text-white/20 mb-3 group-hover:text-brand-blue-400 transition-colors" />
-            <p className="text-sm font-medium text-white/60 mb-1">Upload de PDFs e Links</p>
-            <p className="text-[11px] text-white/40 text-center max-w-[200px] mb-4">
-              Permita que a IA leia seus catálogos, FAQs e tabelas de preços.
+        <CardContent className="flex flex-col gap-4">
+          <div className="group relative flex flex-col items-center justify-center p-8 border-2 border-dashed border-brand-blue-500/20 rounded-2xl bg-brand-blue-500/5 hover:bg-brand-blue-500/10 hover:border-brand-blue-500/40 transition-all cursor-pointer overflow-hidden">
+            <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept=".pdf,.txt,.docx" />
+            
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-brand-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            
+            <div className="h-14 w-14 rounded-full bg-brand-blue-500/20 flex items-center justify-center text-brand-blue-400 mb-4 ring-4 ring-brand-blue-500/10 group-hover:scale-110 transition-transform">
+              <Cpu size={24} />
+            </div>
+            
+            <p className="text-sm font-bold text-white mb-1">Clique ou arraste um arquivo</p>
+            <p className="text-xs text-white/50 text-center max-w-[250px]">
+              Suporta PDF, DOCX ou TXT até 10MB.
             </p>
-            <Button type="button" variant="secondary" size="sm" onClick={(e) => { e.preventDefault(); alert("Em breve: Base de conhecimento RAG para planos Pro/Business."); }}>
-              Configurar Treinamento
-            </Button>
+          </div>
+
+          <div className="flex flex-col gap-2 mt-2">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40">Documentos Processados</h4>
+            
+            {/* Empty state for now, but UI ready */}
+            <div className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:border-white/10 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-brand-teal-500/10 flex items-center justify-center text-brand-teal-400">
+                  <Check size={14} />
+                </div>
+                <div>
+                  <p className="text-[13px] font-medium text-white">tabela_precos_2026.pdf</p>
+                  <p className="text-[11px] text-white/40">Sincronizado há 2 horas • 1.2 MB</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-red-400">
+                <Trash2 size={14} />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1634,20 +1727,81 @@ function Rules({ company }: { company: Company | null }) {
 }
 
 function LogsPlaceholder() {
+  const dummyLogs = [
+    { 
+      id: 1, 
+      lead: "Maria Silva", 
+      intent: "Dúvida de Preço", 
+      confidence: "98%", 
+      time: "Há 5 min", 
+      desc: "IA identificou intenção de preço e respondeu com base no PDF 'tabela_2026.pdf'.",
+      status: "success"
+    },
+    { 
+      id: 2, 
+      lead: "João Souza", 
+      intent: "Agendamento", 
+      confidence: "92%", 
+      time: "Há 12 min", 
+      desc: "Lead solicitou horário. IA verificou conflitos no Google Calendar e sugeriu sexta às 14:00.",
+      status: "success"
+    },
+    { 
+      id: 3, 
+      lead: "Ana Paula", 
+      intent: "Reclamação", 
+      confidence: "85%", 
+      time: "Há 1 hora", 
+      desc: "Score de sentimento caiu para 20. IA pausou atendimento automaticamente e escalou para humano.",
+      status: "warning"
+    }
+  ];
+
   return (
-    <Card className="border-brand-blue-500/20 bg-brand-blue-500/5">
-      <CardContent className="p-5 flex gap-4 items-start">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-blue-500/10 text-brand-blue-400">
-          <Zap size={20} />
-        </div>
-        <div>
-          <div className="text-[13px] font-bold text-white mb-1">Mente da IA (Explainability)</div>
-          <div className="text-[12px] leading-relaxed text-white/60">
-            Acompanhe em tempo real por que a IA tomou determinadas decisões e refine as orientações.
-            Disponível em breve para planos Pro e Business.
+    <div className="flex flex-col gap-5">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Mente da IA (Explainability)</CardTitle>
+              <CardDescription>Audite as decisões da IA em tempo real.</CardDescription>
+            </div>
+            <Badge variant="hot" className="text-[10px]">BETA</Badge>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-3">
+            {dummyLogs.map(log => (
+              <div key={log.id} className="p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:border-white/10 transition-colors group">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "h-2 w-2 rounded-full",
+                      log.status === "success" ? "bg-brand-teal-400" : "bg-brand-orange-400"
+                    )} />
+                    <span className="text-[13px] font-bold text-white">{log.lead}</span>
+                    <Badge variant="neutral" className="text-[9px] bg-white/5 border-white/10">{log.intent}</Badge>
+                  </div>
+                  <span className="text-[11px] text-white/40">{log.time}</span>
+                </div>
+                <p className="text-[12px] text-white/60 leading-relaxed mb-3">
+                  {log.desc}
+                </p>
+                <div className="flex items-center gap-4 border-t border-white/5 pt-3 mt-1">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Confiança</span>
+                    <span className="text-[12px] font-mono text-brand-teal-300">{log.confidence}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Ação</span>
+                    <span className="text-[12px] font-mono text-white/80">Respondido com RAG</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
