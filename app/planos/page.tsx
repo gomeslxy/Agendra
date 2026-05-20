@@ -25,7 +25,7 @@ type PlanKey = keyof typeof PRICE_IDS;
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PlanosPage() {
-  const [isAnnual, setIsAnnual] = useState(false);
+  const [isAnnual, setIsAnnual] = useState(true);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
   // Auth / company state

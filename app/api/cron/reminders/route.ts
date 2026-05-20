@@ -98,6 +98,15 @@ export async function GET(req: NextRequest) {
           metadata: { type: 'reminder', event_id: rem.event_id },
         });
 
+        // Registrar no feed de automações (silencioso — falha não interrompe)
+        admin.from('automation_events').insert({
+          company_id: rem.company_id,
+          lead_id: rem.lead_id,
+          type: 'reminder_sent',
+          detail: `Lembrete enviado para ${lead.name.split(' ')[0]} — ${event.title}`,
+          payload: { event_id: rem.event_id, remind_at: rem.remind_at },
+        }).then(() => {}, () => {});
+
         return { id: rem.id, success: true };
       } catch (err: any) {
         console.error(`[Cron Reminders] Erro no lembrete ${rem.id}:`, err.message);

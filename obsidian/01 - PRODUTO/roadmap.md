@@ -55,15 +55,20 @@
 - [ ] Notificação visual de alta prioridade quando draft gerado
 - [ ] Banner de nudge: "Você aprovou 95% das sugestões — ativar modo Autônomo?"
 
-### Épico 3 — Brain Central & Control Center (✅ UX/UI Concluída)
+### Épico 3 — Brain Central & Control Center (✅ UX/UI + Automação Concluída 19/05/2026)
 - [x] Refatoração do `/settings` para layout de Sidebar Vertical (Control Center).
 - [x] Sliders de personalidade e limpeza de UI (Canais "em breve" removidos).
 - [x] Gating Inteligente: bloqueio de features premium com Blur (Liquid Glass) baseado no `getPlanLimits()`.
 - [x] UI de Drag-and-drop / upload de PDFs (Tabela de Preços, FAQ) na aba Cérebro.
 - [x] UI de Explainability Log ("Mente da IA") projetada para exibir decisões em tempo real.
+- [x] **Aba Automação**: Redesign completo — 5 cards interativos configuráveis, Activity Feed real, stats (remindersToday/followupsWeek), gating Business para Follow-up.
+- [x] **automation_events**: Nova tabela (migration 027) com RLS + pg_cron TTL 90 dias. Crons e engine inserem eventos; UI lê feed em tempo real.
+- [x] **Config dinâmica**: `reminder_advance_hours`, `followup_delay_hours`, `followup_max_retries` agora configuráveis via UI (action `saveAutomationConfig`), salvos em `persona_config` JSONB.
+- [x] **Preços corretos**: `/planos` agora mostra preços anuais (67/147/397) como default — isAnnual=true.
 - [ ] Integração Backend: salvar documentos no `company_knowledge` + pgvector.
 - [ ] Integração Backend: ler `ai_decision_logs` com source e confiança na UI da Mente da IA.
 - [ ] `match_knowledge()` RPC já definida em `plano-estrategico-evolucao.md` — implementar
+- [ ] `followup_max_retries` lido pelo engine (config salva mas engine ainda usa limit(10) fixo).
 
 ### Épico 4 — Fintech Conversacional (🔜 Fase 3)
 - [ ] Tabela `transactions` já existe (migration 019) — implementar geração de Pix dinâmico

@@ -16,7 +16,7 @@ import {
   handleGeneratePixCharge,
   type ToolContext,
 } from './tools';
-import { getCompanyUsage } from '@/lib/billing/limits';
+import { getCompanyUsage, type CompanyUsage } from '@/lib/billing/limits';
 import type { PlanLimits, PlanType } from '@/lib/billing/plans';
 import { persistAILog, createTimer } from '@/lib/ai/observability';
 import { EMPTY_MEMORY, mountContext, processBackgroundAnalytics, appendScoreHistory } from './memory';
@@ -292,24 +292,16 @@ export async function processLeadMessage(
 
 /**
  * getSemanticKnowledge — Busca no Supabase conhecimento vetorial relevante
- * e ajusta embeddings do Gemini 768 para 1536 dimensões compatíveis com o banco.
+ * usando embeddings 768D nativos do text-embedding-005.
  */
 async function getSemanticKnowledge(companyId: string, query: string, admin: any): Promise<string> {
   try {
     if (!process.env.GOOGLE_AI_API_KEY) return '';
     const embedModel = genAI.getGenerativeModel({ model: 'text-embedding-005' });
     const result = await embedModel.embedContent(query);
-    let values = result.embedding?.values;
+    const values = result.embedding?.values;
     if (!values || values.length === 0) return '';
-    
-    // Ajusta para 1536 dimensões (pgvector VECTOR(1536) na tabela)
-    if (values.length < 1536) {
-      const padding = new Array(1536 - values.length).fill(0);
-      values = [...values, ...padding];
-    } else if (values.length > 1536) {
-      values = values.slice(0, 1536);
-    }
-    
+
     const { data: matches, error } = await admin.rpc('match_knowledge', {
       p_company_id: companyId,
       p_embedding: values,
@@ -340,6 +332,7 @@ export async function handleIncomingMessage(
   senderName: string,
   messageText: string,
   providerMessageId?: string,
+  preloadedUsage?: CompanyUsage,
 ): Promise<void> {
   const admin = createAdminClient();
   const timer = createTimer();
@@ -431,53 +424,29 @@ export async function handleIncomingMessage(
     activeLead = created as Lead;
   }
 
-  // v4: Testes A/B e Versionamento de Prompts (Cognitive Control)
-  let activeVersionId: string | null = null;
-  let activeVariantGroup: string | null = null;
-  
-  try {
-    const { data: experiment } = await admin
-      .from('prompt_experiments')
-      .select('*, version_a:version_a_id(*), version_b:version_b_id(*)')
-      .eq('company_id', companyId)
-      .eq('status', 'active')
-      .maybeSingle();
+  // RAG guard: skip embedding if company has no knowledge documents
+  const { count: knowledgeCount } = await admin
+    .from('company_knowledge')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', companyId)
+    .limit(1);
 
-    if (experiment) {
-      const leadHash = parseInt(activeLead.id.replace(/-/g, '').substring(0, 8), 16);
-      const group = (leadHash % 100) < experiment.traffic_split ? 'A' : 'B';
-      const selectedVersion = group === 'A' ? experiment.version_a : experiment.version_b;
-
-      if (selectedVersion) {
-        persona.name = selectedVersion.ai_name;
-        persona.tone = selectedVersion.ai_tone;
-        persona.extra_instructions = selectedVersion.system_instructions;
-        persona.ai_forbidden = selectedVersion.ai_forbidden;
-        activeVersionId = selectedVersion.id;
-        activeVariantGroup = group;
-        console.log(`[AI Engine] Experimento A/B ativo. Lead roteado para Grupo ${group} (Versao ${selectedVersion.version})`);
+  if ((knowledgeCount ?? 0) > 0) {
+    try {
+      const semanticContext = await getSemanticKnowledge(companyId, messageText, admin);
+      if (semanticContext) {
+        persona.extra_instructions = (persona.extra_instructions || '') + '\n' + semanticContext;
       }
+    } catch (err) {
+      console.warn('[AI Engine] Falha ao carregar RAG Semantico:', err);
     }
-  } catch (err) {
-    console.warn('[AI Engine] Falha ao carregar experimento A/B (tabela pode nao existir):', err);
-  }
-
-  // v4: RAG Semântico (Retrieval-Augmented Generation)
-  try {
-    const semanticContext = await getSemanticKnowledge(companyId, messageText, admin);
-    if (semanticContext) {
-      persona.extra_instructions = (persona.extra_instructions || '') + '\n' + semanticContext;
-      console.log('[AI Engine] RAG Semantico injetado com sucesso.');
-    }
-  } catch (err) {
-    console.warn('[AI Engine] Falha ao carregar RAG Semantico:', err);
   }
 
   const releaseLock = () =>
     admin.from('leads').update({ is_processing: false, processing_started_at: null }).eq('id', activeLead.id);
 
   // 4. Billing gate
-  const usage = await getCompanyUsage(companyId);
+  const usage = preloadedUsage ?? await getCompanyUsage(companyId);
   if (usage.isLimitReached) {
     const fallback =
       'Ola! No momento estamos com alta demanda. Recebemos sua mensagem e um consultor humano entrara em contato em breve.';
@@ -801,6 +770,15 @@ Mensagem de follow-up:`;
       content: followupText,
       metadata: { type: 'auto-followup' },
     });
+
+    // Registrar no feed de automações (silencioso — falha não interrompe)
+    admin.from('automation_events').insert({
+      company_id: lead.company_id,
+      lead_id: lead.id,
+      type: 'followup_sent',
+      detail: `Follow-up enviado para ${lead.name.split(' ')[0]}`,
+      payload: { message_preview: followupText.slice(0, 120) },
+    }).then(() => {}, () => {});
   } catch (err) {
     console.error('[AI Engine] Follow-up send failed:', err);
   }

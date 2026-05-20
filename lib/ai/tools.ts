@@ -378,9 +378,10 @@ export async function handleBookAppointment(
 
   if (error) throw error;
 
-  // 5. Agendar Lembrete Automático (ex: 2h antes)
+  // 5. Agendar Lembrete Automático (antecedência configurável via persona_config)
   try {
-    const remindAt = new Date(startTime.getTime() - 2 * 60 * 60 * 1000); // 2h antes
+    const advanceHours = (company?.persona_config as any)?.reminder_advance_hours ?? 2;
+    const remindAt = new Date(startTime.getTime() - advanceHours * 60 * 60 * 1000);
     if (remindAt > new Date()) {
       await admin.from('reminders').insert({
         event_id: event.id,

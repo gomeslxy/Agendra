@@ -14,15 +14,13 @@ export async function GET(req: Request) {
   }
 
   const supabase = createAdminClient();
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
   try {
     // Fetch all active companies and filter by plan limits at runtime.
     // Enforces company_id isolation — every leads query must filter by company_id.
     const { data: companies, error: coErr } = await supabase
       .from('companies')
-      .select('id, plan_type')
+      .select('id, plan_type, persona_config')
       .eq('subscription_status', 'active');
 
     if (coErr) throw coErr;
@@ -32,14 +30,20 @@ export async function GET(req: Request) {
     for (const company of companies ?? []) {
       if (!getPlanLimits(company.plan_type).hasFollowUp) continue;
 
+      // delay configurável via persona_config.followup_delay_hours (padrão: 24h)
+      const delayHours = (company.persona_config as any)?.followup_delay_hours ?? 24;
+      const intervalHours = delayHours * 2; // reenvia só após 2x o delay
+      const delayAgo = new Date(Date.now() - delayHours * 60 * 60 * 1000).toISOString();
+      const intervalAgo = new Date(Date.now() - intervalHours * 60 * 60 * 1000).toISOString();
+
       const { data: leads, error } = await supabase
         .from('leads')
         .select('id')
         .eq('company_id', company.id)
         .eq('is_paused', false)
         .not('status', 'in', '("success","disqualified")')
-        .lt('updated_at', twentyFourHoursAgo)
-        .or(`last_followup_at.is.null,last_followup_at.lt.${fortyEightHoursAgo}`)
+        .lt('updated_at', delayAgo)
+        .or(`last_followup_at.is.null,last_followup_at.lt.${intervalAgo}`)
         .limit(10);
 
       if (error) {

@@ -6,14 +6,17 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  Bell,
   Calendar,
   Check,
+  ChevronDown,
   ExternalLink,
   Facebook,
   Globe,
   Instagram,
   MessageCircle,
   GitBranch,
+  RefreshCw,
   Slack,
   UserPlus,
   Cpu,
@@ -35,7 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel } from "./actions";
+import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel, saveAutomationConfig } from "./actions";
 import { createService, updateService, deleteService } from "./services/actions";
 import Script from "next/script";
 import { toast } from "sonner";
@@ -114,24 +117,51 @@ interface Service {
   active: boolean;
 }
 
+interface AiDecisionLog {
+  id: string;
+  lead_id: string;
+  intent_detected: string | null;
+  sentiment_score: number | null;
+  urgency_detected: boolean | null;
+  objection_handled: string | null;
+  rationale: string | null;
+  created_at: string;
+  leads: { name: string }[] | null;
+}
+
+interface AutomationEvent {
+  id: string;
+  type: string;
+  detail: string | null;
+  lead_id: string | null;
+  created_at: string;
+}
+
+interface AutomationStats {
+  remindersToday: number;
+  followupsWeek: number;
+}
+
 interface SettingsShellProps {
   company: Company | null;
   memberships: Member[];
   channels: ChannelRow[];
   services: Service[];
   usage: any;
+  aiLogs: AiDecisionLog[];
+  automationStats: AutomationStats;
+  automationEvents: AutomationEvent[];
 }
 
-export function SettingsShell({ company, memberships, channels, services, usage }: SettingsShellProps) {
+export function SettingsShell({ company, memberships, channels, services, usage, aiLogs, automationStats, automationEvents }: SettingsShellProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   // Tab state is local — no server round trip on tab switch.
   // Initialized from URL so deep-links and OAuth redirects work.
   const rawTab = searchParams.get("tab") as TabId | null;
   const [tab, setTab] = useState<TabId>(() =>
-    rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "brain"
+    rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "account"
   );
 
   function changeTab(newTab: TabId) {
@@ -147,22 +177,22 @@ export function SettingsShell({ company, memberships, channels, services, usage 
     const stripe = searchParams.get("stripe");
 
     if (gcal === "success") {
-      setToast({ msg: "Google Calendar conectado com sucesso! 🎉", type: "success" });
+      toast.success("Google Calendar conectado com sucesso! 🎉");
       setTab("channels");
       trackEvent("gcal_connected");
       router.replace("/settings?tab=channels", { scroll: false });
     } else if (gcal === "error") {
-      setToast({ msg: "Erro ao conectar Google Calendar. Tente novamente.", type: "error" });
+      toast.error("Erro ao conectar Google Calendar. Tente novamente.");
       setTab("channels");
       trackEvent("gcal_failed", { reason: "error" });
       router.replace("/settings?tab=channels", { scroll: false });
     } else if (gcal === "denied") {
-      setToast({ msg: "Conexão com Google Calendar cancelada.", type: "error" });
+      toast.error("Conexão com Google Calendar cancelada.");
       setTab("channels");
       trackEvent("gcal_failed", { reason: "denied" });
       router.replace("/settings?tab=channels", { scroll: false });
     } else if (stripe === "success") {
-      setToast({ msg: "Assinatura confirmada! Sua IA está turbinada. 🚀", type: "success" });
+      toast.success("Assinatura confirmada! Sua IA está turbinada. 🚀");
       setTab("billing");
       trackEvent("stripe_success");
       
@@ -181,33 +211,9 @@ export function SettingsShell({ company, memberships, channels, services, usage 
     }
   }, [searchParams, router]);
 
-  // Auto-dismiss toast
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 5000);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   return (
     <div className="mobile-scroll-area h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:px-8 lg:py-7 relative">
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, x: "-50%" }}
-            animate={{ opacity: 1, y: 0, x: "-50%" }}
-            exit={{ opacity: 0, y: -20, x: "-50%" }}
-            className={cn(
-              "fixed top-6 left-1/2 z-50 rounded-full px-4 py-2 text-sm font-medium shadow-lg backdrop-blur-md border",
-              toast.type === "success"
-                ? "bg-brand-teal-500/10 text-brand-teal-300 border-brand-teal-500/20"
-                : "bg-red-500/10 text-red-400 border-red-500/20"
-            )}
-          >
-            {toast.msg}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <header className="mb-6">
         <h1 className="text-[28px] font-bold tracking-[-0.02em]">Configurações</h1>
         <p className="mt-1 text-sm" style={{ color: "var(--color-fg-2)" }}>
@@ -291,20 +297,19 @@ export function SettingsShell({ company, memberships, channels, services, usage 
           {tab === "account"    && <Team memberships={memberships} />}
           {tab === "rules"      && <Rules company={company} />}
           {tab === "services"   && <Services companyId={company?.id} services={services} />}
-          {tab === "brain"      && (
-            <FeatureGate planType={company?.plan_type} requiredPlan="pro" onChangeTab={changeTab} title="Cérebro da IA" desc="Faça upload de PDFs, Tabelas de Preços e treine sua IA com seus próprios dados.">
-              <Persona company={company} services={services} onChangeTab={changeTab} />
-            </FeatureGate>
-          )}
+          {tab === "brain"      && <Persona company={company} services={services} onChangeTab={changeTab} planType={company?.plan_type} />}
           {tab === "channels"   && <Channels company={company} channels={channels} />}
           {tab === "automation" && (
-            <FeatureGate planType={company?.plan_type} requiredPlan="pro" onChangeTab={changeTab} title="Automações Avançadas" desc="Conecte seu Agendra ao Zapier, Make e qualquer outro sistema via Webhooks.">
-              <Flows />
-            </FeatureGate>
+            <Flows
+              company={company}
+              automationStats={automationStats}
+              automationEvents={automationEvents}
+              onChangeTab={changeTab}
+            />
           )}
           {tab === "logs"       && (
-            <FeatureGate planType={company?.plan_type} requiredPlan="pro" onChangeTab={changeTab} title="Mente da IA (Explainability)" desc="Acompanhe em tempo real por que a IA tomou determinadas decisões e refine as orientações.">
-              <LogsPlaceholder />
+            <FeatureGate planType={company?.plan_type} requiredPlan="business" onChangeTab={changeTab} title="Mente da IA (Explainability)" desc="Acompanhe em tempo real por que a IA tomou determinadas decisões e refine as orientações.">
+              <LogsView logs={aiLogs} />
             </FeatureGate>
           )}
           {tab === "billing"    && <Billing company={company} usage={usage} />}
@@ -462,20 +467,22 @@ function WorkingHoursEditor({
   onChange: (v: Record<string, [string, string]>) => void;
 }) {
   const activeDays = Object.keys(value);
-  const firstEntry = Object.values(value)[0] ?? ["09:00", "18:00"];
 
   function toggleDay(key: string) {
     const next = { ...value };
-    if (next[key]) { delete next[key]; }
-    else { next[key] = [firstEntry[0], firstEntry[1]]; }
+    if (next[key]) {
+      delete next[key];
+    } else {
+      const anyDay = Object.values(value)[0] ?? ["09:00", "18:00"];
+      next[key] = [anyDay[0], anyDay[1]];
+    }
     onChange(Object.keys(next).length > 0 ? next : DEFAULT_WH);
   }
 
-  function setTime(field: 0 | 1, v: string) {
-    const next: Record<string, [string, string]> = {};
-    for (const [day, range] of Object.entries(value)) {
-      next[day] = field === 0 ? [v, range[1]] : [range[0], v];
-    }
+  function setDayTime(day: string, field: 0 | 1, v: string) {
+    const current = value[day] ?? ["09:00", "18:00"];
+    const next = { ...value };
+    next[day] = field === 0 ? [v, current[1]] : [current[0], v];
     onChange(next);
   }
 
@@ -498,27 +505,31 @@ function WorkingHoursEditor({
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-3">
-        <div className="flex flex-col gap-1 flex-1">
-          <span className="text-[10px] text-white/40 font-medium uppercase tracking-wider">Início</span>
-          <input
-            type="time"
-            value={firstEntry[0]}
-            onChange={(e) => setTime(0, e.target.value)}
-            className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-brand-blue-500/50"
-          />
+      {activeDays.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {DAYS_CONFIG.filter((d) => activeDays.includes(d.key)).map(({ key, label }) => {
+            const [start, end] = value[key] ?? ["09:00", "18:00"];
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <span className="text-[11px] w-8 shrink-0 text-white/50 font-medium">{label}</span>
+                <input
+                  type="time"
+                  value={start}
+                  onChange={(e) => setDayTime(key, 0, e.target.value)}
+                  className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-white outline-none focus:border-brand-blue-500/50"
+                />
+                <span className="text-white/30 text-xs">–</span>
+                <input
+                  type="time"
+                  value={end}
+                  onChange={(e) => setDayTime(key, 1, e.target.value)}
+                  className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-white outline-none focus:border-brand-blue-500/50"
+                />
+              </div>
+            );
+          })}
         </div>
-        <span className="text-white/30 mt-5">–</span>
-        <div className="flex flex-col gap-1 flex-1">
-          <span className="text-[10px] text-white/40 font-medium uppercase tracking-wider">Fim</span>
-          <input
-            type="time"
-            value={firstEntry[1]}
-            onChange={(e) => setTime(1, e.target.value)}
-            className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-brand-blue-500/50"
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -547,14 +558,16 @@ function ServicesInput({ defaultValue }: { defaultValue: string }) {
   );
 }
 
-function Persona({ 
-  company, 
-  services, 
-  onChangeTab 
-}: { 
-  company: Company | null; 
+function Persona({
+  company,
+  services,
+  onChangeTab,
+  planType,
+}: {
+  company: Company | null;
   services: Service[];
   onChangeTab: (tab: TabId) => void;
+  planType?: PlanType | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -630,6 +643,7 @@ function Persona({
       </Card>
 
       {/* ── A2: Conhecimento e RAG ────────────────────────────── */}
+      <FeatureGate planType={planType} requiredPlan="pro" onChangeTab={onChangeTab} title="Base de Conhecimento" desc="Faça upload de PDFs, Tabelas de Preços e treine sua IA com seus próprios dados.">
       <Card>
         <CardHeader>
           <CardTitle>Base de Conhecimento</CardTitle>
@@ -654,24 +668,16 @@ function Persona({
           <div className="flex flex-col gap-2 mt-2">
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40">Documentos Processados</h4>
             
-            {/* Empty state for now, but UI ready */}
-            <div className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:border-white/10 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-brand-teal-500/10 flex items-center justify-center text-brand-teal-400">
-                  <Check size={14} />
-                </div>
-                <div>
-                  <p className="text-[13px] font-medium text-white">tabela_precos_2026.pdf</p>
-                  <p className="text-[11px] text-white/40">Sincronizado há 2 horas • 1.2 MB</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-red-400">
-                <Trash2 size={14} />
-              </Button>
+            <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
+              <p className="text-[12px] text-white/30 font-medium">Nenhum documento processado ainda</p>
+              <p className="text-[11px] text-white/20 leading-relaxed max-w-xs">
+                Upload de documentos em breve. Por enquanto, use as "Instruções adicionais" abaixo para treinar a IA.
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
+      </FeatureGate>
 
       {/* ── A3: Comportamento Conversacional ──────────────────── */}
       <Card>
@@ -759,11 +765,27 @@ function Channels({ company, channels }: { company: Company | null; channels: Ch
   ];
 
   return (
-    <div className="flex flex-col gap-3">
-      {items.map((c) => (
-        <ChannelCard key={c.name} item={c} channels={channels} />
-      ))}
-    </div>
+    <>
+      <div className="flex flex-col gap-3">
+        {items.map((c) => (
+          <ChannelCard key={c.name} item={c} channels={channels} />
+        ))}
+      </div>
+      <Script
+        src="https://connect.facebook.net/pt_BR/sdk.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          (window as any).fbAsyncInit = function () {
+            (window as any).FB.init({
+              appId: process.env.NEXT_PUBLIC_META_APP_ID,
+              cookie: true,
+              xfbml: true,
+              version: "v19.0",
+            });
+          };
+        }}
+      />
+    </>
   );
 }
 
@@ -1120,60 +1142,372 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
   );
 }
 
-function Flows() {
-  return (
-    <div className="flex flex-col gap-4">
-      <Card className="border-brand-blue-500/20 bg-brand-blue-500/5">
-        <CardContent className="p-5 flex gap-4 items-start">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-blue-500/10 text-brand-blue-400">
-            <Zap size={20} />
-          </div>
-          <div>
-            <div className="text-[13px] font-bold text-white mb-1">Automações em desenvolvimento</div>
-            <div className="text-[12px] leading-relaxed" style={{ color: "var(--color-fg-2)" }}>
-              Follow-up automático, reativação de leads frios e confirmação de agendamento estão sendo construídos.
-              Você será notificado quando estiverem disponíveis.
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+function Flows({
+  company,
+  automationStats,
+  automationEvents,
+  onChangeTab,
+}: {
+  company: Company | null;
+  automationStats: AutomationStats;
+  automationEvents: AutomationEvent[];
+  onChangeTab: (tab: TabId) => void;
+}) {
+  const plan = company?.plan_type ?? "trial";
+  const isBusiness = plan === "business";
+  const isPro = plan === "pro" || plan === "business";
+  const pc = (company?.persona_config ?? {}) as Record<string, any>;
 
+  const [reminderAdvance, setReminderAdvance] = useState<number>(pc.reminder_advance_hours ?? 2);
+  const [reminderExpanded, setReminderExpanded] = useState(false);
+  const [followupDelay, setFollowupDelay] = useState<number>(pc.followup_delay_hours ?? 24);
+  const [followupRetries, setFollowupRetries] = useState<number>(pc.followup_max_retries ?? 2);
+  const [followupExpanded, setFollowupExpanded] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [savedField, setSavedField] = useState<string | null>(null);
+
+  function saveConfig(field: string, data: Record<string, number>) {
+    startTransition(async () => {
+      try {
+        await saveAutomationConfig(data);
+        setSavedField(field);
+        setTimeout(() => setSavedField(null), 2000);
+      } catch (err: any) {
+        toast.error(err.message);
+      }
+    });
+  }
+
+  const wh = pc.working_hours as Record<string, [string, string]> | undefined;
+  const activeDaysCount = wh ? Object.keys(wh).length : 5;
+  const firstDay = wh ? Object.values(wh)[0] : (["09:00", "18:00"] as [string, string]);
+
+  const ActiveBadge = () => (
+    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-teal-500/10 text-brand-teal-300 border-brand-teal-500/20 flex items-center gap-1 shrink-0">
+      <span className="h-1.5 w-1.5 rounded-full bg-brand-teal-400 animate-pulse" />
+      Ativo
+    </Badge>
+  );
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* ── Motor em Ação ─────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl border border-brand-blue-500/20 bg-brand-blue-500/5 p-4">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand-blue-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -left-4 -bottom-4 h-24 w-24 rounded-full bg-brand-teal-500/10 blur-2xl pointer-events-none" />
+        <div className="relative flex items-center gap-2 mb-4">
+          <span className="flex h-2 w-2 rounded-full bg-brand-teal-400 shadow-[0_0_8px_#14B8A6] animate-pulse" />
+          <span className="text-[11px] font-bold uppercase tracking-widest text-brand-teal-300/80">Motor em Ação</span>
+        </div>
+        <div className="relative grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3 flex flex-col gap-0.5">
+            <span className="text-3xl font-black text-white tabular-nums">{automationStats.remindersToday}</span>
+            <span className="text-[11px] text-white/40">Lembretes hoje</span>
+          </div>
+          <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3 flex flex-col gap-0.5">
+            <span className="text-3xl font-black text-white tabular-nums">{automationStats.followupsWeek}</span>
+            <span className="text-[11px] text-white/40">Follow-ups esta semana</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Cards de Automação ─────────────────────────────────── */}
       <div className="flex flex-col gap-3">
-        {[
-          {
-            name: "Follow-up automático",
-            desc: "Se lead não responder após sugestão de horário, IA envia lembrete.",
-            trigger: "Lead sem resposta por X horas",
-            soon: true,
-          },
-          {
-            name: "Reativação de leads frios",
-            desc: "Lead com score baixo sem interação por vários dias recebe mensagem de reabertura.",
-            trigger: "Score < 30 · inativo há 7 dias",
-            soon: true,
-          },
-          {
-            name: "Confirmação de agendamento",
-            desc: "IA envia confirmação automática X horas antes do horário marcado.",
-            trigger: "Agendamento em X horas",
-            soon: true,
-          },
-        ].map((f) => (
-          <div
-            key={f.name}
-            className="flex items-center gap-3.5 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 opacity-60"
+
+        {/* Lembrete de Agendamento */}
+        <motion.div layout className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+          <button
+            className="w-full flex items-center gap-3 p-4 text-left"
+            onClick={() => setReminderExpanded(v => !v)}
           >
-            <GitBranch size={18} className="text-white/20 shrink-0" />
+            <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-teal-500/15 flex items-center justify-center">
+              <Bell size={16} className="text-brand-teal-400" />
+            </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-semibold text-white/70">{f.name}</div>
-              <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-fg-3)" }}>
-                {f.trigger}
+              <div className="text-[13px] font-semibold text-white">Lembrete de Agendamento</div>
+              <div className="text-[11px] text-white/40 mt-0.5">
+                Avisa leads automaticamente {reminderAdvance}h antes do horário
               </div>
             </div>
-            <Badge variant="cold" className="text-[10px] px-2 py-0.5 shrink-0">Em breve</Badge>
+            <div className="flex items-center gap-2">
+              <ActiveBadge />
+              <ChevronDown size={14} className={cn("text-white/30 transition-transform duration-200", reminderExpanded && "rotate-180")} />
+            </div>
+          </button>
+          <AnimatePresence>
+            {reminderExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                className="border-t border-white/[0.06]"
+              >
+                <div className="p-4 flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                      Avisar com antecedência de
+                    </label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[1, 2, 4, 24].map(h => (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => setReminderAdvance(h)}
+                          className={cn(
+                            "py-2 rounded-lg text-xs font-bold transition-all",
+                            reminderAdvance === h
+                              ? "bg-brand-teal-500/20 border border-brand-teal-500/40 text-brand-teal-300"
+                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                          )}
+                        >
+                          {h === 24 ? "24h" : `${h}h`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    variant="blue"
+                    size="sm"
+                    className="w-full font-bold"
+                    disabled={pending}
+                    onClick={() => saveConfig("reminder", { reminder_advance_hours: reminderAdvance })}
+                  >
+                    {savedField === "reminder" ? <><Check size={14} className="mr-1.5" />Salvo</> : pending ? "Salvando…" : "Salvar configuração"}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Follow-up Inteligente */}
+        <div className={cn("rounded-xl border overflow-hidden relative", isBusiness ? "border-white/[0.08] bg-white/[0.02]" : "border-white/[0.06] bg-white/[0.01]")}>
+          {!isBusiness && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[rgb(11,18,34)]/60 backdrop-blur-[3px]">
+              <div className="flex flex-col items-center gap-2 text-center px-6">
+                <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
+                  <Zap size={15} className="text-brand-blue-400 animate-pulse" />
+                </div>
+                <p className="text-[12px] font-bold text-white">Plano Business</p>
+                <p className="text-[11px] text-white/40 max-w-[180px] leading-relaxed">Follow-up com IA contextual exclusivo do Business</p>
+                <button
+                  onClick={() => onChangeTab("billing")}
+                  className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
+                >
+                  Fazer upgrade →
+                </button>
+              </div>
+            </div>
+          )}
+          <button
+            className={cn("w-full flex items-center gap-3 p-4 text-left", !isBusiness && "pointer-events-none")}
+            onClick={() => isBusiness && setFollowupExpanded(v => !v)}
+          >
+            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isBusiness ? "bg-brand-blue-500/15" : "bg-white/[0.04]")}>
+              <MessageCircle size={16} className={isBusiness ? "text-brand-blue-400" : "text-white/20"} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={cn("text-[13px] font-semibold", isBusiness ? "text-white" : "text-white/40")}>
+                Follow-up Inteligente
+              </div>
+              <div className="text-[11px] text-white/30 mt-0.5">
+                IA reengaja leads silenciosos com mensagem contextual
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {isBusiness ? (
+                <>
+                  <ActiveBadge />
+                  <ChevronDown size={14} className={cn("text-white/30 transition-transform duration-200", followupExpanded && "rotate-180")} />
+                </>
+              ) : (
+                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Business</Badge>
+              )}
+            </div>
+          </button>
+          <AnimatePresence>
+            {followupExpanded && isBusiness && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                className="border-t border-white/[0.06]"
+              >
+                <div className="p-4 flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">Disparar após silêncio de</label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[12, 24, 48].map(h => (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => setFollowupDelay(h)}
+                          className={cn(
+                            "py-2 rounded-lg text-xs font-bold transition-all",
+                            followupDelay === h
+                              ? "bg-brand-blue-500/20 border border-brand-blue-500/40 text-brand-blue-300"
+                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                          )}
+                        >
+                          {h}h
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">Máx. tentativas por lead</label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[1, 2, 3].map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setFollowupRetries(n)}
+                          className={cn(
+                            "py-2 rounded-lg text-xs font-bold transition-all",
+                            followupRetries === n
+                              ? "bg-brand-blue-500/20 border border-brand-blue-500/40 text-brand-blue-300"
+                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                          )}
+                        >
+                          {n}x
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-brand-blue-500/5 border border-brand-blue-500/10 p-3">
+                    <p className="text-[11px] text-brand-blue-200/60 leading-relaxed">
+                      A IA gera mensagens únicas para cada lead com base no histórico da conversa — não são templates genéricos.
+                    </p>
+                  </div>
+                  <Button
+                    variant="blue"
+                    size="sm"
+                    className="w-full font-bold"
+                    disabled={pending}
+                    onClick={() => saveConfig("followup", { followup_delay_hours: followupDelay, followup_max_retries: followupRetries })}
+                  >
+                    {savedField === "followup" ? <><Check size={14} className="mr-1.5" />Salvo</> : pending ? "Salvando…" : "Salvar configuração"}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Reativação de Leads Frios */}
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 flex items-center gap-3 opacity-50">
+          <div className="h-9 w-9 shrink-0 rounded-lg bg-white/[0.04] flex items-center justify-center">
+            <RefreshCw size={16} className="text-white/20" />
           </div>
-        ))}
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold text-white/50">Reativação de Leads Frios</div>
+            <div className="text-[11px] text-white/25 mt-0.5">Lead inativo por dias recebe mensagem de reabertura</div>
+          </div>
+          <Badge variant="cold" className="text-[10px] px-2 py-0.5 shrink-0">Em breve</Badge>
+        </div>
+
+        {/* Janela de Silêncio */}
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center gap-3">
+          <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-orange-500/10 flex items-center justify-center">
+            <Clock size={16} className="text-brand-orange-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold text-white">Janela de Silêncio</div>
+            <div className="text-[11px] text-white/40 mt-0.5">
+              {activeDaysCount} dias · {firstDay[0]}–{firstDay[1]}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <ActiveBadge />
+            <button
+              onClick={() => onChangeTab("rules")}
+              className="text-[11px] font-bold text-brand-blue-400 hover:underline"
+            >
+              Configurar →
+            </button>
+          </div>
+        </div>
+
+        {/* Webhooks */}
+        {isPro ? (
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+            <div className="flex items-center gap-3 p-4">
+              <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-blue-500/10 flex items-center justify-center">
+                <GitBranch size={16} className="text-brand-blue-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-white">Webhooks</div>
+                <div className="text-[11px] text-white/40 mt-0.5">Conecte ao Zapier, Make e sistemas externos</div>
+              </div>
+              <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20 shrink-0">Pro</Badge>
+            </div>
+            <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] uppercase tracking-widest text-white/30 font-bold">Eventos disponíveis</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {["lead.created", "appointment.booked", "appointment.reminder", "followup.sent"].map(ev => (
+                    <div key={ev} className="flex items-center gap-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] px-2 py-1.5">
+                      <span className="h-1 w-1 rounded-full bg-brand-teal-400/60 shrink-0" />
+                      <code className="text-[10px] text-white/50 font-mono truncate">{ev}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[10px] text-white/25 leading-relaxed">
+                Endpoint configurável via suporte. Documentação completa em breve.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 flex items-center gap-3 opacity-60">
+            <div className="h-9 w-9 shrink-0 rounded-lg bg-white/[0.04] flex items-center justify-center">
+              <GitBranch size={16} className="text-white/20" />
+            </div>
+            <div className="flex-1">
+              <div className="text-[13px] font-semibold text-white/40">Webhooks (Zapier / Make)</div>
+              <button onClick={() => onChangeTab("billing")} className="text-[11px] font-bold text-brand-blue-400 hover:underline">
+                Disponível no plano Pro →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ── Atividade Recente ──────────────────────────────────── */}
+      {automationEvents.length > 0 && (
+        <div className="flex flex-col gap-2.5">
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/30 px-0.5">Atividade Recente</h4>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.04] overflow-hidden">
+            {automationEvents.slice(0, 10).map(ev => {
+              const Icon = ev.type === "reminder_sent" ? Bell : ev.type === "followup_sent" ? MessageCircle : RefreshCw;
+              const color = ev.type === "reminder_sent"
+                ? "text-brand-teal-400"
+                : ev.type === "followup_sent"
+                ? "text-brand-blue-400"
+                : "text-brand-orange-400";
+              return (
+                <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                  <Icon size={13} className={cn("shrink-0", color)} />
+                  <span className="flex-1 text-[12px] text-white/60 truncate">{ev.detail ?? ev.type}</span>
+                  <span className="text-[10px] text-white/25 shrink-0 tabular-nums">{formatTimeAgo(ev.created_at)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {automationEvents.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-8 gap-2 text-center rounded-xl border border-dashed border-white/[0.06]">
+          <Zap size={20} className="text-white/15" />
+          <p className="text-[12px] text-white/30 font-medium">Nenhuma automação executada ainda</p>
+          <p className="text-[11px] text-white/20 max-w-xs leading-relaxed">
+            O feed de atividade aparece aqui após os primeiros agendamentos e follow-ups.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1193,7 +1527,7 @@ function Team({ memberships }: { memberships: Member[] }) {
           <CardTitle>Time</CardTitle>
           <CardDescription>{memberships.length} membros</CardDescription>
         </div>
-        <Button variant="primary" size="sm" onClick={() => alert("em breve")}>
+        <Button variant="primary" size="sm" onClick={() => toast.info("Convite de membros em breve!")}>
           <UserPlus size={14} className="mr-2" />
           Convidar
         </Button>
@@ -1246,7 +1580,7 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
       window.location.href = url;
     } catch (err) {
       console.error("Checkout error:", err);
-      alert("Erro ao iniciar checkout. Tente novamente.");
+      toast.error("Erro ao iniciar checkout. Tente novamente.");
     } finally {
       setLoading(null);
     }
@@ -1262,7 +1596,7 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
       window.location.href = url;
     } catch (err) {
       console.error("Portal error:", err);
-      alert("Erro ao abrir gerenciamento de assinatura. Tente novamente.");
+      toast.error("Erro ao abrir gerenciamento de assinatura. Tente novamente.");
     } finally {
       setPortalLoading(false);
     }
@@ -1364,7 +1698,7 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
             onClick={() => setIsAnnual(true)}
             className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors flex items-center gap-1.5", isAnnual ? "bg-white/10 text-brand-teal-300" : "text-white/40")}
           >
-            Anual {!isAnnual && <Badge variant="hot" className="text-[9px] px-1 py-0 h-4">-25%</Badge>}
+            Anual <Badge variant="hot" className="text-[9px] px-1 py-0 h-4">-25%</Badge>
           </button>
         </div>
       </div>
@@ -1437,33 +1771,31 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
         })}
       </div>
 
-      <Script
-        src="https://connect.facebook.net/pt_BR/sdk.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          (window as any).fbAsyncInit = function () {
-            (window as any).FB.init({
-              appId: process.env.NEXT_PUBLIC_META_APP_ID,
-              cookie: true,
-              xfbml: true,
-              version: "v19.0",
-            });
-          };
-        }}
-      />
     </div>
   );
 }
 
+const DURATION_OPTIONS = [
+  { value: 15, label: "15 min" }, { value: 30, label: "30 min" },
+  { value: 45, label: "45 min" }, { value: 60, label: "1 hora" },
+  { value: 90, label: "1h 30min" }, { value: 120, label: "2 horas" },
+];
+
 function Services({ companyId, services }: { companyId?: string; services: Service[] }) {
   const [pending, startTransition] = useTransition();
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState({ name: "", price: "", duration: 60, description: "" });
+
+  function startEdit(s: Service) {
+    setEditingId(s.id);
+    setEditValues({ name: s.name, price: s.price?.toString() ?? "", duration: s.duration, description: s.description ?? "" });
+  }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     if (companyId) formData.set("company_id", companyId);
-    
     startTransition(async () => {
       try {
         await createService(formData);
@@ -1475,9 +1807,25 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
     });
   }
 
+  async function handleUpdate(id: string) {
+    startTransition(async () => {
+      try {
+        await updateService(id, {
+          name: editValues.name.trim(),
+          price: editValues.price ? parseFloat(editValues.price) : null,
+          duration: editValues.duration,
+          description: editValues.description.trim() || null,
+        });
+        setEditingId(null);
+        toast.success("Serviço atualizado!");
+      } catch (err: any) {
+        toast.error("Erro ao atualizar: " + err.message);
+      }
+    });
+  }
+
   async function handleDelete(id: string) {
     if (!confirm("Tem certeza que deseja remover este serviço?")) return;
-    
     startTransition(async () => {
       try {
         await deleteService(id);
@@ -1495,10 +1843,10 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
           <h3 className="text-lg font-bold">Serviços</h3>
           <p className="text-xs text-white/40">Gerencie os serviços que sua IA pode agendar.</p>
         </div>
-        <Button 
-          variant="blue" 
-          size="sm" 
-          onClick={() => setIsAdding(true)}
+        <Button
+          variant="blue"
+          size="sm"
+          onClick={() => { setIsAdding(true); setEditingId(null); }}
           disabled={isAdding}
         >
           <Plus size={16} className="mr-2" /> Novo Serviço
@@ -1519,32 +1867,27 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
                   <Input name="name" placeholder="Ex: Corte Masculino" required />
                 </Field>
                 <Field label="Preço (R$)">
-                  <Input name="price" type="number" step="0.01" placeholder="Ex: 50.00" />
+                  <Input name="price" type="number" step="0.01" placeholder="Ex: 50,00" />
                 </Field>
               </div>
               <Field label="Duração (minutos)">
-                <select 
-                  name="duration" 
+                <select
+                  name="duration"
                   className="w-full rounded-xl border border-white/[0.08] bg-[#0A0A0A] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
                   defaultValue="60"
                 >
-                  <option value="15">15 min</option>
-                  <option value="30">30 min</option>
-                  <option value="45">45 min</option>
-                  <option value="60">1 hora</option>
-                  <option value="90">1h 30min</option>
-                  <option value="120">2 horas</option>
+                  {DURATION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </Field>
               <Field label="Descrição (opcional)">
-                <textarea 
-                  name="description" 
+                <textarea
+                  name="description"
                   placeholder="Breve descrição para ajudar a IA a explicar o serviço..."
                   className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none resize-none h-20"
                 />
               </Field>
               <div className="flex justify-end gap-3">
-                <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>Cancelar</Button>
+                <Button variant="ghost" size="sm" type="button" onClick={() => setIsAdding(false)}>Cancelar</Button>
                 <Button variant="blue" size="sm" type="submit" disabled={pending}>
                   {pending ? "Salvando..." : "Salvar Serviço"}
                 </Button>
@@ -1560,47 +1903,98 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
             <p className="text-sm text-white/30">Nenhum serviço cadastrado ainda.</p>
           </div>
         )}
-        {services.map((s) => (
-          <motion.div
-            key={s.id}
-            layout
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="glass flex items-center justify-between p-4 rounded-xl border border-white/5 hover:border-white/10 transition-all group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400">
-                <Briefcase size={20} />
+        {services.map((s) =>
+          editingId === s.id ? (
+            <motion.div
+              key={s.id}
+              layout
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass p-4 rounded-xl border border-brand-blue-500/20"
+            >
+              <div className="grid gap-3 sm:grid-cols-2 mb-3">
+                <Field label="Nome do Serviço">
+                  <Input
+                    value={editValues.name}
+                    onChange={(e) => setEditValues((v) => ({ ...v, name: e.target.value }))}
+                    required
+                  />
+                </Field>
+                <Field label="Preço (R$)">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editValues.price}
+                    onChange={(e) => setEditValues((v) => ({ ...v, price: e.target.value }))}
+                  />
+                </Field>
               </div>
-              <div>
-                <h4 className="font-bold text-sm">{s.name}</h4>
-                <div className="flex items-center gap-3 mt-0.5">
-                  <span className="text-[11px] text-white/40 flex items-center gap-1">
-                    <Clock size={12} /> {s.duration} min
-                  </span>
-                  {s.price && (
-                    <span className="text-[11px] text-brand-teal-400 font-medium">
-                      R$ {s.price.toFixed(2)}
+              <Field label="Duração (minutos)">
+                <select
+                  value={editValues.duration}
+                  onChange={(e) => setEditValues((v) => ({ ...v, duration: Number(e.target.value) }))}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#0A0A0A] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
+                >
+                  {DURATION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </Field>
+              <div className="flex justify-end gap-2 mt-3">
+                <Button variant="ghost" size="sm" type="button" onClick={() => setEditingId(null)}>Cancelar</Button>
+                <Button variant="blue" size="sm" type="button" onClick={() => handleUpdate(s.id)} disabled={pending}>
+                  {pending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key={s.id}
+              layout
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass flex items-center justify-between p-4 rounded-xl border border-white/5 hover:border-white/10 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-10 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400">
+                  <Briefcase size={20} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm">{s.name}</h4>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <span className="text-[11px] text-white/40 flex items-center gap-1">
+                      <Clock size={12} /> {s.duration} min
                     </span>
+                    {s.price && (
+                      <span className="text-[11px] text-brand-teal-400 font-medium">
+                        R$ {s.price.toFixed(2).replace(".", ",")}
+                      </span>
+                    )}
+                  </div>
+                  {s.description && (
+                    <p className="text-[10px] text-white/30 mt-0.5 max-w-[200px] truncate">{s.description}</p>
                   )}
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white">
-                <Edit3 size={14} />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 text-white/40 hover:text-red-400"
-                onClick={() => handleDelete(s.id)}
-              >
-                <Trash2 size={14} />
-              </Button>
-            </div>
-          </motion.div>
-        ))}
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-white/40 hover:text-white"
+                  onClick={() => startEdit(s)}
+                >
+                  <Edit3 size={14} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-white/40 hover:text-red-400"
+                  onClick={() => handleDelete(s.id)}
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            </motion.div>
+          )
+        )}
       </div>
     </div>
   );
@@ -1726,37 +2120,17 @@ function Rules({ company }: { company: Company | null }) {
   );
 }
 
-function LogsPlaceholder() {
-  const dummyLogs = [
-    { 
-      id: 1, 
-      lead: "Maria Silva", 
-      intent: "Dúvida de Preço", 
-      confidence: "98%", 
-      time: "Há 5 min", 
-      desc: "IA identificou intenção de preço e respondeu com base no PDF 'tabela_2026.pdf'.",
-      status: "success"
-    },
-    { 
-      id: 2, 
-      lead: "João Souza", 
-      intent: "Agendamento", 
-      confidence: "92%", 
-      time: "Há 12 min", 
-      desc: "Lead solicitou horário. IA verificou conflitos no Google Calendar e sugeriu sexta às 14:00.",
-      status: "success"
-    },
-    { 
-      id: 3, 
-      lead: "Ana Paula", 
-      intent: "Reclamação", 
-      confidence: "85%", 
-      time: "Há 1 hora", 
-      desc: "Score de sentimento caiu para 20. IA pausou atendimento automaticamente e escalou para humano.",
-      status: "warning"
-    }
-  ];
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'Agora';
+  if (min < 60) return `Há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `Há ${h}h`;
+  return `Há ${Math.floor(h / 24)} dias`;
+}
 
+function LogsView({ logs }: { logs: AiDecisionLog[] }) {
   return (
     <div className="flex flex-col gap-5">
       <Card>
@@ -1770,36 +2144,65 @@ function LogsPlaceholder() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-3">
-            {dummyLogs.map(log => (
-              <div key={log.id} className="p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:border-white/10 transition-colors group">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className={cn(
-                      "h-2 w-2 rounded-full",
-                      log.status === "success" ? "bg-brand-teal-400" : "bg-brand-orange-400"
-                    )} />
-                    <span className="text-[13px] font-bold text-white">{log.lead}</span>
-                    <Badge variant="neutral" className="text-[9px] bg-white/5 border-white/10">{log.intent}</Badge>
-                  </div>
-                  <span className="text-[11px] text-white/40">{log.time}</span>
-                </div>
-                <p className="text-[12px] text-white/60 leading-relaxed mb-3">
-                  {log.desc}
-                </p>
-                <div className="flex items-center gap-4 border-t border-white/5 pt-3 mt-1">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Confiança</span>
-                    <span className="text-[12px] font-mono text-brand-teal-300">{log.confidence}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Ação</span>
-                    <span className="text-[12px] font-mono text-white/80">Respondido com RAG</span>
-                  </div>
-                </div>
+          {logs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+              <div className="h-12 w-12 rounded-full bg-white/[0.04] flex items-center justify-center">
+                <Zap size={22} className="text-white/20" />
               </div>
-            ))}
-          </div>
+              <p className="text-sm font-medium text-white/40">Nenhuma decisão registrada ainda</p>
+              <p className="text-[12px] text-white/25 max-w-xs leading-relaxed">
+                Os logs da IA aparecem aqui após as primeiras conversas no WhatsApp.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {logs.map(log => {
+                const isPositive = (log.sentiment_score ?? 0) >= 0;
+                const leadName = log.leads?.[0]?.name ?? 'Lead';
+                const timeAgo = formatTimeAgo(log.created_at);
+                return (
+                  <div key={log.id} className="p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:border-white/10 transition-colors">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "h-2 w-2 rounded-full",
+                          log.urgency_detected ? "bg-brand-orange-400" : isPositive ? "bg-brand-teal-400" : "bg-white/20"
+                        )} />
+                        <span className="text-[13px] font-bold text-white">{leadName}</span>
+                        {log.intent_detected && (
+                          <Badge variant="neutral" className="text-[9px] bg-white/5 border-white/10">{log.intent_detected}</Badge>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-white/40">{timeAgo}</span>
+                    </div>
+                    {log.rationale && (
+                      <p className="text-[12px] text-white/60 leading-relaxed mb-3">{log.rationale}</p>
+                    )}
+                    <div className="flex items-center gap-4 border-t border-white/5 pt-3 mt-1">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Sentimento</span>
+                        <span className={cn("text-[12px] font-mono", isPositive ? "text-brand-teal-300" : "text-brand-orange-300")}>
+                          {log.sentiment_score != null ? (log.sentiment_score >= 0 ? '+' : '') + log.sentiment_score.toFixed(2) : '—'}
+                        </span>
+                      </div>
+                      {log.objection_handled && (
+                        <div className="flex flex-col">
+                          <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Objeção tratada</span>
+                          <span className="text-[12px] font-mono text-white/80 truncate max-w-[180px]">{log.objection_handled}</span>
+                        </div>
+                      )}
+                      {log.urgency_detected && (
+                        <div className="flex flex-col">
+                          <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Urgência</span>
+                          <span className="text-[12px] font-mono text-brand-orange-300">Detectada</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

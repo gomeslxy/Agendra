@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { handleIncomingMessage } from "@/lib/ai/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCompanyUsage } from "@/lib/billing/limits";
+import { getCompanyUsage, type CompanyUsage } from "@/lib/billing/limits";
 
 // ─── Tipos (Meta Webhook Payload) ────────────────────────────────────────────
 
@@ -279,8 +279,9 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
 
       // ─── BILLING GATE: Proteção de Margem ─────────────────────────────────────
       console.log(`[WhatsApp] 🛡️ Verificando limites para empresa: ${companyId}`);
+      let usage: CompanyUsage | undefined;
       try {
-        const usage = await getCompanyUsage(companyId);
+        usage = await getCompanyUsage(companyId);
         if (usage.isLimitReached) {
           console.error(`[WhatsApp] 🚫 BLOQUEADO: Limite atingido ou assinatura expirada para ${companyId}`);
           // Opcional: Enviar mensagem de aviso via Cloud API (sem IA) se for WhatsApp
@@ -288,12 +289,11 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
         }
       } catch (usageErr) {
         console.error(`[WhatsApp] ❌ Erro ao verificar billing:`, usageErr);
-        // Em caso de erro no billing, por segurança, bloqueamos ou permitimos? 
+        // Em caso de erro no billing, por segurança, bloqueamos ou permitimos?
         // Na Agendra, permitimos para não degradar UX por falha interna temporária.
       }
 
-
-        // ── Processar cada mensagem individualmente ─────────────────────────────
+      // ── Processar cada mensagem individualmente ─────────────────────────────
       for (const msg of messages) {
         // Encontrar o contato correspondente
         const contact = contacts.find((c) => c.wa_id === msg.from);
@@ -336,6 +336,7 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
             contact.profile.name,
             messageText,
             msg.id, // Passando providerMessageId para deduplicação
+            usage,  // pass pre-fetched CompanyUsage to avoid double DB call
           );
           console.log(`[WhatsApp] ✅ handleIncomingMessage finalizado com sucesso.`);
         } catch (err: any) {

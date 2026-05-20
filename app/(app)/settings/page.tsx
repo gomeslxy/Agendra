@@ -14,7 +14,20 @@ export default async function SettingsPage() {
 
   const supabase = await createClient();
 
-  const [{ data: company }, { data: memberships }, { data: channels }, { data: servicesData }] = await Promise.all([
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [
+    { data: company },
+    { data: memberships },
+    { data: channels },
+    { data: servicesData },
+    { data: aiLogsData },
+    { count: remindersToday },
+    { count: followupsWeek },
+    { data: automationEventsData },
+  ] = await Promise.all([
     supabase
       .from("companies")
       .select("id, name, ai_name, ai_tone, ai_greeting, ai_forbidden, persona_config, google_calendar_email, google_calendar_id, plan_type, subscription_status, stripe_customer_id, cancel_at_period_end, current_period_end")
@@ -34,6 +47,33 @@ export default async function SettingsPage() {
       .eq("company_id", companyId)
       .eq("active", true)
       .order("name"),
+    supabase
+      .from('ai_decision_logs')
+      .select('id, lead_id, intent_detected, sentiment_score, urgency_detected, objection_handled, rationale, created_at, leads(name)')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    // Lembretes enviados hoje
+    supabase
+      .from('reminders')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('status', 'sent')
+      .gte('created_at', todayStart.toISOString()),
+    // Follow-ups enviados na semana (via automation_events)
+    supabase
+      .from('automation_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('type', 'followup_sent')
+      .gte('created_at', weekAgo.toISOString()),
+    // Feed de atividade recente
+    supabase
+      .from('automation_events')
+      .select('id, type, detail, lead_id, created_at')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false })
+      .limit(15),
   ]);
 
   const services = servicesData ?? [];
@@ -48,6 +88,9 @@ export default async function SettingsPage() {
         channels={channels ?? []}
         services={services}
         usage={usage}
+        aiLogs={aiLogsData ?? []}
+        automationStats={{ remindersToday: remindersToday ?? 0, followupsWeek: followupsWeek ?? 0 }}
+        automationEvents={automationEventsData ?? []}
       />
     </Suspense>
   );

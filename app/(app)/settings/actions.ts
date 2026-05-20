@@ -16,10 +16,12 @@ export async function updatePersona(formData: FormData) {
 
   const supabase = await createClient();
 
-  const aiName = (formData.get("ai_name") as string)?.trim() || null;
-  const aiTone = (formData.get("ai_tone") as string)?.trim() || null;
-  const aiGreeting = (formData.get("ai_greeting") as string)?.trim() || null;
-  const aiForbidden = (formData.get("ai_forbidden") as string)?.trim() || null;
+  // Use formData.has() — if field absent (e.g. Rules form), value stays undefined and is excluded
+  // from the update object, preventing the Rules tab from wiping ai_name/ai_tone/etc.
+  const aiName     = formData.has("ai_name")     ? (formData.get("ai_name")     as string).trim() || null : undefined;
+  const aiTone     = formData.has("ai_tone")     ? (formData.get("ai_tone")     as string).trim() || null : undefined;
+  const aiGreeting = formData.has("ai_greeting") ? (formData.get("ai_greeting") as string).trim() || null : undefined;
+  const aiForbidden= formData.has("ai_forbidden")? (formData.get("ai_forbidden") as string).trim() || null : undefined;
 
   // Parse services from comma-separated string
   const servicesRaw = formData.get("services") as string | null;
@@ -54,25 +56,27 @@ export async function updatePersona(formData: FormData) {
     tone: aiTone ?? currentConfig.tone,
   };
 
-  if ((formData.get("business_type") as string)) personaConfigPatch.business_type = formData.get("business_type") as string;
+  // business_type: has() check so empty string clears correctly
+  if (formData.has("business_type")) personaConfigPatch.business_type = (formData.get("business_type") as string).trim() || null;
   if (services.length > 0) personaConfigPatch.services = services;
   if (!isNaN(escalationThreshold)) personaConfigPatch.escalation_threshold = escalationThreshold;
   if (autoEscalateRaw !== null) personaConfigPatch.auto_escalate = autoEscalateRaw === "true";
   if (!isNaN(slotDuration)) personaConfigPatch.slot_duration_minutes = slotDuration;
-  if (formData.get("timezone") as string) personaConfigPatch.timezone = formData.get("timezone") as string;
+  if (formData.has("timezone") && formData.get("timezone")) personaConfigPatch.timezone = formData.get("timezone") as string;
   if (working_hours) personaConfigPatch.working_hours = working_hours;
-  if (formData.get("extra_instructions") as string) personaConfigPatch.extra_instructions = formData.get("extra_instructions") as string;
+  // extra_instructions: has() = field present; empty string = user cleared → set null
+  if (formData.has("extra_instructions")) personaConfigPatch.extra_instructions = (formData.get("extra_instructions") as string).trim() || null;
 
-  // Single atomic UPDATE — columns and JSONB in one query, no race condition
+  // Build update object — omit undefined fields so Rules form doesn't wipe identity columns
+  const updatePayload: Record<string, unknown> = { persona_config: personaConfigPatch };
+  if (aiName     !== undefined) updatePayload.ai_name     = aiName;
+  if (aiTone     !== undefined) updatePayload.ai_tone     = aiTone;
+  if (aiGreeting !== undefined) updatePayload.ai_greeting = aiGreeting;
+  if (aiForbidden!== undefined) updatePayload.ai_forbidden= aiForbidden;
+
   const { error } = await supabase
     .from("companies")
-    .update({
-      ai_name: aiName,
-      ai_tone: aiTone,
-      ai_greeting: aiGreeting,
-      ai_forbidden: aiForbidden,
-      persona_config: personaConfigPatch,
-    })
+    .update(updatePayload)
     .eq("id", companyId);
 
   if (error) throw new Error(error.message);
@@ -175,6 +179,42 @@ export async function disconnectWhatsAppChannel(channelId: string) {
 
   revalidatePath("/settings");
   return { ok: true };
+}
+
+export async function saveAutomationConfig(data: {
+  reminder_advance_hours?: number;
+  followup_delay_hours?: number;
+  followup_max_retries?: number;
+}) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("companies")
+    .select("persona_config")
+    .eq("id", companyId)
+    .single();
+
+  const current = (existing?.persona_config ?? {}) as Record<string, unknown>;
+
+  const patch: Record<string, unknown> = { ...current };
+  if (data.reminder_advance_hours !== undefined) patch.reminder_advance_hours = data.reminder_advance_hours;
+  if (data.followup_delay_hours !== undefined) patch.followup_delay_hours = data.followup_delay_hours;
+  if (data.followup_max_retries !== undefined) patch.followup_max_retries = data.followup_max_retries;
+
+  const { error } = await supabase
+    .from("companies")
+    .update({ persona_config: patch })
+    .eq("id", companyId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings");
 }
 
 /**
