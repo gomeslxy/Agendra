@@ -181,6 +181,26 @@ export async function disconnectWhatsAppChannel(channelId: string) {
   return { ok: true };
 }
 
+export async function updateCompany(data: { name: string }) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
+  const name = data.name.trim();
+  if (!name) throw new Error("Nome da empresa não pode ser vazio");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("companies")
+    .update({ name })
+    .eq("id", companyId);
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+}
+
 export async function saveAutomationConfig(data: {
   reminder_advance_hours?: number;
   followup_delay_hours?: number;
@@ -221,15 +241,13 @@ export async function saveAutomationConfig(data: {
  * Finaliza o Onboarding Automático (Embedded Signup)
  */
 export async function completeWhatsAppOnboarding(shortLivedToken: string) {
-  const supabase = await createClient();
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Não autorizado");
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Não autorizado");
-
-  const companyId = user.user_metadata.company_id;
+  const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("Empresa não encontrada no perfil");
+
+  const supabase = await createClient();
 
   try {
     // Gate: maxChannels

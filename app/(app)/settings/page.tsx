@@ -103,14 +103,24 @@ function SettingsSkeleton() {
         <div className="h-8 w-48 animate-pulse rounded-lg bg-white/[0.07]" />
         <div className="h-4 w-64 animate-pulse rounded-md bg-white/[0.04]" />
       </div>
-      <div className="flex gap-1.5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-10 w-24 animate-pulse rounded-xl bg-white/[0.05]" />
-        ))}
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="h-80 animate-pulse rounded-2xl bg-white/[0.04]" />
-        <div className="h-64 animate-pulse rounded-2xl bg-white/[0.04]" />
+      <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start">
+        {/* Mobile tabs skeleton */}
+        <div className="lg:hidden flex gap-1.5 w-full overflow-x-hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-10 w-24 shrink-0 animate-pulse rounded-xl bg-white/[0.05]" />
+          ))}
+        </div>
+        {/* Desktop sidebar skeleton */}
+        <div className="hidden lg:flex flex-col w-64 shrink-0 gap-1.5">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-11 w-full animate-pulse rounded-xl bg-white/[0.05]" />
+          ))}
+        </div>
+        {/* Content skeleton */}
+        <div className="flex-1 w-full max-w-3xl flex flex-col gap-4">
+          <div className="h-64 animate-pulse rounded-2xl bg-white/[0.04]" />
+          <div className="h-40 animate-pulse rounded-2xl bg-white/[0.04]" />
+        </div>
       </div>
     </div>
   );

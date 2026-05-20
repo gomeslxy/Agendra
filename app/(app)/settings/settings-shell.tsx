@@ -38,7 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel, saveAutomationConfig } from "./actions";
+import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel, saveAutomationConfig, updateCompany } from "./actions";
 import { createService, updateService, deleteService } from "./services/actions";
 import Script from "next/script";
 import { toast } from "sonner";
@@ -294,7 +294,7 @@ export function SettingsShell({ company, memberships, channels, services, usage,
           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           className="flex-1 w-full max-w-3xl min-w-0"
         >
-          {tab === "account"    && <Team memberships={memberships} />}
+          {tab === "account"    && <Team memberships={memberships} company={company} />}
           {tab === "rules"      && <Rules company={company} />}
           {tab === "services"   && <Services companyId={company?.id} services={services} />}
           {tab === "brain"      && <Persona company={company} services={services} onChangeTab={changeTab} planType={company?.plan_type} />}
@@ -737,39 +737,52 @@ interface ChannelItem {
 
 function Channels({ company, channels }: { company: Company | null; channels: ChannelRow[] }) {
   const gcalConnected = !!company?.google_calendar_email;
-  const waChannel = channels.find((c) => c.provider === "whatsapp" && c.status === "active");
-  const waConnected = !!waChannel;
+  const waChannels = channels.filter((c) => c.provider === "whatsapp" && c.status === "active");
 
-  const items: ChannelItem[] = [
-    {
-      name: "WhatsApp Business",
-      Icon: MessageCircle,
-      ok: waConnected,
-      bg: waConnected ? "rgba(20,184,166,0.14)" : "rgba(255,255,255,0.05)",
-      col: waConnected ? "#14B8A6" : "var(--color-fg-3)",
-      action: waConnected
-        ? { kind: "whatsapp-connected", provider_id: waChannel!.provider_id }
-        : { kind: "coming-soon" },
-      sub: waConnected ? `ID: ${waChannel!.provider_id}` : undefined,
-    },
-    {
-      name: "Google Calendar",
-      Icon: Calendar,
-      ok: gcalConnected,
-      bg: gcalConnected ? "rgba(37,99,235,0.14)" : "rgba(255,255,255,0.05)",
-      col: gcalConnected ? "#60A5FA" : "var(--color-fg-3)",
-      action: gcalConnected
-        ? { kind: "google-manage", email: company!.google_calendar_email! }
-        : { kind: "google-connect" },
-    },
-  ];
+  const planType = company?.plan_type ?? "trial";
+  const maxWaChannels = planType === "business" ? 10 : planType === "pro" ? 3 : 1;
+  const canAddMore = waChannels.length < maxWaChannels;
+
+  // One card per connected WA channel
+  const connectedItems: ChannelItem[] = waChannels.map((ch, idx) => ({
+    name: idx === 0 ? "WhatsApp Business" : `WhatsApp #${idx + 1}`,
+    Icon: MessageCircle,
+    ok: true,
+    bg: "rgba(20,184,166,0.14)",
+    col: "#14B8A6",
+    action: { kind: "whatsapp-connected", provider_id: ch.provider_id },
+    sub: `ID: ${ch.provider_id}`,
+  }));
+
+  // "Add new" card shown when no channel or plan allows more
+  const addItem: ChannelItem = {
+    name: waChannels.length === 0 ? "WhatsApp Business" : "Adicionar canal WhatsApp",
+    Icon: MessageCircle,
+    ok: false,
+    bg: "rgba(255,255,255,0.05)",
+    col: "var(--color-fg-3)",
+    action: { kind: "coming-soon" },
+  };
+
+  const gcalItem: ChannelItem = {
+    name: "Google Calendar",
+    Icon: Calendar,
+    ok: gcalConnected,
+    bg: gcalConnected ? "rgba(37,99,235,0.14)" : "rgba(255,255,255,0.05)",
+    col: gcalConnected ? "#60A5FA" : "var(--color-fg-3)",
+    action: gcalConnected
+      ? { kind: "google-manage", email: company!.google_calendar_email! }
+      : { kind: "google-connect" },
+  };
 
   return (
     <>
       <div className="flex flex-col gap-3">
-        {items.map((c) => (
-          <ChannelCard key={c.name} item={c} channels={channels} />
+        {connectedItems.map((item) => (
+          <ChannelCard key={item.sub} item={item} channels={channels} />
         ))}
+        {canAddMore && <ChannelCard key="add-wa" item={addItem} channels={channels} />}
+        <ChannelCard key="gcal" item={gcalItem} channels={channels} />
       </div>
       <Script
         src="https://connect.facebook.net/pt_BR/sdk.js"
@@ -793,6 +806,7 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   const waAction = c.action.kind === "whatsapp-connected" ? c.action : null;
 
 
@@ -805,6 +819,7 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
         await saveWhatsAppChannel(formData);
         setExpanded(false);
         toast.success("Canal conectado com sucesso!");
+        router.refresh();
       } catch (err: any) {
         setError(err.message);
       }
@@ -842,9 +857,10 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
       try {
         const channel = channels.find(ch => ch.provider_id === providerId);
         if (!channel) throw new Error("Canal não encontrado");
-        
+
         await disconnectWhatsAppChannel(channel.id);
         toast.success("Canal desconectado com sucesso");
+        router.refresh();
       } catch (err: any) {
         toast.error(err.message || "Erro ao desconectar");
       }
@@ -1512,7 +1528,24 @@ function Flows({
   );
 }
 
-function Team({ memberships }: { memberships: Member[] }) {
+function Team({ memberships, company }: { memberships: Member[]; company: Company | null }) {
+  const [companyName, setCompanyName] = useState(company?.name ?? "");
+  const [savingName, startNameTransition] = useTransition();
+  const [nameSaved, setNameSaved] = useState(false);
+
+  function handleSaveName(e: React.FormEvent) {
+    e.preventDefault();
+    startNameTransition(async () => {
+      try {
+        await updateCompany({ name: companyName });
+        setNameSaved(true);
+        setTimeout(() => setNameSaved(false), 3000);
+      } catch (err: any) {
+        toast.error(err.message);
+      }
+    });
+  }
+
   const COLORS = [
     "linear-gradient(135deg,#3B82F6,#14B8A6)",
     "linear-gradient(135deg,#F97316,#FB923C)",
@@ -1521,44 +1554,70 @@ function Team({ memberships }: { memberships: Member[] }) {
   ];
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle>Time</CardTitle>
-          <CardDescription>{memberships.length} membros</CardDescription>
-        </div>
-        <Button variant="primary" size="sm" onClick={() => toast.info("Convite de membros em breve!")}>
-          <UserPlus size={14} className="mr-2" />
-          Convidar
-        </Button>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {memberships.map((m, i) => {
-          const u = Array.isArray(m.users) ? m.users[0] : m.users;
-          const name = u?.full_name ?? u?.email ?? "Usuário";
-          const email = u?.email ?? "";
-          const initials = name.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
-          return (
-            <div
-              key={m.id}
-              className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 hover:bg-white/[0.05] transition-colors"
-            >
+    <div className="flex flex-col gap-5">
+      {/* Empresa */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Empresa</CardTitle>
+          <CardDescription>Informações do negócio cadastrado.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSaveName} className="flex flex-col gap-4">
+            <Field label="Nome da empresa">
+              <Input
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Ex.: Clínica Estética Silva"
+                required
+              />
+            </Field>
+            <Button type="submit" variant="blue" size="sm" className="w-full font-bold" disabled={savingName}>
+              {nameSaved ? <><Check size={14} className="mr-2" />Salvo ✓</> : savingName ? "Salvando…" : "Salvar empresa"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Time */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Time</CardTitle>
+            <CardDescription>{memberships.length} {memberships.length === 1 ? "membro" : "membros"}</CardDescription>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => toast.info("Convite de membros em breve!")}>
+            <UserPlus size={14} className="mr-2" />
+            Convidar
+          </Button>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {memberships.map((m, i) => {
+            const u = Array.isArray(m.users) ? m.users[0] : m.users;
+            const name = u?.full_name ?? u?.email ?? "Usuário";
+            const email = u?.email ?? "";
+            const initials = name.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
+            return (
               <div
-                className="grid h-9 w-9 place-items-center rounded-full text-xs font-bold text-white shadow-lg"
-                style={{ background: COLORS[i % COLORS.length] }}
+                key={m.id}
+                className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 hover:bg-white/[0.05] transition-colors"
               >
-                {initials}
+                <div
+                  className="grid h-9 w-9 place-items-center rounded-full text-xs font-bold text-white shadow-lg"
+                  style={{ background: COLORS[i % COLORS.length] }}
+                >
+                  {initials}
+                </div>
+                <div className="flex-1">
+                  <div className="text-[13px] font-semibold">{name}</div>
+                  <div className="text-[11px]" style={{ color: "var(--color-fg-3)" }}>{email}</div>
+                </div>
+                <Badge variant={m.role === "admin" ? "hot" : "cold"}>{m.role}</Badge>
               </div>
-              <div className="flex-1">
-                <div className="text-[13px] font-semibold">{name}</div>
-                <div className="text-[11px]" style={{ color: "var(--color-fg-3)" }}>{email}</div>
-              </div>
-              <Badge variant={m.role === "admin" ? "hot" : "cold"}>{m.role}</Badge>
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -1621,8 +1680,54 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
   const cancelAtPeriodEnd = usage?.cancelAtPeriodEnd;
   const currentPeriodEnd = usage?.currentPeriodEnd;
 
+  const trialDaysRemaining = usage?.trialDaysRemaining ?? null;
+  const isOnTrial = currentPlan === "trial";
+
   return (
     <div className="flex flex-col gap-6 pb-12">
+      {/* Banner de Trial */}
+      {isOnTrial && (
+        <Card className={cn(
+          "border-brand-blue-500/30",
+          trialDaysRemaining === 0 ? "bg-red-500/5 border-red-500/30" : "bg-brand-blue-500/5"
+        )}>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className={cn(
+              "p-2 rounded-full",
+              trialDaysRemaining === 0 ? "bg-red-500/20 text-red-400" : "bg-brand-blue-500/20 text-brand-blue-400"
+            )}>
+              <Clock size={16} />
+            </div>
+            <div className="flex-1">
+              <p className={cn(
+                "text-sm font-semibold",
+                trialDaysRemaining === 0 ? "text-red-300" : "text-brand-blue-300"
+              )}>
+                {trialDaysRemaining === 0
+                  ? "Período de teste expirado"
+                  : trialDaysRemaining === 1
+                  ? "Último dia do período de teste!"
+                  : `${trialDaysRemaining} dias restantes no trial`}
+              </p>
+              <p className={cn(
+                "text-xs mt-0.5",
+                trialDaysRemaining === 0 ? "text-red-300/60" : "text-brand-blue-300/70"
+              )}>
+                {trialDaysRemaining === 0
+                  ? "Assine agora para reativar a IA."
+                  : "Assine antes do término para não perder o acesso."}
+              </p>
+            </div>
+            {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
+              <div className="shrink-0 flex flex-col items-center">
+                <span className="text-3xl font-black text-brand-blue-300 tabular-nums leading-none">{trialDaysRemaining}</span>
+                <span className="text-[9px] text-brand-blue-400/60 uppercase tracking-wider">{trialDaysRemaining === 1 ? "dia" : "dias"}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Banner de Cancelamento */}
       {cancelAtPeriodEnd && currentPeriodEnd && (
         <Card className="border-brand-orange-500/30 bg-brand-orange-500/5">
@@ -2131,6 +2236,9 @@ function formatTimeAgo(iso: string): string {
 }
 
 function LogsView({ logs }: { logs: AiDecisionLog[] }) {
+  const [visibleCount, setVisibleCount] = useState(10);
+  const visibleLogs = logs.slice(0, visibleCount);
+
   return (
     <div className="flex flex-col gap-5">
       <Card>
@@ -2156,7 +2264,7 @@ function LogsView({ logs }: { logs: AiDecisionLog[] }) {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {logs.map(log => {
+              {visibleLogs.map(log => {
                 const isPositive = (log.sentiment_score ?? 0) >= 0;
                 const leadName = log.leads?.[0]?.name ?? 'Lead';
                 const timeAgo = formatTimeAgo(log.created_at);
@@ -2201,6 +2309,17 @@ function LogsView({ logs }: { logs: AiDecisionLog[] }) {
                   </div>
                 );
               })}
+
+              {logs.length > visibleCount && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-white/40 hover:text-white/70 mt-1"
+                  onClick={() => setVisibleCount((v) => v + 10)}
+                >
+                  Ver mais ({logs.length - visibleCount} restantes)
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
