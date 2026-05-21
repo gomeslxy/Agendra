@@ -127,7 +127,7 @@ Retorne um objeto JSON estritamente com os seguintes campos:
 - services: lista de strings com serviços/produtos de interesse mencionados pelo lead (se houver)
 - objections: lista de strings com preocupações ou motivos para não fechar citados (se houver)
 - answers: objeto chave-valor de perguntas de qualificação respondidas (ex: {"orçamento": "5k"})
-- new_summary: UMA frase curta e direta resumindo o novo estado do lead.
+- new_summary: UMA frase curta e direta resumindo o novo estado do lead. IMPORTANTE: NUNCA mencione o estado de disponibilidade de horários ou se a agenda está cheia/vazia (ex: evite termos como "sem horários", "agenda cheia", "não há horários"), pois a disponibilidade deve ser consultada em tempo real e não fixada no resumo histórico.
 
 JSON:`;
 

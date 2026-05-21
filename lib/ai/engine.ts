@@ -138,7 +138,8 @@ IMPORTANTE: Para checkAvailability ou bookAppointment, use SEMPRE o UUID [ID: ..
 2. Use updateLeadMemory para registrar interesses, objecoes ou respostas de qualificacao.
 3. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".
 4. Apos sua resposta, adicione SEMPRE o bloco JSON para atualizacao de metricas.
-5. ${isNewConversation ? 'Esta e a PRIMEIRA mensagem deste lead. Pode cumprimentar normalmente.' : 'Conversa JA iniciada. NAO cumprimente novamente (sem "Ola", "Tudo bem?", "Opa"). Responda diretamente ao que o lead disse.'}${extraInstructions}${forbidden}
+5. ${isNewConversation ? 'Esta e a PRIMEIRA mensagem deste lead. Pode cumprimentar normalmente.' : 'Conversa JA iniciada. NAO cumprimente novamente (sem "Ola", "Tudo bem?", "Opa"). Responda diretamente ao que o lead disse.'}
+6. CRITICO — Disponibilidade: A "Situacao Atual" no historico do lead e um RESUMO HISTORICO, NUNCA informacao de disponibilidade atual. A agenda muda a cada minuto. SEMPRE chame checkAvailability antes de informar horarios disponiveis ou indisponiveis. NUNCA diga "agenda cheia" ou "sem horarios" baseado apenas no resumo ou historico — isso e proibido. Verifique SEMPRE em tempo real.${extraInstructions}${forbidden}
 
 ---JSON---
 {

@@ -55,6 +55,14 @@
 - [x] **W2.15** Booking com compensação atômica: `deleteGCalEvent` desfaz criação se DB insert falhar.
 - [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅
 
+## 🐛 Hotfix: IA Retornando "Agenda Cheia" Falso (✅ Concluído 20/05/2026)
+- [x] **Root cause identificado**: `lead.summary` com texto "agenda cheia" injetado no system prompt via `mountContext` e histórico de mensagens contendo afirmação de "agenda cheia" causavam o Gemini a pular o `checkAvailability` e repetir a rejeição stale.
+- [x] **Fix 1 (DB)**: `lead.summary` do lead afetado limpo e `is_paused` resetado para `false`.
+- [x] **Fix 2 (History)**: Mensagem envenenada no histórico de conversas corrigida cirurgicamente no banco para o lead via `scratch/fix_history.ts`.
+- [x] **Fix 3 (Engine)**: Nova Regra de Ouro #6 adicionada ao system prompt (`lib/ai/engine.ts`): "A Situação Atual no histórico é RESUMO HISTÓRICO — SEMPRE chame `checkAvailability`, nunca repita disponibilidade sem verificar em tempo real".
+- [x] **Fix 4 (Analytics Prevention)**: Refinado prompt de `processBackgroundAnalytics` em `lib/ai/memory.ts` para nunca salvar estados temporários de indisponibilidade nos novos resumos de lead.
+- [x] **Validação**: `pnpm tsc --noEmit` → exit 0 ✅ | `scratch/test_ai.ts` simulador passando 100% para saudações ("opa td bom") e agendamento direto ("quero agendar um corte e barba" - retorna 15 slots) ✅
+
 ## 💅 Fase 4: Polimento Premium & Escala
 - [x] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.
