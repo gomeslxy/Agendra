@@ -129,11 +129,11 @@
 - [x] Dashboard: card "Vendas Realizadas" com lista de últimas 5 vendas + receita hoje
 - [x] CI/CD: `.github/workflows/ci.yml` (tsc + lint + build, bloqueia merge em falha)
 
-### Épico 5 — Voice & Reativação Inteligente (🔜 Fase 4 — Arquitetural)
-- [ ] Infraestrutura para transcrição de áudio (Whisper / Gemini Audio)
-- [ ] Envio de áudio sintético (TTS) pelo WhatsApp Cloud API
-- [ ] Reativação automática de leads frios com base em `ai_decision_logs.objection_handled`
-- [ ] Análise de sentimento em tempo real → ajuste de `lead.last_sentiment`
+### Épico 5 — Voice & Reativação Inteligente (✅ COMPLETO 21/05/2026)
+- [x] Infraestrutura para transcrição de áudio (Whisper / Gemini Audio)
+- [x] Envio de áudio sintético (TTS) pelo WhatsApp Cloud API
+- [x] Reativação automática de leads frios com base em `ai_decision_logs.objection_handled`
+- [x] Análise de sentimento em tempo real → ajuste de `lead.last_sentiment`
 
 ---
 [[visao-geral|⬅️ Voltar]]
