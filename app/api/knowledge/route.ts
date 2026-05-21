@@ -43,7 +43,8 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
 
   if (mimeType === 'application/pdf') {
     // Dynamic import para evitar problemas de SSR com pdf-parse
-    const pdfParse = (await import('pdf-parse')).default;
+    const pdfModule = await import('pdf-parse');
+    const pdfParse = (pdfModule as any).default || pdfModule;
     const result = await pdfParse(buffer);
     return result.text;
   }
