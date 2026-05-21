@@ -18,6 +18,17 @@ export default async function SettingsPage() {
   todayStart.setHours(0, 0, 0, 0);
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
+  const usage = await getCompanyUsage(companyId).catch(() => null);
+
+  const aiLogsQuery = usage?.limits?.hasAnalytics
+    ? supabase
+        .from('ai_decision_logs')
+        .select('id, lead_id, intent_detected, sentiment_score, urgency_detected, objection_handled, rationale, created_at, leads(name)')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+    : Promise.resolve({ data: [] as any[] });
+
   const [
     { data: company },
     { data: memberships },
@@ -48,12 +59,7 @@ export default async function SettingsPage() {
       .eq("company_id", companyId)
       .eq("active", true)
       .order("name"),
-    supabase
-      .from('ai_decision_logs')
-      .select('id, lead_id, intent_detected, sentiment_score, urgency_detected, objection_handled, rationale, created_at, leads(name)')
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(20),
+    aiLogsQuery,
     // Lembretes enviados hoje
     supabase
       .from('reminders')
@@ -83,7 +89,7 @@ export default async function SettingsPage() {
 
   const services = servicesData ?? [];
 
-  const usage = await getCompanyUsage(companyId).catch(() => null);
+
 
   return (
     <Suspense fallback={<SettingsSkeleton />}>

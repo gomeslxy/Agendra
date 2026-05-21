@@ -404,7 +404,7 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
 
       <div className="grid gap-3 sm:grid-cols-3">
         <motion.div
-          key={extraConversions}
+          key={`conversions-${extraConversions}`}
           initial={{ opacity: 0.6, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4"
@@ -414,7 +414,7 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
           <p className="mt-1 text-[11px] text-white/50">no próximo mês</p>
         </motion.div>
         <motion.div
-          key={extraRevenue}
+          key={`revenue-${extraRevenue}`}
           initial={{ opacity: 0.6, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           className="rounded-xl border border-violet-500/20 bg-violet-500/[0.06] p-4"
@@ -424,7 +424,7 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
           <p className="mt-1 text-[11px] text-violet-300/50">estimativa baseada no ticket médio</p>
         </motion.div>
         <motion.div
-          key={extraHours}
+          key={`hours-${extraHours}`}
           initial={{ opacity: 0.6, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           className="rounded-xl border border-teal-500/20 bg-teal-500/[0.06] p-4"

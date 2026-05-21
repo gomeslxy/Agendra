@@ -425,7 +425,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
 
     // optimistic update
     setLeads((prev) =>
-      prev.map((l) => (l.id === selected.id ? { ...l, control_mode: mode, is_paused: mode !== 'autonomous' } : l)),
+      prev.map((l) => (l.id === selected.id ? { ...l, control_mode: mode, is_paused: mode === 'manual' } : l)),
     );
 
     startControl(async () => {
@@ -435,7 +435,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
       } catch (e) {
         // revert
         setLeads((prev) =>
-          prev.map((l) => (l.id === selected.id ? { ...l, control_mode: current, is_paused: current !== 'autonomous' } : l)),
+          prev.map((l) => (l.id === selected.id ? { ...l, control_mode: current, is_paused: current === 'manual' } : l)),
         );
         setInboxError((e as Error).message);
       }

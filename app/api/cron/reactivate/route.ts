@@ -14,10 +14,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+import { genAI } from '@/lib/ai/client';
 
 // Segurança: apenas crons autorizados
 function isAuthorized(req: NextRequest): boolean {
@@ -46,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     for (const company of companies) {
       const pc = (company.persona_config ?? {}) as Record<string, any>;
-      const inactivityDays: number = pc.reactivation_days ?? 5;
+      const inactivityDays: number = pc.reactivation_days ?? 30;
       const cutoffDate = new Date(Date.now() - inactivityDays * 24 * 60 * 60 * 1000).toISOString();
       let leadsProcessed = 0;
       let errors = 0;
@@ -57,7 +55,7 @@ export async function POST(req: NextRequest) {
           .from('leads')
           .select('id, name, phone, summary, lead_memory, heat_score, last_message_at')
           .eq('company_id', company.id)
-          .not('status', 'in', '("success","disqualified")')
+          .in('status', ['cold', 'warm'])
           .not('is_paused', 'eq', true)
           .lt('last_message_at', cutoffDate)
           .not('phone', 'is', null)

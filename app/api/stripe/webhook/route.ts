@@ -178,6 +178,35 @@ export async function POST(req: Request) {
       break;
     }
 
+    case 'invoice.payment_action_required': {
+      const inv = event.data.object as Stripe.Invoice;
+      const invAny = inv as any;
+      let companyId: string | null = null;
+
+      if (invAny.subscription) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(invAny.subscription as string);
+          companyId = sub.metadata?.companyId
+            || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
+        } catch (err) {}
+      }
+      if (!companyId && inv.customer) {
+        companyId = await getCompanyByCustomer(inv.customer as string);
+      }
+
+      if (companyId) {
+        await admin.from('stripe_payment_events').insert({
+          company_id: companyId,
+          event_type: '3ds_required',
+          stripe_event_id: event.id,
+          invoice_id: inv.id,
+          amount_cents: inv.amount_due,
+          metadata: { hosted_invoice_url: inv.hosted_invoice_url, attempt_count: inv.attempt_count },
+        });
+      }
+      break;
+    }
+
     case 'invoice.payment_failed': {
       const inv = event.data.object as Stripe.Invoice;
       const invAny = inv as any;
@@ -208,6 +237,15 @@ export async function POST(req: Request) {
       if (companyId) {
         // [FIX HIGH-6] Mantém plan_type real, apenas muda subscription_status
         await updateCompanyStatus(companyId, 'past_due', currentPlanType);
+
+        await admin.from('stripe_payment_events').insert({
+          company_id: companyId,
+          event_type: 'invoice_failed',
+          stripe_event_id: event.id,
+          invoice_id: inv.id,
+          amount_cents: inv.amount_due,
+          metadata: { hosted_invoice_url: inv.hosted_invoice_url, attempt_count: inv.attempt_count },
+        });
       }
       break;
     }
@@ -261,6 +299,27 @@ export async function POST(req: Request) {
           periodEnd,
           cancelAt
         );
+
+        await admin.from('stripe_payment_events').insert({
+          company_id: companyId,
+          event_type: 'invoice_paid',
+          stripe_event_id: event.id,
+          invoice_id: inv.id,
+          amount_cents: inv.amount_paid,
+          metadata: { hosted_invoice_url: inv.hosted_invoice_url },
+        });
+
+        const isProrated = inv.lines?.data?.some(l => (l as any).proration);
+        if (isProrated) {
+          await admin.from('stripe_payment_events').insert({
+            company_id: companyId,
+            event_type: 'proration_applied',
+            stripe_event_id: event.id + '_proration',
+            invoice_id: inv.id,
+            amount_cents: inv.amount_paid,
+            metadata: { hosted_invoice_url: inv.hosted_invoice_url },
+          });
+        }
       }
       break;
     }

@@ -1,9 +1,7 @@
 // lib/ai/memory.ts
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { LeadMemory, LeadMemoryEventType, ScoreHistoryEntry, Message } from '@/lib/types/database';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+import { genAI } from './client';
 
 export const EMPTY_MEMORY: LeadMemory = {
   timeline: [],

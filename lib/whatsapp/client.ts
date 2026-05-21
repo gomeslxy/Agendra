@@ -15,16 +15,16 @@ async function resolveWaCreds(companyId?: string): Promise<{ phoneId: string; to
   if (companyId && admin) {
     const { data: channels } = await admin
       .from("channels")
-      .select("provider_id, access_token")
+      .select("id, provider_id, access_token")
       .eq("company_id", companyId)
       .eq("provider", "whatsapp")
       .eq("status", "active")
-      .not("access_token", "is", null)
       .limit(1);
     const channel = channels?.[0];
-    if (channel?.provider_id && channel?.access_token) {
+    if (channel?.provider_id) {
       phoneId = channel.provider_id;
-      token = channel.access_token;
+      const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: channel.id });
+      token = (tokenData as string) || channel.access_token;
     }
   }
 
@@ -130,4 +130,50 @@ export async function sendWhatsAppMedia(
       .update({ last_error: null, last_seen_at: new Date().toISOString(), status: "active", updated_at: new Date().toISOString() })
       .eq("company_id", companyId).eq("provider", "whatsapp").then();
   }
+}
+
+/**
+ * Sobe um buffer de áudio mp3 ao WhatsApp Cloud e envia para o lead.
+ * Fluxo: POST /media (multipart) → recebe media_id → POST /messages com type=audio + id.
+ */
+export async function sendWhatsAppAudio(
+  companyId: string,
+  to: string,
+  audioBuffer: Buffer
+): Promise<{ ok: boolean; error?: string }> {
+  // 1. Resolver canal
+  const { phoneId, token } = await resolveWaCreds(companyId);
+  if (!phoneId || !token) return { ok: false, error: 'no channel' };
+
+  // 2. Upload media
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', 'audio/mp3');
+  form.append('file', new Blob([audioBuffer], { type: 'audio/mp3' }), 'tts.mp3');
+
+  const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!uploadRes.ok) return { ok: false, error: `upload ${uploadRes.status}` };
+  const { id: mediaId } = (await uploadRes.json()) as { id: string };
+
+  // 3. Send message
+  const sendRes = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'audio',
+      audio: { id: mediaId },
+    }),
+  });
+
+  if (!sendRes.ok) return { ok: false, error: `send ${sendRes.status}` };
+  return { ok: true };
 }

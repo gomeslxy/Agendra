@@ -30,6 +30,7 @@ interface MetaTextMessage {
   timestamp: string;
   type: "text" | "image" | "audio" | "video" | "document" | "sticker" | "location";
   text?: { body: string };
+  audio?: { id: string; mime_type?: string };
 }
 
 interface MetaContact {
@@ -305,12 +306,21 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
 
         // Definir o texto da mensagem (fallback para mídia)
         let messageText = "";
+        let incomingMetadata: Record<string, any> | undefined;
         if (msg.type === "text" && msg.text?.body) {
           messageText = msg.text.body;
         } else if (msg.type === "image") {
           messageText = "[Imagem recebida]";
         } else if (msg.type === "audio") {
-          messageText = "[Áudio recebido]";
+          const channelToken = channel?.access_token;
+          if (msg.audio?.id && channelToken) {
+            const { transcribeWhatsAppAudio } = await import('@/lib/ai/transcribe');
+            const result = await transcribeWhatsAppAudio(msg.audio.id, channelToken);
+            messageText = result.text;
+            incomingMetadata = { ...(incomingMetadata ?? {}), is_audio: true, audio_id: msg.audio.id };
+          } else {
+            messageText = "[Áudio recebido]";
+          }
         } else if (msg.type === "video") {
           messageText = "[Vídeo recebido]";
         } else if (msg.type === "document") {
@@ -337,6 +347,7 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
             messageText,
             msg.id, // Passando providerMessageId para deduplicação
             usage,  // pass pre-fetched CompanyUsage to avoid double DB call
+            incomingMetadata
           );
           console.log(`[WhatsApp] ✅ handleIncomingMessage finalizado com sucesso.`);
         } catch (err: any) {

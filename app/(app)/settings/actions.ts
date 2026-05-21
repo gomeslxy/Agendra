@@ -58,6 +58,7 @@ export async function updatePersona(formData: FormData) {
 
   // business_type: has() check so empty string clears correctly
   if (formData.has("business_type")) personaConfigPatch.business_type = (formData.get("business_type") as string).trim() || null;
+  if (formData.has("ai_name")) personaConfigPatch.tts_enabled = formData.has("tts_enabled");
   if (services.length > 0) personaConfigPatch.services = services;
   if (!isNaN(escalationThreshold)) personaConfigPatch.escalation_threshold = escalationThreshold;
   if (autoEscalateRaw !== null) personaConfigPatch.auto_escalate = autoEscalateRaw === "true";
@@ -132,13 +133,12 @@ export async function saveWhatsAppChannel(formData: FormData) {
   }
 
   // 2. Upsert com número formatado retornado pela validação
-  const { error } = await supabase
+  const { data: channel, error } = await supabase
     .from("channels")
     .upsert({
       company_id: companyId,
       provider: "whatsapp",
       provider_id: phoneId,
-      access_token: accessToken.trim(),
       name: name || "WhatsApp Business",
       phone: validation.displayPhone ?? null,
       status: "active",
@@ -150,9 +150,22 @@ export async function saveWhatsAppChannel(formData: FormData) {
       }
     }, {
       onConflict: "provider,provider_id"
-    });
+    })
+    .select("id")
+    .single();
 
   if (error) throw new Error(error.message);
+
+  const adminForVault = createAdminClient();
+  const { error: vaultError } = await adminForVault.rpc('channel_set_access_token', {
+    p_channel_id: channel.id,
+    p_token: accessToken.trim(),
+  });
+
+  if (vaultError) {
+    console.error('[Onboarding] Vault write failed, mantendo plaintext temporário:', vaultError);
+    await adminForVault.from('channels').update({ access_token: accessToken.trim() }).eq('id', channel.id);
+  }
 
   revalidatePath("/settings");
 }
@@ -287,11 +300,10 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
     }
 
     // 3. Salvar no banco
-    const { error } = await supabase.from("channels").upsert({
+    const { data: channel, error } = await supabase.from("channels").upsert({
       company_id: companyId,
       provider: "whatsapp",
       provider_id: details.phone_number_id,
-      access_token: longLivedToken,
       status: "active",
       config: {
         waba_id: details.waba_id,
@@ -302,9 +314,20 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
       last_error: null
     }, {
       onConflict: 'provider,provider_id'
-    });
+    }).select("id").single();
 
     if (error) throw new Error(error.message);
+
+    const adminForVault = createAdminClient();
+    const { error: vaultError } = await adminForVault.rpc('channel_set_access_token', {
+      p_channel_id: channel.id,
+      p_token: longLivedToken,
+    });
+
+    if (vaultError) {
+      console.error('[Onboarding] Vault write failed, mantendo plaintext temporário:', vaultError);
+      await adminForVault.from('channels').update({ access_token: longLivedToken }).eq('id', channel.id);
+    }
   revalidatePath("/settings");
   return { success: true, phone: details.display_phone_number };
   } catch (error: any) {

@@ -149,7 +149,7 @@ export async function setControlMode(leadId: string, mode: 'autonomous' | 'shado
   const { company_id } = await getLeadInfo(supabase, leadId);
   await requireOnboarding(company_id);
 
-  const isPaused = mode !== 'autonomous';
+  const isPaused = mode === 'manual';
 
   await supabase
     .from("leads")

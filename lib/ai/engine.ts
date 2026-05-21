@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI, type Content, FunctionCallingMode } from '@google/generative-ai';
+import { type Content, FunctionCallingMode } from '@google/generative-ai';
+import { genAI } from './client';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import type { Lead, Message } from '@/lib/types/database';
@@ -25,7 +26,6 @@ import { persistAILog, createTimer } from '@/lib/ai/observability';
 import { EMPTY_MEMORY, mountContext, processBackgroundAnalytics, appendScoreHistory } from './memory';
 import { validateAndNormalizeScore } from './scoring';
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 const MAIN_MODEL = 'gemini-2.5-flash';
 
 interface Service {
@@ -373,6 +373,7 @@ export async function handleIncomingMessage(
   messageText: string,
   providerMessageId?: string,
   preloadedUsage?: CompanyUsage,
+  incomingMetadata?: Record<string, any>
 ): Promise<void> {
   const admin = createAdminClient();
   const timer = createTimer();
@@ -613,7 +614,27 @@ export async function handleIncomingMessage(
     sentMessage = insertedMsg;
 
     if (!isShadowMode) {
-      await sendWhatsAppMessage(phone, finalReply, companyId);
+      const personaConfig = (company.persona_config as any) ?? {};
+      const ttsEnabled = personaConfig.tts_enabled === true;
+      const replyInAudio = ttsEnabled && incomingMetadata?.is_audio === true;
+
+      let sentAudio = false;
+      if (replyInAudio && finalReply) {
+        const { synthesizeSpeech } = await import('@/lib/whatsapp/tts');
+        const audio = await synthesizeSpeech(finalReply);
+        if (audio) {
+          const { sendWhatsAppAudio } = await import('@/lib/whatsapp/client');
+          const result = await sendWhatsAppAudio(company.id, phone, audio);
+          if (result.ok) {
+            sentAudio = true;
+            await admin.from('messages').update({ metadata: { tts: true } }).eq('id', sentMessage.id);
+          }
+        }
+      }
+
+      if (!sentAudio) {
+        await sendWhatsAppMessage(phone, finalReply, companyId);
+      }
     } else {
       console.log(`[AI Engine] Modo Shadow ativo para lead ${phone}. Mensagem persistida como rascunho (is_draft: true).`);
     }
@@ -737,7 +758,8 @@ export async function handleIncomingMessage(
           .update({
             lead_memory: furtherUpdatedMem,
             summary: analytics.new_summary,
-            last_sentiment: analytics.sentiment
+            last_sentiment: analytics.sentiment_score,
+            last_sentiment_at: new Date().toISOString()
           })
           .eq('id', activeLead.id)
           .eq('company_id', companyId); // ALWAYS filter by company_id!

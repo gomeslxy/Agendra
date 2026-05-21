@@ -32,6 +32,16 @@
 - [x] **Morning Cron Multi-tenant**: Lembretes iterados por empresa com limite de 10 cada (evita starvation global) e GCal Sync desabilitado para planos cancelados.
 - [x] **Analytics Token Optimization**: Redução do histórico no prompt do analytics de 20 para as últimas 5 mensagens mais recentes, economizando mais de 60% dos tokens de analytics.
 
+## 🔥 Fase 3.7: Quota Explosion Fix — Motor Plan-Aware (✅ Concluído 20/05/2026)
+- [x] **PlanLimits**: Flags `hasRAG`, `hasAnalytics`, `hasAdvancedModel` adicionados (`lib/billing/plans.ts`).
+- [x] **Model Gate**: trial/starter → `gemini-2.5-flash-lite`; Pro/Business → `gemini-2.5-flash`.
+- [x] **RAG Gate**: Embedding + count query bloqueados para trial/starter.
+- [x] **Analytics Gate**: `processBackgroundAnalytics` + `ai_decision_logs` bloqueados para trial/starter.
+- [x] **History Window**: 10 msgs (trial/starter) vs 20 msgs (Pro/Business).
+- [x] **MAX_ITERATIONS**: 3 (trial/starter) vs 5 (Pro/Business).
+- [x] **Fintech Tools**: Removidas do schema Gemini quando `ENABLE_FINTECH=false`.
+- [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅ | Impacto: -66% chamadas Gemini para trial/starter.
+
 ## 🛡️ Fase 3.6: Hardening do Motor de IA — Auditoria W1+W2 (✅ Concluído 20/05/2026)
 - [x] **W1.1** Fintech gate: `generatePixCharge` removido do schema de tools; handler gateado por `ENABLE_FINTECH`.
 - [x] **W1.2** Try/catch global em `handleIncomingMessage` cobrindo todo o pós-processamento.

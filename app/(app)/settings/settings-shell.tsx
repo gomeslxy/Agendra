@@ -724,6 +724,20 @@ function Persona({
               <Input name="business_type" defaultValue={pc.business_type ?? ""} placeholder="Ex.: clínica estética, advocacia" />
             </Field>
           </div>
+          <Field label="Áudio (TTS)">
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                name="tts_enabled"
+                defaultChecked={pc.tts_enabled === true}
+                className="size-4 rounded border-white/20 bg-white/5"
+              />
+              <span className="text-sm">
+                Responder por áudio quando o cliente mandar áudio
+                <span className="ml-2 text-xs text-white/50">(Pro+)</span>
+              </span>
+            </label>
+          </Field>
           <Field label="Saudação padrão">
             <Input name="ai_greeting" defaultValue={company?.ai_greeting ?? "Oi! Sou a Agendra 👋"} />
           </Field>

@@ -24,7 +24,8 @@ export interface Lead {
   processing_started_at?: string | null;
   last_message_id: string | null;
   control_mode?: 'autonomous' | 'shadow' | 'manual';
-  last_sentiment?: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';
+  last_sentiment?: number | null;
+  last_sentiment_at?: string | null;
   followup_count: number;
   last_message_at?: string | null;
   followup_in_progress?: boolean;

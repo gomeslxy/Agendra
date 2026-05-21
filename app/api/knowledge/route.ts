@@ -9,9 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getUserProfile } from '@/lib/supabase/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+import { genAI } from '@/lib/ai/client';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const CHUNK_SIZE = 1000;
