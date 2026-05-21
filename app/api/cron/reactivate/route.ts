@@ -64,6 +64,13 @@ export async function POST(req: NextRequest) {
 
         if (!leads?.length) continue;
 
+        const eligibleLeads = leads.filter((l) => {
+          if (typeof l.last_sentiment === 'number' && l.last_sentiment < -0.5) return false;
+          return true;
+        });
+
+        if (!eligibleLeads.length) continue;
+
         // Buscar canal WhatsApp ativo da empresa
         const { data: channel } = await admin
           .from('channels')
@@ -79,7 +86,7 @@ export async function POST(req: NextRequest) {
         const businessName = company.name ?? 'nossa empresa';
         const customHook = pc.reactivation_hook ?? '';
 
-        for (const lead of leads) {
+        for (const lead of eligibleLeads) {
           try {
             // 3. Verificar se já foi enviada reativação recente (últimas 72h)
             const recentCutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
@@ -102,10 +109,15 @@ export async function POST(req: NextRequest) {
               (1000 * 60 * 60 * 24)
             );
 
+            const sentimentHint = typeof lead.last_sentiment === 'number'
+              ? `Última interação teve sentimento ${lead.last_sentiment > 0 ? 'positivo' : 'neutro/cauteloso'} (${lead.last_sentiment.toFixed(2)}). Adapte o tom.`
+              : '';
+
             const prompt = `Você é ${aiName}, assistente de ${businessName}.
 Escreva UMA mensagem curta e amigável de reativação para o lead "${firstName}".
 Contexto: ${lastSummary}
 Silêncio: ${daysSilent} dias sem resposta.
+${sentimentHint}
 ${customHook ? `Oferta/gancho especial: ${customHook}` : ''}
 Regras:
 - Máximo 2 frases curtas.
