@@ -149,7 +149,7 @@ export async function sendWhatsAppAudio(
   const form = new FormData();
   form.append('messaging_product', 'whatsapp');
   form.append('type', 'audio/mp3');
-  form.append('file', new Blob([audioBuffer], { type: 'audio/mp3' }), 'tts.mp3');
+  form.append('file', new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mp3' }), 'tts.mp3');
 
   const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/media`, {
     method: 'POST',

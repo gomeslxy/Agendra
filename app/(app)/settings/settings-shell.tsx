@@ -85,6 +85,7 @@ interface PersonaConfig {
   extra_instructions?: string;
   name?: string;
   greeting?: string;
+  tts_enabled?: boolean;
 }
 
 interface Company {
