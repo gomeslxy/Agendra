@@ -67,12 +67,12 @@ export const toolDeclarations: Tool = {
     {
       name: 'bookAppointment',
       description:
-        'Cria um novo agendamento. Use após o lead escolher um horário de checkAvailability.',
+        'Cria um novo agendamento. Use após o lead escolher um horário de checkAvailability. IMPORTANTE: start_time DEVE ser o valor "start" ISO retornado por checkAvailability, NUNCA reconstrua o horário manualmente.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
           service_id: { type: SchemaType.STRING, description: 'ID do serviço' },
-          start_time: { type: SchemaType.STRING, description: 'ISO 8601 (ex: 2026-05-15T14:00:00Z)' },
+          start_time: { type: SchemaType.STRING, description: 'ISO 8601 — OBRIGATORIAMENTE use o campo "start" do slot retornado por checkAvailability (ex: 2026-05-15T14:00:00Z). Nunca tente reconstruir manualmente.' },
           notes: { type: SchemaType.STRING, description: 'Observações adicionais' },
         },
         required: ['service_id', 'start_time'],
@@ -243,7 +243,7 @@ export async function handleCheckAvailability(
 
   if (!slots.length) return { message: 'Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.' };
 
-  const message = 'Aqui estão os horários que encontrei:\n' + slots.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
+  const message = 'Aqui estão os horários que encontrei:\n' + slots.map((s, i) => `${i + 1}. ${s.label}`).join('\n') + '\n\n[IMPORTANTE PARA A IA: Use o campo "start" ISO do slot selecionado no bookAppointment, não tente reconstruir a hora manualmente!]';
   return { slots, message };
 }
 

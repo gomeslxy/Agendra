@@ -55,6 +55,13 @@
 - [x] **W2.15** Booking com compensação atômica: `deleteGCalEvent` desfaz criação se DB insert falhar.
 - [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅
 
+## 🐛 Hotfix: Timezone Agendamento (-3h) (✅ Concluído 20/05/2026)
+- [x] **Root cause identificado**: IA lendo `label` "10:00" do slot e tentando passar ISO manualmente para `bookAppointment`, sem perceber que slot `label` é apenas amigável. O ISO correto (`start` do slot) já tem a conversão de timezone incluída.
+- [x] **Fix 1 (System Prompt)**: Adicionada Regra de Ouro sobre "CRITICO — Horarios nos Slots" instruindo IA a SEMPRE usar campo `start` ISO do slot, NUNCA reconstruir manualmente.
+- [x] **Fix 2 (Tool Schema)**: `bookAppointment` description agora deixa EXPLÍCITO que `start_time` DEVE ser o ISO retornado por checkAvailability.
+- [x] **Fix 3 (Message)**: `handleCheckAvailability` agora retorna aviso direto para IA: use ISO do slot, não interprete label manualmente.
+- [x] **Validação**: Teste de `calculateAvailableSlots` confirma cálculo correto: "11:30 SP" = "14:30Z" UTC ✓
+
 ## 🐛 Hotfix: IA Retornando "Agenda Cheia" Falso (✅ Concluído 20/05/2026)
 - [x] **Root cause identificado**: `lead.summary` com texto "agenda cheia" injetado no system prompt via `mountContext` e histórico de mensagens contendo afirmação de "agenda cheia" causavam o Gemini a pular o `checkAvailability` e repetir a rejeição stale.
 - [x] **Fix 1 (DB)**: `lead.summary` do lead afetado limpo e `is_paused` resetado para `false`.
