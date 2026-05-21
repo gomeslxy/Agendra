@@ -15,10 +15,12 @@ import {
   handleUpdateLeadMemory,
   handleRequestHumanAgent,
   handleGeneratePixCharge,
+  handleCheckPaymentStatus,
   type ToolContext,
 } from './tools';
 import { getCompanyUsage, type CompanyUsage } from '@/lib/billing/limits';
 import type { PlanLimits, PlanType } from '@/lib/billing/plans';
+import { getPlanLimits } from '@/lib/billing/plans';
 import { persistAILog, createTimer } from '@/lib/ai/observability';
 import { EMPTY_MEMORY, mountContext, processBackgroundAnalytics, appendScoreHistory } from './memory';
 import { validateAndNormalizeScore } from './scoring';
@@ -253,6 +255,7 @@ export async function processLeadMessage(
           else if (name === 'updateLeadMemory') result = await handleUpdateLeadMemory(args, ctx);
           else if (name === 'requestHumanAgent') result = await handleRequestHumanAgent(args, ctx);
           else if (name === 'generatePixCharge') result = await handleGeneratePixCharge(args, ctx);
+          else if (name === 'checkPaymentStatus') result = await handleCheckPaymentStatus(args, ctx);
           else result = { error: 'Ferramenta desconhecida' };
 
           return { name, response: result };
@@ -417,15 +420,26 @@ export async function handleIncomingMessage(
   let activeLead: Lead;
   if (lead) {
     activeLead = lead as Lead;
+
+    // DB-backed rate limit: reject burst within 3s (Map-based won't work across serverless instances).
+    if (activeLead.last_message_at) {
+      const ageMs = Date.now() - new Date(activeLead.last_message_at).getTime();
+      if (ageMs < 3000) {
+        console.warn(`[AI Engine] Rate limit: Lead ${phone} sent message ${ageMs}ms ago. Skipping.`);
+        return;
+      }
+    }
+
     // Atomic lock acquisition: only succeeds if is_processing was false.
     // Two concurrent webhooks for the same lead cannot both win.
     // W2.3 Reset followup_count on response
     const { data: locked } = await admin
       .from('leads')
-      .update({ 
-        is_processing: true, 
+      .update({
+        is_processing: true,
         processing_started_at: new Date().toISOString(),
-        followup_count: 0
+        followup_count: 0,
+        last_message_at: new Date().toISOString(),
       })
       .eq('id', activeLead.id)
       .eq('company_id', companyId) // ALWAYS filter by company_id!
@@ -485,26 +499,6 @@ export async function handleIncomingMessage(
 
   const releaseLock = () =>
     admin.from('leads').update({ is_processing: false, processing_started_at: null }).eq('id', activeLead.id).eq('company_id', companyId);
-
-  // W1.3 Rate limiter before billing gate (Opção A: conditional UPDATE)
-  const { data: rl } = await admin.from('leads')
-    .update({ last_message_at: new Date().toISOString() })
-    .eq('id', activeLead.id)
-    .eq('company_id', companyId) // ALWAYS filter by company_id!
-    .or(`last_message_at.is.null,last_message_at.lt.${new Date(Date.now() - 6000).toISOString()}`)
-    .select('id')
-    .maybeSingle();
-
-  if (!rl) {
-    await releaseLock();
-    console.warn(`[Rate Limit] lead ${phone}`);
-    if (providerMessageId) {
-      await admin.from('processed_messages')
-        .update({ status: 'completed' })
-        .eq('provider_message_id', providerMessageId);
-    }
-    return;
-  }
 
   // 4. Billing gate
   const usage = preloadedUsage ?? await getCompanyUsage(companyId);

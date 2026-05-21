@@ -27,6 +27,7 @@ export default async function SettingsPage() {
     { count: remindersToday },
     { count: followupsWeek },
     { data: automationEventsData },
+    { data: webhooksData },
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -74,6 +75,10 @@ export default async function SettingsPage() {
       .eq('company_id', companyId)
       .order('created_at', { ascending: false })
       .limit(15),
+    supabase
+      .from("webhook_subscriptions")
+      .select("*")
+      .eq("company_id", companyId),
   ]);
 
   const services = servicesData ?? [];
@@ -91,6 +96,7 @@ export default async function SettingsPage() {
         aiLogs={aiLogsData ?? []}
         automationStats={{ remindersToday: remindersToday ?? 0, followupsWeek: followupsWeek ?? 0 }}
         automationEvents={automationEventsData ?? []}
+        webhooks={webhooksData ?? []}
       />
     </Suspense>
   );

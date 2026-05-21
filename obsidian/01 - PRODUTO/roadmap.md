@@ -85,15 +85,16 @@
 - [x] What-If Simulator: slider de reativação → projeta agendamentos + receita + horas liberadas
 - [x] `page.tsx`: fetch de `transactions`, aggregação de revenue por dia em `DayBucket`
 
-### Épico 2 — Modo Shadow / Copiloto IA na Inbox (🔜 Próximo)
-- [ ] `inbox-client.tsx`: exibir rascunhos da IA (`role='draft'`) em bubble translúcida separada
-- [ ] Botões "✨ Aprovar e Enviar" e "✏️ Editar" com animação holográfica
-- [ ] `handleIncomingMessage`: quando `lead.control_mode='shadow'`, salvar resposta como `draft` (não enviar ao WhatsApp)
-- [ ] Supabase Realtime propagar `draft` messages instantaneamente para o atendente
-- [ ] Notificação visual de alta prioridade quando draft gerado
-- [ ] Banner de nudge: "Você aprovou 95% das sugestões — ativar modo Autônomo?"
+### Épico 2 — Modo Shadow / Copiloto IA na Inbox (✅ COMPLETO 20/05/2026)
+- [x] `inbox-client.tsx`: draft bubbles glassmorphic com badge "Rascunho da IA · Aguardando aprovação"
+- [x] Botões "✨ Aprovar e Enviar", "✏️ Editar" (inline textarea) e "Descartar"
+- [x] `handleIncomingMessage`: quando `lead.control_mode='shadow'`, salva resposta como `metadata.is_draft=true`
+- [x] `editAndSendDraft` action: edita conteúdo + remove flag is_draft + envia WhatsApp
+- [x] Realtime já propagava via canal existente em inbox-client
+- [x] Banner "Modo Copiloto ativo" no header do chat quando `control_mode='shadow'`
+- [x] `ControlModeDropdown` conectado ao aside panel da inbox
 
-### Épico 3 — Brain Central & Control Center (✅ UX/UI + Automação Concluída 19/05/2026)
+### Épico 3 — Brain Central & Control Center (✅ COMPLETO 20/05/2026 22:00)
 - [x] Refatoração do `/settings` para layout de Sidebar Vertical (Control Center).
 - [x] Sliders de personalidade e limpeza de UI (Canais "em breve" removidos).
 - [x] Gating Inteligente: bloqueio de features premium com Blur (Liquid Glass) baseado no `getPlanLimits()`.
@@ -103,17 +104,20 @@
 - [x] **automation_events**: Nova tabela (migration 027) com RLS + pg_cron TTL 90 dias. Crons e engine inserem eventos; UI lê feed em tempo real.
 - [x] **Config dinâmica**: `reminder_advance_hours`, `followup_delay_hours`, `followup_max_retries` agora configuráveis via UI (action `saveAutomationConfig`), salvos em `persona_config` JSONB.
 - [x] **Preços corretos**: `/planos` agora mostra preços anuais (67/147/397) como default — isAnnual=true.
-- [ ] Integração Backend: salvar documentos no `company_knowledge` + pgvector.
-- [ ] Integração Backend: ler `ai_decision_logs` com source e confiança na UI da Mente da IA.
-- [ ] `match_knowledge()` RPC já definida em `plano-estrategico-evolucao.md` — implementar
-- [x] `followup_max_retries` lido pelo engine (config salva e respeitada pelo loop do cron no AI engine).
+- [x] Integração Frontend: upload de documentos PDFs/DOCXs com drag-drop, listagem com chunks count, delete
+- [x] Integração Frontend: Reativação de Leads Frios (Business-gated) configurável via UI
+- [x] Integração Frontend: Webhooks (Pro-gated) com listagem, create, delete + HMAC-SHA256 dispatcher
+- [x] Integração Frontend: Convites de Time com modal liquid glass + role selection
+- [x] `followup_max_retries` lido pelo engine (config salva e respeitada pelo loop do cron no AI engine)
 
-### Épico 4 — Fintech Conversacional (🔜 Fase 3)
-- [ ] Tabela `transactions` já existe (migration 019) — implementar geração de Pix dinâmico
-- [ ] Tool `generateCharge` para a IA: cria cobrança Pix via Stripe/MercadoPago, retorna QR Code
-- [ ] Tool `checkPaymentStatus`: IA verifica se pagamento foi liquidado
-- [ ] Webhook de confirmação: atualiza `transactions.status='paid'`, confirma agendamento, notifica lead
-- [ ] Card "Venda Realizada!" no dashboard no momento exato do webhook
+### Épico 4 — Fintech Conversacional (✅ COMPLETO 20/05/2026)
+- [x] `generatePixCharge` + `checkPaymentStatus` adicionados ao `toolDeclarations` (estavam implementados mas não declarados — IA não podia chamá-los)
+- [x] `handleCheckPaymentStatus` implementado com IDOR guard por `company_id`
+- [x] Stripe webhook: `payment_intent.succeeded` → `transactions.status='paid'` + `leads.metadata.payment_confirmed=true`
+- [x] Stripe webhook: `payment_intent.payment_failed` → `transactions.status='expired'`
+- [x] `SalesCard` com Realtime: subscribe `transactions` table, pulse animation em nova venda
+- [x] Dashboard: card "Vendas Realizadas" com lista de últimas 5 vendas + receita hoje
+- [x] CI/CD: `.github/workflows/ci.yml` (tsc + lint + build, bloqueia merge em falha)
 
 ### Épico 5 — Voice & Reativação Inteligente (🔜 Fase 4 — Arquitetural)
 - [ ] Infraestrutura para transcrição de áudio (Whisper / Gemini Audio)

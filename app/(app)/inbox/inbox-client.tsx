@@ -2,17 +2,15 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, Eye } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { stagger } from "@/components/motion/variants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import type { LeadWithMessages } from "./page";
-import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage } from "./actions";
+import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage, editAndSendDraft } from "./actions";
 import { createBrowserClient } from "@supabase/ssr";
 import { trackEvent } from "@/lib/analytics";
 
@@ -52,6 +50,9 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const [toneOpen, setToneOpen] = useState(false);
   const [controlPending, startControl] = useTransition();
   const [controlOpen, setControlOpen] = useState(false);
+  const [draftPending, startDraft] = useTransition();
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [editDraftText, setEditDraftText] = useState("");
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -137,16 +138,6 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
       inputRef.current?.focus();
     }
   }, [sendPending, takePending, selected?.id]);
-
-  const counts = useMemo(() => {
-    let hot = 0, warm = 0, cold = 0;
-    for (const l of leads) {
-      if (l.status === "hot") hot++;
-      else if (l.status === "warm") warm++;
-      else if (l.status === "cold") cold++;
-    }
-    return { hot, warm, cold };
-  }, [leads]);
 
   const groupedMessages = useMemo(() => {
     const msgs = selected?.messages ?? [];
@@ -499,7 +490,49 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     );
   };
 
-  const { hot: hotCount, warm: warmCount, cold: coldCount } = counts;
+  const handleApproveDraft = useCallback((messageId: string) => {
+    setInboxError(null);
+    startDraft(async () => {
+      try {
+        await approveDraftMessage(messageId);
+      } catch (e) {
+        setInboxError((e as Error).message);
+      }
+    });
+  }, []);
+
+  const handleEditAndSendDraft = useCallback((messageId: string, text: string) => {
+    if (!text.trim()) return;
+    setInboxError(null);
+    setEditingDraftId(null);
+    startDraft(async () => {
+      try {
+        await editAndSendDraft(messageId, text);
+      } catch (e) {
+        setInboxError((e as Error).message);
+      }
+    });
+  }, []);
+
+  const handleDeleteDraft = useCallback((messageId: string) => {
+    setInboxError(null);
+    // Optimistic remove
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === selectedId
+          ? { ...l, messages: l.messages.filter((m) => m.id !== messageId) }
+          : l
+      )
+    );
+    startDraft(async () => {
+      try {
+        await deleteDraftMessage(messageId);
+      } catch (e) {
+        setInboxError((e as Error).message);
+      }
+    });
+  }, [selectedId]);
+
   const sortedMessages = selected ? selected.messages : [];
   const isPaused = selected?.is_paused ?? false;
   const inputBlocked = !isPaused || sendPending;
@@ -687,27 +720,112 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                 {!isPaused && (
                   <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
                 )}
+                {selected.control_mode === 'shadow' && (
+                  <ChatBubble variant="note">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles size={11} className="text-brand-blue-400 shrink-0" />
+                      Modo Copiloto ativo — IA gera rascunhos para sua aprovação
+                    </span>
+                  </ChatBubble>
+                )}
 
                 {/* Group messages by date could be added here */}
 
-                {groupedMessages.map((msg) => (
-                  <ChatBubble
-                    key={msg.id}
-                    timestamp={msg.created_at}
-                    variant={
-                      msg.role === "user" ? "lead" :
-                      msg.role === "note" ? "note" :
-                      msg.role === "agent" ? "agent" :
-                      "ai"
-                    }
-                    isFirst={msg.isFirst}
-                    isLast={msg.isLast}
-                    hideLabel={msg.hideLabel}
-                    hideTime={msg.hideTime}
-                  >
-                    {msg.content}
-                  </ChatBubble>
-                ))}
+                {groupedMessages.map((msg) => {
+                  const isDraft = (msg.metadata as any)?.is_draft === true;
+
+                  if (isDraft) {
+                    return (
+                      <motion.div
+                        key={msg.id}
+                        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        className="flex flex-col items-end gap-2 self-end max-w-[85%]"
+                      >
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-blue-400">
+                          <Sparkles size={10} />
+                          Rascunho da IA · Aguardando aprovação
+                        </div>
+                        <div className="relative rounded-2xl rounded-br-sm border border-brand-blue-500/40 bg-brand-blue-500/10 backdrop-blur-sm px-4 py-3 text-[13px] leading-relaxed text-white/90 shadow-[0_0_20px_rgba(59,130,246,0.12)]">
+                          {msg.content}
+                          <div className="absolute inset-0 rounded-2xl rounded-br-sm bg-gradient-to-b from-white/[0.04] to-transparent pointer-events-none" />
+                        </div>
+                        {editingDraftId === msg.id ? (
+                          <div className="flex flex-col gap-2 w-full">
+                            <textarea
+                              autoFocus
+                              value={editDraftText}
+                              onChange={(e) => setEditDraftText(e.target.value)}
+                              rows={3}
+                              className="w-full rounded-xl border border-brand-blue-500/40 bg-[#0A0A0A]/80 px-3 py-2 text-[13px] text-white/90 outline-none resize-none focus:border-brand-blue-400/60"
+                            />
+                            <div className="flex items-center gap-2 justify-end">
+                              <button
+                                onClick={() => setEditingDraftId(null)}
+                                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-white/40 hover:bg-white/10 transition-all"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={() => handleEditAndSendDraft(msg.id, editDraftText)}
+                                disabled={draftPending || !editDraftText.trim()}
+                                className="flex items-center gap-1.5 rounded-lg border border-brand-blue-500/40 bg-brand-blue-500/20 px-4 py-1.5 text-[11px] font-bold text-brand-blue-300 hover:bg-brand-blue-500/30 transition-all disabled:opacity-50"
+                              >
+                                <Send size={10} />
+                                Enviar Editado
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleDeleteDraft(msg.id)}
+                              disabled={draftPending}
+                              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-white/40 hover:bg-white/10 hover:text-white/70 transition-all disabled:opacity-50"
+                            >
+                              <Trash size={10} />
+                              Descartar
+                            </button>
+                            <button
+                              onClick={() => { setEditingDraftId(msg.id); setEditDraftText(msg.content); }}
+                              disabled={draftPending}
+                              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-white/40 hover:bg-white/10 hover:text-white/70 transition-all disabled:opacity-50"
+                            >
+                              ✏️ Editar
+                            </button>
+                            <button
+                              onClick={() => handleApproveDraft(msg.id)}
+                              disabled={draftPending}
+                              className="flex items-center gap-1.5 rounded-lg border border-brand-blue-500/40 bg-brand-blue-500/20 px-4 py-1.5 text-[11px] font-bold text-brand-blue-300 hover:bg-brand-blue-500/30 transition-all shadow-[0_0_12px_rgba(59,130,246,0.15)] disabled:opacity-50"
+                            >
+                              <Check size={10} />
+                              ✨ Aprovar e Enviar
+                            </button>
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  }
+
+                  return (
+                    <ChatBubble
+                      key={msg.id}
+                      timestamp={msg.created_at}
+                      variant={
+                        msg.role === "user" ? "lead" :
+                        msg.role === "note" ? "note" :
+                        msg.role === "agent" ? "agent" :
+                        "ai"
+                      }
+                      isFirst={msg.isFirst}
+                      isLast={msg.isLast}
+                      hideLabel={msg.hideLabel}
+                      hideTime={msg.hideTime}
+                    >
+                      {msg.content}
+                    </ChatBubble>
+                  );
+                })}
 
                 {sortedMessages.length === 0 && (
                   <div className="my-12 text-center flex flex-col items-center gap-2">
@@ -854,6 +972,12 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                   Modo Automático Ativo · Agendra IA está no controle
                 </p>
               )}
+              {selected.control_mode === 'shadow' && (
+                <p className="mt-3 text-center text-[9px] font-black uppercase tracking-[0.2em] text-brand-blue-400">
+                  <Sparkles className="inline mr-1" size={9} />
+                  Modo Copiloto · Aprovar rascunhos acima antes de enviar
+                </p>
+              )}
               {inboxError && (
                 <p className="mt-2 text-center text-[11px] font-bold text-red-400">
                    Erro: {inboxError}
@@ -892,6 +1016,10 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                   <div>
                     <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-2">Tom da Conversa</span>
                     <ToneDropdown />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-2">Modo de Operação</span>
+                    <ControlModeDropdown />
                   </div>
                   {selected.summary && (
                     <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">

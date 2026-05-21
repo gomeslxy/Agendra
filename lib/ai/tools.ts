@@ -150,6 +150,29 @@ export const toolDeclarations: Tool = {
         },
       },
     },
+    {
+      name: 'generatePixCharge',
+      description: 'Gera cobrança Pix para o lead confirmar agendamento. Use SOMENTE em planos Business após qualificar o agendamento. Retorna QR code e chave Pix. Aguarde pagamento antes de chamar bookAppointment.',
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          amount: { type: SchemaType.NUMBER, description: 'Valor em reais (ex: 150.00)' },
+          service_id: { type: SchemaType.STRING, description: 'ID do serviço cobrado' },
+        },
+        required: ['amount'],
+      },
+    },
+    {
+      name: 'checkPaymentStatus',
+      description: 'Verifica se uma cobrança Pix foi paga. Use após gerar cobrança para confirmar pagamento antes de confirmar agendamento.',
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          transaction_id: { type: SchemaType.STRING, description: 'ID da transação retornado por generatePixCharge' },
+        },
+        required: ['transaction_id'],
+      },
+    },
   ],
 };
 
@@ -629,6 +652,37 @@ export async function handleGeneratePixCharge(
     transaction_id: tx.id,
     pix_key: pixKey
   };
+}
+
+export async function handleCheckPaymentStatus(
+  args: { transaction_id: string },
+  ctx: ToolContext
+) {
+  if (process.env.ENABLE_FINTECH !== 'true') {
+    throw new Error('Fintech feature desativada');
+  }
+
+  const admin = createAdminClient();
+
+  const { data: tx, error } = await admin
+    .from('transactions')
+    .select('id, status, paid_at, amount')
+    .eq('id', args.transaction_id)
+    .eq('company_id', ctx.companyId) // IDOR guard
+    .maybeSingle();
+
+  if (error || !tx) {
+    return { status: 'not_found', message: 'Transação não encontrada.' };
+  }
+
+  const statusMsg =
+    tx.status === 'paid'
+      ? `Pagamento de R$ ${Number(tx.amount).toFixed(2)} confirmado! ✅ Confirme o agendamento.`
+      : tx.status === 'pending'
+      ? `Aguardando pagamento de R$ ${Number(tx.amount).toFixed(2)}. Lead ainda não pagou.`
+      : `Pagamento com status: ${tx.status}.`;
+
+  return { status: tx.status, paid_at: tx.paid_at, amount: tx.amount, message: statusMsg };
 }
 
 // Alias for backwards compatibility if any old engine code calls it

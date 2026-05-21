@@ -13,7 +13,7 @@ export default async function ReportsPage() {
   const since90 = new Date();
   since90.setDate(since90.getDate() - 90);
 
-  const [{ data: leads }, { data: events }, { data: messages }, { data: transactions }] = await Promise.all([
+  const [{ data: leads }, { data: events }, { data: messages }, { data: transactions }, { data: recentPaidTxs }] = await Promise.all([
     supabase.from("leads")
       .select("id, status, channel, created_at, heat_score")
       .eq("company_id", companyId).gte("created_at", since90.toISOString()),
@@ -26,6 +26,12 @@ export default async function ReportsPage() {
     supabase.from("transactions")
       .select("id, amount, status, created_at, paid_at")
       .eq("company_id", companyId).gte("created_at", since90.toISOString()),
+    supabase.from("transactions")
+      .select("id, amount, status, paid_at, lead_id, lead:leads(name)")
+      .eq("company_id", companyId)
+      .eq("status", "paid")
+      .order("paid_at", { ascending: false })
+      .limit(10),
   ]);
 
   const allLeads        = leads        ?? [];
@@ -147,6 +153,8 @@ export default async function ReportsPage() {
       avgHeatScore={avgHeatScore}
       totalRevenue90d={totalRevenue90d}
       avgTicket={avgTicket}
+      recentTransactions={(recentPaidTxs ?? []) as any}
+      companyId={companyId}
     />
   );
 }

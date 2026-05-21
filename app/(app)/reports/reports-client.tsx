@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { exportReportsXlsx } from "./actions";
+import { createClient } from "@/lib/supabase/client";
 
 /* ─── helpers ─────────────────────────────────────────────── */
 function AnimatedNumber({ value, suffix = "", prefix = "" }: { value: number; suffix?: string; prefix?: string }) {
@@ -52,6 +53,14 @@ interface DayBucket {
 }
 interface HeatCell     { weekday: number; hour: number; value: number }
 interface FunnelStage  { label: string; value: number; color: string }
+interface RecentTransaction {
+  id: string;
+  amount: number;
+  status: string;
+  paid_at: string | null;
+  lead_id: string | null;
+  lead: { name: string } | null;
+}
 
 interface ReportsClientProps {
   dailyDetails: DayBucket[];
@@ -60,6 +69,8 @@ interface ReportsClientProps {
   avgHeatScore: number;
   totalRevenue90d: number;
   avgTicket: number;
+  recentTransactions: RecentTransaction[];
+  companyId: string;
 }
 
 /* ─── Custom tooltip for area chart ──────────────────────────── */
@@ -436,6 +447,123 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
   );
 }
 
+/* ─── Sales Card (Realtime) ──────────────────────────────────── */
+function SalesCard({ initial, companyId }: { initial: RecentTransaction[]; companyId: string }) {
+  const [txs, setTxs] = useState<RecentTransaction[]>(initial);
+  const [flashId, setFlashId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`reports-sales-${companyId}`)
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'transactions', filter: `company_id=eq.${companyId}` },
+        (payload: any) => {
+          const tx = payload.new as any;
+          if (tx?.status === 'paid') {
+            setTxs((prev) => {
+              if (prev.some((t) => t.id === tx.id)) return prev;
+              const next: RecentTransaction = {
+                id: tx.id, amount: tx.amount, status: tx.status,
+                paid_at: tx.paid_at, lead_id: tx.lead_id, lead: null,
+              };
+              return [next, ...prev].slice(0, 10);
+            });
+            setFlashId(tx.id);
+            setTimeout(() => setFlashId(null), 2000);
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [companyId]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayTxs = txs.filter((t) => (t.paid_at ?? '').slice(0, 10) === today);
+  const todayRevenue = todayTxs.reduce((s, t) => s + Number(t.amount), 0);
+
+  function fmtTime(d: string | null) {
+    if (!d) return '';
+    return new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+  function fmtDay(d: string | null) {
+    if (!d) return '';
+    return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="glass mb-4 rounded-2xl p-5"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+          </div>
+          <h3 className="text-sm font-semibold">Vendas Realizadas</h3>
+        </div>
+        <div className="text-right">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">Hoje</p>
+          <p className="font-mono text-lg font-bold text-emerald-400">
+            {todayRevenue > 0 ? formatBRL(todayRevenue) : <span className="text-sm text-white/30">—</span>}
+          </p>
+        </div>
+      </div>
+
+      {txs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <DollarSign size={24} className="mb-2 text-white/20" />
+          <p className="text-[13px] text-white/30">Nenhuma venda registrada ainda</p>
+          <p className="mt-1 text-[11px] text-white/20">Ative Fintech para rastrear pagamentos em tempo real</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <AnimatePresence initial={false}>
+            {txs.slice(0, 5).map((tx) => (
+              <motion.div
+                key={tx.id}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className={cn(
+                  "flex items-center justify-between rounded-xl px-4 py-3 transition-colors duration-500",
+                  flashId === tx.id
+                    ? "border border-emerald-500/40 bg-emerald-500/15"
+                    : "border border-white/[0.06] bg-white/[0.03]"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-500/10 text-emerald-400">
+                    <DollarSign size={14} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium">{tx.lead?.name ?? 'Lead'}</p>
+                    <p className="text-[11px] text-white/40">
+                      {fmtTime(tx.paid_at)}
+                      {tx.paid_at && tx.paid_at.slice(0, 10) !== today && (
+                        <> · {fmtDay(tx.paid_at)}</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <span className="font-mono text-sm font-bold text-emerald-400">
+                  {formatBRL(Number(tx.amount))}
+                </span>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 /* ─── Main component ──────────────────────────────────────────── */
 type Period = "7d" | "30d" | "all";
 const PERIODS: { id: Period; label: string; days: number }[] = [
@@ -452,7 +580,7 @@ const CHANNEL_COLORS: Record<string, string> = {
 
 export function ReportsClient({
   dailyDetails, funnelStages, heatmapData, avgHeatScore,
-  totalRevenue90d, avgTicket,
+  totalRevenue90d, avgTicket, recentTransactions, companyId,
 }: ReportsClientProps) {
   const [period, setPeriod] = useState<Period>("7d");
   const [exportPending, startExport] = useTransition();
@@ -795,6 +923,9 @@ export function ReportsClient({
 
       {/* ── What-If Simulator ── */}
       <WhatIfSimulator avgTicket={periodAvgTicket} totalLeads={totalLeads} />
+
+      {/* ── Sales Realtime Card ── */}
+      <SalesCard initial={recentTransactions} companyId={companyId} />
 
       {/* ── Heatmap ── */}
       <motion.div

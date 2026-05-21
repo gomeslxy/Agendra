@@ -213,6 +213,40 @@ export async function approveDraftMessage(messageId: string) {
   return { success: true };
 }
 
+export async function editAndSendDraft(messageId: string, editedText: string) {
+  if (!editedText.trim()) throw new Error("Texto não pode ser vazio");
+
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const supabase = await createClient();
+
+  const { data: msg, error: fetchError } = await supabase
+    .from("messages")
+    .select("*, lead:leads(phone)")
+    .eq("id", messageId)
+    .single();
+
+  if (fetchError || !msg) throw new Error("Mensagem não encontrada");
+  const phone = (msg.lead as any)?.phone;
+  if (!phone) throw new Error("Telefone do lead não encontrado");
+
+  await sendWhatsAppMessage(phone, editedText.trim(), msg.company_id);
+
+  const newMetadata = msg.metadata ? { ...msg.metadata } : {};
+  delete newMetadata.is_draft;
+
+  const { error: updateError } = await supabase
+    .from("messages")
+    .update({ content: editedText.trim(), metadata: newMetadata })
+    .eq("id", messageId);
+
+  if (updateError) throw new Error(updateError.message);
+
+  revalidatePath("/inbox");
+  return { success: true };
+}
+
 export async function deleteDraftMessage(messageId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");

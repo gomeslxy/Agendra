@@ -265,6 +265,44 @@ export async function POST(req: Request) {
       break;
     }
 
+    case 'payment_intent.succeeded': {
+      // Fintech: Pix payment confirmed → update transaction + auto-confirm booking
+      const pi = event.data.object as Stripe.PaymentIntent;
+
+      const { data: tx, error: txErr } = await admin
+        .from('transactions')
+        .update({ status: 'paid', paid_at: new Date().toISOString() })
+        .eq('provider_tx_id', pi.id)
+        .select('id, company_id, lead_id, amount')
+        .maybeSingle();
+
+      if (txErr) {
+        console.error('[Stripe Webhook] ❌ Failed to update transaction for payment_intent.succeeded:', txErr.message);
+      } else if (tx) {
+        console.log(`[Stripe Webhook] 💰 Pix paid! transaction=${tx.id} amount=R$${Number(tx.amount).toFixed(2)} lead=${tx.lead_id}`);
+        // Mark lead with payment confirmed flag (engine polls checkPaymentStatus)
+        await admin
+          .from('leads')
+          .update({ metadata: { payment_confirmed: true } } as any)
+          .eq('id', tx.lead_id)
+          .eq('company_id', tx.company_id);
+      }
+      break;
+    }
+
+    case 'payment_intent.payment_failed': {
+      const pi = event.data.object as Stripe.PaymentIntent;
+      const failReason = pi.last_payment_error?.message ?? 'Pagamento recusado';
+
+      await admin
+        .from('transactions')
+        .update({ status: 'expired' })
+        .eq('provider_tx_id', pi.id);
+
+      console.log(`[Stripe Webhook] ❌ Pix payment_intent.failed: ${pi.id} — ${failReason}`);
+      break;
+    }
+
     default:
       console.log(`[Stripe Webhook] ℹ️ Unhandled event type: ${event.type}`);
   }

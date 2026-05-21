@@ -44,6 +44,10 @@ export interface PlanLimits {
   hasWebhooks: boolean;
   hasFollowUp: boolean;
   hasDedicatedOnboarding: boolean;
+  // AI engine execution tier (controls quota, cost and model selection)
+  hasRAG: boolean;           // Semantic knowledge base search — Pro+
+  hasAnalytics: boolean;     // Background analytics + ai_decision_logs — Pro+
+  hasAdvancedModel: boolean; // gemini-2.5-flash instead of flash-lite — Pro+
 }
 
 export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
@@ -55,6 +59,9 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasWebhooks: false,
     hasFollowUp: false,
     hasDedicatedOnboarding: false,
+    hasRAG: false,
+    hasAnalytics: false,
+    hasAdvancedModel: false,
   },
   starter: {
     maxLeads: 150,
@@ -64,6 +71,9 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasWebhooks: false,
     hasFollowUp: false,
     hasDedicatedOnboarding: false,
+    hasRAG: false,
+    hasAnalytics: false,
+    hasAdvancedModel: false,
   },
   pro: {
     maxLeads: 1000,
@@ -73,6 +83,9 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasWebhooks: true,
     hasFollowUp: false,
     hasDedicatedOnboarding: false,
+    hasRAG: true,
+    hasAnalytics: true,
+    hasAdvancedModel: true,
   },
   business: {
     maxLeads: 5000,
@@ -82,6 +95,9 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasWebhooks: true,
     hasFollowUp: true,
     hasDedicatedOnboarding: true,
+    hasRAG: true,
+    hasAnalytics: true,
+    hasAdvancedModel: true,
   },
 };
 

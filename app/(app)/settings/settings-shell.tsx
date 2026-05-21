@@ -30,6 +30,8 @@ import {
   Plus,
   Trash2,
   Edit3,
+  UploadCloud,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel, saveAutomationConfig, updateCompany } from "./actions";
+import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel, saveAutomationConfig, updateCompany, inviteTeamMember, saveWebhookConfig, deleteWebhook, saveReactivationConfig } from "./actions";
 import { createService, updateService, deleteService } from "./services/actions";
 import Script from "next/script";
 import { toast } from "sonner";
@@ -137,6 +139,18 @@ interface AutomationEvent {
   created_at: string;
 }
 
+interface WebhookSubscription {
+  id: string;
+  url: string;
+  event_types: string[];
+  secret: string;
+  label?: string | null;
+  is_active: boolean;
+  created_at: string;
+  last_fired_at?: string | null;
+  last_error?: string | null;
+}
+
 interface AutomationStats {
   remindersToday: number;
   followupsWeek: number;
@@ -151,9 +165,10 @@ interface SettingsShellProps {
   aiLogs: AiDecisionLog[];
   automationStats: AutomationStats;
   automationEvents: AutomationEvent[];
+  webhooks: WebhookSubscription[];
 }
 
-export function SettingsShell({ company, memberships, channels, services, usage, aiLogs, automationStats, automationEvents }: SettingsShellProps) {
+export function SettingsShell({ company, memberships, channels, services, usage, aiLogs, automationStats, automationEvents, webhooks }: SettingsShellProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -304,6 +319,7 @@ export function SettingsShell({ company, memberships, channels, services, usage,
               company={company}
               automationStats={automationStats}
               automationEvents={automationEvents}
+              webhooks={webhooks}
               onChangeTab={changeTab}
             />
           )}
@@ -579,6 +595,102 @@ function Persona({
 
   const pc = company?.persona_config ?? {};
 
+  const [documents, setDocuments] = useState<{ source_name: string; created_at: string; chunks: number }[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const fetchDocs = async () => {
+    try {
+      const res = await fetch("/api/knowledge");
+      const data = await res.json();
+      if (data.documents) {
+        setDocuments(data.documents);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar documentos:", err);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDocs();
+  }, []);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      await handleUpload(files[0]);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      await handleUpload(files[0]);
+    }
+  };
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    setUploadStatus("Extraindo texto e gerando vetores...");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/knowledge", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Erro ao fazer upload");
+      }
+
+      toast.success(`Documento "${file.name}" indexado com sucesso! 🎉`);
+      fetchDocs();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao processar arquivo");
+    } finally {
+      setUploading(false);
+      setUploadStatus(null);
+    }
+  };
+
+  const handleDeleteDoc = async (sourceName: string) => {
+    if (!confirm(`Deseja remover o documento "${sourceName}"? Todos os vetores serão deletados.`)) return;
+
+    try {
+      const res = await fetch(`/api/knowledge?source_name=${encodeURIComponent(sourceName)}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erro ao excluir documento");
+      }
+
+      toast.success("Documento removido com sucesso!");
+      fetchDocs();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao deletar documento");
+    }
+  };
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -654,31 +766,95 @@ function Persona({
           <CardDescription>Treine a IA com catálogos, FAQs e tabelas de preços.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="group relative flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/[0.08] rounded-2xl bg-white/[0.02] cursor-not-allowed overflow-hidden opacity-60">
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={cn(
+              "group relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl transition-all duration-300",
+              dragging
+                ? "border-brand-blue-500 bg-brand-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]"
+                : "border-white/[0.08] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]",
+              uploading ? "pointer-events-none opacity-50" : "cursor-pointer"
+            )}
+          >
             <input
               type="file"
-              disabled
-              className="absolute inset-0 w-full h-full opacity-0 cursor-not-allowed z-10"
+              onChange={handleFileChange}
+              disabled={uploading}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               accept=".pdf,.txt,.docx"
             />
-            <div className="h-14 w-14 rounded-full bg-white/[0.05] flex items-center justify-center text-white/30 mb-4 ring-4 ring-white/[0.03]">
-              <Cpu size={24} />
+            <div className="h-14 w-14 rounded-full bg-white/[0.05] flex items-center justify-center text-white/30 mb-4 ring-4 ring-white/[0.03] group-hover:scale-110 transition-transform duration-300">
+              {uploading ? (
+                <Loader2 size={24} className="animate-spin text-brand-blue-400" />
+              ) : (
+                <UploadCloud size={24} className="text-white/60" />
+              )}
             </div>
-            <p className="text-sm font-bold text-white/70 mb-1">Upload de documentos — em breve</p>
-            <p className="text-xs text-white/40 text-center max-w-[260px]">
-              Enquanto isso, use o campo "Instruções adicionais" abaixo para treinar a IA.
-            </p>
+            {uploading ? (
+              <div className="flex flex-col items-center text-center">
+                <p className="text-sm font-bold text-white mb-1">Indexando arquivo...</p>
+                <p className="text-xs text-brand-blue-300/80 animate-pulse">{uploadStatus}</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center text-center">
+                <p className="text-sm font-bold text-white/70 mb-1">
+                  Arrastar & soltar ou clique para escolher
+                </p>
+                <p className="text-xs text-white/40">
+                  Suporta PDF, TXT ou DOCX até 5 MB
+                </p>
+              </div>
+            )}
           </div>
 
-          <div className="flex flex-col gap-2 mt-2">
+          <div className="flex flex-col gap-3 mt-2">
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40">Documentos Processados</h4>
             
-            <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
-              <p className="text-[12px] text-white/30 font-medium">Nenhum documento processado ainda</p>
-              <p className="text-[11px] text-white/20 leading-relaxed max-w-xs">
-                Upload de documentos em breve. Por enquanto, use as "Instruções adicionais" abaixo para treinar a IA.
-              </p>
-            </div>
+            {loadingDocs ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 size={20} className="animate-spin text-white/30" />
+              </div>
+            ) : documents.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {documents.map((doc) => (
+                  <div
+                    key={doc.source_name}
+                    className="flex items-center justify-between p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition duration-200"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-9 w-9 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400 shrink-0">
+                        <FileText size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white/95 truncate max-w-[280px] sm:max-w-[400px]">
+                          {doc.source_name}
+                        </p>
+                        <p className="text-[11px] text-white/40 mt-0.5">
+                          {doc.chunks} blocos indexados • {new Date(doc.created_at).toLocaleDateString("pt-BR")}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDoc(doc.source_name)}
+                      className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition"
+                      title="Excluir documento"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center border border-dashed border-white/[0.06] rounded-xl bg-white/[0.01]">
+                <p className="text-[12px] text-white/40 font-semibold">Nenhum documento processado ainda</p>
+                <p className="text-[11px] text-white/20 leading-relaxed max-w-xs px-4">
+                  Envie FAQs, tabelas de preços ou materiais de treinamento para calibrar a IA.
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -1174,11 +1350,13 @@ function Flows({
   company,
   automationStats,
   automationEvents,
+  webhooks,
   onChangeTab,
 }: {
   company: Company | null;
   automationStats: AutomationStats;
   automationEvents: AutomationEvent[];
+  webhooks: WebhookSubscription[];
   onChangeTab: (tab: TabId) => void;
 }) {
   const plan = company?.plan_type ?? "trial";
@@ -1191,6 +1369,19 @@ function Flows({
   const [followupDelay, setFollowupDelay] = useState<number>(pc.followup_delay_hours ?? 24);
   const [followupRetries, setFollowupRetries] = useState<number>(pc.followup_max_retries ?? 2);
   const [followupExpanded, setFollowupExpanded] = useState(false);
+
+  // Cold Leads Reactivation state
+  const [reactivationDays, setReactivationDays] = useState<number>(pc.reactivation_days ?? 30);
+  const [reactivationHook, setReactivationHook] = useState<string>(pc.reactivation_hook ?? "");
+  const [reactivationExpanded, setReactivationExpanded] = useState(false);
+
+  // Webhooks state
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookLabel, setWebhookLabel] = useState("");
+  const [webhookEvents, setWebhookEvents] = useState<string[]>(["booking.created"]);
+  const [webhookExpanded, setWebhookExpanded] = useState(false);
+  const [webhookFormVisible, setWebhookFormVisible] = useState(false);
+
   const [pending, startTransition] = useTransition();
   const [savedField, setSavedField] = useState<string | null>(null);
 
@@ -1206,6 +1397,66 @@ function Flows({
     });
   }
 
+  const router = useRouter();
+
+  const handleSaveReactivation = () => {
+    startTransition(async () => {
+      try {
+        await saveReactivationConfig({
+          reactivation_days: reactivationDays,
+          reactivation_hook: reactivationHook,
+        });
+        setSavedField("reactivation");
+        setTimeout(() => setSavedField(null), 2000);
+        toast.success("Configuração de reativação salva com sucesso! 🚀");
+      } catch (err: any) {
+        toast.error(err.message);
+      }
+    });
+  };
+
+  const handleAddWebhook = () => {
+    if (!webhookUrl || !webhookUrl.startsWith("http")) {
+      toast.error("URL inválida. Use https://...");
+      return;
+    }
+    if (!webhookEvents.length) {
+      toast.error("Selecione ao menos um tipo de evento.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await saveWebhookConfig({
+          url: webhookUrl,
+          label: webhookLabel || undefined,
+          event_types: webhookEvents,
+        });
+        setWebhookUrl("");
+        setWebhookLabel("");
+        setWebhookEvents(["booking.created"]);
+        setWebhookFormVisible(false);
+        toast.success("Webhook cadastrado com sucesso! 🎉");
+        router.refresh();
+      } catch (err: any) {
+        toast.error(err.message);
+      }
+    });
+  };
+
+  const handleDeleteWebhook = (id: string) => {
+    if (!confirm("Deseja realmente excluir este webhook?")) return;
+
+    startTransition(async () => {
+      try {
+        await deleteWebhook(id);
+        toast.success("Webhook excluído com sucesso!");
+        router.refresh();
+      } catch (err: any) {
+        toast.error(err.message);
+      }
+    });
+  };
   const wh = pc.working_hours as Record<string, [string, string]> | undefined;
   const activeDaysCount = wh ? Object.keys(wh).length : 5;
   const firstDay = wh ? Object.values(wh)[0] : (["09:00", "18:00"] as [string, string]);
@@ -1425,15 +1676,111 @@ function Flows({
         </div>
 
         {/* Reativação de Leads Frios */}
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 flex items-center gap-3 opacity-50">
-          <div className="h-9 w-9 shrink-0 rounded-lg bg-white/[0.04] flex items-center justify-center">
-            <RefreshCw size={16} className="text-white/20" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold text-white/50">Reativação de Leads Frios</div>
-            <div className="text-[11px] text-white/25 mt-0.5">Lead inativo por dias recebe mensagem de reabertura</div>
-          </div>
-          <Badge variant="cold" className="text-[10px] px-2 py-0.5 shrink-0">Em breve</Badge>
+        <div className={cn("rounded-xl border overflow-hidden relative", isBusiness ? "border-white/[0.08] bg-white/[0.02]" : "border-white/[0.06] bg-white/[0.01]")}>
+          {!isBusiness && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[rgb(11,18,34)]/60 backdrop-blur-[3px]">
+              <div className="flex flex-col items-center gap-2 text-center px-6">
+                <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
+                  <Zap size={15} className="text-brand-blue-400 animate-pulse" />
+                </div>
+                <p className="text-[12px] font-bold text-white">Plano Business</p>
+                <p className="text-[11px] text-white/40 max-w-[180px] leading-relaxed">Reativação automática de leads frios com IA exclusivo do Business</p>
+                <button
+                  onClick={() => onChangeTab("billing")}
+                  className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
+                >
+                  Fazer upgrade →
+                </button>
+              </div>
+            </div>
+          )}
+          <button
+            className={cn("w-full flex items-center gap-3 p-4 text-left", !isBusiness && "pointer-events-none")}
+            onClick={() => isBusiness && setReactivationExpanded(v => !v)}
+          >
+            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isBusiness ? "bg-brand-orange-500/15" : "bg-white/[0.04]")}>
+              <RefreshCw size={16} className={isBusiness ? "text-brand-orange-400" : "text-white/20"} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={cn("text-[13px] font-semibold", isBusiness ? "text-white" : "text-white/40")}>
+                Reativação de Leads Frios
+              </div>
+              <div className="text-[11px] text-white/30 mt-0.5">
+                Lead inativo por {reactivationDays} dias recebe mensagem de reabertura com IA
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {isBusiness ? (
+                <>
+                  {pc.reactivation_hook ? <ActiveBadge /> : (
+                    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-orange-500/10 text-brand-orange-300 border-brand-orange-500/20">
+                      Configurar
+                    </Badge>
+                  )}
+                  <ChevronDown size={14} className={cn("text-white/30 transition-transform duration-200", reactivationExpanded && "rotate-180")} />
+                </>
+              ) : (
+                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Business</Badge>
+              )}
+            </div>
+          </button>
+          <AnimatePresence>
+            {reactivationExpanded && isBusiness && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                className="border-t border-white/[0.06]"
+              >
+                <div className="p-4 flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">Inativo há quantos dias</label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[14, 30, 60, 90].map(d => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setReactivationDays(d)}
+                          className={cn(
+                            "py-2 rounded-lg text-xs font-bold transition-all",
+                            reactivationDays === d
+                              ? "bg-brand-orange-500/20 border border-brand-orange-500/40 text-brand-orange-300"
+                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                          )}
+                        >
+                          {d}d
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">Gancho / Oferta de Reativação</label>
+                    <textarea
+                      value={reactivationHook}
+                      onChange={e => setReactivationHook(e.target.value)}
+                      placeholder="Ex.: Estamos com 20% de desconto esta semana. Quer aproveitar e agendar?"
+                      rows={3}
+                      maxLength={500}
+                      className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none resize-none transition placeholder:text-white/20 focus:border-brand-orange-500/50 focus:bg-white/[0.06]"
+                    />
+                    <p className="text-[10px] text-white/30">
+                      A IA usa este contexto para personalizar uma mensagem única para cada lead com base no histórico de conversa.
+                    </p>
+                  </div>
+                  <Button
+                    variant="blue"
+                    size="sm"
+                    className="w-full font-bold bg-brand-orange-500 hover:bg-brand-orange-500/90 shadow-orange-500/20"
+                    disabled={pending}
+                    onClick={handleSaveReactivation}
+                  >
+                    {savedField === "reactivation" ? <><Check size={14} className="mr-1.5" />Salvo</> : pending ? "Salvando…" : "Salvar configuração"}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Janela de Silêncio */}
@@ -1459,17 +1806,185 @@ function Flows({
         </div>
 
         {/* Webhooks */}
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 flex items-center gap-3 opacity-50">
-          <div className="h-9 w-9 shrink-0 rounded-lg bg-white/[0.04] flex items-center justify-center">
-            <GitBranch size={16} className="text-white/20" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold text-white/50">Webhooks (Zapier / Make)</div>
-            <div className="text-[11px] text-white/25 mt-0.5">
-              Integração com sistemas externos via eventos
+        <div className={cn("rounded-xl border overflow-hidden relative", isPro ? "border-white/[0.08] bg-white/[0.02]" : "border-white/[0.06] bg-white/[0.01]")}>
+          {!isPro && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[rgb(11,18,34)]/60 backdrop-blur-[3px]">
+              <div className="flex flex-col items-center gap-2 text-center px-6">
+                <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
+                  <Zap size={15} className="text-brand-blue-400 animate-pulse" />
+                </div>
+                <p className="text-[12px] font-bold text-white">Plano Pro</p>
+                <p className="text-[11px] text-white/40 max-w-[180px] leading-relaxed">Webhooks para Zapier, Make e sistemas externos no plano Pro+</p>
+                <button
+                  onClick={() => onChangeTab("billing")}
+                  className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
+                >
+                  Fazer upgrade →
+                </button>
+              </div>
             </div>
-          </div>
-          <Badge variant="cold" className="text-[10px] px-2 py-0.5 shrink-0">Em breve</Badge>
+          )}
+          <button
+            className={cn("w-full flex items-center gap-3 p-4 text-left", !isPro && "pointer-events-none")}
+            onClick={() => isPro && setWebhookExpanded(v => !v)}
+          >
+            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isPro ? "bg-brand-teal-500/15" : "bg-white/[0.04]")}>
+              <GitBranch size={16} className={isPro ? "text-brand-teal-400" : "text-white/20"} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={cn("text-[13px] font-semibold", isPro ? "text-white" : "text-white/40")}>
+                Webhooks (Zapier / Make)
+              </div>
+              <div className="text-[11px] text-white/30 mt-0.5">
+                {webhooks.length > 0 ? `${webhooks.length} endpoint${webhooks.length > 1 ? "s" : ""} cadastrado${webhooks.length > 1 ? "s" : ""}` : "Envie eventos em tempo real para sistemas externos"}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {isPro ? (
+                <>
+                  {webhooks.length > 0 ? <ActiveBadge /> : (
+                    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-teal-500/10 text-brand-teal-300 border-brand-teal-500/20">
+                      {webhooks.length} endpoints
+                    </Badge>
+                  )}
+                  <ChevronDown size={14} className={cn("text-white/30 transition-transform duration-200", webhookExpanded && "rotate-180")} />
+                </>
+              ) : (
+                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Pro+</Badge>
+              )}
+            </div>
+          </button>
+          <AnimatePresence>
+            {webhookExpanded && isPro && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                className="border-t border-white/[0.06]"
+              >
+                <div className="p-4 flex flex-col gap-4">
+                  {/* Existing webhooks list */}
+                  {webhooks.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {webhooks.map(wh => (
+                        <div key={wh.id} className="flex items-center justify-between p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[12px] font-semibold text-white/90 truncate">{wh.label ?? wh.url}</p>
+                            <p className="text-[10px] text-white/35 truncate">{wh.url}</p>
+                            <div className="flex gap-1 mt-1 flex-wrap">
+                              {wh.event_types.map(ev => (
+                                <span key={ev} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-brand-teal-500/10 text-brand-teal-300 border border-brand-teal-500/20">
+                                  {ev}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteWebhook(wh.id)}
+                            className="ml-3 h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition shrink-0"
+                            title="Excluir webhook"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add webhook form */}
+                  <AnimatePresence>
+                    {webhookFormVisible ? (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex flex-col gap-3 p-4 rounded-xl border border-brand-teal-500/20 bg-brand-teal-500/5"
+                      >
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-brand-teal-300/70">Novo Webhook</p>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] text-white/40">URL do Endpoint *</label>
+                          <Input
+                            value={webhookUrl}
+                            onChange={e => setWebhookUrl(e.target.value)}
+                            placeholder="https://hooks.zapier.com/hooks/catch/..."
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] text-white/40">Nome amigável (opcional)</label>
+                          <Input
+                            value={webhookLabel}
+                            onChange={e => setWebhookLabel(e.target.value)}
+                            placeholder="Ex.: Zapier CRM"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] text-white/40">Eventos</label>
+                          <div className="flex flex-wrap gap-2">
+                            {["booking.created", "lead.status_changed", "followup.sent", "reminder.sent"].map(ev => (
+                              <button
+                                key={ev}
+                                type="button"
+                                onClick={() =>
+                                  setWebhookEvents(prev =>
+                                    prev.includes(ev) ? prev.filter(e => e !== ev) : [...prev, ev]
+                                  )
+                                }
+                                className={cn(
+                                  "text-[10px] font-mono px-2 py-1 rounded-lg border transition",
+                                  webhookEvents.includes(ev)
+                                    ? "bg-brand-teal-500/20 border-brand-teal-500/40 text-brand-teal-300"
+                                    : "bg-white/[0.03] border-white/[0.08] text-white/40 hover:text-white/70"
+                                )}
+                              >
+                                {ev}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="blue"
+                            size="sm"
+                            className="flex-1 font-bold"
+                            disabled={pending || !webhookUrl}
+                            onClick={handleAddWebhook}
+                          >
+                            {pending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
+                            Adicionar
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => { setWebhookFormVisible(false); setWebhookUrl(""); setWebhookLabel(""); }}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setWebhookFormVisible(true)}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20 text-[12px] font-semibold transition"
+                      >
+                        <Plus size={14} />
+                        Adicionar endpoint
+                      </button>
+                    )}
+                  </AnimatePresence>
+                  
+                  <div className="rounded-lg bg-brand-teal-500/5 border border-brand-teal-500/10 p-3">
+                    <p className="text-[11px] text-brand-teal-200/60 leading-relaxed">
+                      Cada requisição é assinada com HMAC-SHA256. Valide a assinatura no header <code className="text-brand-teal-300 text-[10px]">X-Agendra-Signature</code>.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -1515,6 +2030,13 @@ function Team({ memberships, company }: { memberships: Member[]; company: Compan
   const [savingName, startNameTransition] = useTransition();
   const [nameSaved, setNameSaved] = useState(false);
 
+  // Invite modal state
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [invitePending, startInviteTransition] = useTransition();
+  const [inviteSent, setInviteSent] = useState(false);
+
   function handleSaveName(e: React.FormEvent) {
     e.preventDefault();
     startNameTransition(async () => {
@@ -1522,6 +2044,29 @@ function Team({ memberships, company }: { memberships: Member[]; company: Compan
         await updateCompany({ name: companyName });
         setNameSaved(true);
         setTimeout(() => setNameSaved(false), 3000);
+      } catch (err: any) {
+        toast.error(err.message);
+      }
+    });
+  }
+
+  function handleSendInvite(e: React.FormEvent) {
+    e.preventDefault();
+    if (!inviteEmail || !inviteEmail.includes("@")) {
+      toast.error("E-mail inválido.");
+      return;
+    }
+    startInviteTransition(async () => {
+      try {
+        await inviteTeamMember(inviteEmail, inviteRole);
+        setInviteSent(true);
+        toast.success(`Convite enviado para ${inviteEmail} 🎉`);
+        setTimeout(() => {
+          setInviteOpen(false);
+          setInviteEmail("");
+          setInviteRole("member");
+          setInviteSent(false);
+        }, 2000);
       } catch (err: any) {
         toast.error(err.message);
       }
@@ -1567,7 +2112,7 @@ function Team({ memberships, company }: { memberships: Member[]; company: Compan
             <CardTitle>Time</CardTitle>
             <CardDescription>{memberships.length} {memberships.length === 1 ? "membro" : "membros"}</CardDescription>
           </div>
-          <Button variant="primary" size="sm" onClick={() => toast.info("Convite de membros em breve!")}>
+          <Button variant="primary" size="sm" onClick={() => setInviteOpen(true)}>
             <UserPlus size={14} className="mr-2" />
             Convidar
           </Button>
@@ -1599,6 +2144,90 @@ function Team({ memberships, company }: { memberships: Member[]; company: Compan
           })}
         </CardContent>
       </Card>
+
+      {/* Modal de Convite */}
+      <AnimatePresence>
+        {inviteOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4"
+            onClick={() => setInviteOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass rounded-2xl border border-brand-blue-500/20 p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-brand-blue-500/10 pointer-events-none" />
+              <div className="relative z-10 flex flex-col gap-5">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Convidar membro do time</h3>
+                  <p className="text-sm text-white/50 mt-1">Convide alguém para gerenciar sua conta Agendra</p>
+                </div>
+                <form onSubmit={handleSendInvite} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-white/40">E-mail</label>
+                    <Input
+                      type="email"
+                      placeholder="colega@example.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      disabled={invitePending}
+                      required
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-white/40">Perfil</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {["member", "admin"].map((role) => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => setInviteRole(role as "admin" | "member")}
+                          className={cn(
+                            "py-2 rounded-lg text-xs font-bold transition-all",
+                            inviteRole === role
+                              ? "bg-brand-blue-500/30 border border-brand-blue-500/50 text-brand-blue-300"
+                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                          )}
+                        >
+                          {role === "admin" ? "Admin" : "Membro"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setInviteOpen(false)}
+                      disabled={invitePending}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="blue"
+                      size="sm"
+                      className="flex-1 font-bold"
+                      disabled={invitePending || !inviteEmail}
+                    >
+                      {invitePending ? "Enviando..." : "Enviar Convite"}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

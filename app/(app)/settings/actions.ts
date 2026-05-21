@@ -304,12 +304,177 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
       onConflict: 'provider,provider_id'
     });
 
-    if (error) throw error;
-
-    revalidatePath("/settings");
-    return { success: true, phone: details.display_phone_number };
+    if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+  return { success: true, phone: details.display_phone_number };
   } catch (error: any) {
     console.error("[ONBOARDING_ERROR]", error);
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Convida um membro do time via Supabase Auth Admin.
+ * Apenas admins podem convidar. Cria linha pendente em memberships.
+ */
+export async function inviteTeamMember(email: string, role: "admin" | "member") {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
+  // Verificar se o usuário atual é admin
+  const currentRole = profile.memberships?.[0]?.role;
+  if (currentRole !== "admin") throw new Error("Apenas administradores podem convidar membros.");
+
+  if (!email || !email.includes("@")) throw new Error("E-mail inválido.");
+
+  const admin = createAdminClient();
+
+  // Enviar convite via Supabase Auth
+  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.agendra.com.br"}/accept-invite`,
+    data: {
+      company_id: companyId,
+      invited_role: role,
+    },
+  });
+
+  if (inviteError) {
+    // Tratar caso onde usuário já existe
+    if (inviteError.message.includes("already registered")) {
+      throw new Error("Este e-mail já possui uma conta. Peça para o usuário fazer login.");
+    }
+    throw new Error(inviteError.message);
+  }
+
+  // Criar linha pendente em memberships (sem user_id até aceitação)
+  const { error: memberError } = await admin.from("memberships").upsert(
+    {
+      company_id: companyId,
+      user_id: inviteData.user.id,
+      role,
+    },
+    { onConflict: "company_id,user_id" }
+  );
+
+  if (memberError) {
+    console.error("[INVITE] Erro ao criar membership pendente:", memberError);
+    // Não lança erro — o convite por e-mail já foi enviado
+  }
+
+  revalidatePath("/settings");
+}
+
+/**
+ * Salva (cria ou atualiza) uma assinatura de webhook para a empresa.
+ */
+export async function saveWebhookConfig(data: {
+  url: string;
+  event_types: string[];
+  label?: string;
+  id?: string;
+}) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
+  if (!data.url || !data.url.startsWith("http")) throw new Error("URL inválida. Use https://...");
+  if (!data.event_types.length) throw new Error("Selecione ao menos um tipo de evento.");
+
+  const supabase = await createClient();
+
+  if (data.id) {
+    // Update existente
+    const { error } = await supabase
+      .from("webhook_subscriptions")
+      .update({
+        url: data.url,
+        event_types: data.event_types,
+        label: data.label ?? null,
+      })
+      .eq("id", data.id)
+      .eq("company_id", companyId);
+
+    if (error) throw new Error(error.message);
+  } else {
+    // Criar novo com secret HMAC gerado aleatoriamente
+    const crypto = (await import("crypto")).default;
+    const secret = crypto.randomBytes(32).toString("hex");
+
+    const { error } = await supabase.from("webhook_subscriptions").insert({
+      company_id: companyId,
+      url: data.url,
+      event_types: data.event_types,
+      label: data.label ?? null,
+      secret,
+    });
+
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/settings");
+}
+
+/**
+ * Remove uma assinatura de webhook.
+ */
+export async function deleteWebhook(webhookId: string) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("webhook_subscriptions")
+    .delete()
+    .eq("id", webhookId)
+    .eq("company_id", companyId);
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+}
+
+/**
+ * Salva as configurações de reativação de leads frios.
+ */
+export async function saveReactivationConfig(data: {
+  reactivation_days: number;
+  reactivation_hook: string;
+}) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("companies")
+    .select("persona_config")
+    .eq("id", companyId)
+    .single();
+
+  const current = (existing?.persona_config ?? {}) as Record<string, unknown>;
+
+  const { error } = await supabase
+    .from("companies")
+    .update({
+      persona_config: {
+        ...current,
+        reactivation_days: data.reactivation_days,
+        reactivation_hook: data.reactivation_hook,
+      },
+    })
+    .eq("id", companyId);
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+}
+
