@@ -2,11 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const WHATSAPP_API_BASE = 'https://graph.facebook.com/v19.0';
 
-export async function sendWhatsAppMessage(to: string, text: string, companyId?: string): Promise<void> {
-  // W2.9: Create admin client once and reuse across all DB operations in this function
+async function resolveWaCreds(companyId?: string): Promise<{ phoneId: string; token: string; admin: ReturnType<typeof createAdminClient> | null }> {
   const admin = companyId ? createAdminClient() : null;
-
-  // Fallback para env vars APENAS em dev (evita usar seu token pessoal em produção)
   let phoneId: string | undefined;
   let token: string | undefined;
 
@@ -25,23 +22,19 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
       .not("access_token", "is", null)
       .limit(1);
     const channel = channels?.[0];
-
     if (channel?.provider_id && channel?.access_token) {
       phoneId = channel.provider_id;
       token = channel.access_token;
     }
   }
 
-  if (!phoneId || !token) {
-    throw new Error('Missing WhatsApp configuration (neither channel in DB nor environment variables are set)');
-  }
+  if (!phoneId || !token) throw new Error('Missing WhatsApp configuration (neither channel in DB nor environment variables are set)');
+  if (token.startsWith('Bearer ')) token = token.substring(7);
+  return { phoneId, token: token.trim(), admin };
+}
 
-  // Se o token já vier com "Bearer " da variável de ambiente, limpamos
-  if (token.startsWith('Bearer ')) {
-    token = token.substring(7);
-  }
-
-  token = token.trim();
+export async function sendWhatsAppMessage(to: string, text: string, companyId?: string): Promise<void> {
+  const { phoneId, token, admin } = await resolveWaCreds(companyId);
 
   // Diagnóstico seguro — sem expor o token
   console.log(`[WhatsApp Client] 📤 Enviando para ${to.substring(0, 6)}*** via phone_id=${phoneId}`);
@@ -49,7 +42,7 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
   const res = await fetch(`${WHATSAPP_API_BASE}/${phoneId}/messages`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token.trim()}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -91,5 +84,50 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
       .eq("company_id", companyId)
       .eq("provider", "whatsapp")
       .then();
+  }
+}
+
+export async function sendWhatsAppMedia(
+  to: string,
+  mediaUrl: string,
+  mediaType: 'image' | 'document' | 'video' | 'audio',
+  filename: string,
+  caption: string,
+  companyId?: string
+): Promise<void> {
+  const { phoneId, token, admin } = await resolveWaCreds(companyId);
+  console.log(`[WhatsApp Client] 📎 Enviando mídia (${mediaType}) para ${to.substring(0, 6)}***`);
+
+  const mediaPayload: Record<string, any> = { link: mediaUrl };
+  if (caption) mediaPayload.caption = caption;
+  if (mediaType === 'document') mediaPayload.filename = filename;
+
+  const res = await fetch(`${WHATSAPP_API_BASE}/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: mediaType,
+      [mediaType]: mediaPayload,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    const errorMessage = `WhatsApp Media API error ${res.status}: ${err}`;
+    if (companyId && admin) {
+      const isAuthError = res.status === 401 || res.status === 403;
+      admin.from("channels")
+        .update({ last_error: errorMessage, status: isAuthError ? "error" : "active", updated_at: new Date().toISOString() })
+        .eq("company_id", companyId).eq("provider", "whatsapp").then();
+    }
+    throw new Error(errorMessage);
+  }
+
+  if (companyId && admin) {
+    admin.from("channels")
+      .update({ last_error: null, last_seen_at: new Date().toISOString(), status: "active", updated_at: new Date().toISOString() })
+      .eq("company_id", companyId).eq("provider", "whatsapp").then();
   }
 }

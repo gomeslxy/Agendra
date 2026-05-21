@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash } from "lucide-react";
+import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
@@ -10,7 +10,7 @@ import { stagger } from "@/components/motion/variants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import type { LeadWithMessages } from "./page";
-import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage, editAndSendDraft } from "./actions";
+import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage, editAndSendDraft, sendFileAttachment } from "./actions";
 import { createBrowserClient } from "@supabase/ssr";
 import { trackEvent } from "@/lib/analytics";
 
@@ -56,8 +56,11 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachPreview, setAttachPreview] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -165,8 +168,47 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
     });
   }, [selected?.messages]);
 
+  const clearAttachment = useCallback(() => {
+    if (attachPreview) URL.revokeObjectURL(attachPreview);
+    setAttachedFile(null);
+    setAttachPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [attachPreview]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 16 * 1024 * 1024) { setInboxError('Arquivo muito grande (máx 16 MB)'); return; }
+    setAttachedFile(file);
+    if (file.type.startsWith('image/')) setAttachPreview(URL.createObjectURL(file));
+    else setAttachPreview(null);
+  }, []);
+
   const handleSend = useCallback(() => {
-    if (!selected || !noteText.trim()) return;
+    if (!selected) return;
+
+    // ── File attachment path ──────────────────────────────────────
+    if (attachedFile) {
+      setInboxError(null);
+      const file = attachedFile;
+      const caption = noteText.trim();
+      clearAttachment();
+      setNoteText('');
+      startSend(async () => {
+        try {
+          const form = new FormData();
+          form.append('file', file);
+          if (caption) form.append('caption', caption);
+          const result = await sendFileAttachment(selected.id, form);
+          if (!result.success) setInboxError(result.error ?? 'Erro ao enviar arquivo');
+        } catch (e) {
+          setInboxError((e as Error).message);
+        }
+      });
+      return;
+    }
+
+    if (!noteText.trim()) return;
     const content = noteText.trim();
     setInboxError(null);
     setNoteText(""); // Clear immediately for better UX
@@ -807,6 +849,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                     );
                   }
 
+                  const mediaMeta = (msg.metadata as any);
                   return (
                     <ChatBubble
                       key={msg.id}
@@ -822,7 +865,34 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                       hideLabel={msg.hideLabel}
                       hideTime={msg.hideTime}
                     >
-                      {msg.content}
+                      {mediaMeta?.media_url ? (
+                        <div className="flex flex-col gap-1.5">
+                          {mediaMeta.media_type === 'image' ? (
+                            <img
+                              src={mediaMeta.media_url}
+                              alt={mediaMeta.filename ?? 'imagem'}
+                              className="max-w-[240px] rounded-xl object-cover"
+                            />
+                          ) : mediaMeta.media_type === 'video' ? (
+                            <video src={mediaMeta.media_url} controls className="max-w-[240px] rounded-xl" />
+                          ) : mediaMeta.media_type === 'audio' ? (
+                            <audio src={mediaMeta.media_url} controls className="w-full max-w-[240px]" />
+                          ) : (
+                            <a
+                              href={mediaMeta.media_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-[12px] hover:bg-white/20 transition-colors"
+                            >
+                              <FileText size={14} className="shrink-0" />
+                              <span className="truncate max-w-[180px]">{mediaMeta.filename ?? 'documento'}</span>
+                            </a>
+                          )}
+                          {msg.content && msg.content !== mediaMeta.filename && (
+                            <span className="text-[12px] opacity-80">{msg.content}</span>
+                          )}
+                        </div>
+                      ) : msg.content}
                     </ChatBubble>
                   );
                 })}
@@ -889,23 +959,58 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                   </motion.div>
                 )}
 
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,application/pdf,video/mp4,video/3gpp,audio/mpeg,audio/ogg,audio/mp4,audio/aac,audio/amr"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+
                 <div className={cn(
                   "flex items-center gap-2 sm:gap-3 transition-all duration-300",
                   !isPaused && "blur-[2px] scale-[0.98] opacity-50"
                 )}>
-                  <div className="flex-1 relative flex items-end gap-2 bg-white/[0.03] border border-white/[0.08] rounded-2xl px-3 py-1.5 transition-all focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.06] focus-within:shadow-glow-blue/5">
+                  <div className="flex-1 relative flex flex-col gap-0 bg-white/[0.03] border border-white/[0.08] rounded-2xl px-3 py-1.5 transition-all focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.06] focus-within:shadow-glow-blue/5">
+                    {/* Attachment preview chip */}
+                    {attachedFile && (
+                      <div className="flex items-center gap-2 pt-2 pb-1">
+                        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] max-w-[220px]">
+                          {attachPreview ? (
+                            <img src={attachPreview} alt="" className="h-5 w-5 rounded object-cover shrink-0" />
+                          ) : (
+                            <FileText size={13} className="shrink-0 text-white/50" />
+                          )}
+                          <span className="truncate text-white/70">{attachedFile.name}</span>
+                          <span className="shrink-0 text-white/30">
+                            {(attachedFile.size / 1024).toFixed(0)}KB
+                          </span>
+                        </div>
+                        <button
+                          onClick={clearAttachment}
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                        >
+                          <X size={10} className="text-white/60" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex items-end gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 w-9 rounded-xl p-0 hover:bg-white/5 shrink-0 mb-0.5"
+                      className={cn(
+                        "h-9 w-9 rounded-xl p-0 hover:bg-white/5 shrink-0 mb-0.5 transition-colors",
+                        attachedFile && "bg-brand-blue-500/20 text-brand-blue-400 hover:bg-brand-blue-500/30"
+                      )}
                       disabled={inputBlocked}
+                      onClick={() => fileInputRef.current?.click()}
                     >
-                      <Paperclip size={18} className="text-white/30" />
+                      <Paperclip size={18} className={cn(attachedFile ? "text-brand-blue-400" : "text-white/30")} />
                     </Button>
                     <textarea
                       ref={inputRef}
                       rows={1}
-                      placeholder="Escreva uma mensagem..."
+                      placeholder={attachedFile ? "Legenda (opcional)..." : "Escreva uma mensagem..."}
                       className="flex-1 bg-transparent py-2.5 text-[14px] outline-none placeholder:text-white/20 disabled:cursor-not-allowed resize-none max-h-32 custom-scrollbar"
                       value={noteText}
                       onChange={(e) => {
@@ -921,8 +1026,9 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                       }}
                       disabled={inputBlocked}
                     />
-                  </div>
-                  
+                    </div>{/* end flex items-end row */}
+                  </div>{/* end flex-col input container */}
+
                   <div className="relative group/send shrink-0 flex items-center justify-center h-12 w-12">
                     <div className={cn(
                       "absolute inset-0 rounded-full blur-md transition-all duration-500 opacity-0 group-hover/send:opacity-40 bg-brand-blue-500",
@@ -933,9 +1039,9 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
                       size="sm"
                       className={cn(
                         "relative h-11 w-11 rounded-full shrink-0 transition-all duration-500 overflow-hidden shadow-2xl z-10",
-                        noteText.trim() ? "scale-100 opacity-100 shadow-glow-blue/40" : "scale-90 opacity-40 grayscale"
+                        (noteText.trim() || attachedFile) ? "scale-100 opacity-100 shadow-glow-blue/40" : "scale-90 opacity-40 grayscale"
                       )}
-                      disabled={inputBlocked || !noteText.trim()}
+                      disabled={inputBlocked || (!noteText.trim() && !attachedFile)}
                       onClick={handleSend}
                     >
                       <AnimatePresence mode="wait">

@@ -193,14 +193,23 @@ export async function processLeadMessage(
   const firstUserIndex = geminiHistory.findIndex((h) => h.role === 'user');
   geminiHistory = firstUserIndex !== -1 ? geminiHistory.slice(firstUserIndex) : [];
 
+  // Plan-aware model: trial/starter use flash-lite (3x cheaper); pro/business use flash.
+  // hasAdvancedModel === false means explicitly downgraded (not just missing).
+  const isLitePlan = planLimits.hasAdvancedModel === false;
+  const primaryModel = isLitePlan ? 'gemini-2.5-flash-lite' : MAIN_MODEL;
+  // Plan-aware iteration cap: fewer tool calls for lower plans saves quota on loops.
+  const MAX_ITERATIONS = isLitePlan ? 3 : 5;
+
   let response: any;
   let chat: any;
-  let modelUsed = MAIN_MODEL;
+  let modelUsed = primaryModel;
   let lastErr: any;
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const currentModel = attempt === 0 ? MAIN_MODEL : 'gemini-2.5-flash-lite';
+      // For lite plans: both attempts use flash-lite (retry on throttle).
+      // For advanced plans: attempt 0 = flash, attempt 1 = lite (degraded fallback).
+      const currentModel = attempt === 0 ? primaryModel : 'gemini-2.5-flash-lite';
       const model = genAI.getGenerativeModel({
         model: currentModel,
         systemInstruction: buildSystemPrompt(persona, lead, memoryContext, isNewConversation, planType, planLimits),
@@ -220,7 +229,6 @@ export async function processLeadMessage(
   }
 
   let iterations = 0;
-  const MAX_ITERATIONS = 5;
 
   const toolsCalled: any[] = [];
   let totalInputTokens = response.response.usageMetadata?.promptTokenCount ?? 0;
@@ -475,26 +483,34 @@ export async function handleIncomingMessage(
     activeLead = created as Lead;
   }
 
-  // RAG guard: skip embedding if company has no knowledge documents
-  const { count: knowledgeCount } = await admin
-    .from('company_knowledge')
-    .select('id', { count: 'exact', head: true })
-    .eq('company_id', companyId)
-    .limit(1);
+  // Compute early plan limits using preloaded usage (fast path) or derive from company record.
+  // Required here because RAG runs before the billing gate's usage object is fully available.
+  const earlyPlanLimits = preloadedUsage?.limits ?? getPlanLimits(company.plan_type as PlanType);
 
   let ragStatus: 'ok' | 'empty' | 'failed' | 'timeout' | null = null;
 
-  if ((knowledgeCount ?? 0) > 0) {
-    try {
-      const { text: semanticContext, status } = await getSemanticKnowledge(companyId, messageText, admin);
-      ragStatus = status;
-      if (semanticContext) {
-        persona.extra_instructions = (persona.extra_instructions || '') + '\n' + semanticContext;
+  if (earlyPlanLimits.hasRAG) {
+    // RAG guard: skip embedding if company has no knowledge documents (avoids quota burn on empty corpus)
+    const { count: knowledgeCount } = await admin
+      .from('company_knowledge')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .limit(1);
+
+    if ((knowledgeCount ?? 0) > 0) {
+      try {
+        const { text: semanticContext, status } = await getSemanticKnowledge(companyId, messageText, admin);
+        ragStatus = status;
+        if (semanticContext) {
+          persona.extra_instructions = (persona.extra_instructions || '') + '\n' + semanticContext;
+        }
+      } catch (err) {
+        console.warn('[AI Engine] Falha ao carregar RAG Semantico:', err);
+        ragStatus = 'failed';
       }
-    } catch (err) {
-      console.warn('[AI Engine] Falha ao carregar RAG Semantico:', err);
-      ragStatus = 'failed';
     }
+  } else {
+    console.log(`[AI Engine] RAG skipped — plan ${earlyPlanLimits.hasAdvancedModel === false ? 'trial/starter' : 'unknown'} does not include semantic search.`);
   }
 
   const releaseLock = () =>
@@ -515,14 +531,15 @@ export async function handleIncomingMessage(
     .from('messages')
     .insert({ lead_id: activeLead.id, company_id: companyId, role: 'user', content: messageText });
 
-  // Fetch last 20 for Gemini context (most recent, then reverse for chronological order)
+  // Plan-aware history window: lower plans get fewer messages → fewer input tokens per call.
+  const historyLimit = usage.limits.hasAdvancedModel ? 20 : 10;
   const { data: historyRaw } = await admin
     .from('messages')
     .select('*')
     .eq('lead_id', activeLead.id)
     .eq('company_id', companyId) // ALWAYS filter by company_id!
     .order('created_at', { ascending: false })
-    .limit(20);
+    .limit(historyLimit);
   const history = (historyRaw ?? []).reverse();
 
   // Reliable first-response check: query count directly, not from the windowed history
@@ -672,9 +689,9 @@ export async function handleIncomingMessage(
   }
 
   // 12. Background analytics (non-blocking — does not affect response latency)
-  // [FIX P1-2] Timeout de 20s no analytics para evitar memory leak / hang em alta concorrência
-  // [FIX P2-3] Limitar histórico a 5 mensagens — reduz ~60% dos tokens de input do analytics
-  if (aiResult && finalReply) {
+  // Gated by plan: trial/starter skip this entirely (saves 1 full Gemini call per message).
+  // Pro/Business get full sentiment, intent, decision logs, and enriched memory.
+  if (usage.limits.hasAnalytics && aiResult && finalReply) {
     void (async () => {
       try {
         const recentHistory = historyList.slice(-5);

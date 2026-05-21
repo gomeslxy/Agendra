@@ -19,7 +19,7 @@ import {
   updateGCalEvent
 } from '@/lib/calendar/google';
 import { calculateAvailableSlots } from '@/lib/calendar/availability';
-import { type Tool, SchemaType } from '@google/generative-ai';
+import { type Tool, type FunctionDeclaration, SchemaType } from '@google/generative-ai';
 import { handleUpdateLeadMemory } from './memory';
 import { buildBookingConfirmation, formatDateTime } from '@/lib/whatsapp/messages';
 import { dispatchWebhook } from '@/lib/webhooks/dispatcher';
@@ -44,8 +44,7 @@ export interface BookingResult {
 
 // ─── Tool Declarations (schema para o Gemini) ────────────────────────────────
 
-export const toolDeclarations: Tool = {
-  functionDeclarations: [
+const baseFunctionDeclarations: FunctionDeclaration[] = [
     {
       name: 'listServices',
       description: 'Lista todos os serviços, preços e durações oferecidos pela empresa.',
@@ -150,30 +149,41 @@ export const toolDeclarations: Tool = {
         },
       },
     },
-    {
-      name: 'generatePixCharge',
-      description: 'Gera cobrança Pix para o lead confirmar agendamento. Use SOMENTE em planos Business após qualificar o agendamento. Retorna QR code e chave Pix. Aguarde pagamento antes de chamar bookAppointment.',
-      parameters: {
-        type: SchemaType.OBJECT,
-        properties: {
-          amount: { type: SchemaType.NUMBER, description: 'Valor em reais (ex: 150.00)' },
-          service_id: { type: SchemaType.STRING, description: 'ID do serviço cobrado' },
+];
+
+// Fintech tools only included in schema when feature flag is enabled.
+// Keeping them out of the schema saves tokens and prevents the model from
+// attempting calls that will always throw "feature disabled".
+const fintechFunctionDeclarations: FunctionDeclaration[] = process.env.ENABLE_FINTECH === 'true'
+  ? [
+      {
+        name: 'generatePixCharge',
+        description: 'Gera cobrança Pix para o lead confirmar agendamento. Use SOMENTE em planos Business após qualificar o agendamento. Retorna QR code e chave Pix. Aguarde pagamento antes de chamar bookAppointment.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            amount: { type: SchemaType.NUMBER, description: 'Valor em reais (ex: 150.00)' },
+            service_id: { type: SchemaType.STRING, description: 'ID do serviço cobrado' },
+          },
+          required: ['amount'],
         },
-        required: ['amount'],
       },
-    },
-    {
-      name: 'checkPaymentStatus',
-      description: 'Verifica se uma cobrança Pix foi paga. Use após gerar cobrança para confirmar pagamento antes de confirmar agendamento.',
-      parameters: {
-        type: SchemaType.OBJECT,
-        properties: {
-          transaction_id: { type: SchemaType.STRING, description: 'ID da transação retornado por generatePixCharge' },
+      {
+        name: 'checkPaymentStatus',
+        description: 'Verifica se uma cobrança Pix foi paga. Use após gerar cobrança para confirmar pagamento antes de confirmar agendamento.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            transaction_id: { type: SchemaType.STRING, description: 'ID da transação retornado por generatePixCharge' },
+          },
+          required: ['transaction_id'],
         },
-        required: ['transaction_id'],
       },
-    },
-  ],
+    ]
+  : [];
+
+export const toolDeclarations: Tool = {
+  functionDeclarations: [...baseFunctionDeclarations, ...fintechFunctionDeclarations],
 };
 
 // ─── Tool Handlers ────────────────────────────────────────────────────────────

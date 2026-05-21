@@ -3,7 +3,8 @@
 import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireOnboarding } from "@/lib/onboarding/guards";
-import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
+import { sendWhatsAppMessage, sendWhatsAppMedia } from "@/lib/whatsapp/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { persistAITrace } from "@/lib/ai/observability";
 
 async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
@@ -261,5 +262,62 @@ export async function deleteDraftMessage(messageId: string) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/inbox");
+  return { success: true };
+}
+
+const ALLOWED_MIME: Record<string, 'image' | 'document' | 'video' | 'audio'> = {
+  'image/jpeg': 'image', 'image/png': 'image', 'image/webp': 'image', 'image/gif': 'image',
+  'application/pdf': 'document',
+  'video/mp4': 'video', 'video/3gpp': 'video',
+  'audio/mpeg': 'audio', 'audio/ogg': 'audio', 'audio/mp4': 'audio', 'audio/aac': 'audio', 'audio/amr': 'audio',
+};
+const MAX_SIZE = 16 * 1024 * 1024; // 16 MB
+
+export async function sendFileAttachment(leadId: string, formData: FormData) {
+  const file = formData.get('file') as File | null;
+  if (!file || file.size === 0) return { success: false, error: 'Arquivo inválido' };
+  if (file.size > MAX_SIZE) return { success: false, error: 'Arquivo muito grande (máx 16 MB)' };
+
+  const waType = ALLOWED_MIME[file.type];
+  if (!waType) return { success: false, error: `Tipo não suportado: ${file.type}` };
+
+  const caption = ((formData.get('caption') as string) ?? '').trim();
+
+  const profile = await getUserProfile();
+  if (!profile) throw new Error('Não autorizado');
+
+  const supabase = await createClient();
+  const { company_id, phone } = await getLeadInfo(supabase, leadId);
+  await requireOnboarding(company_id);
+
+  const admin = createAdminClient();
+  await admin.storage.createBucket('inbox-media', { public: true }).catch(() => {});
+
+  const ext = file.name.split('.').pop() ?? 'bin';
+  const path = `${company_id}/${leadId}/${Date.now()}.${ext}`;
+  const bytes = await file.arrayBuffer();
+
+  const { data: uploadData, error: uploadError } = await admin.storage
+    .from('inbox-media')
+    .upload(path, bytes, { contentType: file.type, upsert: false });
+
+  if (uploadError || !uploadData) {
+    return { success: false, error: `Upload falhou: ${uploadError?.message}` };
+  }
+
+  const { data: { publicUrl } } = admin.storage.from('inbox-media').getPublicUrl(uploadData.path);
+
+  const { error: dbError } = await supabase.from('messages').insert({
+    lead_id: leadId,
+    company_id,
+    content: caption || file.name,
+    role: 'agent',
+    metadata: { media_url: publicUrl, media_type: waType, filename: file.name, file_size: file.size },
+  });
+  if (dbError) return { success: false, error: `DB: ${dbError.message}` };
+
+  await sendWhatsAppMedia(phone, publicUrl, waType, file.name, caption, company_id);
+
+  revalidatePath('/inbox');
   return { success: true };
 }
