@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         // 2. Buscar leads frios elegíveis
         const { data: leads } = await admin
           .from('leads')
-          .select('id, name, phone, summary, lead_memory, heat_score, last_message_at')
+          .select('id, name, phone, summary, lead_memory, heat_score, last_message_at, last_sentiment, last_sentiment_at')
           .eq('company_id', company.id)
           .in('status', ['cold', 'warm'])
           .not('is_paused', 'eq', true)

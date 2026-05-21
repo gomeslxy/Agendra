@@ -435,6 +435,18 @@ export async function handleIncomingMessage(
       const ageMs = Date.now() - new Date(activeLead.last_message_at).getTime();
       if (ageMs < 3000) {
         console.warn(`[AI Engine] Rate limit: Lead ${phone} sent message ${ageMs}ms ago. Skipping.`);
+        // 1. Persist message anyway (não perde histórico)
+        await admin.from('messages').insert({
+          lead_id: activeLead.id, company_id: companyId,
+          role: 'user', content: messageText,
+          metadata: { rate_limited: true, age_ms: ageMs }
+        });
+        // 2. Marca processed_messages como completed (não fica órfão)
+        if (providerMessageId) {
+          await admin.from('processed_messages')
+            .update({ status: 'completed' })
+            .eq('provider_message_id', providerMessageId);
+        }
         return;
       }
     }
