@@ -55,6 +55,7 @@ export interface Event {
   title: string;
   start_time: string;
   end_time: string;
+  duration_minutes?: number;
   gcal_event_id: string | null;
   source: EventSource;
   gcal_sync_status: GCalSyncStatus | null;

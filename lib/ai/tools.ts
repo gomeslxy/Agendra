@@ -402,6 +402,7 @@ export async function handleBookAppointment(
         end_time: endTime.toISOString(),
         gcal_event_id: gcalId,
         notes: args.notes,
+        duration_minutes: service.duration,
         status: 'confirmed'
       })
       .select()
@@ -514,8 +515,9 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
     .single();
 
   if (!event) throw new Error('Agendamento não encontrado.');
-  
-  const duration = (event.services as any)?.duration || 60;
+    const duration = event.duration_minutes ??
+      (event.services as any)?.duration ??
+      Math.round((new Date(event.end_time).getTime() - new Date(event.start_time).getTime()) / 60000);
   const newStart = new Date(args.new_start_time);
   const newEnd = new Date(newStart.getTime() + duration * 60000);
 
