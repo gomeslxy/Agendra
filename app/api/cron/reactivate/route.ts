@@ -50,6 +50,17 @@ export async function POST(req: NextRequest) {
       let errors = 0;
 
       try {
+        type ReactivateLead = {
+          id: string;
+          name: string;
+          phone: string | null;
+          summary: string | null;
+          lead_memory: unknown;
+          heat_score: number;
+          last_message_at: string | null;
+          last_sentiment: number | null;
+          last_sentiment_at: string | null;
+        };
         // 2. Buscar leads frios elegíveis
         const { data: leads } = await admin
           .from('leads')
@@ -60,7 +71,7 @@ export async function POST(req: NextRequest) {
           .lt('last_message_at', cutoffDate)
           .not('phone', 'is', null)
           .order('last_message_at', { ascending: true })
-          .limit(20); // Máx 20 leads por empresa por execução
+          .limit(20) as unknown as { data: ReactivateLead[] | null; error: unknown };
 
         if (!leads?.length) continue;
 
@@ -133,7 +144,7 @@ Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
             if (!message) continue;
 
             // 5. Enviar via WhatsApp
-            await sendWhatsAppMessage(lead.phone, message, company.id);
+            await sendWhatsAppMessage(lead.phone!, message, company.id);
 
             // 6. Registrar na tabela messages
             await admin.from('messages').insert({
