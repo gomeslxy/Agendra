@@ -22,6 +22,7 @@ import { calculateAvailableSlots } from '@/lib/calendar/availability';
 import { type Tool, SchemaType } from '@google/generative-ai';
 import { handleUpdateLeadMemory } from './memory';
 import { buildBookingConfirmation, formatDateTime } from '@/lib/whatsapp/messages';
+import { dispatchWebhook } from '@/lib/webhooks/dispatcher';
 
 export { handleUpdateLeadMemory };
 
@@ -416,6 +417,16 @@ export async function handleBookAppointment(
     timeStr,
     businessName: company?.name ?? 'nossa empresa',
     notes: args.notes,
+  });
+
+  // Disparar webhook booking.created de forma não-bloqueante
+  void dispatchWebhook(ctx.companyId, 'booking.created', {
+    event_id: event.id,
+    lead_id: ctx.leadId,
+    service_name: service.name,
+    start_time: startTime.toISOString(),
+    end_time: endTime.toISOString(),
+    gcal_event_id: gcalId,
   });
 
   return { message: confirmationMsg, event };
