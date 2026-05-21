@@ -35,9 +35,7 @@ export default async function InboxPage() {
       .order("start_time", { ascending: true }),
   ]);
 
-  if (error) {
-    console.error("[InboxPage] fetch error:", error.message);
-  }
+  // Forward any fetch error to the client UI
 
   // Index upcoming events by lead_id (first/nearest one per lead)
   const eventByLead = new Map<string, { id: string; title: string; start_time: string; end_time: string }>();
@@ -53,5 +51,5 @@ export default async function InboxPage() {
     next_event: eventByLead.get(l.id) ?? null,
   }));
 
-  return <InboxClient leads={leads} />;
+  return <InboxClient leads={leads} companyId={companyId} fetchError={error?.message ?? null} />;
 }

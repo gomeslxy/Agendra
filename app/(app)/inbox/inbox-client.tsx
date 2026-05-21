@@ -39,7 +39,7 @@ function lastMsg(lead: LeadWithMessages) {
   return msgs.length > 0 ? msgs[msgs.length - 1] : undefined;
 }
 
-export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[] }) {
+export function InboxClient({ leads: initialLeads, companyId, fetchError }: { leads: LeadWithMessages[]; companyId: string | null; fetchError?: string | null }) {
   const [leads, setLeads] = useState<LeadWithMessages[]>(initialLeads);
   const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id ?? null);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
@@ -53,7 +53,7 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
   const [draftPending, startDraft] = useTransition();
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [editDraftText, setEditDraftText] = useState("");
-  const [inboxError, setInboxError] = useState<string | null>(null);
+  const [inboxError, setInboxError] = useState<string | null>(fetchError ?? null);
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -80,7 +80,9 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
         { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
           const newMsg = payload.new as Message;
-          if (newMsg.role === "user") {
+          // Ensure the message belongs to the current company context
+          if (companyId && newMsg.company_id !== companyId) return;
+if (newMsg.role === "user") {
             setIsTyping(true);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
             typingTimerRef.current = setTimeout(() => setIsTyping(false), 8000);
@@ -114,6 +116,8 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
         { event: "INSERT", schema: "public", table: "leads" },
         (payload) => {
           const newLead = payload.new as Lead;
+          // Only add lead if it belongs to current company
+          if (companyId && newLead.company_id !== companyId) return;
           setLeads((prev) => {
             if (prev.some((l) => l.id === newLead.id)) return prev;
             return [{ ...newLead, messages: [] }, ...prev];
@@ -619,6 +623,11 @@ export function InboxClient({ leads: initialLeads }: { leads: LeadWithMessages[]
         </div>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-0">
+          {inboxError && (
+            <div className="px-5 py-2 text-sm text-red-400 bg-red-900/30 rounded-md mb-2">
+              Erro ao carregar: {inboxError}
+            </div>
+          )}
           {leads.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 px-5 text-center gap-2">
               <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center">
