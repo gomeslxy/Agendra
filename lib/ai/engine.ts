@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logDebug, logInfo, logError, isDebug } from '@/lib/logging';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import type { Lead, Message } from '@/lib/types/database';
 import crypto from 'crypto';
@@ -436,6 +437,7 @@ export async function handleIncomingMessage(
     // Atomic lock acquisition: only succeeds if is_processing was false.
     // Two concurrent webhooks for the same lead cannot both win.
     // W2.3 Reset followup_count on response
+    logDebug('Attempting atomic lock acquisition for lead');
     const { data: locked } = await admin
       .from('leads')
       .update({
@@ -451,13 +453,14 @@ export async function handleIncomingMessage(
       .maybeSingle();
 
     if (!locked) {
-      console.warn(`[AI Engine] Lead ${phone} ja esta sendo processado (lock atomico). Abortando.`);
+      logInfo(`[AI Engine] Lead ${phone} já está sendo processado (lock atômico). Abortando.`);
       if (providerMessageId) {
         await admin
           .from('processed_messages')
           .update({ status: 'error', error_message: 'lead lock contention' })
           .eq('provider_message_id', providerMessageId);
       }
+      // No lock acquired, exit early
       return;
     }
   } else {
@@ -505,17 +508,20 @@ export async function handleIncomingMessage(
       }
     }
   } else {
-    console.log(`[AI Engine] RAG skipped — plan ${earlyPlanLimits.hasAdvancedModel === false ? 'trial/starter' : 'unknown'} does not include semantic search.`);
+    logInfo(`[AI Engine] RAG skipped — plano ${earlyPlanLimits.hasAdvancedModel === false ? 'trial/starter' : 'unknown'} não inclui busca semântica.`);
   }
 
-  const releaseLock = () =>
-    admin.from('leads').update({ is_processing: false, processing_started_at: null }).eq('id', activeLead.id).eq('company_id', companyId);
+  const releaseLock = () => {
+    logDebug('Releasing lead lock');
+    return admin.from('leads').update({ is_processing: false, processing_started_at: null }).eq('id', activeLead.id).eq('company_id', companyId);
+  };
 
   // 4. Billing gate
   const usage = preloadedUsage ?? await getCompanyUsage(companyId);
   if (usage.isLimitReached) {
     const fallback =
       'Ola! No momento estamos com alta demanda. Recebemos sua mensagem e um consultor humano entrara em contato em breve.';
+    logInfo('Sending fallback WhatsApp message due to billing limit');
     await sendWhatsAppMessage(phone, fallback, companyId);
     await releaseLock();
     return;
@@ -536,6 +542,7 @@ export async function handleIncomingMessage(
     .order('created_at', { ascending: false })
     .limit(historyLimit);
   const history = (historyRaw ?? []).reverse();
+  logDebug(`Fetched ${history.length} history messages`);
 
   // Reliable first-response check: query count directly, not from the windowed history
   const { count: assistantTotal } = await admin
@@ -552,6 +559,7 @@ export async function handleIncomingMessage(
 
   // 6. AI turn + Try/Catch wrapper (W1.2)
   const historyList = history as Message[];
+  logDebug(`History list prepared with ${historyList.length} messages`);
   const isNewConversation = (assistantTotal ?? 0) === 0;
 
   // FIX B5 — compactação só fora de scheduling ativo
@@ -650,7 +658,7 @@ export async function handleIncomingMessage(
         } catch (sendErr) {
           console.error('[WhatsApp] Failed to send reply:', sendErr);
         }
-        console.log(`[WhatsApp] ✅ Mensagem enviada para ${phone.substring(0,6)}***`);
+        logInfo(`[WhatsApp Client] 📤 Mensagem enviada para ${phone.substring(0, 6)}***`);
       }
     } else {
       console.log(`[AI Engine] Modo Shadow ativo para lead ${phone}. Mensagem persistida como rascunho (is_draft: true).`);

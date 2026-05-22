@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCompanyUsage, type CompanyUsage } from "@/lib/billing/limits";
-import { logDebug, isDebug } from "@/lib/logging";
+import { logDebug, logInfo, logError, isDebug } from "@/lib/logging";
 export const maxDuration = 300; // seconds, Vercel edge limit
 
 // ─── Tipos (Meta Webhook Payload) ────────────────────────────────────────────
@@ -221,6 +221,7 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
 
   try {
     payload = JSON.parse(rawBody) as MetaWebhookPayload;
+if (isDebug) logDebug('[Webhook] Parsed payload', payload);
   } catch {
     console.error("[WhatsApp] ❌ Payload inválido — não é JSON válido.");
     return;

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { redis } from '@/lib/infra/redis';
 import { handleIncomingMessage } from './engine';
 import { createAdminClient } from '@/lib/supabase/admin';
-
+import { logDebug, logInfo, logError, isDebug } from "@/lib/logging";
 const DEBOUNCE_MS = 4_000;
 const BUF_TTL_SEC = 60;
 
@@ -39,7 +39,7 @@ export async function bufferAndDebounce(args: {
   try {
     okSet = await redis.set(tokenKey, gen, BUF_TTL_SEC);
   } catch (e) {
-    console.error('[debounce] Redis error on set, falling back to DB buffer:', e);
+    logError('[debounce] Redis error on set, falling back to DB buffer:', e);
     // Fallback to DB buffering
     await bufferInDB({
       companyId: args.companyId,

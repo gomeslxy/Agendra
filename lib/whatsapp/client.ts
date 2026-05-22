@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-
+import { logInfo, logError, logDebug } from '@/lib/logging';
 const WHATSAPP_API_BASE = 'https://graph.facebook.com/v19.0';
 
 async function resolveWaCreds(companyId?: string): Promise<{ phoneId: string; token: string; admin: ReturnType<typeof createAdminClient> | null }> {
@@ -37,7 +37,7 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
   const { phoneId, token, admin } = await resolveWaCreds(companyId);
 
   // Diagnóstico seguro — sem expor o token
-  console.log(`[WhatsApp Client] 📤 Enviando para ${to.substring(0, 6)}*** via phone_id=${phoneId}`);
+  logInfo(`[WhatsApp Client] 📤 Enviando para ${to.substring(0, 6)}*** via phone_id=${phoneId}`);
 
   const res = await fetch(`${WHATSAPP_API_BASE}/${phoneId}/messages`, {
     method: 'POST',
@@ -58,6 +58,7 @@ export async function sendWhatsAppMessage(to: string, text: string, companyId?: 
     const errorMessage = `WhatsApp API error ${res.status}: ${err}`;
 
     if (companyId && admin) {
+      logError('[WhatsApp Client] Falha ao enviar mensagem:', err);
       const isAuthError = res.status === 401 || res.status === 403;
       admin.from("channels")
         .update({
@@ -96,7 +97,7 @@ export async function sendWhatsAppMedia(
   companyId?: string
 ): Promise<void> {
   const { phoneId, token, admin } = await resolveWaCreds(companyId);
-  console.log(`[WhatsApp Client] 📎 Enviando mídia (${mediaType}) para ${to.substring(0, 6)}***`);
+  logInfo(`[WhatsApp Client] 📎 Enviando mídia (${mediaType}) para ${to.substring(0, 6)}***`);
 
   const mediaPayload: Record<string, any> = { link: mediaUrl };
   if (caption) mediaPayload.caption = caption;
