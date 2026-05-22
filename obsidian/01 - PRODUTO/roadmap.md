@@ -65,6 +65,21 @@
 - [x] **W2.15** Booking com compensação atômica: `deleteGCalEvent` desfaz criação se DB insert falhar.
 - [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅
 
+## 🔀 Fase 4: Multi-Provider AI Resilience (✅ Concluído 21/05/2026)
+- [x] **openai package**: Instalado para compatibilidade com API Groq (OpenAI-compatible).
+- [x] **Provider Types**: `lib/ai/providers/types.ts` — interfaces normalizadas (NeutralToolDefinition, ChatParams, ChatResult, AIProviderAdapter).
+- [x] **Circuit Breaker**: `lib/ai/providers/circuit-breaker.ts` — closed/open/half-open, 30s cooldown, 2 falhas para trip.
+- [x] **Neutral Tool Schemas**: `lib/ai/tool-schemas.ts` — JSON Schema provider-neutral (espelha tools.ts sem depender do SDK Gemini).
+- [x] **Gemini Adapter**: `lib/ai/providers/gemini-adapter.ts` — wrapa @google/generative-ai com interface normalizada.
+- [x] **Groq Adapter**: `lib/ai/providers/groq-adapter.ts` — wrapa openai SDK apontando para api.groq.com/openai/v1 (llama-3.1-8b-instant).
+- [x] **Router**: `lib/ai/providers/router.ts` — chain Groq→Gemini com timeout 15s, circuit breaker, error classification, structured logs `[Router]`.
+- [x] **engine.ts**: Substituídas todas as chamadas diretas Gemini por `routeChat`/`routeGenerate`; SDK Gemini mantido APENAS para embedding (RAG).
+- [x] **engine.ts**: Graceful degradation `AI_ALL_PROVIDERS_FAILED` — envia mensagem amigável via WA, libera lock, não bloqueia lead.
+- [x] **engine.ts**: `triggerAutoFollowUp` — loop Gemini substituído por `routeGenerate`.
+- [x] **memory.ts**: `processBackgroundAnalytics` usa `routeGenerate` em vez de Gemini direto.
+- [x] **observability.ts**: `calculateProviderCost` com pricing Groq; alias `calculateGeminiCost` deprecated.
+- [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅
+
 ## 🐛 Hotfix: Timezone Agendamento (-3h) (✅ Concluído 20/05/2026)
 - [x] **Root cause identificado**: IA lendo `label` "10:00" do slot e tentando passar ISO manualmente para `bookAppointment`, sem perceber que slot `label` é apenas amigável. O ISO correto (`start` do slot) já tem a conversão de timezone incluída.
 - [x] **Fix 1 (System Prompt)**: Adicionada Regra de Ouro sobre "CRITICO — Horarios nos Slots" instruindo IA a SEMPRE usar campo `start` ISO do slot, NUNCA reconstruir manualmente.

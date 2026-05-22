@@ -17,10 +17,11 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import { genAI } from '@/lib/ai/client';
 
-// Segurança: apenas crons autorizados
+// P2-3 fix: use Authorization: Bearer pattern consistent with other cron endpoints.
+// Vercel Cron sends Authorization: Bearer <CRON_SECRET> automatically.
 function isAuthorized(req: NextRequest): boolean {
-  const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret');
-  return secret === process.env.CRON_SECRET;
+  const authHeader = req.headers.get('authorization') ?? '';
+  return authHeader === `Bearer ${process.env.CRON_SECRET}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -32,11 +33,13 @@ export async function POST(req: NextRequest) {
   const results: Array<{ company: string; leads_processed: number; errors: number }> = [];
 
   try {
-    // 1. Buscar empresas Business ativas
+    // 1. Buscar empresas Business ativas com assinatura válida
+    // P2-4 fix: filter by subscription_status to skip cancelled/past_due accounts
     const { data: companies } = await admin
       .from('companies')
       .select('id, name, ai_name, ai_tone, persona_config')
-      .eq('plan_type', 'business');
+      .eq('plan_type', 'business')
+      .in('subscription_status', ['active', 'trialing']);
 
     if (!companies?.length) {
       return NextResponse.json({ ok: true, message: 'Nenhuma empresa Business encontrada' });

@@ -474,6 +474,7 @@ export async function handleCancelAppointment(args: { event_id: string; reason?:
     .select('gcal_event_id, company_id, companies(google_refresh_token, google_calendar_id)')
     .eq('id', args.event_id)
     .eq('company_id', _ctx.companyId)
+    .eq('lead_id', _ctx.leadId) // prevent intra-company IDOR
     .single();
 
   if (!event) throw new Error('Agendamento não encontrado.');
@@ -512,6 +513,7 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
     .select('*, services(duration), companies(google_refresh_token, google_calendar_id, persona_config)')
     .eq('id', args.event_id)
     .eq('company_id', ctx.companyId)
+    .eq('lead_id', ctx.leadId) // prevent intra-company IDOR
     .single();
 
   if (!event) throw new Error('Agendamento não encontrado.');
@@ -541,8 +543,9 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
     status: 'rescheduled'
   }).eq('id', args.event_id).eq('company_id', ctx.companyId);
   
-  // Atualizar lembrete (2h antes do novo horário)
-  const newRemindAt = new Date(newStart.getTime() - 2 * 60 * 60 * 1000);
+  // Atualizar lembrete usando reminder_advance_hours da config (fallback 2h)
+  const reminderAdvanceHours = (event.companies as any)?.persona_config?.reminder_advance_hours ?? 2;
+  const newRemindAt = new Date(newStart.getTime() - reminderAdvanceHours * 60 * 60 * 1000);
   if (newRemindAt > new Date()) {
     await admin.from('reminders')
       .update({ remind_at: newRemindAt.toISOString() })
@@ -582,6 +585,7 @@ export async function handleMyAppointments(_args: any, ctx: ToolContext) {
     .from('events')
     .select('id, title, start_time, status')
     .eq('lead_id', ctx.leadId)
+    .eq('company_id', ctx.companyId) // ALWAYS filter by company_id!
     .neq('status', 'cancelled')
     .gte('start_time', new Date().toISOString())
     .order('start_time', { ascending: true });

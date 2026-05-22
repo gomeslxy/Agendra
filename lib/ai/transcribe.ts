@@ -44,18 +44,23 @@ export async function transcribeWhatsAppAudio(
     if (!audioRes.ok) return { text: '[Áudio recebido — falha no download]', error: `audio ${audioRes.status}` };
     const buffer = Buffer.from(await audioRes.arrayBuffer());
 
-    // 3. Transcrever via Gemini multimodal
+    // 3. Transcrever via Gemini multimodal (P1-1: 15s timeout prevents hanging promises)
     const model = genAI.getGenerativeModel({ model: TRANSCRIBE_MODEL });
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          data: buffer.toString('base64'),
-          mimeType: meta.mime_type ?? 'audio/ogg',
+    const result = await Promise.race([
+      model.generateContent([
+        {
+          inlineData: {
+            data: buffer.toString('base64'),
+            mimeType: meta.mime_type ?? 'audio/ogg',
+          },
         },
-      },
-      {
-        text: 'Transcreva este áudio para português brasileiro de forma fiel. Responda APENAS com o texto transcrito, sem comentários, prefixos ou aspas. Se o áudio estiver inaudível, responda: [inaudível].',
-      },
+        {
+          text: 'Transcreva este áudio para português brasileiro de forma fiel. Responda APENAS com o texto transcrito, sem comentários, prefixos ou aspas. Se o áudio estiver inaudível, responda: [inaudível].',
+        },
+      ]),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Transcription timeout (15s)')), 15_000)
+      ),
     ]);
 
     const text = result.response.text().trim();

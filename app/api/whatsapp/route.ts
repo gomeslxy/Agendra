@@ -15,7 +15,7 @@
  *  - Processa a lógica de negócio de forma assíncrona (fire-and-forget)
  */
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { handleIncomingMessage } from "@/lib/ai/engine";
@@ -135,6 +135,13 @@ async function resolveChannel(
     if (error || !data) {
       console.warn(`[Nexus] ⚠️ Canal não encontrado para phone_id=${phoneNumberId}`);
       return null;
+    }
+
+    // P0-4 fix: migration 034 moved access_token to vault.secrets (access_token column = NULL).
+    // Call channel_get_access_token RPC which handles both vault and plaintext fallback.
+    if (!data.access_token && data.access_token_secret_id) {
+      const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: data.id });
+      data.access_token = tokenData ?? null;
     }
 
     return data;
