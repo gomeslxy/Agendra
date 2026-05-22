@@ -645,7 +645,12 @@ export async function handleIncomingMessage(
       }
 
       if (!sentAudio) {
-        await sendWhatsAppMessage(phone, finalReply, companyId);
+        try {
+          await sendWhatsAppMessage(phone, finalReply, companyId);
+        } catch (sendErr) {
+          console.error('[WhatsApp] Failed to send reply:', sendErr);
+        }
+        console.log(`[WhatsApp] ✅ Mensagem enviada para ${phone.substring(0,6)}***`);
       }
     } else {
       console.log(`[AI Engine] Modo Shadow ativo para lead ${phone}. Mensagem persistida como rascunho (is_draft: true).`);
