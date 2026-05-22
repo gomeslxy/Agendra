@@ -8,6 +8,7 @@ const TTS_VOICE = 'nova'; // feminina pt-BR aceitável; alternativas: alloy, ech
 const MAX_TTS_CHARS = 4000;
 
 export async function synthesizeSpeech(text: string): Promise<Buffer | null> {
+  if (process.env.ENABLE_TTS !== 'true') return null;
   if (!process.env.OPENAI_API_KEY) return null;
   const truncated = text.slice(0, MAX_TTS_CHARS);
 
