@@ -21,8 +21,8 @@ function toOpenAITool(t: NeutralToolDefinition): ChatCompletionTool {
 
 export class GroqAdapter implements AIProviderAdapter {
   readonly name = 'groq' as const;
-  readonly defaultChatModel = 'gpt-oss-120b';
-  readonly defaultGenerateModel = 'gpt-oss-120b';
+  readonly defaultChatModel = 'llama-3.3-70b-versatile';
+  readonly defaultGenerateModel = 'llama-3.3-70b-versatile';
 
   private client = new OpenAI({
     baseURL: 'https://api.groq.com/openai/v1',
@@ -30,7 +30,7 @@ export class GroqAdapter implements AIProviderAdapter {
   });
 
   async chat(params: ChatParams): Promise<ChatResult> {
-    const modelName = params.preferredModel ?? this.defaultChatModel;
+    const modelName = this.defaultChatModel;
     const tools = params.tools.length > 0 ? params.tools.map(toOpenAITool) : undefined;
 
     const messages: ChatCompletionMessageParam[] = [
@@ -109,7 +109,7 @@ export class GroqAdapter implements AIProviderAdapter {
   }
 
   async generateText(params: GenerateParams): Promise<string> {
-    const modelName = params.preferredModel ?? this.defaultGenerateModel;
+    const modelName = this.defaultGenerateModel;
     const response = await this.client.chat.completions.create({
       model: modelName,
       messages: [{ role: 'user', content: params.prompt }],

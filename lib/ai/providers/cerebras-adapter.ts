@@ -21,8 +21,8 @@ function toOpenAITool(t: NeutralToolDefinition): ChatCompletionTool {
 
 export class CerebrasAdapter implements AIProviderAdapter {
   readonly name = 'cerebras' as const;
-  readonly defaultChatModel = 'gpt-oss-120b';
-  readonly defaultGenerateModel = 'gpt-oss-120b';
+  readonly defaultChatModel = 'llama3.1-8b';
+  readonly defaultGenerateModel = 'llama3.1-8b';
 
   private client = new OpenAI({
     baseURL: 'https://api.cerebras.ai/v1',
@@ -30,7 +30,7 @@ export class CerebrasAdapter implements AIProviderAdapter {
   });
 
   async chat(params: ChatParams): Promise<ChatResult> {
-    const modelName = params.preferredModel ?? this.defaultChatModel;
+    const modelName = this.defaultChatModel;
     const tools = params.tools.length > 0 ? params.tools.map(toOpenAITool) : undefined;
 
     const messages: ChatCompletionMessageParam[] = [
@@ -109,7 +109,7 @@ export class CerebrasAdapter implements AIProviderAdapter {
   }
 
   async generateText(params: GenerateParams): Promise<string> {
-    const modelName = params.preferredModel ?? this.defaultGenerateModel;
+    const modelName = this.defaultGenerateModel;
     const response = await this.client.chat.completions.create({
       model: modelName,
       messages: [{ role: 'user', content: params.prompt }],

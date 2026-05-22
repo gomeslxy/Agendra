@@ -15,8 +15,8 @@ function toOpenAITool(t: NeutralToolDefinition) {
 
 export class SambaNovaAdapter implements AIProviderAdapter {
   readonly name = 'sambanova' as const;
-  readonly defaultChatModel = 'DeepSeek-V3.1';
-  readonly defaultGenerateModel = 'DeepSeek-V3.1';
+  readonly defaultChatModel = 'Meta-Llama-3.1-70B-Instruct';
+  readonly defaultGenerateModel = 'Meta-Llama-3.1-70B-Instruct';
 
   private async post<T = any>(body: Record<string, any>): Promise<T> {
     const r = await fetch(`${BASE}/chat/completions`, {
@@ -33,7 +33,7 @@ export class SambaNovaAdapter implements AIProviderAdapter {
   }
 
   async chat(params: ChatParams): Promise<ChatResult> {
-    const modelName = params.preferredModel ?? this.defaultChatModel;
+    const modelName = this.defaultChatModel;
     const tools = params.tools.length ? params.tools.map(toOpenAITool) : undefined;
 
     const messages: any[] = [
@@ -85,7 +85,7 @@ export class SambaNovaAdapter implements AIProviderAdapter {
 
   async generateText(params: GenerateParams): Promise<string> {
     const resp = await this.post({
-      model: params.preferredModel ?? this.defaultGenerateModel,
+      model: this.defaultGenerateModel,
       messages: [{ role: 'user', content: params.prompt }],
       ...(params.jsonMode ? { response_format: { type: 'json_object' } } : {}),
     });
