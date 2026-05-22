@@ -24,12 +24,14 @@ import { getCompanyUsage, type CompanyUsage } from "@/lib/billing/limits";
 // ─── Tipos (Meta Webhook Payload) ────────────────────────────────────────────
 
 interface MetaTextMessage {
-  id: string;
-  from: string;
-  timestamp: string;
-  type: "text" | "image" | "audio" | "video" | "document" | "sticker" | "location";
+  id: string; from: string; timestamp: string;
+  type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'sticker' | 'location' | 'reaction';
   text?: { body: string };
   audio?: { id: string; mime_type?: string };
+  image?: { id: string; mime_type?: string; caption?: string };
+  sticker?: { id: string };
+  location?: { latitude: number; longitude: number; name?: string; address?: string };
+  reaction?: { message_id: string; emoji: string };
 }
 
 interface MetaContact {
@@ -322,26 +324,12 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
           void sendTypingIndicator(channel.provider_id, channel.access_token, msg.id);
         }
 
-        // 3. Extrair body texto (mídia será tratada na Wave 4)
-        // POR ENQUANTO: manter lógica atual de extração de messageText
-        // Wave 4 substituirá esta seção por routeMedia()
-        let messageText = '';
-        let incomingMetadata: Record<string, any> | undefined;
-        if (msg.type === 'text' && msg.text?.body) {
-          messageText = msg.text.body;
-        } else if (msg.type === 'audio') {
-          const channelToken = channel?.access_token;
-          if (msg.audio?.id && channelToken) {
-            const { transcribeWhatsAppAudio } = await import('@/lib/ai/transcribe');
-            const result = await transcribeWhatsAppAudio(msg.audio.id, channelToken);
-            messageText = result.text;
-            incomingMetadata = { is_audio: true, audio_id: msg.audio.id };
-          } else {
-            messageText = '[Áudio recebido]';
-          }
-        } else {
-          messageText = `[Mídia recebida: ${msg.type}]`;
-        }
+        // 3. Rotear mídia — ponto único de extensão (Wave 4)
+        const { routeMedia } = await import('@/lib/ai/media-router');
+        const { body: messageText, metadata: mediaMetadata } = await routeMedia(
+          msg as any, channel.access_token ?? '', msg.id
+        );
+        const incomingMetadata = { ...mediaMetadata };
         if (!messageText) continue;
 
         // 4. Debounce 4s — fallback DB se Redis off
