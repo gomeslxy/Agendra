@@ -42,7 +42,7 @@ export async function deactivateTakeover(args: {
 }): Promise<void> {
   const admin = createAdminClient();
   await admin.from('leads').update({
-    is_paused: false, control_mode: 'auto',
+    is_paused: false,    control_mode: 'autonomous',
     human_takeover_at: null, human_takeover_until: null, human_takeover_by: null,
   }).eq('id', args.leadId).eq('company_id', args.companyId);
 }

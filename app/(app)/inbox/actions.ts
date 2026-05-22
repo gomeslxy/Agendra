@@ -3,6 +3,7 @@
 import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireOnboarding } from "@/lib/onboarding/guards";
+import { activateTakeover, deactivateTakeover } from "@/lib/ai/takeover";
 import { sendWhatsAppMessage, sendWhatsAppMedia } from "@/lib/whatsapp/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { persistAITrace } from "@/lib/ai/observability";
@@ -61,18 +62,20 @@ export async function takeOverLead(leadId: string) {
   const { company_id } = await getLeadInfo(supabase, leadId);
   await requireOnboarding(company_id);
 
-  await supabase
-    .from("leads")
-    .update({ is_paused: true, control_mode: 'manual' })
-    .eq("id", leadId);
+  // Use centralized takeover helper
+  await activateTakeover({
+    companyId: company_id,
+    leadId,
+    userId: profile.id,
+  });
 
+  // Persist a note for UI visibility (optional)
   const { error } = await supabase.from("messages").insert({
     lead_id: leadId,
     company_id,
     content: "Atendente assumiu a conversa (Modo Manual).",
     role: "note",
   });
-
   if (error) throw new Error(error.message);
 
   // Observabilidade: log de handoff manual
@@ -97,18 +100,16 @@ export async function automatizeLead(leadId: string) {
   const { company_id } = await getLeadInfo(supabase, leadId);
   await requireOnboarding(company_id);
 
-  await supabase
-    .from("leads")
-    .update({ is_paused: false, control_mode: 'autonomous' })
-    .eq("id", leadId);
+  // Use centralized takeover helper to deactivate human takeover
+  await deactivateTakeover({ companyId: company_id, leadId });
 
+  // Persist a note for UI visibility (optional)
   const { error } = await supabase.from("messages").insert({
     lead_id: leadId,
     company_id,
     content: "Conversa voltou para atendimento automático (Modo Autônomo).",
     role: "note",
   });
-
   if (error) throw new Error(error.message);
 
   // Observabilidade: log de retorno à automação
@@ -149,15 +150,19 @@ export async function setControlMode(leadId: string, mode: 'autonomous' | 'shado
   const { company_id } = await getLeadInfo(supabase, leadId);
   await requireOnboarding(company_id);
 
-  const isPaused = mode === 'manual';
-
-  await supabase
-    .from("leads")
-    .update({ 
-      control_mode: mode,
-      is_paused: isPaused
-    })
-    .eq("id", leadId);
+  // Use takeover helpers for supported modes
+  if (mode === 'manual') {
+    await activateTakeover({ companyId: company_id, leadId, userId: profile.id });
+  } else if (mode === 'autonomous') {
+    await deactivateTakeover({ companyId: company_id, leadId });
+  } else {
+    // For 'shadow' fallback to direct DB update
+    const isPaused = false; // shadow does not pause the lead
+    await supabase
+      .from("leads")
+      .update({ control_mode: mode, is_paused: isPaused })
+      .eq("id", leadId);
+  }
 
   const modeLabels = {
     autonomous: "automático (Modo Autônomo)",

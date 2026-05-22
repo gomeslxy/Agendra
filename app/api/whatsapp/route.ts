@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCompanyUsage, type CompanyUsage } from "@/lib/billing/limits";
+export const maxDuration = 300; // seconds, Vercel edge limit
 
 // ─── Tipos (Meta Webhook Payload) ────────────────────────────────────────────
 

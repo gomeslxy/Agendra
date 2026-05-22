@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { exportReportsXlsx } from "./actions";
 import { createClient } from "@/lib/supabase/client";
+import { ProviderHealthSection } from "./components/ProviderHealthSection";
 
 /* ─── helpers ─────────────────────────────────────────────── */
 function AnimatedNumber({ value, suffix = "", prefix = "" }: { value: number; suffix?: string; prefix?: string }) {
@@ -62,6 +63,23 @@ interface RecentTransaction {
   lead: { name: string } | null;
 }
 
+// Provider health stats
+export interface ProviderStat {
+  provider: 'cerebras' | 'groq' | 'sambanova' | 'gemini';
+  requests_24h: number;
+  requests_7d: number;
+  successes_7d: number;
+  avg_latency_ms: number;
+  total_cost_7d: number;
+}
+
+// Chain kind aggregation stats
+export interface ChainStat {
+  chain_kind: 'conv' | 'tools' | 'bg';
+  count: number;
+}
+
+
 interface ReportsClientProps {
   dailyDetails: DayBucket[];
   funnelStages: FunnelStage[];
@@ -71,7 +89,11 @@ interface ReportsClientProps {
   avgTicket: number;
   recentTransactions: RecentTransaction[];
   companyId: string;
+  providerStats: ProviderStat[];
+  chainStats: ChainStat[];
+  hasAnalytics: boolean;
 }
+
 
 /* ─── Custom tooltip for area chart ──────────────────────────── */
 function AreaTooltip({ active, payload, label }: any) {
@@ -579,8 +601,17 @@ const CHANNEL_COLORS: Record<string, string> = {
 };
 
 export function ReportsClient({
-  dailyDetails, funnelStages, heatmapData, avgHeatScore,
-  totalRevenue90d, avgTicket, recentTransactions, companyId,
+  dailyDetails,
+  funnelStages,
+  heatmapData,
+  avgHeatScore,
+  totalRevenue90d,
+  avgTicket,
+  recentTransactions,
+  companyId,
+  providerStats,
+  chainStats,
+  hasAnalytics,
 }: ReportsClientProps) {
   const [period, setPeriod] = useState<Period>("7d");
   const [exportPending, startExport] = useTransition();
@@ -938,6 +969,9 @@ export function ReportsClient({
           Concentração histórica de novos leads por dia da semana e horário. Use para otimizar plantões.
         </p>
         <LeadHeatmap data={heatmapData} />
+{hasAnalytics && providerStats.length > 0 && (
+  <ProviderHealthSection providerStats={providerStats} chainStats={chainStats} />
+)}
       </motion.div>
     </div>
   );

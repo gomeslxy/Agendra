@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
+import type { ProviderStat, ChainStat } from "./reports-client";
 import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
 import { ReportsClient } from "./reports-client";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getPlanLimits, type PlanType } from "@/lib/billing/plans";
 
 export default async function ReportsPage() {
   const user = await getUser();
@@ -145,6 +148,59 @@ export default async function ReportsPage() {
     ? totalRevenue90d / allTransactions.filter((t) => t.status === "paid").length
     : 0;
 
+    // Provider health analytics
+    const adminClient = createAdminClient();
+    const { data: companyData } = await adminClient.from('companies').select('plan_type').eq('id', companyId).single();
+    const planLimits = getPlanLimits((companyData?.plan_type ?? 'trial') as PlanType);
+    const hasAnalytics = planLimits.hasAnalytics ?? false;
+    let providerStats: ProviderStat[] = [];
+    let chainStats: ChainStat[] = [];
+    if (hasAnalytics) {
+      const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: aiLogs } = await adminClient.from('ai_logs')
+        .select('provider, chain_kind, latency_ms, cost, error, created_at')
+        .eq('company_id', companyId)
+        .gte('created_at', since7d)
+        .not('provider', 'is', null);
+      const logs = aiLogs ?? [];
+      // Aggregate provider stats
+      const PROVIDERS = ['cerebras', 'groq', 'sambanova', 'gemini'] as const;
+      const providerMap = new Map<string, { req7d: number; req24h: number; successes: number; latencySum: number; latencyCount: number; costSum: number }>();
+      for (const p of PROVIDERS) {
+        providerMap.set(p, { req7d: 0, req24h: 0, successes: 0, latencySum: 0, latencyCount: 0, costSum: 0 });
+      }
+      for (const log of logs) {
+        if (!log.provider) continue;
+        const agg = providerMap.get(log.provider);
+        if (!agg) continue;
+        agg.req7d++;
+        if (log.created_at >= since24h) agg.req24h++;
+        if (!log.error) agg.successes++;
+        if (log.latency_ms != null) { agg.latencySum += log.latency_ms; agg.latencyCount++; }
+        if (log.cost != null) agg.costSum += log.cost;
+      }
+      providerStats = PROVIDERS.map((p) => {
+        const agg = providerMap.get(p)!;
+        return {
+          provider: p,
+          requests_24h: agg.req24h,
+          requests_7d: agg.req7d,
+          successes_7d: agg.successes,
+          avg_latency_ms: agg.latencyCount > 0 ? Math.round(agg.latencySum / agg.latencyCount) : 0,
+          total_cost_7d: parseFloat(agg.costSum.toFixed(6)),
+        };
+      });
+      // Chain kind aggregation
+      const chainMap = new Map<string, number>([['conv', 0], ['tools', 0], ['bg', 0]]);
+      for (const log of logs) {
+        if (log.chain_kind && chainMap.has(log.chain_kind)) {
+          chainMap.set(log.chain_kind, (chainMap.get(log.chain_kind) ?? 0) + 1);
+        }
+      }
+      chainStats = (['conv', 'tools', 'bg'] as const).map((k) => ({ chain_kind: k, count: chainMap.get(k) ?? 0 }));
+    }
+
   return (
     <ReportsClient
       dailyDetails={dailyDetails}
@@ -155,6 +211,9 @@ export default async function ReportsPage() {
       avgTicket={avgTicket}
       recentTransactions={(recentPaidTxs ?? []) as any}
       companyId={companyId}
+      providerStats={providerStats}
+      chainStats={chainStats}
+      hasAnalytics={hasAnalytics}
     />
   );
 }
