@@ -24,7 +24,7 @@ export default async function InboxPage() {
       .select(`*, messages(id, content, role, created_at)`)
       .eq("company_id", companyId)
       .order("updated_at", { ascending: false })
-      .order("created_at", { foreignTable: "messages", ascending: true })
+      .order("created_at", { foreignTable: "messages", ascending: false })
       .limit(50, { foreignTable: "messages" })
       .limit(30),
     supabase
@@ -45,11 +45,14 @@ export default async function InboxPage() {
     }
   }
 
-  const leads: LeadWithMessages[] = (data ?? []).map((l) => ({
-    ...l,
-    messages: (l.messages ?? []) as Message[],
-    next_event: eventByLead.get(l.id) ?? null,
-  }));
+  const leads: LeadWithMessages[] = (data ?? []).map((l) => {
+    const reversedMessages = ((l.messages ?? []) as Message[]).reverse();
+    return {
+      ...l,
+      messages: reversedMessages,
+      next_event: eventByLead.get(l.id) ?? null,
+    };
+  });
 
   return <InboxClient leads={leads} companyId={companyId} fetchError={error?.message ?? null} />;
 }

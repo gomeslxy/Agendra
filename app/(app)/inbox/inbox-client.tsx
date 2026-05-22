@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Image } from "lucide-react";
+import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Image, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
@@ -41,6 +41,8 @@ function lastMsg(lead: LeadWithMessages) {
 
 export function InboxClient({ leads: initialLeads, companyId, fetchError }: { leads: LeadWithMessages[]; companyId: string | null; fetchError?: string | null }) {
   const [leads, setLeads] = useState<LeadWithMessages[]>(initialLeads);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id ?? null);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -90,13 +92,18 @@ if (newMsg.role === "user") {
             setIsTyping(false);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
           }
-          setLeads((prev) =>
-            prev.map((lead) => {
+          setLeads((prev) => {
+            const next = prev.map((lead) => {
               if (lead.id !== newMsg.lead_id) return lead;
               if (lead.messages.some((m) => m.id === newMsg.id)) return lead;
               return { ...lead, messages: [...lead.messages, newMsg] };
-            }),
-          );
+            });
+            return next.sort((a, b) => {
+              const aLast = lastMsg(a)?.created_at ?? a.updated_at;
+              const bLast = lastMsg(b)?.created_at ?? b.updated_at;
+              return new Date(bLast).getTime() - new Date(aLast).getTime();
+            });
+          });
         },
       )
       .on(
@@ -104,11 +111,16 @@ if (newMsg.role === "user") {
         { event: "UPDATE", schema: "public", table: "leads" },
         (payload) => {
           const updatedLead = payload.new as Lead;
-          setLeads((prev) =>
-            prev.map((lead) =>
+          setLeads((prev) => {
+            const next = prev.map((lead) =>
               lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead,
-            ),
-          );
+            );
+            return next.sort((a, b) => {
+              const aLast = lastMsg(a)?.created_at ?? a.updated_at;
+              const bLast = lastMsg(b)?.created_at ?? b.updated_at;
+              return new Date(bLast).getTime() - new Date(aLast).getTime();
+            });
+          });
         },
       )
       .on(
@@ -120,7 +132,11 @@ if (newMsg.role === "user") {
           if (companyId && newLead.company_id !== companyId) return;
           setLeads((prev) => {
             if (prev.some((l) => l.id === newLead.id)) return prev;
-            return [{ ...newLead, messages: [] }, ...prev];
+            return [{ ...newLead, messages: [] }, ...prev].sort((a, b) => {
+              const aLast = lastMsg(a)?.created_at ?? a.updated_at;
+              const bLast = lastMsg(b)?.created_at ?? b.updated_at;
+              return new Date(bLast).getTime() - new Date(aLast).getTime();
+            });
           });
         },
       )
@@ -138,6 +154,14 @@ if (newMsg.role === "user") {
     () => leads.find((l) => l.id === selectedId) ?? null,
     [leads, selectedId],
   );
+
+  const filteredLeads = useMemo(() => {
+    return leads.filter((l) => {
+      const matchSearch = l.name.toLowerCase().includes(searchQuery.toLowerCase()) || l.phone.includes(searchQuery);
+      const matchStatus = statusFilter === 'all' || l.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [leads, searchQuery, statusFilter]);
 
   // Restore focus after sending message or taking over
   useEffect(() => {
@@ -614,11 +638,33 @@ if (newMsg.role === "user") {
               </div>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-2 rounded-xl bg-white/[0.03] border border-white/[0.06] px-3 py-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">Atividade:</span>
-            <span className="font-mono text-[11px] font-bold text-brand-blue-400">
-              {leads.length} leads hoje
-            </span>
+          <div className="mt-4 flex flex-col gap-3 px-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
+              <input
+                type="text"
+                placeholder="Buscar por nome ou telefone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-3 py-2 text-[13px] text-white placeholder:text-white/30 focus:border-brand-blue-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-500 transition-all"
+              />
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto custom-scrollbar pb-1">
+              {['all', 'hot', 'warm', 'cold', 'success'].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={cn(
+                    "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all whitespace-nowrap",
+                    statusFilter === status 
+                      ? "bg-brand-blue-500/20 border-brand-blue-500/50 text-brand-blue-400" 
+                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                  )}
+                >
+                  {status === 'all' ? 'Todos' : status}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -628,16 +674,16 @@ if (newMsg.role === "user") {
               Erro ao carregar: {inboxError}
             </div>
           )}
-          {leads.length === 0 ? (
+          {filteredLeads.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 px-5 text-center gap-2">
               <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center">
                 <Zap size={20} className="text-white/20" />
               </div>
-              <p className="text-xs font-medium text-white/30 italic">Nenhuma conversa disponível.</p>
+              <p className="text-xs font-medium text-white/30 italic">Nenhum lead encontrado.</p>
             </div>
           ) : (
             <motion.div variants={stagger(0.02, 0.03)} initial="hidden" animate="show" className="flex flex-col">
-              {leads.map((l) => {
+              {filteredLeads.map((l) => {
                 const last = lastMsg(l);
                 const isActive = l.id === selectedId;
                 return (
