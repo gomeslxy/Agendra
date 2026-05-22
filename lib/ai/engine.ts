@@ -687,6 +687,7 @@ export async function handleIncomingMessage(
     }
 
     // 11. Observability
+    const schedulingIntentLocal = /\b(agend|hor[áa]rio|marcar|dispon[íi]v|hoje|amanh[ãa]|que dia|que horas|cancel|reagend)\b/i.test(messageText);
     await persistAILog({
       company_id: companyId,
       lead_id: activeLead.id,
@@ -705,7 +706,10 @@ export async function handleIncomingMessage(
       retries: aiResult.fallback_used ? 1 : 0,
       error: null,
       trace_id: traceId,
-      rag_status: ragStatus
+      rag_status: ragStatus,
+      provider: aiResult.provider_used as 'cerebras' | 'groq' | 'sambanova' | 'gemini',
+      provider_chain_used: [aiResult.provider_used],
+      chain_kind: schedulingIntentLocal ? 'tools' : 'conv',
     });
 
   } catch (err: any) {
@@ -831,6 +835,16 @@ export async function handleIncomingMessage(
           rationale: analytics.rationale,
           trace_id: traceId,
         });
+
+        await admin.from('automation_events').insert({
+          company_id: companyId,
+          lead_id: activeLead.id,
+          type: 'analytics_processed',
+          detail: `sentiment=${analytics.sentiment_score?.toFixed(2)} intent=${analytics.intent_detected}`,
+          payload: { sentiment_score: analytics.sentiment_score, intent: analytics.intent_detected },
+          trace_id: traceId,
+        }).then(() => {}, () => {});
+
         console.log('[AI Engine] Log cognitivo e de background gravado com sucesso.');
       } catch (e) {
         console.error('[AI Engine] Background analytics failed (non-blocking):', e);

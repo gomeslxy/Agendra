@@ -179,6 +179,9 @@ export interface AILog {
   created_at: string;
   trace_id?: string | null;
   rag_status?: 'ok' | 'empty' | 'failed' | 'timeout' | null;
+  provider?: 'cerebras' | 'groq' | 'sambanova' | 'gemini' | null;
+  provider_chain_used?: string[] | null;
+  chain_kind?: 'conv' | 'tools' | 'bg' | null;
 }
 
 export interface AITrace {

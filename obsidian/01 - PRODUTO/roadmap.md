@@ -152,16 +152,16 @@
 
 ---
 
-## 🔀 Fase 6: Multi-Provider Free Tier (Em Progresso)
+## 🔀 Fase 6: Multi-Provider Free Tier (✅ Concluído 2026-05-22)
 > Plano: `obsidian/06 - BACKLOG/motor-ia-multiprovider/_INDEX.md`
 
 - [x] Wave 0 — Housekeeping (migration 033 conflict + baseline)
-- [ ] Wave 1 — Redis client + migrations 038/039/040
-- [ ] Wave 2 — Debounce + Webhook reorder + Takeover
-- [ ] Wave 3 — Adapters Cerebras + SambaNova + Router 4-providers
-- [ ] Wave 4 — Pipeline mídia (Whisper Groq + Gemini Vision)
-- [ ] Wave 5 — Engine refinements (jailbreak, compactação, fallback humano)
-- [ ] Wave 6 — Observability + docs arquitetura
+- [x] Wave 1 — Redis client + migrations 038/039/040
+- [x] Wave 2 — Debounce + Webhook reorder + Takeover
+- [x] Wave 3 — Adapters Cerebras + SambaNova + Router 4-providers
+- [x] Wave 4 — Pipeline mídia (Whisper Groq + Gemini Vision)
+- [x] Wave 5 — Engine refinements (jailbreak, compactação, fallback humano)
+- [x] Wave 6 — Observability + docs arquitetura
 
 ---
 [[visao-geral|⬅️ Voltar]]
