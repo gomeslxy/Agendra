@@ -1,19 +1,21 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { AILog, AITrace } from '@/lib/types/database';
 
-/**
- * Calculates estimated cost for current Gemini models.
- * gemini-2.5-flash: $0.30/$2.50 per 1M tokens (in/out) — paid tier estimate
- * gemini-2.5-flash-lite: $0.10/$0.40 per 1M tokens (in/out)
- * Free tier: $0 — rates here used for observability estimation only.
- */
-export function calculateGeminiCost(inputTokens: number, outputTokens: number, model: string): number {
+export function calculateProviderCost(inputTokens: number, outputTokens: number, model: string): number {
+  // Groq pricing (llama-3.1-8b-instant): ~$0.05/$0.08 per 1M tokens
+  if (model.includes('llama') || model.includes('groq')) {
+    return (inputTokens * 0.05 / 1_000_000) + (outputTokens * 0.08 / 1_000_000);
+  }
+  // Gemini lite: $0.10/$0.40 per 1M tokens
   if (model.includes('flash-lite')) {
     return (inputTokens * 0.10 / 1_000_000) + (outputTokens * 0.40 / 1_000_000);
   }
-  // gemini-2.5-flash
+  // Gemini flash: $0.30/$2.50 per 1M tokens
   return (inputTokens * 0.30 / 1_000_000) + (outputTokens * 2.50 / 1_000_000);
 }
+
+/** @deprecated Use calculateProviderCost */
+export const calculateGeminiCost = calculateProviderCost;
 
 /**
  * Persists an AI interaction log to the database.
@@ -26,7 +28,7 @@ export async function persistAILog(log: Omit<AILog, 'id' | 'created_at'>): Promi
     // Ensure cost is calculated if tokens are provided
     const finalLog = {
       ...log,
-      cost: log.cost ?? calculateGeminiCost(log.tokens_input ?? 0, log.tokens_output ?? 0, log.model)
+      cost: log.cost ?? calculateProviderCost(log.tokens_input ?? 0, log.tokens_output ?? 0, log.model)
     };
 
     const { error } = await admin.from('ai_logs').insert(finalLog);

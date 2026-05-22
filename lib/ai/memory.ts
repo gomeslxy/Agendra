@@ -1,7 +1,7 @@
 // lib/ai/memory.ts
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { LeadMemory, LeadMemoryEventType, ScoreHistoryEntry, Message } from '@/lib/types/database';
-import { genAI } from './client';
+import { routeGenerate } from './providers/router';
 
 export const EMPTY_MEMORY: LeadMemory = {
   timeline: [],
@@ -92,11 +92,6 @@ export async function processBackgroundAnalytics(
   answers: Record<string, string>;
   new_summary: string;
 }> {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash-lite',
-    generationConfig: { responseMimeType: 'application/json' }
-  });
-
   // [FIX P2-3] Limita o histórico do analytics para as últimas 5 mensagens (economiza mais de 60% dos tokens)
   const conversation = history
     .filter(m => m.role === 'user' || m.role === 'assistant')
@@ -105,7 +100,7 @@ export async function processBackgroundAnalytics(
     .join('\n');
 
   const prompt = `Analise a última interação do lead e extraia metadados estruturados para o CRM e auditoria no formato JSON.
-  
+
 Resumo anterior do estado do lead: ${currentSummary || 'Nenhum'}
 
 Histórico recente:
@@ -130,8 +125,8 @@ Retorne um objeto JSON estritamente com os seguintes campos:
 JSON:`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.text());
+    const generateResult = await routeGenerate({ prompt, jsonMode: true });
+    const parsed = JSON.parse(generateResult.text);
     
     return {
       sentiment: parsed.sentiment || 'neutral',

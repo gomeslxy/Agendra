@@ -1,11 +1,9 @@
-import { type Content, FunctionCallingMode } from '@google/generative-ai';
-import { genAI } from './client';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import type { Lead, Message } from '@/lib/types/database';
 import crypto from 'crypto';
 import {
-  toolDeclarations,
   handleListServices,
   handleCheckAvailability,
   handleBookAppointment,
@@ -25,8 +23,12 @@ import { getPlanLimits } from '@/lib/billing/plans';
 import { persistAILog, createTimer } from '@/lib/ai/observability';
 import { EMPTY_MEMORY, mountContext, processBackgroundAnalytics, appendScoreHistory } from './memory';
 import { validateAndNormalizeScore } from './scoring';
+import { routeChat, routeGenerate } from './providers/router';
+import { neutralToolDefinitions } from './tool-schemas';
+import type { NormalizedMessage } from './providers/types';
 
-const MAIN_MODEL = 'gemini-2.5-flash';
+// Gemini SDK kept ONLY for text-embedding-005 (RAG) — no chat provider direct here
+const _embeddingGenAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
 interface Service {
   id: string;
@@ -167,6 +169,8 @@ interface AIResult {
   tokens_output: number;
   tools_called: any[];
   model_used: string;
+  provider_used: string;
+  fallback_used: boolean;
 }
 
 export async function processLeadMessage(
@@ -181,106 +185,53 @@ export async function processLeadMessage(
   traceId?: string,
 ): Promise<AIResult> {
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
+  const systemPrompt = buildSystemPrompt(persona, lead, memoryContext, isNewConversation, planType, planLimits);
 
   const ctx: ToolContext = { companyId, leadId: lead.id, traceId };
-  let geminiHistory: Content[] = history
+
+  const normalizedHistory: NormalizedMessage[] = history
     .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: m.content }],
-    }));
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-  const firstUserIndex = geminiHistory.findIndex((h) => h.role === 'user');
-  geminiHistory = firstUserIndex !== -1 ? geminiHistory.slice(firstUserIndex) : [];
-
-  // Plan-aware model: trial/starter use flash-lite (3x cheaper); pro/business use flash.
-  // hasAdvancedModel === false means explicitly downgraded (not just missing).
   const isLitePlan = planLimits.hasAdvancedModel === false;
-  const primaryModel = isLitePlan ? 'gemini-2.5-flash-lite' : MAIN_MODEL;
-  // Plan-aware iteration cap: fewer tool calls for lower plans saves quota on loops.
   const MAX_ITERATIONS = isLitePlan ? 3 : 5;
+  // On advanced plans, prefer the heavier Gemini model when Gemini is selected as provider.
+  // On lite plans, always flash-lite. The Groq adapter ignores this (uses its own default).
+  const geminiModelOverride = isLitePlan ? 'gemini-2.5-flash-lite' : undefined;
 
-  let response: any;
-  let chat: any;
-  let modelUsed = primaryModel;
-  let lastErr: any;
-
-  for (let attempt = 0; attempt < 2; attempt++) {
+  async function toolHandler(name: string, args: Record<string, any>): Promise<any> {
     try {
-      // For lite plans: both attempts use flash-lite (retry on throttle).
-      // For advanced plans: attempt 0 = flash, attempt 1 = lite (degraded fallback).
-      const currentModel = attempt === 0 ? primaryModel : 'gemini-2.5-flash-lite';
-      const model = genAI.getGenerativeModel({
-        model: currentModel,
-        systemInstruction: buildSystemPrompt(persona, lead, memoryContext, isNewConversation, planType, planLimits),
-        tools: [toolDeclarations],
-        toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } },
-      });
-      chat = model.startChat({ history: geminiHistory });
-      response = await chat.sendMessage(newMessage);
-      modelUsed = currentModel;
-      break;
+      if (name === 'listServices') return await handleListServices(args as any, ctx);
+      if (name === 'checkAvailability') return await handleCheckAvailability(args as any, ctx);
+      if (name === 'bookAppointment') return await handleBookAppointment(args as any, ctx);
+      if (name === 'cancelAppointment') return await handleCancelAppointment(args as any, ctx);
+      if (name === 'rescheduleAppointment') return await handleRescheduleAppointment(args as any, ctx);
+      if (name === 'myAppointments') return await handleMyAppointments(args as any, ctx);
+      if (name === 'updateLeadInfo') return await handleUpdateLeadInfo(args as any, ctx);
+      if (name === 'updateLeadMemory') return await handleUpdateLeadMemory(args as any, ctx);
+      if (name === 'requestHumanAgent') return await handleRequestHumanAgent(args as any, ctx);
+      if (name === 'generatePixCharge') return await handleGeneratePixCharge(args as any, ctx);
+      if (name === 'checkPaymentStatus') return await handleCheckPaymentStatus(args as any, ctx);
+      return { error: 'Ferramenta desconhecida' };
     } catch (err) {
-      lastErr = err;
-      if (attempt === 1) throw err;
-      console.log(`[AI Engine] 🔄 Fallback para gemini-2.5-flash-lite`);
-      await new Promise(r => setTimeout(r, 500));
+      return { error: err instanceof Error ? err.message : String(err) };
     }
   }
 
-  let iterations = 0;
+  const result = await routeChat(
+    {
+      systemPrompt,
+      history: normalizedHistory,
+      userMessage: newMessage,
+      tools: neutralToolDefinitions,
+      toolHandler,
+      maxIterations: MAX_ITERATIONS,
+      preferredModel: geminiModelOverride,
+    },
+    traceId
+  );
 
-  const toolsCalled: any[] = [];
-  let totalInputTokens = response.response.usageMetadata?.promptTokenCount ?? 0;
-  let totalOutputTokens = response.response.usageMetadata?.candidatesTokenCount ?? 0;
-
-  while (iterations < MAX_ITERATIONS) {
-    iterations++;
-    const candidate = response.response.candidates?.[0];
-    if (!candidate) break;
-
-    const functionCalls = candidate.content.parts
-      .filter((p: any) => p.functionCall)
-      .map((p: any) => p.functionCall!);
-
-    if (functionCalls.length === 0) break;
-
-    const toolResults = await Promise.all(
-      functionCalls.map(async (fc: any) => {
-        const name = fc.name;
-        const args = (fc.args ?? {}) as any;
-        toolsCalled.push({ name, args_summary: JSON.stringify(args).substring(0, 100) });
-
-        try {
-          let result: any;
-          if (name === 'listServices') result = await handleListServices(args, ctx);
-          else if (name === 'checkAvailability') result = await handleCheckAvailability(args, ctx);
-          else if (name === 'bookAppointment') result = await handleBookAppointment(args, ctx);
-          else if (name === 'cancelAppointment') result = await handleCancelAppointment(args, ctx);
-          else if (name === 'rescheduleAppointment') result = await handleRescheduleAppointment(args, ctx);
-          else if (name === 'myAppointments') result = await handleMyAppointments(args, ctx);
-          else if (name === 'updateLeadInfo') result = await handleUpdateLeadInfo(args, ctx);
-          else if (name === 'updateLeadMemory') result = await handleUpdateLeadMemory(args, ctx);
-          else if (name === 'requestHumanAgent') result = await handleRequestHumanAgent(args, ctx);
-          else if (name === 'generatePixCharge') result = await handleGeneratePixCharge(args, ctx);
-          else if (name === 'checkPaymentStatus') result = await handleCheckPaymentStatus(args, ctx);
-          else result = { error: 'Ferramenta desconhecida' };
-
-          return { name, response: result };
-        } catch (err) {
-          return { name, response: { error: err instanceof Error ? err.message : String(err) } };
-        }
-      }),
-    );
-
-    const functionResponses = toolResults.map((r) => ({ functionResponse: r }));
-    response = await chat.sendMessage(functionResponses);
-
-    totalInputTokens += response.response.usageMetadata?.promptTokenCount ?? 0;
-    totalOutputTokens += response.response.usageMetadata?.candidatesTokenCount ?? 0;
-  }
-
-  const fullText = response.response.text() || '';
+  const fullText = result.text;
   const [replyPart, jsonPart] = fullText.split('---JSON---');
   const reply = replyPart ? replyPart.trim() : '';
 
@@ -304,10 +255,12 @@ export async function processLeadMessage(
     heat_score,
     status,
     summary,
-    tokens_input: totalInputTokens,
-    tokens_output: totalOutputTokens,
-    tools_called: toolsCalled,
-    model_used: modelUsed,
+    tokens_input: result.tokensInput,
+    tokens_output: result.tokensOutput,
+    tools_called: result.toolsCalled,
+    model_used: result.modelUsed,
+    provider_used: result.provider,
+    fallback_used: result.fallbackUsed,
   };
 }
 
@@ -322,7 +275,7 @@ async function getSemanticKnowledge(
 ): Promise<{ text: string; status: 'ok' | 'empty' | 'failed' | 'timeout' }> {
   try {
     if (!process.env.GOOGLE_AI_API_KEY) return { text: '', status: 'empty' };
-    const embedModel = genAI.getGenerativeModel({ model: 'text-embedding-005' });
+    const embedModel = _embeddingGenAI.getGenerativeModel({ model: 'text-embedding-005' });
 
     // 4-second timeout using Promise.race (W2.2)
     const embeddingPromise = embedModel.embedContent(query);
@@ -590,7 +543,21 @@ export async function handleIncomingMessage(
         usage.limits,
         traceId
       );
-    } catch (aiErr) {
+    } catch (aiErr: any) {
+      // Graceful degradation: all providers failed → send friendly fallback, release lock
+      if (String(aiErr?.message ?? '').startsWith('AI_ALL_PROVIDERS_FAILED')) {
+        console.error('[AI Engine] All providers failed, sending graceful fallback.', aiErr.message);
+        const gracefulMsg = 'Oi! Estou com uma instabilidade técnica momentânea. Por favor, aguarde alguns instantes e envie sua mensagem novamente. 🙏';
+        await sendWhatsAppMessage(phone, gracefulMsg, companyId);
+        await releaseLock();
+        if (providerMessageId) {
+          await admin.from('processed_messages').update({
+            status: 'error',
+            error_message: aiErr.message.substring(0, 500)
+          }).eq('provider_message_id', providerMessageId);
+        }
+        return;
+      }
       console.error('[AI Engine] processLeadMessage failed:', aiErr);
       throw aiErr;
     }
@@ -688,7 +655,6 @@ export async function handleIncomingMessage(
     }
 
     // 11. Observability
-    // [FIX P2-1] retries reflete se fallback para flash-lite foi acionado
     await persistAILog({
       company_id: companyId,
       lead_id: activeLead.id,
@@ -704,7 +670,7 @@ export async function handleIncomingMessage(
       tokens_input: aiResult.tokens_input,
       tokens_output: aiResult.tokens_output,
       cost: null,
-      retries: aiResult.model_used === 'gemini-2.5-flash-lite' ? 1 : 0,
+      retries: aiResult.fallback_used ? 1 : 0,
       error: null,
       trace_id: traceId,
       rag_status: ragStatus
@@ -765,11 +731,14 @@ export async function handleIncomingMessage(
           },
         };
 
+        // P0-3 fix: do NOT overwrite summary here.
+        // Main flow already wrote summary at step 9. Writing analytics.new_summary from
+        // message A's context can race-overwrite message B's summary if two messages
+        // arrive within the 20s analytics window.
         await admin
           .from('leads')
           .update({
             lead_memory: furtherUpdatedMem,
-            summary: analytics.new_summary,
             last_sentiment: analytics.sentiment_score,
             last_sentiment_at: new Date().toISOString()
           })
@@ -850,14 +819,17 @@ export async function triggerAutoFollowUp(leadId: string, preloadedUsage?: Compa
   if (!lastMsg || lastMsg.role !== 'assistant') return;
 
   // Atomic lock with followup_in_progress
-  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  // P1-4 fix: use followup_delay_hours from persona_config (* 2 for lock window) instead of hardcoded 48h.
+  // Ensures lock window matches the cron interval so aggressive configs (e.g. 6h) actually fire.
+  const followupDelayHours = (lead.companies?.persona_config as any)?.followup_delay_hours ?? 24;
+  const lockWindowAgo = new Date(Date.now() - followupDelayHours * 2 * 60 * 60 * 1000).toISOString();
   const { data: claimed } = await admin
     .from('leads')
     .update({ followup_in_progress: true })
     .eq('id', leadId)
     .eq('company_id', lead.company_id) // ALWAYS filter by company_id!
     .eq('followup_in_progress', false)
-    .or(`last_followup_at.is.null,last_followup_at.lt.${fortyEightHoursAgo}`)
+    .or(`last_followup_at.is.null,last_followup_at.lt.${lockWindowAgo}`)
     .select('id')
     .maybeSingle();
 
@@ -875,28 +847,19 @@ Objetivo: Envie um follow-up curto (maximo 2 frases), gentil e sem pressao para 
  
 Mensagem de follow-up:`;
 
-    // [FIX P0-1] Retry + fallback idêntico ao processLeadMessage para proteger contra throttle do Gemini
-    // W2.7: Try gemini-2.5-flash-lite first for follow-up to save cost
     let followupText = '';
-    let lastFollowupErr: any;
-    let modelUsed = 'gemini-2.5-flash-lite';
-    for (const modelName of ['gemini-2.5-flash-lite', 'gemini-2.5-flash']) {
-      try {
-        const m = genAI.getGenerativeModel({ model: modelName });
-        const result = await m.generateContent(prompt);
-        followupText = result.response.text().trim().replace(/^"|"$/g, '');
-        modelUsed = modelName;
-        break;
-      } catch (err: any) {
-        lastFollowupErr = err;
-        if (modelName === 'gemini-2.5-flash') break;
-        console.warn(`[AI Engine] Follow-up: fallback para gemini-2.5-flash (${err.message})`);
-        await new Promise(r => setTimeout(r, 500));
-      }
+    let modelUsed = '';
+    try {
+      const generateResult = await routeGenerate({ prompt }, traceId);
+      followupText = generateResult.text.trim().replace(/^"|"$/g, '');
+      modelUsed = `${generateResult.provider}/${generateResult.text ? 'ok' : 'empty'}`;
+    } catch (err: any) {
+      console.error('[AI Engine] Follow-up failed (all providers):', err.message);
+      return;
     }
 
     if (!followupText) {
-      console.error('[AI Engine] Follow-up failed (all models):', lastFollowupErr);
+      console.error('[AI Engine] Follow-up: empty response from all providers.');
       return;
     }
 
