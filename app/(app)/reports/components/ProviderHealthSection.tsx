@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Glass } from '@/components/ui/glass'; // assume a Glass utility component exists per design system
 import type { ProviderStat, ChainStat } from '../reports-client';
 
 /**

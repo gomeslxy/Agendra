@@ -969,10 +969,11 @@ export function ReportsClient({
           Concentração histórica de novos leads por dia da semana e horário. Use para otimizar plantões.
         </p>
         <LeadHeatmap data={heatmapData} />
-{hasAnalytics && providerStats.length > 0 && (
-  <ProviderHealthSection providerStats={providerStats} chainStats={chainStats} />
-)}
       </motion.div>
+
+      {hasAnalytics && providerStats.length > 0 && (
+        <ProviderHealthSection providerStats={providerStats} chainStats={chainStats} />
+      )}
     </div>
   );
 }

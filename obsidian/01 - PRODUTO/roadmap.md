@@ -162,6 +162,7 @@
 - [x] Wave 4 — Pipeline mídia (Whisper Groq + Gemini Vision)
 - [x] Wave 5 — Engine refinements (jailbreak, compactação, fallback humano)
 - [x] Wave 6 — Observability + docs arquitetura
+- [x] Wave 8 — Cron Free-Tier Fix + Bug Cleanup (✅ Concluído 2026-05-22)
 
 ---
 [[visao-geral|⬅️ Voltar]]

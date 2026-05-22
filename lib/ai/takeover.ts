@@ -27,9 +27,13 @@ export async function extendTakeoverOnHumanMessage(args: {
 }): Promise<void> {
   const admin = createAdminClient();
   const until = new Date(Date.now() + (args.extendHours ?? DEFAULT_HOURS) * 3_600_000).toISOString();
-  await admin.from('leads').update({
-    human_takeover_until: until, human_takeover_by: args.userId,
-  }).eq('id', args.leadId).eq('company_id', args.companyId);
+  // Guard: only extend if takeover is currently active
+  await admin.from('leads')
+    .update({ human_takeover_until: until, human_takeover_by: args.userId })
+    .eq('id', args.leadId)
+    .eq('company_id', args.companyId)
+    .not('human_takeover_until', 'is', null)
+    .gt('human_takeover_until', new Date().toISOString());
 }
 
 export function isUnderHumanTakeover(lead: { human_takeover_until?: string | null }): boolean {

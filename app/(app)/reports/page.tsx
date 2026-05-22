@@ -1,9 +1,23 @@
 import { redirect } from "next/navigation";
-import type { ProviderStat, ChainStat } from "./reports-client";
 import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
 import { ReportsClient } from "./reports-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlanLimits, type PlanType } from "@/lib/billing/plans";
+
+// Types for provider and chain stats
+export interface ProviderStat {
+  provider: 'cerebras' | 'groq' | 'sambanova' | 'gemini';
+  requests_24h: number;
+  requests_7d: number;
+  successes_7d: number;
+  avg_latency_ms: number;
+  total_cost_7d: number;
+}
+
+export interface ChainStat {
+  chain_kind: 'conv' | 'tools' | 'bg';
+  count: number;
+}
 
 export default async function ReportsPage() {
   const user = await getUser();
