@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCompanyUsage, type CompanyUsage } from "@/lib/billing/limits";
+import { logDebug, isDebug } from "@/lib/logging";
 export const maxDuration = 300; // seconds, Vercel edge limit
 
 // ─── Tipos (Meta Webhook Payload) ────────────────────────────────────────────
@@ -191,6 +192,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   
   // ── Ler o body como texto (necessário para validação HMAC) ─────────────────
   const rawBody = await request.text();
+if (isDebug) logDebug('[Webhook] Raw body', rawBody);
 
   // ── Validar assinatura da Meta ANTES de qualquer processamento ─────────────
   const isValid = await validateMetaSignature(request, rawBody);
