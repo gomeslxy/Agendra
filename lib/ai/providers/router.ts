@@ -1,141 +1,88 @@
-import { GeminiAdapter } from './gemini-adapter';
+import { CerebrasAdapter } from './cerebras-adapter';
 import { GroqAdapter } from './groq-adapter';
+import { SambaNovaAdapter } from './sambanova-adapter';
+import { GeminiAdapter } from './gemini-adapter';
 import { canAttempt, recordSuccess, recordFailure, getCircuitStatus } from './circuit-breaker';
 import type {
-  ChatParams,
-  GenerateParams,
-  ProviderName,
-  ProviderRouteResult,
-  ProviderGenerateResult,
+  AIProviderAdapter, ChatParams, GenerateParams,
+  ProviderName, ProviderRouteResult, ProviderGenerateResult, RouteOptions,
 } from './types';
 
-const PROVIDER_TIMEOUT_MS = 15_000;
+const CHAT_TIMEOUT_MS = 3_500;
+const GEN_TIMEOUT_MS = 8_000;
+const DEGRADED_TIMEOUT_MS = 15_000;
 
-// Singleton adapters — module-level, reused across warm invocations
+const cerebras = new CerebrasAdapter();
 const groq = new GroqAdapter();
+const sambanova = new SambaNovaAdapter();
 const gemini = new GeminiAdapter();
 
-// Priority: Groq first, Gemini fallback
-const CHAT_CHAIN = [groq, gemini];
-const GENERATE_CHAIN = [groq, gemini];
+const CONV_CHAIN: AIProviderAdapter[] = [cerebras, groq, gemini];
+const TOOLS_CHAIN: AIProviderAdapter[] = [sambanova, cerebras, groq, gemini];
+const BG_CHAIN: AIProviderAdapter[] = [gemini, groq];
 
 function classifyError(err: any): { retryable: boolean; kind: string } {
-  const status: number = err?.status ?? err?.statusCode ?? err?.error?.status ?? 0;
-  const msg = String(err?.message ?? err ?? '').toLowerCase();
-
+  const status = err?.status ?? err?.statusCode ?? 0;
+  const msg = String(err?.message ?? '').toLowerCase();
   if (status === 401 || status === 403) return { retryable: false, kind: 'auth_error' };
-  if (status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('429'))
-    return { retryable: true, kind: 'rate_limit' };
-  if (
-    status >= 500 ||
-    msg.includes('overload') ||
-    msg.includes('503') ||
-    msg.includes('502') ||
-    msg.includes('timeout')
-  )
-    return { retryable: true, kind: 'server_error' };
-
+  if (status === 429 || msg.includes('rate') || msg.includes('quota')) return { retryable: true, kind: 'rate_limit' };
+  if (status >= 500 || msg.includes('overload') || msg.includes('timeout') || msg.includes('unavailable')) return { retryable: true, kind: 'server_error' };
   return { retryable: true, kind: 'unknown' };
+}
+
+async function runChain<T>(
+  chain: AIProviderAdapter[],
+  exec: (p: AIProviderAdapter, timeoutMs: number) => Promise<T>,
+  baseTimeout: number,
+  traceId?: string
+): Promise<{ result: T; provider: ProviderName; fallbackUsed: boolean }> {
+  const errors: string[] = [];
+  let first: ProviderName | null = null;
+
+  for (let i = 0; i < chain.length; i++) {
+    const provider = chain[i];
+    if (!canAttempt(provider.name)) {
+      errors.push(`${provider.name}: circuit_${getCircuitStatus(provider.name)}`);
+      continue;
+    }
+    if (!first) first = provider.name;
+    const t = i === chain.length - 1 ? DEGRADED_TIMEOUT_MS : baseTimeout;
+    const start = Date.now();
+    try {
+      const timeout = new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error(`timeout_${t}ms`)), t));
+      const result = await Promise.race([exec(provider, t), timeout]);
+      recordSuccess(provider.name);
+      console.log(`[Router] ✅ ${provider.name} ${Date.now() - start}ms trace=${traceId}`);
+      return { result, provider: provider.name, fallbackUsed: provider.name !== first };
+    } catch (err: any) {
+      const { kind } = classifyError(err);
+      recordFailure(provider.name);
+      console.warn(`[Router] ❌ ${provider.name} ${kind} ${Date.now() - start}ms: ${err.message} trace=${traceId}`);
+      errors.push(`${provider.name}:${kind}`);
+    }
+  }
+  throw new Error(`AI_ALL_PROVIDERS_FAILED: ${errors.join('; ')}`);
 }
 
 export async function routeChat(
   params: ChatParams,
-  traceId?: string
+  opts: RouteOptions = {}
 ): Promise<ProviderRouteResult> {
-  const errors: string[] = [];
-  let firstProvider: ProviderName | null = null;
-
-  for (const provider of CHAT_CHAIN) {
-    if (!canAttempt(provider.name)) {
-      const status = getCircuitStatus(provider.name);
-      console.warn(`[Router] Skip ${provider.name} — circuit ${status} | trace=${traceId}`);
-      errors.push(`${provider.name}: circuit_${status}`);
-      continue;
-    }
-
-    const start = Date.now();
-    if (!firstProvider) firstProvider = provider.name;
-
-    try {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Provider timeout')), PROVIDER_TIMEOUT_MS)
-      );
-
-      const result = await Promise.race([provider.chat(params), timeout]);
-      const latency = Date.now() - start;
-
-      recordSuccess(provider.name);
-      console.log(
-        `[Router] ✅ ${provider.name} chat OK ${latency}ms model=${result.modelUsed} tools=${result.toolsCalled.length} | trace=${traceId}`
-      );
-
-      return {
-        ...result,
-        provider: provider.name,
-        fallbackUsed: provider.name !== firstProvider,
-      };
-    } catch (err: any) {
-      const { kind } = classifyError(err);
-      const latency = Date.now() - start;
-
-      recordFailure(provider.name);
-      console.warn(
-        `[Router] ❌ ${provider.name} chat FAIL (${kind}, ${latency}ms): ${err.message} | trace=${traceId}`
-      );
-      errors.push(`${provider.name}: ${kind} — ${err.message?.substring(0, 120)}`);
-    }
-  }
-
-  const summary = errors.join('; ');
-  console.error(`[Router] 🔴 All providers failed (chat) | trace=${traceId} | ${summary}`);
-  throw new Error(`AI_ALL_PROVIDERS_FAILED: ${summary}`);
+  const chain = opts.chain === 'tools' ? TOOLS_CHAIN : CONV_CHAIN;
+  const { result, provider, fallbackUsed } = await runChain(
+    chain, (p) => p.chat(params), CHAT_TIMEOUT_MS, opts.traceId
+  );
+  return { ...result, provider, fallbackUsed };
 }
 
 export async function routeGenerate(
   params: GenerateParams,
-  traceId?: string
+  opts: RouteOptions = {}
 ): Promise<ProviderGenerateResult> {
-  const errors: string[] = [];
-  let firstProvider: ProviderName | null = null;
-
-  for (const provider of GENERATE_CHAIN) {
-    if (!canAttempt(provider.name)) {
-      const status = getCircuitStatus(provider.name);
-      errors.push(`${provider.name}: circuit_${status}`);
-      continue;
-    }
-
-    const start = Date.now();
-    if (!firstProvider) firstProvider = provider.name;
-
-    try {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Provider timeout')), PROVIDER_TIMEOUT_MS)
-      );
-
-      const text = await Promise.race([provider.generateText(params), timeout]);
-      const latency = Date.now() - start;
-
-      recordSuccess(provider.name);
-      console.log(`[Router] ✅ ${provider.name} generate OK ${latency}ms | trace=${traceId}`);
-
-      return {
-        text,
-        provider: provider.name,
-        fallbackUsed: provider.name !== firstProvider,
-      };
-    } catch (err: any) {
-      const { kind } = classifyError(err);
-      const latency = Date.now() - start;
-
-      recordFailure(provider.name);
-      console.warn(
-        `[Router] ❌ ${provider.name} generate FAIL (${kind}, ${latency}ms): ${err.message} | trace=${traceId}`
-      );
-      errors.push(`${provider.name}: ${kind} — ${err.message?.substring(0, 120)}`);
-    }
-  }
-
-  const summary = errors.join('; ');
-  throw new Error(`AI_ALL_PROVIDERS_FAILED: ${summary}`);
+  const chain = opts.chain === 'bg' ? BG_CHAIN : CONV_CHAIN;
+  const { result, provider, fallbackUsed } = await runChain(
+    chain, (p) => p.generateText(params), GEN_TIMEOUT_MS, opts.traceId
+  );
+  return { text: result, provider, fallbackUsed };
 }

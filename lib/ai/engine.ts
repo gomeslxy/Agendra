@@ -219,6 +219,9 @@ export async function processLeadMessage(
     }
   }
 
+  const schedulingIntent = /\b(agend|hor[áa]rio|marcar|dispon[íi]v|hoje|amanh[ãa]|que dia|que horas|cancel|reagend)\b/i
+    .test(newMessage);
+
   const result = await routeChat(
     {
       systemPrompt,
@@ -229,7 +232,7 @@ export async function processLeadMessage(
       maxIterations: MAX_ITERATIONS,
       preferredModel: geminiModelOverride,
     },
-    traceId
+    { chain: schedulingIntent ? 'tools' : 'conv', traceId }
   );
 
   const fullText = result.text;
@@ -860,7 +863,7 @@ Mensagem de follow-up:`;
     let followupText = '';
     let modelUsed = '';
     try {
-      const generateResult = await routeGenerate({ prompt }, traceId);
+      const generateResult = await routeGenerate({ prompt }, { chain: 'bg', traceId });
       followupText = generateResult.text.trim().replace(/^"|"$/g, '');
       modelUsed = `${generateResult.provider}/${generateResult.text ? 'ok' : 'empty'}`;
     } catch (err: any) {

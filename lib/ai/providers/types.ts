@@ -1,4 +1,10 @@
-export type ProviderName = 'groq' | 'gemini';
+export type ProviderName = 'cerebras' | 'groq' | 'sambanova' | 'gemini';
+export type ChainKind = 'conv' | 'tools' | 'bg';
+
+export interface RouteOptions {
+  chain?: ChainKind;
+  traceId?: string;
+}
 
 export interface NeutralProperty {
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';

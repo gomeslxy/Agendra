@@ -125,7 +125,7 @@ Retorne um objeto JSON estritamente com os seguintes campos:
 JSON:`;
 
   try {
-    const generateResult = await routeGenerate({ prompt, jsonMode: true });
+    const generateResult = await routeGenerate({ prompt, jsonMode: true }, { chain: 'bg' });
     const parsed = JSON.parse(generateResult.text);
     
     return {

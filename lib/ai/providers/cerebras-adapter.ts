@@ -19,14 +19,14 @@ function toOpenAITool(t: NeutralToolDefinition): ChatCompletionTool {
   };
 }
 
-export class GroqAdapter implements AIProviderAdapter {
-  readonly name = 'groq' as const;
+export class CerebrasAdapter implements AIProviderAdapter {
+  readonly name = 'cerebras' as const;
   readonly defaultChatModel = 'gpt-oss-120b';
   readonly defaultGenerateModel = 'gpt-oss-120b';
 
   private client = new OpenAI({
-    baseURL: 'https://api.groq.com/openai/v1',
-    apiKey: process.env.GROQ_API_KEY ?? '',
+    baseURL: 'https://api.cerebras.ai/v1',
+    apiKey: process.env.CEREBRAS_API_KEY ?? '',
   });
 
   async chat(params: ChatParams): Promise<ChatResult> {
