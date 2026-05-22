@@ -26,6 +26,7 @@ import { validateAndNormalizeScore } from './scoring';
 import { routeChat, routeGenerate } from './providers/router';
 import { neutralToolDefinitions } from './tool-schemas';
 import type { NormalizedMessage } from './providers/types';
+import { isUnderHumanTakeover } from './takeover';
 
 // Gemini SDK kept ONLY for text-embedding-005 (RAG) — no chat provider direct here
 const _embeddingGenAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
@@ -382,6 +383,15 @@ export async function handleIncomingMessage(
   let activeLead: Lead;
   if (lead) {
     activeLead = lead as Lead;
+
+    if (isUnderHumanTakeover(activeLead)) {
+      console.log(`[Engine] skip — lead ${activeLead.id} em human takeover até ${activeLead.human_takeover_until}`);
+      if (providerMessageId) {
+        await admin.from('processed_messages').update({ status: 'completed' })
+          .eq('provider_message_id', providerMessageId);
+      }
+      return;
+    }
 
     // DB-backed rate limit: reject burst within 3s (Map-based won't work across serverless instances).
     if (activeLead.last_message_at) {

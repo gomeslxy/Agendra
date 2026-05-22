@@ -18,7 +18,6 @@
 import { createHmac } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
-import { handleIncomingMessage } from "@/lib/ai/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCompanyUsage, type CompanyUsage } from "@/lib/billing/limits";
 
@@ -303,63 +302,71 @@ async function processWebhookPayload(rawBody: string): Promise<void> {
 
       // ── Processar cada mensagem individualmente ─────────────────────────────
       for (const msg of messages) {
-        // Encontrar o contato correspondente
         const contact = contacts.find((c) => c.wa_id === msg.from);
+        if (!contact) continue;
 
-        if (!contact) {
-          console.warn(`[WhatsApp] ⚠️  Contato não encontrado para from=${msg.from}`);
+        // 1. Dedup síncrono PRIMEIRO (FIX: economia 100% em retry Meta)
+        const { claimMessage, bufferAndDebounce, bufferInDB } = await import('@/lib/ai/debounce');
+        const claimed = await claimMessage(msg.id);
+        if (!claimed) {
+          console.log(`[Webhook] dedup skip ${msg.id}`);
           continue;
         }
 
-        // Definir o texto da mensagem (fallback para mídia)
-        let messageText = "";
+        // 2. Typing 1× por batch (FIX B13)
+        const { redis } = await import('@/lib/infra/redis');
+        const typingKey = `wa:typing:${companyId}:${msg.from}`;
+        const shouldType = await redis.setNX(typingKey, '1', 6);
+        if (shouldType === true && channel.access_token) {
+          const { sendTypingIndicator } = await import('@/lib/whatsapp/typing');
+          void sendTypingIndicator(channel.provider_id, channel.access_token, msg.id);
+        }
+
+        // 3. Extrair body texto (mídia será tratada na Wave 4)
+        // POR ENQUANTO: manter lógica atual de extração de messageText
+        // Wave 4 substituirá esta seção por routeMedia()
+        let messageText = '';
         let incomingMetadata: Record<string, any> | undefined;
-        if (msg.type === "text" && msg.text?.body) {
+        if (msg.type === 'text' && msg.text?.body) {
           messageText = msg.text.body;
-        } else if (msg.type === "image") {
-          messageText = "[Imagem recebida]";
-        } else if (msg.type === "audio") {
+        } else if (msg.type === 'audio') {
           const channelToken = channel?.access_token;
           if (msg.audio?.id && channelToken) {
             const { transcribeWhatsAppAudio } = await import('@/lib/ai/transcribe');
             const result = await transcribeWhatsAppAudio(msg.audio.id, channelToken);
             messageText = result.text;
-            incomingMetadata = { ...(incomingMetadata ?? {}), is_audio: true, audio_id: msg.audio.id };
+            incomingMetadata = { is_audio: true, audio_id: msg.audio.id };
           } else {
-            messageText = "[Áudio recebido]";
+            messageText = '[Áudio recebido]';
           }
-        } else if (msg.type === "video") {
-          messageText = "[Vídeo recebido]";
-        } else if (msg.type === "document") {
-          messageText = "[Documento recebido]";
         } else {
           messageText = `[Mídia recebida: ${msg.type}]`;
         }
+        if (!messageText) continue;
 
-        if (!messageText) {
-          console.log(`[WhatsApp] ⏭️  Conteúdo vazio ou ignorado para tipo: ${msg.type}`);
-          continue;
-        }
+        // 4. Debounce 4s — fallback DB se Redis off
+        const debouncePromise = (async () => {
+          try {
+            await bufferAndDebounce({
+              companyId, leadPhone: msg.from, leadName: contact.profile.name,
+              body: messageText, providerMessageId: msg.id, msgType: msg.type,
+              usage, metadata: incomingMetadata,
+            });
+          } catch (err: any) {
+            console.error('[Webhook] debounce err:', err.message);
+            // Fallback: SQL buffer + cron flush
+            try {
+              await bufferInDB({
+                companyId, leadPhone: msg.from, leadName: contact.profile.name,
+                body: messageText, providerMessageId: msg.id, msgType: msg.type,
+                metadata: incomingMetadata,
+              });
+            } catch {}
+          }
+        })();
 
-        console.log(
-          `[WhatsApp] 📩 Nova mensagem | from=${msg.from} | name="${contact.profile.name}" | type=${msg.type} | text="${messageText.slice(0, 80)}"`
-        );
-
-        console.log(`[WhatsApp] 🧠 Chamando handleIncomingMessage...`);
-        try {
-          await handleIncomingMessage(
-            companyId,
-            msg.from,
-            contact.profile.name,
-            messageText,
-            msg.id, // Passando providerMessageId para deduplicação
-            usage,  // pass pre-fetched CompanyUsage to avoid double DB call
-            incomingMetadata
-          );
-          console.log(`[WhatsApp] ✅ handleIncomingMessage finalizado com sucesso.`);
-        } catch (err: any) {
-          console.error(`[WhatsApp] ❌ Erro no handleIncomingMessage:`, err.message || err);
-        }
+        // Não esperar — o `after()` mantém promise viva
+        void debouncePromise;
       }
     }
   }
