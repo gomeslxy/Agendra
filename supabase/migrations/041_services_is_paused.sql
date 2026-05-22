@@ -1,0 +1,2 @@
+-- Migration 041
+ALTER TABLE public.services ADD COLUMN IF NOT EXISTS is_paused BOOLEAN DEFAULT FALSE;

@@ -27,6 +27,15 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    const { getCompanyUsage } = await import('@/lib/billing/limits');
+    const usage = await getCompanyUsage(membership.company_id);
+    
+    // In a real OAuth callback this would be checked before adding a new token.
+    // Since this route just syncs an existing calendar, we just check the limit.
+    if (usage.limits.maxCalendars <= 0) {
+      return NextResponse.json({ error: 'Limite de calendários excedido para o seu plano.' }, { status: 403 });
+    }
+
     const result = await syncCompanyCalendar(membership.company_id);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

@@ -69,6 +69,10 @@ export async function deleteService(id: string) {
   const profile = await getUserProfile()
   if (!profile) throw new Error("Unauthorized")
 
+  if (profile.memberships?.[0]?.role !== "admin") {
+    throw new Error("Apenas administradores podem realizar esta ação")
+  }
+
   const companyId = profile.memberships?.[0]?.company_id
   if (!companyId) throw new Error("No company")
 
@@ -78,6 +82,29 @@ export async function deleteService(id: string) {
   const { error } = await supabase
     .from("services")
     .update({ active: false })
+    .eq("id", id)
+    .eq("company_id", companyId) // Prevents IDOR
+
+  if (error) throw error
+  revalidatePath("/settings")
+}
+
+export async function toggleServiceStatus(id: string, isPaused: boolean) {
+  const profile = await getUserProfile()
+  if (!profile) throw new Error("Unauthorized")
+
+  if (profile.memberships?.[0]?.role !== "admin") {
+    throw new Error("Apenas administradores podem pausar/retomar serviços")
+  }
+
+  const companyId = profile.memberships?.[0]?.company_id
+  if (!companyId) throw new Error("No company")
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("services")
+    .update({ is_paused: isPaused })
     .eq("id", id)
     .eq("company_id", companyId) // Prevents IDOR
 

@@ -41,7 +41,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel, saveAutomationConfig, updateCompany, inviteTeamMember, saveWebhookConfig, deleteWebhook, saveReactivationConfig } from "./actions";
-import { createService, updateService, deleteService } from "./services/actions";
+import { createService, updateService, deleteService, toggleServiceStatus } from "./services/actions";
 import Script from "next/script";
 import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
@@ -118,6 +118,7 @@ interface Service {
   duration: number;
   price?: number | null;
   active: boolean;
+  is_paused?: boolean | null;
 }
 
 interface AiDecisionLog {
@@ -2567,6 +2568,17 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
     });
   }
 
+  async function handleToggleStatus(id: string, isPaused: boolean) {
+    startTransition(async () => {
+      try {
+        await toggleServiceStatus(id, isPaused);
+        toast.success(isPaused ? "Serviço pausado!" : "Serviço ativado!");
+      } catch (err: any) {
+        toast.error("Erro ao alterar status: " + err.message);
+      }
+    });
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -2696,7 +2708,7 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
                     </span>
                     {s.price && (
                       <span className="text-[11px] text-brand-teal-400 font-medium">
-                        R$ {s.price.toFixed(2).replace(".", ",")}
+                        R$ {new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(s.price)}
                       </span>
                     )}
                   </div>
@@ -2705,7 +2717,16 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-2 mr-2">
+                  <span className="text-[10px] uppercase tracking-wider text-white/40 font-bold">
+                    {s.is_paused ? "Pausado" : "Ativo"}
+                  </span>
+                  <Switch
+                    checked={!s.is_paused}
+                    onChange={(val: boolean) => handleToggleStatus(s.id, !val)}
+                  />
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"

@@ -177,6 +177,10 @@ export async function disconnectWhatsAppChannel(channelId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
+  if (profile.memberships?.[0]?.role !== "admin") {
+    throw new Error("Apenas administradores podem desconectar canais.");
+  }
+
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
 
@@ -448,6 +452,10 @@ export async function saveWebhookConfig(data: {
 export async function deleteWebhook(webhookId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
+
+  if (profile.memberships?.[0]?.role !== "admin") {
+    throw new Error("Apenas administradores podem excluir webhooks.");
+  }
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");

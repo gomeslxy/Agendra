@@ -37,7 +37,7 @@ export async function bufferAndDebounce(args: {
 
   // FIX B1: SET atômico (sem DEL+SETNX → sem race window)
   const okSet = await redis.set(tokenKey, gen, BUF_TTL_SEC);
-  if (okSet === null) return; // Redis off — chamador usa bufferInDB
+  if (okSet === null) throw new Error('Redis is unavailable, failing to SQL fallback'); // Redis off — chamador usa bufferInDB
 
   await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
 

@@ -380,7 +380,8 @@ export async function handleIncomingMessage(
     .from('services')
     .select('id, name, duration, price')
     .eq('company_id', companyId)
-    .eq('active', true);
+    .eq('active', true)
+    .neq('is_paused', true);
 
   const persona: PersonaConfig = {
     ...((company.persona_config as any) ?? {}),
