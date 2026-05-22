@@ -35,9 +35,36 @@ export async function bufferAndDebounce(args: {
   } satisfies Buffered));
   await redis.expire(bufKey, BUF_TTL_SEC);
 
-  // FIX B1: SET atômico (sem DEL+SETNX → sem race window)
-  const okSet = await redis.set(tokenKey, gen, BUF_TTL_SEC);
-  if (okSet === null) throw new Error('Redis is unavailable, failing to SQL fallback'); // Redis off — chamador usa bufferInDB
+  let okSet: boolean | null = null;
+  try {
+    okSet = await redis.set(tokenKey, gen, BUF_TTL_SEC);
+  } catch (e) {
+    console.error('[debounce] Redis error on set, falling back to DB buffer:', e);
+    // Fallback to DB buffering
+    await bufferInDB({
+      companyId: args.companyId,
+      leadPhone: args.leadPhone,
+      leadName: args.leadName,
+      body: args.body,
+      providerMessageId: args.providerMessageId,
+      msgType: args.msgType,
+      metadata: args.metadata,
+    });
+    return; // exit early, DB will be processed later by cron
+  }
+  if (okSet === null) {
+    console.error('[debounce] Redis returned null, falling back to DB buffer');
+    await bufferInDB({
+      companyId: args.companyId,
+      leadPhone: args.leadPhone,
+      leadName: args.leadName,
+      body: args.body,
+      providerMessageId: args.providerMessageId,
+      msgType: args.msgType,
+      metadata: args.metadata,
+    });
+    return;
+  }
 
   await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
 

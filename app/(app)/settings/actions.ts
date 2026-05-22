@@ -99,18 +99,9 @@ export async function saveWhatsAppChannel(formData: FormData) {
   if (!phoneId || !accessToken) throw new Error("Campos obrigatórios ausentes");
 
   // ── Gate: maxChannels ──────────────────────────────────────────────────────
-  const usage = await getCompanyUsage(companyId);
-  const admin = createAdminClient();
-  const { count: channelCount } = await admin
-    .from("channels")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", companyId)
-    .eq("status", "active");
-  if ((channelCount ?? 0) >= usage.limits.maxChannels) {
-    throw new Error(
-      `Seu plano ${usage.planType.toUpperCase()} permite até ${usage.limits.maxChannels} canal(is) ativo(s). Faça upgrade para adicionar mais.`
-    );
-  }
+  // Enforce billing limits before creating a channel
+  const { enforceLimits } = await import('@/lib/billing/gate');
+  await enforceLimits(companyId);
 
   // ── Validar token via Meta API ANTES de salvar ─────────────────────────────
   const validation = await validateWhatsAppToken(phoneId, accessToken.trim());
@@ -157,13 +148,13 @@ export async function saveWhatsAppChannel(formData: FormData) {
   if (error) throw new Error(error.message);
 
   const adminForVault = createAdminClient();
-  const { error: vaultError } = await adminForVault.rpc('channel_set_access_token', {
-    p_channel_id: channel.id,
-    p_token: accessToken.trim(),
-  });
-
-  if (vaultError) {
-    console.error('[Onboarding] Vault write failed, mantendo plaintext temporário:', vaultError);
+  // Store access token securely using Supabase Vault wrapper
+  try {
+    const { setChannelAccessToken } = await import('@/lib/supabase/vault');
+    await setChannelAccessToken(channel.id, accessToken.trim());
+  } catch (err) {
+    console.error('[Onboarding] Vault write failed, mantendo plaintext temporário:', err);
+    // Fallback to plaintext if vault fails
     await adminForVault.from('channels').update({ access_token: accessToken.trim() }).eq('id', channel.id);
   }
 
