@@ -26,6 +26,9 @@ export interface Lead {
   control_mode?: 'autonomous' | 'shadow' | 'manual';
   last_sentiment?: number | null;
   last_sentiment_at?: string | null;
+  human_takeover_at?: string | null;
+  human_takeover_until?: string | null;
+  human_takeover_by?: string | null;
   followup_count: number;
   last_message_at?: string | null;
   followup_in_progress?: boolean;
