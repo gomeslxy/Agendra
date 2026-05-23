@@ -30,11 +30,14 @@ import { UseCases } from "@/components/landing/use-cases";
 import { FAQ } from "@/components/landing/faq";
 import { FinalCTA } from "@/components/landing/final-cta";
 import { Footer } from "@/components/landing/footer";
+import { getUser } from "@/lib/supabase/server";
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const user = await getUser();
+
   return (
     <div className="bg-aurora min-h-screen">
-      <Header />
+      <Header isLoggedIn={!!user} />
       <main className="pt-[68px]">
         <Hero />
         <HowItWorks />
