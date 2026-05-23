@@ -2248,24 +2248,30 @@ function Team({ memberships, company, pendingInvitations }: { memberships: Membe
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-[13px] font-semibold truncate">{inv.invited_email}</div>
-                      <div className="text-[11px] flex items-center gap-1.5" style={{ color: expiresSoon ? "#F97316" : "var(--color-fg-3)" }}>
+                      <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: expiresSoon ? "#F97316" : "var(--color-fg-3)" }}>
                         <Clock size={10} />
                         {expiresSoon ? `Expira em ${daysLeft}d` : `${daysLeft} dias restantes`}
                         <span className="text-white/20">·</span>
                         <Badge variant={inv.role === "admin" ? "hot" : "cold"}>{inv.role}</Badge>
+                        <span className="text-white/20">·</span>
+                        <span style={{ color: "var(--color-fg-3)" }}>
+                          Enviado {new Date(inv.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                        </span>
                       </div>
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-[11px] text-brand-teal-400 hover:bg-brand-teal-500/10 hover:text-brand-teal-300"
-                        onClick={() => handleResend(inv.id)}
-                        disabled={resendPending}
-                      >
-                        <RefreshCw size={12} className="mr-1" />
-                        Reenviar
-                      </Button>
+                      {expiresSoon && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px] text-brand-teal-400 hover:bg-brand-teal-500/10 hover:text-brand-teal-300"
+                          onClick={() => handleResend(inv.id)}
+                          disabled={resendPending}
+                        >
+                          <RefreshCw size={12} className="mr-1" />
+                          Reenviar
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
