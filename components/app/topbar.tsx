@@ -128,7 +128,11 @@ export function Topbar({ cta }: TopbarProps) {
           </div>
 
           {/* Notification Bell */}
-          {profile?.id && <NotificationBell userId={profile.id} />}
+          {loading ? (
+            <div className="h-9 w-9 animate-pulse rounded-full bg-white/[0.04]" />
+          ) : profile?.id ? (
+            <NotificationBell userId={profile.id} />
+          ) : null}
 
           {/* Novo fluxo — desktop only */}
           <Link href={cta?.href ?? "/settings#flows"} className="hidden md:block">

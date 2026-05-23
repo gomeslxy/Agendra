@@ -285,7 +285,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 sm:-right-4 top-full z-[100] mt-3 w-[340px] origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-[#0B1222] shadow-2xl shadow-black/60 backdrop-blur-3xl ring-1 ring-white/5"
+            className="absolute right-0 sm:-right-4 top-full z-[100] mt-3 w-[340px] origin-top-right overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/60 backdrop-blur-3xl ring-1 ring-white/5"
+            style={{ backgroundColor: "rgba(11,18,34,0.98)" }}
           >
             <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-3">
               <div className="flex items-center gap-2">
