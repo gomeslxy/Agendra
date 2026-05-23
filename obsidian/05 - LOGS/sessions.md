@@ -1,5 +1,22 @@
 # Histórico de Sessões
 
+## Sessão (23/05/2026) — Auditoria Completa de Qualidade, Segurança e Gating de Planos
+
+**OBJETIVO**: Auditoria completa de backend, frontend, banco de dados, regras de negócio e multitenancy com correções automáticas de erros de compilação e bypasses de planos.
+
+### Resultados — 3 correções/melhorias de alto impacto implementadas
+
+| ID | Área | Problema | Arquivos Afetados | Correção | Status |
+|---|---|---|---|---|---|
+| FIX-1 | Configuração / Build | `swcMinify: true` obsoleto causava falha de compilação TypeScript em Next.js 15+ | `next.config.ts` | Removido swcMinify do arquivo para restaurar a sanidade do build. | ✅ Fixo |
+| FIX-2 | Regras de Negócio | Bypass de webhooks externos para o plano Pro via comparação estrita hardcoded em vez de `PLAN_LIMITS` | `lib/webhooks/dispatcher.ts` | Substituído por `getPlanLimits(company.plan_type).hasWebhooks` para habilitar webhooks para Pro e Business. | ✅ Fixo |
+| FIX-3 | GCal Fallback | Falha de sincronização do Google Calendar por token expirado ou revogado (`invalid_grant`) ocorria silenciosamente no cron matinal | `app/api/cron/morning/route.ts` | Adicionada captura de erro específica com disparo de notificações in-app automáticas em tempo real para todos os administradores da empresa afetada. | ✅ Fixo |
+
+### Status
+🟢 **COMPLETO** — TypeScript compilando sem nenhum erro (`tsc --noEmit` exit 0), testes unitários do Vitest passando com sucesso (21/21), integridade de multitenancy (RLS) confirmada e regras de plano plenamente ativas.
+
+---
+
 ## Sessão (23/05/2026) — Auditoria Completa de Performance & SEO Técnico
 
 **OBJETIVO**: Auditoria profunda de performance e SEO técnico — bundle size, CWV, gargalos de renderização, queries lentas, código pesado no cliente.

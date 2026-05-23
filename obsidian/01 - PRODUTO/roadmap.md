@@ -137,6 +137,7 @@
 
 ## 💅 Fase 5: Polimento Premium & Escala
 - [x] **Performance**: Otimização completa — bundle -25%, knowledge upload -85%, LCP melhorado, loading skeletons, cache headers, SEO técnico completo. (✅ Concluído 23/05/2026)
+- [x] **Auditoria e Gating de Planos**: Correção de tipagem NextConfig (Next.js 15+), unificação da proteção de webhook (gating Pro/Business) e inteligência de falhas no GCal Fallback com alertas automáticos in-app para administradores. (✅ Concluído 23/05/2026)
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.
 - [x] **Analytics**: Dashboard de performance de conversão e BI avançado.
 

@@ -11,6 +11,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import crypto from 'crypto';
 import { isPrivateUrl } from '@/lib/security/url-guard';
+import { getPlanLimits } from '@/lib/billing/plans';
 
 export type WebhookEventType =
   | 'booking.created'
@@ -52,14 +53,16 @@ export async function dispatchWebhook(
   try {
     const admin = createAdminClient();
 
-    // 1. Verificar plano: apenas Business tem webhooks
+    // 1. Verificar plano: apenas planos com hasWebhooks têm webhooks
     const { data: company } = await admin
       .from('companies')
       .select('plan_type')
       .eq('id', companyId)
       .single();
 
-    if (!company || company.plan_type !== 'business') return;
+    if (!company) return;
+    const limits = getPlanLimits(company.plan_type);
+    if (!limits.hasWebhooks) return;
 
     // 2. Buscar assinaturas ativas para este evento
     const { data: subscriptions, error } = await admin

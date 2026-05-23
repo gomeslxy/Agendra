@@ -59,8 +59,36 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       try {
         const r = await syncCompanyCalendar(co.id);
         r.skipped ? gcal.skipped++ : gcal.synced++;
-      } catch {
+      } catch (err: any) {
         gcal.errors++;
+        console.error(`[morning-cron] GCal sync error for company ${co.id} (${co.name}):`, err?.message);
+        
+        // GCal Fallback: alert admins when refresh token expires or is revoked (invalid_grant)
+        const errMsg = err?.message ?? '';
+        if (errMsg.includes('invalid_grant') || errMsg.includes('renovar token') || errMsg.includes('OAuth')) {
+          try {
+            // Find company admin/owner users to notify
+            const { data: admins } = await admin
+              .from('memberships')
+              .select('user_id')
+              .eq('company_id', co.id)
+              .in('role', ['admin', 'owner']);
+
+            if (admins?.length) {
+              const { createNotificationForUsers } = await import('@/lib/notifications/create');
+              await createNotificationForUsers(admins, {
+                company_id: co.id,
+                type: 'channel_error',
+                title: 'Calendário Google Desconectado ⚠️',
+                body: `A integração do Google Calendar para a empresa ${co.name} expirou ou foi revogada. Por favor, acesse Configurações -> Canais para reconectar.`,
+                action_url: '/settings?tab=channels',
+                priority: 'high',
+              });
+            }
+          } catch (notifErr: any) {
+            console.error('[morning-cron] Failed to dispatch GCal error notification:', notifErr?.message);
+          }
+        }
       }
     }
     summary.gcal_sync = gcal;
