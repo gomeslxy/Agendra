@@ -324,7 +324,7 @@ export function SettingsShell({ company, memberships, channels, services, usage,
             <Rules company={company} />
           </TabPanel>
           <TabPanel active={tab === "services"}>
-            <Services companyId={company?.id} services={services} />
+            <Services companyId={company?.id} services={services} businessType={(company?.persona_config as any)?.business_type} />
           </TabPanel>
           <TabPanel active={tab === "brain"}>
             <Persona company={company} services={services} onChangeTab={changeTab} planType={company?.plan_type} />
@@ -587,15 +587,79 @@ function WorkingHoursEditor({
   );
 }
 
-function ServicesInput({ defaultValue }: { defaultValue: string }) {
+function getPlaceholdersByBusinessType(businessType?: string): {
+  multipleServices: string;
+  singleService: string;
+  price: string;
+} {
+  const bt = (businessType || "").toLowerCase();
+  
+  if (bt.includes("clínica") || bt.includes("saúde") || bt.includes("estética") || bt.includes("médic") || bt.includes("dentis") || bt.includes("fisiot")) {
+    return {
+      multipleServices: "Ex.: consulta médica, drenagem linfática, avaliação inicial",
+      singleService: "Ex: Consulta Inicial",
+      price: "Ex: 150,00",
+    };
+  }
+  
+  if (bt.includes("advoc") || bt.includes("juríd") || bt.includes("direit") || bt.includes("legal")) {
+    return {
+      multipleServices: "Ex.: consulta jurídica, análise de contrato, parecer técnico",
+      singleService: "Ex: Parecer Técnico",
+      price: "Ex: 250,00",
+    };
+  }
+  
+  if (bt.includes("consult") || bt.includes("mentor") || bt.includes("coach") || bt.includes("ti") || bt.includes("desenvol")) {
+    return {
+      multipleServices: "Ex.: mentoria individual, diagnóstico de TI, setup inicial",
+      singleService: "Ex: Sessão Estratégica",
+      price: "Ex: 350,00",
+    };
+  }
+  
+  if (bt.includes("imobil") || bt.includes("corret") || bt.includes("imóv")) {
+    return {
+      multipleServices: "Ex.: visita técnica, avaliação de imóvel, vistoria de entrega",
+      singleService: "Ex: Visita ao Imóvel",
+      price: "Ex: 0,00",
+    };
+  }
+  
+  if (bt.includes("educa") || bt.includes("aula") || bt.includes("curso") || bt.includes("escola") || bt.includes("treina")) {
+    return {
+      multipleServices: "Ex.: aula particular, teste de nivelamento, matrícula anual",
+      singleService: "Ex: Aula Experimental",
+      price: "Ex: 80,00",
+    };
+  }
+  
+  if (bt.includes("salão") || bt.includes("beleza") || bt.includes("cabel") || bt.includes("corte") || bt.includes("barba") || bt.includes("manicur") || bt.includes("barbearia")) {
+    return {
+      multipleServices: "Ex.: corte, coloração, manicure, barba",
+      singleService: "Ex: Corte de Cabelo",
+      price: "Ex: 50,00",
+    };
+  }
+  
+  // Default fallback
+  return {
+    multipleServices: "Ex.: atendimento, consulta, mentoria",
+    singleService: "Ex: Atendimento Geral",
+    price: "Ex: 100,00",
+  };
+}
+
+function ServicesInput({ defaultValue, businessType }: { defaultValue: string; businessType?: string }) {
   const [raw, setRaw] = useState(defaultValue);
+  const placeholders = getPlaceholdersByBusinessType(businessType);
   return (
     <div className="flex flex-col gap-1">
       <input
         name="services"
         value={raw}
         onChange={(e) => setRaw(e.target.value)}
-        placeholder="Ex.: corte, coloração, hidratação"
+        placeholder={placeholders.multipleServices}
         className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-brand-blue-500/50 focus:bg-white/[0.06]"
       />
       {raw && (
@@ -2643,11 +2707,21 @@ const DURATION_OPTIONS = [
   { value: 90, label: "1h 30min" }, { value: 120, label: "2 horas" },
 ];
 
-function Services({ companyId, services }: { companyId?: string; services: Service[] }) {
+function Services({
+  companyId,
+  services,
+  businessType,
+}: {
+  companyId?: string;
+  services: Service[];
+  businessType?: string;
+}) {
   const [pending, startTransition] = useTransition();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ name: "", price: "", duration: 60, description: "" });
+
+  const placeholders = getPlaceholdersByBusinessType(businessType);
 
   function startEdit(s: Service) {
     setEditingId(s.id);
@@ -2737,10 +2811,10 @@ function Services({ companyId, services }: { companyId?: string; services: Servi
             <form onSubmit={handleAdd} className="grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Nome do Serviço">
-                  <Input name="name" placeholder="Ex: Corte Masculino" required />
+                  <Input name="name" placeholder={placeholders.singleService} required />
                 </Field>
                 <Field label="Preço (R$)">
-                  <Input name="price" type="number" step="0.01" placeholder="Ex: 50,00" />
+                  <Input name="price" type="number" step="0.01" placeholder={placeholders.price} />
                 </Field>
               </div>
               <Field label="Duração (minutos)">

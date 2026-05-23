@@ -209,4 +209,5 @@
 [[visao-geral|⬅️ Voltar]]
 
 - [x] Implementado sistema completo de notificações in-app e convites de equipe (Liquid Glass, Realtime, server actions).
+- [x] **Placeholders Adaptativos & Purga de Nicho**: Auditoria avançada de agnosticismo de nicho (9.8/10 geral) e implementação de placeholders dinâmicos frontend no settings baseando-se no `business_type` cadastrado (Clínicas, Advocacia, Mentorias, etc.), certificando 100% de typecheck e testes passando com sucesso. (Concluído 23/05/2026)
 

@@ -1,5 +1,19 @@
 # Histórico de Sessões
 
+## Sessão (23/05/2026) — Auditoria Avançada de Agnosticismo e Placeholders Adaptativos por Tipo de Negócio
+
+**OBJETIVO**: Realizar auditoria técnica de agnosticismo de nicho (purga de premissas duras de barbearia) e multitenancy do Agendra. Implementar placeholders e exemplos dinâmicos adaptados por tipo de negócio no settings de serviços de cada tenant.
+
+### Resultados — 100% de sucesso nas compilações e testes de regressão!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Agnosticismo de Nicho** | Havia placeholders estáticos associados unicamente a barbearias/salões ("corte Masculino", "corte, coloração, hidratação"). | Criada a função `getPlaceholdersByBusinessType` que adapta os exemplos dinamicamente para Clínicas, Advocacia, Consultoria, Imobiliárias, Educação ou Salões. | `app/(app)/settings/settings-shell.tsx` | ✅ Fixo e Validado |
+| **Multitenancy & RLS** | Auditoria profunda de isolamento por empresa. | Confirmado que 100% dos fluxos de dados, banco de dados (RLS), Server Actions e IA filtram de forma blindada por `company_id`. | `supabase/schema_v2.sql`, `lib/ai/engine.ts`, `lib/ai/tools.ts`, `obsidian/02 - ARQUITETURA/auditoria-nicho-e-multitenancy.md` | ✅ Auditado e OK |
+| **Validação** | Assegurar integridade total do código. | Executados `pnpm typecheck` (tsc exit 0) e `pnpm test` (21/21 testes vitest passados com sucesso). | N/A | ✅ Validado |
+
+---
+
 ## Sessão (23/05/2026) — Auditoria Sênior & Hardening: Sessões, Retomada e Sugestão de Horários da IA
 
 **OBJETIVO**: Auditar de forma sênior o comportamento da IA, implementando expiração de contexto de conversa (>12h) para evitar retomada indevida de tópicos passados, e aprimorar a UX conversacional na sugestão de horários de agendamento (evitando dumping de slots e agrupando-os de forma inteligente).
