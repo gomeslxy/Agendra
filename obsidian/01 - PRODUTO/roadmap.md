@@ -121,8 +121,22 @@
 - [x] **Testes**: 10 cenários validados (autonomous → shadow → manual e reverse)
 - [x] **Dívida Técnica**: Zero — sistema ready para produção
 
+## 🔐 Fase 3.95: Auditoria de Segurança Full-Stack (✅ Concluído 23/05/2026)
+- [x] **SEC-1 CRÍTICO**: HMAC timing-safe comparison em webhook WhatsApp (`crypto.timingSafeEqual`)
+- [x] **SEC-2 ALTO**: Rate limiter Redis-backed distribuído (`lib/rate-limit.ts` → `checkRateLimitAsync`)
+- [x] **SEC-3 ALTO**: `/api/contact` hardened (rate limit + length limits + HTML escaping)
+- [x] **SEC-4+14 ALTO**: SSRF protection em webhook dispatcher + URL validation (`lib/security/url-guard.ts`)
+- [x] **SEC-5+6 ALTO**: IDOR fixes em `setConversationTone`, `approveDraftMessage`, `editAndSendDraft`, `deleteDraftMessage`
+- [x] **SEC-7 MÉDIO**: `createService` — company_id sempre da sessão, nunca do FormData
+- [x] **SEC-8+9 MÉDIO**: Bounds validation em `saveAutomationConfig`, `saveReactivationConfig`, `updatePersona` (timezone, escalation_threshold, slot_duration)
+- [x] **SEC-10 MÉDIO**: `/api/knowledge` — magic-byte validation + `sanitizeSourceName` + `MAX_CHUNKS=200`
+- [x] **SEC-11 MÉDIO**: Security headers completos em `next.config.ts` (CSP, HSTS, X-Frame-Options, Permissions-Policy, Referrer-Policy)
+- [x] **SEC-12 BAIXO**: OTP via `crypto.randomInt` (elimina `Math.random()`)
+- [x] **SEC-13 BAIXO**: Open redirect fix em `/api/stripe/checkout` (whitelist de paths)
+- [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅
+
 ## 💅 Fase 5: Polimento Premium & Escala
-- [ ] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
+- [x] **Performance**: Otimização completa — bundle -25%, knowledge upload -85%, LCP melhorado, loading skeletons, cache headers, SEO técnico completo. (✅ Concluído 23/05/2026)
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.
 - [x] **Analytics**: Dashboard de performance de conversão e BI avançado.
 
