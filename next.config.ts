@@ -63,15 +63,16 @@ const config: NextConfig = {
   trailingSlash: false,
   async redirects() {
     return [
-      // HTTP to HTTPS
+      // HTTP → HTTPS (any host) using header check
       {
-        source: '/(.*)',
-        destination: 'https://www.agendra.site/:path*',
+        source: '/:path*',
+        has: [{ type: 'header', key: 'x-forwarded-proto', value: 'http' }],
+        destination: 'https://agendra.site/:path*',
         permanent: true,
       },
-      // www to non‑www
+      // Redirect www to non‑www (already HTTPS)
       {
-        source: '/(.*)',
+        source: '/:path*',
         has: [{ type: 'host', value: 'www.agendra.site' }],
         destination: 'https://agendra.site/:path*',
         permanent: true,
