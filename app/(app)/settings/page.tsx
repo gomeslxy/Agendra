@@ -3,7 +3,21 @@ import { redirect } from "next/navigation";
 import { getUser, getCachedUserProfile, createClient } from "@/lib/supabase/server";
 import { SettingsShell } from "./settings-shell";
 import { getCompanyUsage } from "@/lib/billing/limits";
+import type { Metadata } from 'next';
 
+export const metadata: Metadata = {
+  title: {
+    template: "%s | Agendra Settings",
+    default: "Settings"
+  },
+  description: "Configure your account, manage memberships, and view usage statistics.",
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: "Agendra Settings",
+    description: "Configure your account, manage memberships, and view usage statistics.",
+    url: "https://www.agendra.site/settings"
+  }
+};
 export default async function SettingsPage() {
   const user = await getUser();
   if (!user) redirect("/login");
