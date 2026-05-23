@@ -1,38 +1,5 @@
 import type { NextConfig } from "next";
 
-const securityHeaders = [
-  // Prevent browsers rendering page in a frame (clickjacking)
-  { key: "X-Frame-Options", value: "DENY" },
-  // Block MIME-type sniffing
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  // Control referrer information sent on navigation
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Restrict browser features
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
-  // Force HTTPS for 1 year (prod only — don't break local dev with HTTP)
-  ...(process.env.NODE_ENV === "production"
-    ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" }]
-    : []),
-  // Content-Security-Policy — strict but compatible with Next.js + Supabase + Stripe + Google APIs
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      // Next.js inline scripts use nonces; allow 'unsafe-inline' for now with strict upgrade path
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://connect.facebook.net",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://generativelanguage.googleapis.com https://graph.facebook.com https://api.groq.com https://api.cerebras.ai https://api.sambanova.ai",
-      "frame-src https://js.stripe.com https://hooks.stripe.com",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "upgrade-insecure-requests",
-    ].join("; "),
-  },
-];
-
 const config: NextConfig = {
   reactStrictMode: true,
   compress: true,
@@ -41,6 +8,8 @@ const config: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60 * 60 * 24 * 30,
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256],
   },
   // Heavy server-only packages — keep out of the client bundle
   serverExternalPackages: [
@@ -50,13 +19,44 @@ const config: NextConfig = {
     "@anthropic-ai/sdk",
   ],
   experimental: {
-    optimizePackageImports: ["lucide-react", "framer-motion", "@supabase/ssr", "@supabase/supabase-js"],
+    optimizePackageImports: [
+      "lucide-react",
+      "framer-motion",
+      "@supabase/ssr",
+      "@supabase/supabase-js",
+      "recharts",
+    ],
   },
   async headers() {
     return [
       {
+        source: "/_next/static/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/fonts/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+        ],
+      },
+      {
+        source: "/assets/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" },
+        ],
+      },
+      {
         source: "/(.*)",
-        headers: securityHeaders,
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
       },
     ];
   },
