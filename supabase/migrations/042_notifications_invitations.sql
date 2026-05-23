@@ -27,6 +27,10 @@ CREATE POLICY "notifications: update own" ON public.notifications
   FOR UPDATE USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "notifications: insert service only" ON public.notifications;
+CREATE POLICY "notifications: insert service only" ON public.notifications
+  FOR INSERT WITH CHECK (false);
+
 -- service_role bypasses RLS — used by server actions via admin client
 GRANT SELECT, INSERT, UPDATE ON public.notifications TO authenticated;
 GRANT ALL ON public.notifications TO service_role;
@@ -75,6 +79,14 @@ CREATE POLICY "invitations: select by email" ON public.invitations
     invited_email = (SELECT email FROM auth.users WHERE id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "invitations: insert own company" ON public.invitations;
+CREATE POLICY "invitations: insert own company" ON public.invitations
+  FOR INSERT WITH CHECK (
+    company_id IN (
+      SELECT company_id FROM public.memberships WHERE user_id = auth.uid()
+    )
+  );
+
 GRANT SELECT, INSERT, UPDATE ON public.invitations TO authenticated;
 GRANT ALL ON public.invitations TO service_role;
 
@@ -84,7 +96,17 @@ CREATE INDEX IF NOT EXISTS invitations_company_status_idx
 CREATE INDEX IF NOT EXISTS invitations_email_status_idx
   ON public.invitations(invited_email, status);
 
+CREATE INDEX IF NOT EXISTS invitations_status_expires_idx
+  ON public.invitations(status, expires_at)
+  WHERE status = 'pending';
+
 -- ── pg_cron: expire pending invitations nightly ───────────────────────────────
+DO $$
+BEGIN
+  PERFORM cron.unschedule('expire-invitations');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
 SELECT cron.schedule(
   'expire-invitations',
   '0 3 * * *',
