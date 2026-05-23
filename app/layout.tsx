@@ -95,6 +95,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { GA_TRACKING_ID } from "@/lib/analytics";
 import { Toaster } from "sonner";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export default function RootLayout({
   children,
@@ -119,6 +120,7 @@ export default function RootLayout({
         <JsonLd />
         <MotionProvider>{children}</MotionProvider>
         <Toaster theme="dark" position="top-center" richColors />
+        <SpeedInsights />
         <GoogleAnalytics gaId={GA_TRACKING_ID} />
       </body>
     </html>

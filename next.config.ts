@@ -60,6 +60,24 @@ const config: NextConfig = {
       },
     ];
   },
+  trailingSlash: false,
+  async redirects() {
+    return [
+      // HTTP to HTTPS
+      {
+        source: '/(.*)',
+        destination: 'https://www.agendra.site/:path*',
+        permanent: true,
+      },
+      // www to non‑www
+      {
+        source: '/(.*)',
+        has: [{ type: 'host', value: 'www.agendra.site' }],
+        destination: 'https://agendra.site/:path*',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default config;
