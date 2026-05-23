@@ -304,19 +304,23 @@ export function SettingsShell({ company, memberships, channels, services, usage,
         </div>
 
         {/* Main Content Area */}
-        <motion.div
-          key={tab}
-          initial={{ opacity: 0, y: 6, filter: "blur(4px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-          className="flex-1 w-full max-w-3xl min-w-0"
-        >
-          {tab === "account"    && <Team memberships={memberships} company={company} />}
-          {tab === "rules"      && <Rules company={company} />}
-          {tab === "services"   && <Services companyId={company?.id} services={services} />}
-          {tab === "brain"      && <Persona company={company} services={services} onChangeTab={changeTab} planType={company?.plan_type} />}
-          {tab === "channels"   && <Channels company={company} channels={channels} usage={usage} />}
-          {tab === "automation" && (
+        <div className="flex-1 w-full max-w-3xl min-w-0">
+          <TabPanel active={tab === "account"}>
+            <Team memberships={memberships} company={company} />
+          </TabPanel>
+          <TabPanel active={tab === "rules"}>
+            <Rules company={company} />
+          </TabPanel>
+          <TabPanel active={tab === "services"}>
+            <Services companyId={company?.id} services={services} />
+          </TabPanel>
+          <TabPanel active={tab === "brain"}>
+            <Persona company={company} services={services} onChangeTab={changeTab} planType={company?.plan_type} />
+          </TabPanel>
+          <TabPanel active={tab === "channels"}>
+            <Channels company={company} channels={channels} usage={usage} />
+          </TabPanel>
+          <TabPanel active={tab === "automation"}>
             <Flows
               company={company}
               automationStats={automationStats}
@@ -324,33 +328,48 @@ export function SettingsShell({ company, memberships, channels, services, usage,
               webhooks={webhooks}
               onChangeTab={changeTab}
             />
-          )}
-          {tab === "logs"       && (
+          </TabPanel>
+          <TabPanel active={tab === "logs"}>
             <FeatureGate planType={company?.plan_type} requiredPlan="business" onChangeTab={changeTab} title="Mente da IA (Explainability)" desc="Acompanhe em tempo real por que a IA tomou determinadas decisões e refine as orientações.">
               <LogsView logs={aiLogs} />
             </FeatureGate>
-          )}
-          {tab === "billing"    && <Billing company={company} usage={usage} />}
-        </motion.div>
+          </TabPanel>
+          <TabPanel active={tab === "billing"}>
+            <Billing company={company} usage={usage} />
+          </TabPanel>
+        </div>
       </div>
     </div>
   );
 }
 
-function FeatureGate({ 
-  planType, 
-  requiredPlan, 
+function TabPanel({ active, children }: { active: boolean; children: React.ReactNode }) {
+  if (!active) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function FeatureGate({
+  planType,
+  requiredPlan,
   onChangeTab,
   title,
   desc,
-  children 
-}: { 
-  planType: string | null | undefined; 
-  requiredPlan: "pro" | "business"; 
+  children
+}: {
+  planType: string | null | undefined;
+  requiredPlan: "pro" | "business";
   onChangeTab: (tab: TabId) => void;
   title: string;
   desc: string;
-  children: React.ReactNode; 
+  children: React.ReactNode;
 }) {
   const PLAN_WEIGHTS: Record<string, number> = { trial: 0, starter: 1, pro: 2, business: 3 };
   const currentWeight = PLAN_WEIGHTS[planType ?? "trial"] ?? 0;
