@@ -14,6 +14,10 @@ import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControl
 import { createBrowserClient } from "@supabase/ssr";
 import { trackEvent } from "@/lib/analytics";
 
+const browserSupabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
 
 const TONE_CYCLE: Array<"cold" | "warm" | "hot"> = ["cold", "warm", "hot"];
 const TONE_LABEL: Record<string, string> = { cold: "Formal", warm: "Amigável", hot: "Persuasivo" };
@@ -65,17 +69,19 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const selectedMessageCount = useMemo(
+    () => leads.find((l) => l.id === selectedId)?.messages.length ?? 0,
+    [leads, selectedId],
+  );
+
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [leads, selectedId, showChatOnMobile]);
+  }, [selectedMessageCount, showChatOnMobile]);
 
   useEffect(() => {
     if (!companyId) return; // Cannot subscribe without a tenant filter
 
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
+    const supabase = browserSupabase;
 
     const companyFilter = `company_id=eq.${companyId}`;
 
@@ -201,13 +207,17 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     [leads, selectedId],
   );
 
+  const normalizedSearch = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
+
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {
-      const matchSearch = l.name.toLowerCase().includes(searchQuery.toLowerCase()) || l.phone.includes(searchQuery);
+      const matchSearch = !normalizedSearch ||
+        l.name.toLowerCase().includes(normalizedSearch) ||
+        l.phone.includes(normalizedSearch);
       const matchStatus = statusFilter === 'all' || l.status === statusFilter;
       return matchSearch && matchStatus;
     });
-  }, [leads, searchQuery, statusFilter]);
+  }, [leads, normalizedSearch, statusFilter]);
 
   // Restore focus after sending message or taking over
   useEffect(() => {
