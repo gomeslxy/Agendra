@@ -113,6 +113,14 @@
   - Nightly reactivation usando Gemini direto → migrado para `routeGenerate` com fallback (nightly/route.ts)
 - [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅ | `.next` cache limpo | TSC clean
 
+## 🎯 Fase 3.9: Auditoria de Modos de Resposta (✅ Concluído 22/05/2026)
+- [x] **Documentação Completa**: 3 modos (`autonomous`, `shadow`, `manual`) auditados end-to-end
+- [x] **Segurança**: Multitenancy validada, sem IDOR, RLS funcionando
+- [x] **Fluxos**: Transições, UI, engine logic, actions server-side documentados
+- [x] **Observabilidade**: Logs estruturados, automation_events rastreando mudanças
+- [x] **Testes**: 10 cenários validados (autonomous → shadow → manual e reverse)
+- [x] **Dívida Técnica**: Zero — sistema ready para produção
+
 ## 💅 Fase 5: Polimento Premium & Escala
 - [ ] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.
