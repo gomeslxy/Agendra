@@ -61,7 +61,6 @@ interface NotificationCardProps {
 function NotificationCard({ notification, onRead, onDismiss }: NotificationCardProps) {
   const [accepting, startAccept] = useTransition();
   const [declining, startDecline] = useTransition();
-  const [dismissed, setDismissed] = useState(false);
 
   const invitationId = notification.metadata?.invitation_id as string | undefined;
   const isInvite = notification.type === "invite" && invitationId;
@@ -72,7 +71,6 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
       try {
         await acceptInvitation(invitationId);
         toast.success("Convite aceito! Bem-vindo ao time.");
-        setDismissed(true);
         onDismiss(notification.id);
       } catch (err: any) {
         toast.error(err.message);
@@ -86,7 +84,6 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
       try {
         await declineInvitation(invitationId);
         toast.info("Convite recusado.");
-        setDismissed(true);
         onDismiss(notification.id);
       } catch (err: any) {
         toast.error(err.message);
@@ -100,8 +97,6 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
       window.location.href = notification.action_url;
     }
   }
-
-  if (dismissed) return null;
 
   return (
     <motion.div
@@ -218,7 +213,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
         },
         (payload) => {
           setNotifications((prev) =>
-            prev.map((n) => (n.id === (payload.new as Notification).id ? (payload.new as Notification) : n))
+            prev.map((n) => (n.id === (payload.new as Notification).id ? { ...n, ...(payload.new as any) } : n))
           );
         }
       )
@@ -243,7 +238,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   }
 
   function handleDismiss(id: string) {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   }
 
   function handleMarkAll() {
