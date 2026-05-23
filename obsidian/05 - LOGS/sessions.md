@@ -1226,3 +1226,10 @@ $content
 - **Status**: Análise Completa.
 - **Resumo**: Auditoria técnica finalizada. Documentado em diagnostico-tecnico.md.
 
+
+## [2026-05-23] - Sistema de Notificações e Convites
+- **[FEAT]** Tabela de notifications e invitations adicionada com RLS.
+- **[FEAT]** Componente NotificationBell com Framer Motion, Liquid Glass e Supabase Realtime.
+- **[FEAT]** Convites com deep links via e-mail e auto-accept para novos usuários em /accept-invite.
+- **[FEAT]** Integração do createNotification no webhook do Stripe e cron de check-channels.
+

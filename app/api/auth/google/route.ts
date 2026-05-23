@@ -82,7 +82,7 @@ async function handleOAuthCallback(
   code: string,
   companyId: string,
 ): Promise<NextResponse> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.agendra.site';
 
   try {
     // Gate: maxCalendars — current model is 1 calendar per company

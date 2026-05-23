@@ -258,7 +258,7 @@ export async function resendInvitation(invitationId: string) {
       await admin.from("invitations").update({ notification_id: notifId }).eq("id", invitationId);
     }
   } else {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.agendra.com.br";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.agendra.site";
     await admin.auth.admin.inviteUserByEmail(invite.invited_email, {
       redirectTo: `${appUrl}/accept-invite?invitationId=${invitationId}`,
       data: { company_id: companyId, invited_role: invite.role },

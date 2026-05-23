@@ -457,7 +457,7 @@ export async function inviteTeamMember(email: string, role: "admin" | "member") 
   if (inviteErr) throw new Error("Erro ao criar convite: " + inviteErr.message);
 
   const invitationId = invitation.id;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.agendra.com.br";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.agendra.site";
 
   if (existingUser) {
     // In-app notification — Realtime delivers immediately

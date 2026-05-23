@@ -206,3 +206,6 @@
 
 ---
 [[visao-geral|⬅️ Voltar]]
+
+- [x] Implementado sistema completo de notificações in-app e convites de equipe (Liquid Glass, Realtime, server actions).
+

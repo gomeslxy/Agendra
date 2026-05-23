@@ -246,6 +246,37 @@ export async function POST(req: Request) {
           amount_cents: inv.amount_due,
           metadata: { hosted_invoice_url: inv.hosted_invoice_url, attempt_count: inv.attempt_count },
         });
+
+        // Notify company owner of payment failure
+        try {
+          const { createNotification } = await import("@/lib/notifications/create");
+          // Find company owner
+          const { data: owner } = await admin
+            .from("memberships")
+            .select("user_id")
+            .eq("company_id", companyId)
+            .eq("role", "owner")
+            .maybeSingle();
+
+          if (owner) {
+            await createNotification({
+              company_id: companyId,
+              user_id: owner.user_id,
+              type: "payment_failed",
+              title: "Falha no pagamento",
+              body: "Não foi possível processar o pagamento da sua assinatura. Acesse o portal de cobrança para atualizar seus dados.",
+              action_url: "/settings",
+              priority: "critical",
+              metadata: {
+                invoice_id: inv.id,
+                amount_cents: inv.amount_due,
+                hosted_invoice_url: inv.hosted_invoice_url,
+              },
+            });
+          }
+        } catch (notifErr: any) {
+          console.error("[Stripe Webhook] Failed to create payment_failed notification:", notifErr.message);
+        }
       }
       break;
     }
