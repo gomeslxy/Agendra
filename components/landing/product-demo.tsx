@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useReducer, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarCheck,
@@ -44,8 +44,30 @@ const HEAT_COLORS = {
   cold: { dot: "#60A5FA", bg: "rgba(96,165,250,0.10)", text: "#93C5FD" },
 };
 
-/* ─── Sub-componentes ────────────────────────────────────────── */
+/* ─── Chat state machine ─────────────────────────────────────── */
+type ChatState = { shown: number; typing: boolean; started: boolean };
+type ChatAction =
+  | { type: "START" }
+  | { type: "SHOW_TYPING" }
+  | { type: "SHOW_MSG" }
+  | { type: "RESET" };
 
+function chatReducer(state: ChatState, action: ChatAction): ChatState {
+  switch (action.type) {
+    case "START":
+      return { ...state, started: true, shown: 0, typing: false };
+    case "SHOW_TYPING":
+      return { ...state, typing: true };
+    case "SHOW_MSG":
+      return { shown: state.shown + 1, typing: false, started: state.started };
+    case "RESET":
+      return { shown: 0, typing: false, started: true };
+    default:
+      return state;
+  }
+}
+
+/* ─── Sub-componentes ────────────────────────────────────────── */
 function TypingDots({ align }: { align: "left" | "right" }) {
   return (
     <div className={cn("flex items-end gap-1.5", align === "right" ? "justify-end" : "justify-start")}>
@@ -105,35 +127,64 @@ function HeatDot({ heat }: { heat: keyof typeof HEAT_COLORS }) {
 
 /* ─── Chat panel ─────────────────────────────────────────────── */
 function ChatPanel() {
-  const [shown, setShown] = useState(0);
-  const [typing, setTyping] = useState(false);
+  const [state, dispatch] = useReducer(chatReducer, { shown: 0, typing: false, started: false });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Start when entering viewport
   useEffect(() => {
-    if (shown >= SCRIPT.length) return;
-    setTyping(true);
-    const t = setTimeout(() => {
-      setTyping(false);
-      setShown((s) => s + 1);
-    }, SCRIPT[shown]?.delay ?? 1500);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shown]);
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          dispatch({ type: "START" });
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.3 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
+  // Orchestrate conversation — single timer, no cascading effects
+  useEffect(() => {
+    if (!state.started) return;
+    if (state.shown >= SCRIPT.length) return;
+
+    const current = SCRIPT[state.shown];
+    if (!current) return;
+
+    // Show typing indicator briefly, then reveal message
+    timerRef.current = setTimeout(() => {
+      dispatch({ type: "SHOW_TYPING" });
+      timerRef.current = setTimeout(() => {
+        dispatch({ type: "SHOW_MSG" });
+      }, Math.min(current.delay, 1800));
+    }, 300);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [state.shown, state.started]);
+
+  // Auto-scroll
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [shown, typing]);
+  }, [state.shown, state.typing]);
 
-  const confirmed = shown >= SCRIPT.length;
+  const handleReplay = useCallback(() => dispatch({ type: "RESET" }), []);
 
-  function handleReplay() {
-    setShown(0);
-    setTyping(false);
-  }
+  const confirmed = state.shown >= SCRIPT.length;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[20px] border border-white/[0.10] bg-gradient-to-b from-[rgba(255,255,255,0.06)] to-[rgba(255,255,255,0.03)] shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
+    <div
+      ref={sectionRef}
+      className="flex h-full flex-col overflow-hidden rounded-[20px] border border-white/[0.10] bg-gradient-to-b from-[rgba(255,255,255,0.06)] to-[rgba(255,255,255,0.03)] shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+    >
       {/* Header do chat */}
       <div className="flex items-center gap-3 border-b border-white/[0.07] px-4 py-3.5">
         <div className="relative">
@@ -153,12 +204,15 @@ function ChatPanel() {
       </div>
 
       {/* Mensagens */}
-      <div ref={scrollContainerRef} className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {SCRIPT.slice(0, shown).map((m, i) => (
+      <div
+        ref={scrollContainerRef}
+        className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {SCRIPT.slice(0, state.shown).map((m, i) => (
           <Bubble key={i} who={m.who} text={m.text} />
         ))}
         <AnimatePresence>
-          {typing && shown < SCRIPT.length && (
+          {state.typing && state.shown < SCRIPT.length && (
             <motion.div
               key="typing"
               initial={{ opacity: 0, y: 6 }}
@@ -166,7 +220,7 @@ function ChatPanel() {
               exit={{ opacity: 0, y: 6 }}
               transition={{ duration: 0.2 }}
             >
-              <TypingDots align={SCRIPT[shown]?.who === "ai" ? "right" : "left"} />
+              <TypingDots align={SCRIPT[state.shown]?.who === "ai" ? "right" : "left"} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -304,7 +358,7 @@ function SidePanel() {
 /* ─── Export ─────────────────────────────────────────────────── */
 export function ProductDemo() {
   return (
-    <section id="demo" className="relative pb-24 pt-16">
+    <section id="demo" className="relative pb-24 pt-16" aria-label="Demonstração do produto">
       <div className="mx-auto max-w-[1200px] px-6">
         <FadeUp>
           <div className="eyebrow mb-3">PRODUTO</div>

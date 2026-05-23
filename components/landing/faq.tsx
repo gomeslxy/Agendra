@@ -31,7 +31,7 @@ const FAQS = [
 
 export function FAQ() {
   return (
-    <section id="faq" className="relative py-24">
+    <section id="faq" className="relative py-24" aria-label="Dúvidas frequentes">
       <div className="mx-auto max-w-[800px] px-6">
         <FadeUp>
           <div className="eyebrow mb-3 text-center">DÚVIDAS FREQUENTES</div>

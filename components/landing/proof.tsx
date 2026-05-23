@@ -38,18 +38,18 @@ const TESTIMONIALS = [
 ];
 
 const LOGOS = [
-  { name: "WhatsApp",       url: "https://svgl.app/library/whatsapp.svg" },
-  { name: "Google Calendar", url: "https://svgl.app/library/google-calendar.svg" },
-  { name: "Stripe",         url: "https://svgl.app/library/stripe.svg" },
-  { name: "HubSpot",        url: "https://svgl.app/library/hubspot.svg" },
-  { name: "Salesforce",     url: "https://svgl.app/library/salesforce.svg" },
-  { name: "Zapier",         url: "https://svgl.app/library/zapier.svg" },
-  { name: "Instagram",      url: "https://svgl.app/library/instagram.svg" },
+  { name: "WhatsApp",        url: "/logos/whatsapp.svg" },
+  { name: "Google Calendar", url: "/logos/google-calendar.svg" },
+  { name: "Stripe",          url: "/logos/stripe.svg" },
+  { name: "HubSpot",         url: "/logos/hubspot.svg" },
+  { name: "Salesforce",      url: "/logos/salesforce.svg" },
+  { name: "Zapier",          url: "/logos/zapier.svg" },
+  { name: "Instagram",       url: "/logos/instagram.svg" },
 ];
 
 export function Proof() {
   return (
-    <section className="relative pb-24 pt-12">
+    <section className="relative pb-24 pt-12" aria-label="Resultados e depoimentos">
       <div className="mx-auto max-w-[1200px] px-6">
         <FadeUp>
           <div className="eyebrow mb-3">RESULTADOS</div>
@@ -89,9 +89,6 @@ export function Proof() {
               <motion.div
                 key={t.name}
                 variants={fadeUp}
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true, margin: "-40px" }}
                 transition={{ delay: i * 0.08 }}
               >
                 <Glass className="flex h-full flex-col gap-4 p-6">
@@ -125,14 +122,13 @@ export function Proof() {
 
               <InfiniteSlider gap={80} duration={30}>
                 {LOGOS.map((logo) => (
-                  <div key={logo.name} className="flex items-center gap-3 opacity-40 grayscale transition-all hover:opacity-100 hover:grayscale-0">
+                  <div key={logo.name} className="flex items-center gap-3 opacity-60 grayscale transition-all hover:opacity-100 hover:grayscale-0">
                     <Image
                       src={logo.url}
                       alt={logo.name}
                       width={28}
                       height={28}
                       className="h-7 w-auto"
-                      unoptimized
                     />
                     <span className="text-sm font-semibold tracking-tight text-white">{logo.name}</span>
                   </div>

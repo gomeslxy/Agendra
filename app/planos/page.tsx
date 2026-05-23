@@ -241,7 +241,7 @@ export default function PlanosPage() {
       </AnimatePresence>
 
       <main className="flex-1 pt-28 pb-24 px-4 sm:px-6 md:px-12 relative overflow-hidden z-10">
-        <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" fill="#3b82f6" />
+        <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" />
         <GridBeam className="absolute inset-0 pointer-events-none opacity-40" />
 
         <div className="max-w-6xl mx-auto relative z-10">

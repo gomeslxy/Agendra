@@ -9,7 +9,7 @@ import { trackEvent } from "@/lib/analytics";
 
 export function FinalCTA() {
   return (
-    <section id="precos" className="relative pb-24 pt-12">
+    <section id="precos" className="relative pb-24 pt-12" aria-label="Comece grátis">
       <div className="mx-auto max-w-[1200px] px-6">
         <FadeUp>
           <Glass

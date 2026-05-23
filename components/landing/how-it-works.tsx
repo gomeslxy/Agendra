@@ -186,7 +186,7 @@ export function HowItWorks() {
   const headInView = useInView(headRef, { once: true, margin: "-60px" });
 
   return (
-    <section id="como-funciona" className="relative py-24">
+    <section id="como-funciona" className="relative py-24" aria-label="Como funciona">
       <div className="mx-auto max-w-[1200px] px-6">
         {/* Header */}
         <motion.div

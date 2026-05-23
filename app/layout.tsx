@@ -16,12 +16,14 @@ const jetbrains = JetBrains_Mono({
   weight: ["400", "500"],
   display: "swap",
   variable: "--font-jetbrains",
-  preload: false,
+  preload: true,
   adjustFontFallback: true,
 });
 
+const CANONICAL_URL = "https://www.agendra.site";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.agendra.site"),
+  metadataBase: new URL(CANONICAL_URL),
   title: {
     default: "Agendra — Lead novo, reunião marcada.",
     template: "%s | Agendra",
@@ -43,11 +45,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Agendra — Lead novo, reunião marcada.",
     description: "IA que responde, qualifica e agenda seus leads 24/7. Converta mais com agendamentos automáticos no WhatsApp e Instagram.",
-    url: "https://www.agendra.site",
+    url: CANONICAL_URL,
     siteName: "Agendra",
     images: [
       {
-        url: "/assets/og-image.png", // We will generate this
+        url: "/assets/og-image.png",
         width: 1200,
         height: 630,
         alt: "Agendra - Automação de Agendamento com IA",
@@ -106,8 +108,8 @@ export default function RootLayout({
         <JsonLd />
         <MotionProvider>{children}</MotionProvider>
         <Toaster theme="dark" position="top-center" richColors />
+        <GoogleAnalytics gaId={GA_TRACKING_ID} />
       </body>
-      <GoogleAnalytics gaId={GA_TRACKING_ID} />
     </html>
   );
 }
