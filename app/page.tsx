@@ -23,14 +23,17 @@ export const metadata: Metadata = {
 import { Header } from "@/components/landing/header";
 import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
-import { ProductDemo } from "@/components/landing/product-demo";
-import { Benefits } from "@/components/landing/benefits";
-import { Proof } from "@/components/landing/proof";
-import { UseCases } from "@/components/landing/use-cases";
-import { FAQ } from "@/components/landing/faq";
-import { FinalCTA } from "@/components/landing/final-cta";
-import { Footer } from "@/components/landing/footer";
 import { getUser } from "@/lib/supabase/server";
+
+// Below-fold sections lazy loaded
+import dynamic from "next/dynamic";
+const ProductDemo = dynamic(() => import("@/components/landing/product-demo").then((m) => m.ProductDemo));
+const Benefits = dynamic(() => import("@/components/landing/benefits").then((m) => m.Benefits));
+const Proof = dynamic(() => import("@/components/landing/proof").then((m) => m.Proof));
+const UseCases = dynamic(() => import("@/components/landing/use-cases").then((m) => m.UseCases));
+const FAQ = dynamic(() => import("@/components/landing/faq").then((m) => m.FAQ));
+const FinalCTA = dynamic(() => import("@/components/landing/final-cta").then((m) => m.FinalCTA));
+const Footer = dynamic(() => import("@/components/landing/footer").then((m) => m.Footer));
 
 export default async function LandingPage() {
   const user = await getUser();
