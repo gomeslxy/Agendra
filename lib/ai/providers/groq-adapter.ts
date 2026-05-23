@@ -24,14 +24,17 @@ export class GroqAdapter implements AIProviderAdapter {
   readonly defaultChatModel = 'llama-3.3-70b-versatile';
   readonly defaultGenerateModel = 'llama-3.3-70b-versatile';
 
-  private client = new OpenAI({
-    baseURL: 'https://api.groq.com/openai/v1',
-    apiKey: process.env.GROQ_API_KEY ?? '',
-  });
+  private get client() {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) throw new Error('groq: GROQ_API_KEY not set');
+    return new OpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: key });
+  }
 
   async chat(params: ChatParams): Promise<ChatResult> {
     const modelName = this.defaultChatModel;
     const tools = params.tools.length > 0 ? params.tools.map(toOpenAITool) : undefined;
+    const toolChoice = params.toolMode === 'ANY' ? 'required' : 'auto';
+    const reqOpts = params.signal ? { signal: params.signal } : undefined;
 
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: params.systemPrompt },
@@ -47,11 +50,10 @@ export class GroqAdapter implements AIProviderAdapter {
     let totalOutput = 0;
     let iterations = 0;
 
-    let response = await this.client.chat.completions.create({
-      model: modelName,
-      messages,
-      ...(tools ? { tools, tool_choice: 'auto' } : {}),
-    });
+    let response = await this.client.chat.completions.create(
+      { model: modelName, messages, ...(tools ? { tools, tool_choice: toolChoice } : {}) },
+      reqOpts,
+    );
 
     totalInput += response.usage?.prompt_tokens ?? 0;
     totalOutput += response.usage?.completion_tokens ?? 0;
@@ -89,11 +91,10 @@ export class GroqAdapter implements AIProviderAdapter {
 
       messages.push(...toolResults);
 
-      response = await this.client.chat.completions.create({
-        model: modelName,
-        messages,
-        ...(tools ? { tools, tool_choice: 'auto' } : {}),
-      });
+      response = await this.client.chat.completions.create(
+        { model: modelName, messages, ...(tools ? { tools, tool_choice: 'auto' } : {}) },
+        reqOpts,
+      );
 
       totalInput += response.usage?.prompt_tokens ?? 0;
       totalOutput += response.usage?.completion_tokens ?? 0;

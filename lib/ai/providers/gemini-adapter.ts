@@ -69,18 +69,23 @@ export class GeminiAdapter implements AIProviderAdapter {
   readonly defaultChatModel = 'gemini-2.5-flash';
   readonly defaultGenerateModel = 'gemini-2.5-flash-lite';
 
-  private genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+  private get genAI() {
+    const key = process.env.GOOGLE_AI_API_KEY;
+    if (!key) throw new Error('gemini: GOOGLE_AI_API_KEY not set');
+    return new GoogleGenerativeAI(key);
+  }
 
   async chat(params: ChatParams): Promise<ChatResult> {
     const modelName = params.preferredModel ?? this.defaultChatModel;
     const declarations = params.tools.map(toGeminiDeclaration);
+    const callingMode = params.toolMode === 'ANY' ? FunctionCallingMode.ANY : FunctionCallingMode.AUTO;
 
     const model = this.genAI.getGenerativeModel({
       model: modelName,
       systemInstruction: params.systemPrompt,
       tools: declarations.length > 0 ? [{ functionDeclarations: declarations }] : undefined,
       toolConfig: declarations.length > 0
-        ? { functionCallingConfig: { mode: FunctionCallingMode.AUTO } }
+        ? { functionCallingConfig: { mode: callingMode } }
         : undefined,
     });
 

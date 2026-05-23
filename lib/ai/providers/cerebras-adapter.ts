@@ -21,17 +21,20 @@ function toOpenAITool(t: NeutralToolDefinition): ChatCompletionTool {
 
 export class CerebrasAdapter implements AIProviderAdapter {
   readonly name = 'cerebras' as const;
-  readonly defaultChatModel = 'llama3.1-8b';
-  readonly defaultGenerateModel = 'llama3.1-8b';
+  readonly defaultChatModel = 'llama-3.3-70b';
+  readonly defaultGenerateModel = 'llama-3.3-70b';
 
-  private client = new OpenAI({
-    baseURL: 'https://api.cerebras.ai/v1',
-    apiKey: process.env.CEREBRAS_API_KEY ?? '',
-  });
+  private get client() {
+    const key = process.env.CEREBRAS_API_KEY;
+    if (!key) throw new Error('cerebras: CEREBRAS_API_KEY not set');
+    return new OpenAI({ baseURL: 'https://api.cerebras.ai/v1', apiKey: key });
+  }
 
   async chat(params: ChatParams): Promise<ChatResult> {
     const modelName = this.defaultChatModel;
     const tools = params.tools.length > 0 ? params.tools.map(toOpenAITool) : undefined;
+    const toolChoice = params.toolMode === 'ANY' ? 'required' : 'auto';
+    const reqOpts = params.signal ? { signal: params.signal } : undefined;
 
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: params.systemPrompt },
@@ -47,11 +50,10 @@ export class CerebrasAdapter implements AIProviderAdapter {
     let totalOutput = 0;
     let iterations = 0;
 
-    let response = await this.client.chat.completions.create({
-      model: modelName,
-      messages,
-      ...(tools ? { tools, tool_choice: 'auto' } : {}),
-    });
+    let response = await this.client.chat.completions.create(
+      { model: modelName, messages, ...(tools ? { tools, tool_choice: toolChoice } : {}) },
+      reqOpts,
+    );
 
     totalInput += response.usage?.prompt_tokens ?? 0;
     totalOutput += response.usage?.completion_tokens ?? 0;
@@ -89,11 +91,10 @@ export class CerebrasAdapter implements AIProviderAdapter {
 
       messages.push(...toolResults);
 
-      response = await this.client.chat.completions.create({
-        model: modelName,
-        messages,
-        ...(tools ? { tools, tool_choice: 'auto' } : {}),
-      });
+      response = await this.client.chat.completions.create(
+        { model: modelName, messages, ...(tools ? { tools, tool_choice: 'auto' } : {}) },
+        reqOpts,
+      );
 
       totalInput += response.usage?.prompt_tokens ?? 0;
       totalOutput += response.usage?.completion_tokens ?? 0;

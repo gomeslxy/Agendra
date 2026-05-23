@@ -113,7 +113,9 @@ if (newMsg.role === "user") {
           const updatedLead = payload.new as Lead;
           setLeads((prev) => {
             const next = prev.map((lead) =>
-              lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead,
+              lead.id === updatedLead.id
+                ? { ...lead, ...updatedLead, messages: lead.messages }
+                : lead,
             );
             return next.sort((a, b) => {
               const aLast = lastMsg(a)?.created_at ?? a.updated_at;
@@ -148,7 +150,7 @@ if (newMsg.role === "user") {
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [companyId]);
 
   const selected = useMemo(
     () => leads.find((l) => l.id === selectedId) ?? null,

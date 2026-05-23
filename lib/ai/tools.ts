@@ -229,14 +229,14 @@ export async function handleCheckAvailability(
   const now = new Date();
   const rangeEnd = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
 
-  // 2. Buscar bloqueios (Local + GCal)
+  // 2. Buscar bloqueios (Local + GCal) — overlap query: event overlaps [now, rangeEnd]
   const { data: localEvents } = await admin
     .from('events')
     .select('start_time, end_time')
     .eq('company_id', ctx.companyId)
     .neq('status', 'cancelled')
-    .gte('start_time', now.toISOString())
-    .lte('end_time', rangeEnd.toISOString());
+    .lt('start_time', rangeEnd.toISOString())
+    .gt('end_time', now.toISOString());
 
   let gcalBusy: any[] = [];
   if (company?.google_refresh_token && company?.google_calendar_id) {
@@ -287,28 +287,33 @@ export async function handleBookAppointment(
 ) {
   const admin = createAdminClient();
 
-  // 1. Buscar detalhes do serviço e lead
-  const [svcRes, leadRes] = await Promise.all([
+  // 1. Buscar detalhes do serviço, lead e empresa em paralelo
+  const [svcRes, leadRes, coRes] = await Promise.all([
     admin.from('services').select('name, duration').eq('id', args.service_id).eq('company_id', ctx.companyId).single(),
-    admin.from('leads').select('name, email').eq('id', ctx.leadId).eq('company_id', ctx.companyId).single()
+    admin.from('leads').select('name, email').eq('id', ctx.leadId).eq('company_id', ctx.companyId).single(),
+    admin.from('companies').select('google_refresh_token, google_calendar_id, persona_config, name').eq('id', ctx.companyId).single(),
   ]);
 
   if (!svcRes.data) throw new Error('Serviço não encontrado.');
   const service = svcRes.data;
   const lead = leadRes.data;
+  const bufferMinutes = (coRes.data?.persona_config as any)?.buffer_minutes ?? 0;
   const startTime = new Date(args.start_time);
   if (isNaN(startTime.getTime())) throw new Error('Horário inválido. Informe um ISO 8601 válido.');
   if (startTime.getTime() < Date.now()) throw new Error('Não é possível agendar no passado.');
   const endTime = new Date(startTime.getTime() + service.duration * 60000);
 
-  // 2a. Check colisão geral (empresa)
+  // 2a. Check colisão geral (empresa) — expande janela por buffer_minutes
+  const bufferMs = bufferMinutes * 60_000;
+  const bufferedStart = new Date(startTime.getTime() - bufferMs);
+  const bufferedEnd = new Date(endTime.getTime() + bufferMs);
   const { data: collision } = await admin
     .from('events')
     .select('id')
     .eq('company_id', ctx.companyId)
     .neq('status', 'cancelled')
-    .lt('start_time', endTime.toISOString())
-    .gt('end_time', startTime.toISOString())
+    .lt('start_time', bufferedEnd.toISOString())
+    .gt('end_time', bufferedStart.toISOString())
     .maybeSingle();
 
   if (collision) throw new Error('Este horário acabou de ser ocupado. Por favor, escolha outro.');
@@ -345,11 +350,7 @@ export async function handleBookAppointment(
   }
 
   // 3. Sync GCal & Double-Check External
-  const { data: company } = await admin
-    .from('companies')
-    .select('google_refresh_token, google_calendar_id, persona_config, name')
-    .eq('id', ctx.companyId)
-    .single();
+  const company = coRes.data;
 
   let gcalId: string | null = null;
   if (company?.google_refresh_token) {

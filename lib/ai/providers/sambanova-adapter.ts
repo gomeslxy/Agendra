@@ -15,18 +15,20 @@ function toOpenAITool(t: NeutralToolDefinition) {
 
 export class SambaNovaAdapter implements AIProviderAdapter {
   readonly name = 'sambanova' as const;
-  readonly defaultChatModel = 'Meta-Llama-3.1-70B-Instruct';
-  readonly defaultGenerateModel = 'Meta-Llama-3.1-70B-Instruct';
+  readonly defaultChatModel = 'Meta-Llama-3.3-70B-Instruct';
+  readonly defaultGenerateModel = 'Meta-Llama-3.3-70B-Instruct';
 
-  private async post<T = any>(body: Record<string, any>): Promise<T> {
+  private async post<T = any>(body: Record<string, any>, signal?: AbortSignal): Promise<T> {
+    const key = process.env.SAMBANOVA_API_KEY;
+    if (!key) throw new Error('sambanova: SAMBANOVA_API_KEY not set');
     const r = await fetch(`${BASE}/chat/completions`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.SAMBANOVA_API_KEY ?? ''}`,
+        Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ thinking: false, ...body }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!r.ok) throw new Error(`SambaNova ${r.status}: ${(await r.text()).slice(0, 200)}`);
     return r.json() as Promise<T>;
@@ -35,6 +37,7 @@ export class SambaNovaAdapter implements AIProviderAdapter {
   async chat(params: ChatParams): Promise<ChatResult> {
     const modelName = this.defaultChatModel;
     const tools = params.tools.length ? params.tools.map(toOpenAITool) : undefined;
+    const toolChoice = params.toolMode === 'ANY' ? 'required' : 'auto';
 
     const messages: any[] = [
       { role: 'system', content: params.systemPrompt },
@@ -45,10 +48,10 @@ export class SambaNovaAdapter implements AIProviderAdapter {
     const toolsCalled: ChatResult['toolsCalled'] = [];
     let totalIn = 0, totalOut = 0, iterations = 0;
 
-    let resp = await this.post({
-      model: modelName, messages,
-      ...(tools ? { tools, tool_choice: 'auto' } : {}),
-    });
+    let resp = await this.post(
+      { model: modelName, messages, ...(tools ? { tools, tool_choice: toolChoice } : {}) },
+      params.signal,
+    );
     totalIn += resp.usage?.prompt_tokens ?? 0;
     totalOut += resp.usage?.completion_tokens ?? 0;
 
@@ -69,10 +72,10 @@ export class SambaNovaAdapter implements AIProviderAdapter {
       }));
       messages.push(...results);
 
-      resp = await this.post({
-        model: modelName, messages,
-        ...(tools ? { tools, tool_choice: 'auto' } : {}),
-      });
+      resp = await this.post(
+        { model: modelName, messages, ...(tools ? { tools, tool_choice: 'auto' } : {}) },
+        params.signal,
+      );
       totalIn += resp.usage?.prompt_tokens ?? 0;
       totalOut += resp.usage?.completion_tokens ?? 0;
     }

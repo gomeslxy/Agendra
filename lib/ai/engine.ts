@@ -247,6 +247,7 @@ export async function processLeadMessage(
       toolHandler,
       maxIterations: MAX_ITERATIONS,
       preferredModel: geminiModelOverride,
+      toolMode: schedulingIntent ? 'ANY' : 'AUTO',
     },
     { chain: schedulingIntent ? 'tools' : 'conv', traceId }
   );
@@ -516,21 +517,25 @@ export async function handleIncomingMessage(
     return admin.from('leads').update({ is_processing: false, processing_started_at: null }).eq('id', activeLead.id).eq('company_id', companyId);
   };
 
-  // 4. Billing gate
+  // 4. Persist incoming message (must happen before any early return so inbox always shows it)
+  await admin
+    .from('messages')
+    .insert({ lead_id: activeLead.id, company_id: companyId, role: 'user', content: messageText });
+
+  // 5. Billing gate
   const usage = preloadedUsage ?? await getCompanyUsage(companyId);
   if (usage.isLimitReached) {
     const fallback =
       'Ola! No momento estamos com alta demanda. Recebemos sua mensagem e um consultor humano entrara em contato em breve.';
     logInfo('Sending fallback WhatsApp message due to billing limit');
     await sendWhatsAppMessage(phone, fallback, companyId);
+    if (providerMessageId) {
+      await admin.from('processed_messages').update({ status: 'completed' })
+        .eq('provider_message_id', providerMessageId);
+    }
     await releaseLock();
     return;
   }
-
-  // 5. Persist incoming message + load history
-  await admin
-    .from('messages')
-    .insert({ lead_id: activeLead.id, company_id: companyId, role: 'user', content: messageText });
 
   // Plan-aware history window: lower plans get fewer messages → fewer input tokens per call.
   const historyLimit = usage.limits.hasAdvancedModel ? 20 : 10;
@@ -553,6 +558,10 @@ export async function handleIncomingMessage(
     .eq('role', 'assistant');
 
   if (activeLead.is_paused) {
+    if (providerMessageId) {
+      await admin.from('processed_messages').update({ status: 'completed' })
+        .eq('provider_message_id', providerMessageId);
+    }
     await releaseLock();
     return;
   }

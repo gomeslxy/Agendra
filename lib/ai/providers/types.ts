@@ -43,6 +43,10 @@ export interface ChatParams {
   toolHandler: (name: string, args: Record<string, any>) => Promise<any>;
   maxIterations: number;
   preferredModel?: string;
+  /** AbortSignal injected by the router per-attempt. */
+  signal?: AbortSignal;
+  /** Force tool calls when set to 'ANY'; defaults to AUTO. */
+  toolMode?: 'ANY' | 'AUTO';
 }
 
 export interface ChatResult {

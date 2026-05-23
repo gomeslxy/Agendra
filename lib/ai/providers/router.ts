@@ -8,9 +8,9 @@ import type {
   ProviderName, ProviderRouteResult, ProviderGenerateResult, RouteOptions,
 } from './types';
 
-const CHAT_TIMEOUT_MS = 3_500;
-const GEN_TIMEOUT_MS = 8_000;
-const DEGRADED_TIMEOUT_MS = 15_000;
+const CHAT_TIMEOUT_MS = 12_000;
+const GEN_TIMEOUT_MS = 12_000;
+const DEGRADED_TIMEOUT_MS = 25_000;
 
 const cerebras = new CerebrasAdapter();
 const groq = new GroqAdapter();
@@ -32,7 +32,7 @@ function classifyError(err: any): { retryable: boolean; kind: string } {
 
 async function runChain<T>(
   chain: AIProviderAdapter[],
-  exec: (p: AIProviderAdapter, timeoutMs: number) => Promise<T>,
+  exec: (p: AIProviderAdapter, signal: AbortSignal) => Promise<T>,
   baseTimeout: number,
   traceId?: string
 ): Promise<{ result: T; provider: ProviderName; fallbackUsed: boolean }> {
@@ -47,11 +47,12 @@ async function runChain<T>(
     }
     if (!first) first = provider.name;
     const t = i === chain.length - 1 ? DEGRADED_TIMEOUT_MS : baseTimeout;
+    const controller = new AbortController();
     const start = Date.now();
     try {
       const timeout = new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error(`timeout_${t}ms`)), t));
-      const result = await Promise.race([exec(provider, t), timeout]);
+        setTimeout(() => { controller.abort(); rej(new Error(`timeout_${t}ms`)); }, t));
+      const result = await Promise.race([exec(provider, controller.signal), timeout]);
       recordSuccess(provider.name);
       console.log(`[Router] ✅ ${provider.name} ${Date.now() - start}ms trace=${traceId}`);
       return { result, provider: provider.name, fallbackUsed: provider.name !== first };
@@ -71,7 +72,7 @@ export async function routeChat(
 ): Promise<ProviderRouteResult> {
   const chain = opts.chain === 'tools' ? TOOLS_CHAIN : CONV_CHAIN;
   const { result, provider, fallbackUsed } = await runChain(
-    chain, (p) => p.chat(params), CHAT_TIMEOUT_MS, opts.traceId
+    chain, (p, signal) => p.chat({ ...params, signal }), CHAT_TIMEOUT_MS, opts.traceId
   );
   return { ...result, provider, fallbackUsed };
 }
