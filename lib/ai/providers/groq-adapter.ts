@@ -33,7 +33,9 @@ export class GroqAdapter implements AIProviderAdapter {
   async chat(params: ChatParams): Promise<ChatResult> {
     const modelName = this.defaultChatModel;
     const tools = params.tools.length > 0 ? params.tools.map(toOpenAITool) : undefined;
-    const toolChoice = params.toolMode === 'ANY' ? 'required' : 'auto';
+    // Groq returns 400 "Failed to call a function" when tool_choice='required' on complex
+    // prompts. Always use 'auto' — Groq's 70b is reliable enough for tool calling.
+    const toolChoice = 'auto';
     const reqOpts = params.signal ? { signal: params.signal } : undefined;
 
     const messages: ChatCompletionMessageParam[] = [

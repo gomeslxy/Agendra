@@ -21,8 +21,8 @@ function toOpenAITool(t: NeutralToolDefinition): ChatCompletionTool {
 
 export class CerebrasAdapter implements AIProviderAdapter {
   readonly name = 'cerebras' as const;
-  readonly defaultChatModel = 'llama-3.3-70b';
-  readonly defaultGenerateModel = 'llama-3.3-70b';
+  readonly defaultChatModel = 'llama3.3-70b';
+  readonly defaultGenerateModel = 'llama3.3-70b';
 
   private get client() {
     const key = process.env.CEREBRAS_API_KEY;
