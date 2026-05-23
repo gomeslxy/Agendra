@@ -39,7 +39,7 @@ const PRIORITY_BG: Record<string, string> = {
   critical: "bg-red-500/10 border-red-500/20",
   high: "bg-orange-500/8 border-orange-500/15",
   medium: "bg-white/[0.04] border-white/[0.08]",
-  low: "bg-transparent border-white/[0.05]",
+  low: "bg-white/[0.02] border-white/[0.05]",
 };
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
@@ -128,12 +128,12 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-1">
-            <p className={cn("text-[12px] font-semibold leading-tight", notification.read ? "text-white/50" : "text-white")}>
+            <p className={cn("text-[13px] font-semibold leading-tight", notification.read ? "text-white/70" : "text-white")}>
               {notification.title}
             </p>
-            <span className="flex-shrink-0 text-[10px] text-white/30">{timeAgo(notification.created_at)}</span>
+            <span className="flex-shrink-0 text-[10px] text-white/40">{timeAgo(notification.created_at)}</span>
           </div>
-          <p className={cn("mt-0.5 text-[11px] leading-relaxed", notification.read ? "text-white/30" : "text-white/60")}>
+          <p className={cn("mt-1 text-[12px] leading-relaxed", notification.read ? "text-white/50" : "text-white/80")}>
             {notification.body}
           </p>
 
@@ -290,9 +290,9 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 sm:-right-4 top-full z-[100] mt-3 w-[340px] origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-[rgba(11,18,34,0.95)] shadow-2xl shadow-black/50 backdrop-blur-xl ring-1 ring-white/5"
+            className="absolute right-0 sm:-right-4 top-full z-[100] mt-3 w-[340px] origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-[#0B1222] shadow-2xl shadow-black/60 backdrop-blur-3xl ring-1 ring-white/5"
           >
-            <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.02] px-4 py-3">
+            <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-[14px] font-semibold text-white tracking-tight">Notificações</span>
                 {unreadCount > 0 && (
