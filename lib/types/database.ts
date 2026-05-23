@@ -200,3 +200,48 @@ export interface AITrace {
 export interface LeadWithMemory extends Lead {
   lead_memory?: LeadMemory | null;
 }
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'invite'
+  | 'member_joined'
+  | 'member_left'
+  | 'channel_error'
+  | 'payment_failed'
+  | 'lead_hot'
+  | 'system';
+
+export type NotificationPriority = 'low' | 'medium' | 'high' | 'critical';
+
+export interface Notification {
+  id: string;
+  company_id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  action_url: string | null;
+  metadata: Record<string, unknown>;
+  priority: NotificationPriority;
+  read: boolean;
+  created_at: string;
+}
+
+// ── Invitations ───────────────────────────────────────────────────────────────
+
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
+export type InvitationRole = 'admin' | 'member';
+
+export interface Invitation {
+  id: string;
+  company_id: string;
+  invited_email: string;
+  invited_by: string;
+  role: InvitationRole;
+  status: InvitationStatus;
+  expires_at: string;
+  notification_id: string | null;
+  accepted_at: string | null;
+  created_at: string;
+}
