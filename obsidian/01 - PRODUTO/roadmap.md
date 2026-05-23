@@ -11,7 +11,7 @@
 - [x] **Realtime**: Sincronização automática do Inbox (Supabase Channels).
 - [x] **Human Handoff**: Interface para pausar IA e intervir manualmente (Botões "Assumir" e "Automatizar").
 - [x] **Health Monitoring**: Worker proativo (Cron) e Alerta Global (AppShell) para canais com erro.
-- [ ] **Persona Settings**: Configuração de tom de voz via UI e atualização dinâmica do `SYSTEM_PROMPT`.
+- [x] **Persona Settings**: Configuração de tom de voz via UI e atualização dinâmica do `SYSTEM_PROMPT` (Concluída Auditoria Sênior & Hardening de Resumo e Agenda).
 
 ## 💸 Fase 3: Monetização & Arquitetura Multitenancy
 - [x] **Stripe**: Checkout e gestão de assinaturas (Webhook `/api/stripe/webhook` + **1-Click Upgrade**).

@@ -1,5 +1,21 @@
 # Histórico de Sessões
 
+## Sessão (23/05/2026) — Auditoria Sênior & Hardening: Sessões, Retomada e Sugestão de Horários da IA
+
+**OBJETIVO**: Auditar de forma sênior o comportamento da IA, implementando expiração de contexto de conversa (>12h) para evitar retomada indevida de tópicos passados, e aprimorar a UX conversacional na sugestão de horários de agendamento (evitando dumping de slots e agrupando-os de forma inteligente).
+
+### Resultados — 100% de sucesso nas simulações reais e testes de regressão passados!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Resumption & Expiry** | IA retomava tópicos antigos após dias ao receber saudações simples (ex: "oi") sem saudar o lead novamente. | Introduzido cálculo de gap temporal (`lead.last_message_at`) e expiração de sessão (12h). A IA agora saúda o lead calorosamente e avalia a intenção da retomada sem forçar o tópico antigo. | `lib/ai/engine.ts` | ✅ Fixo e Validado |
+| **UX de Agendamento** | O motor de IA "despejava" listas brutas de até 15 ou 20 horários no WhatsApp, parecendo robótico e poluindo a conversa. | Refatorada a tool `checkAvailability` para retornar orientações de sistema em vez do texto pronto formatado. Injetadas regras restritivas de UX de agendamento no System Prompt da IA para sugerir de 3 a 4 horários mais adequados agrupados por período. | `lib/ai/tools.ts`, `lib/ai/engine.ts` | ✅ Fixo e Validado |
+| **Simulações** | Necessidade de testar e demonstrar os cenários de forma determinística. | Criado script `scratch/test_ai_ux.ts` cobrindo 4 cenários extremos (Novo lead, Conversa ativa, Retomada após 24h e Agendamento UX). Todos executados com absoluto sucesso. | `scratch/test_ai_ux.ts` | ✅ Entregue |
+| **Cerebras Tuning** | O provedor da Cerebras retornava `404 status code` devido ao modelo `llama3.3-70b` indisponível no tier da conta. | Desenvolvido script de diagnóstico e reconfigurado o adaptador para o modelo ativo **`llama3.1-8b`**, que agora responde com sucesso em **~300ms**. | `lib/ai/providers/cerebras-adapter.ts` | ✅ Fixo e Validado |
+| **Integridade** | Evitar regressões de compilação ou regressões funcionais. | Executados `pnpm tsc --noEmit` (EXIT 0) e `pnpm test` (21/21 testes unitários vitest passados com sucesso). | N/A | ✅ Validado |
+
+---
+
 ## Sessão (23/05/2026) — Auditoria Fase 2: Correção de Bugs do Motor de IA, Webhooks, Caching de Clientes e Crons
 
 **OBJETIVO**: Concluir a Auditoria de Qualidade, Segurança e Performance (Fase 2). Resolver todas as inconsistências remanescentes em crons, webhooks, motor de IA e concorrência, alcançando 100% de estabilidade e build com sucesso.

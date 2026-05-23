@@ -281,9 +281,15 @@ export async function handleCheckAvailability(
     console.log(`[Tools] busyIntervals count: ${busyIntervals.length}`);
   }
 
-  if (!slots.length) return { message: 'Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.' };
+  if (!slots.length) {
+    return { slots: [], message: 'Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.' };
+  }
 
-  const message = 'Aqui estão os horários que encontrei:\n' + slots.map((s, i) => `${i + 1}. ${s.label}`).join('\n') + '\n\n[IMPORTANTE PARA A IA: Use o campo "start" ISO do slot selecionado no bookAppointment, não tente reconstruir a hora manualmente!]';
+  const message = `Encontrei ${slots.length} horários disponíveis. Os detalhes de todos os slots livres estão no array 'slots' retornado.
+IMPORTANTE PARA A IA:
+- NUNCA liste todos estes ${slots.length} horários para o cliente de uma vez (isso é robótico e poluído).
+- Escolha e sugira apenas 3 a 4 horários mais adequados, agrupando-os por período de forma natural e amigável (ex: manhã, tarde).
+- Use o campo "start" (ISO exato) do slot selecionado para agendar com 'bookAppointment', nunca tente reconstruir o horário manualmente.`;
   return { slots, message };
 }
 

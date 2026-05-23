@@ -77,6 +77,18 @@ Se o cliente perguntar sobre um recurso bloqueado, informe de forma direta, educ
 Se houver upgrade disponível, sugira de forma natural e sem insistência. Nunca invente permissões.`;
 }
 
+function formatTimeElapsed(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days} ${days === 1 ? 'dia' : 'dias'}`;
+  if (hours > 0) return `${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+  if (minutes > 0) return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+  return `${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}`;
+}
+
 function buildSystemPrompt(
   persona: PersonaConfig,
   lead: Lead,
@@ -84,6 +96,8 @@ function buildSystemPrompt(
   isNewConversation: boolean,
   planType: PlanType,
   planLimits: PlanLimits,
+  isSessionExpired?: boolean,
+  timeSinceLastStr?: string,
 ): string {
   const aiName = persona.name ?? 'Agendra';
   const businessName = persona.business_name ?? 'nossa empresa';
@@ -136,6 +150,33 @@ function buildSystemPrompt(
    Sobre isso, [continue o fluxo normal]") e siga o atendimento sem confrontar.
 - Se o lead ameaçar, ofender ou for inadequado, use a tool "requestHumanAgent".`;
 
+  let greetingRule = '';
+  if (isNewConversation) {
+    greetingRule = `Esta e a PRIMEIRA conversa deste lead. Apresente-se de forma amigavel e calorosa como assistente do(a) ${businessName}, de as boas-vindas e pergunte como pode ajudar.`;
+  } else if (isSessionExpired) {
+    greetingRule = `ATENCAO: O lead esta retornando apos um intervalo de ${timeSinceLastStr}. Esta e uma RETOMADA de conversa (nova sessao de atendimento).
+- Cumprimente o lead de forma natural e calorosa (ex: "Ola, ${firstName}! Tudo bem? Que bom falar com voce de novo!", ou "Ola, ${firstName}! Bom dia! Como posso te ajudar hoje?").
+- NUNCA assuma que ele quer continuar o assunto anterior diretamente a menos que ele mencione isso na mensagem dele.
+- Analise a mensagem dele para decidir a melhor abordagem:
+  1. Se for uma saudacao casual ou mensagem curta (ex: "oi", "ola", "bom dia"): cumprimente-o de volta com simpatia, cite de forma natural e sutil que voces conversaram antes sobre [Assunto Recente: ${lead.summary || 'servicos'}] e pergunte como pode ajuda-lo hoje.
+  2. Se ele ja estiver respondendo ou continuando o assunto anterior diretamente (ex: "quero agendar", "tem vaga terça?"): prossiga diretamente com o agendamento ou fluxo correspondente sem rodeios.
+  3. Se ele trouxe uma nova duvida ou assunto: responda diretamente a nova solicitacao de forma prestativa.
+  4. Se for uma mensagem vaga ou sem contexto suficiente: responda com simpatia e pergunte como pode ajudar hoje.`;
+  } else {
+    greetingRule = `Conversa ATIVA e em andamento (ultima interacao ha menos de 12 horas).
+- NAO cumprimente novamente (sem "Ola", "Tudo bem?", "Bom dia", "Que bom falar com voce de novo").
+- Responda diretamente e objetivamente ao que o lead disse para manter o fluxo agil e natural.`;
+  }
+
+  const schedulingRules = `
+## Regras de Apresentacao de Horarios (UX Conversacional)
+- Quando consultar a disponibilidade via checkAvailability, a ferramenta retornará uma lista de slots livres.
+- **NUNCA liste todos os horários retornados de uma vez no WhatsApp.** Isso é cansativo, robótico e estraga a experiência do cliente.
+- Apresente no máximo **3 a 4 opções de horários mais relevantes** por vez, agrupando-os por período de forma de conversa humana e amigável (ex: "Tenho terça-feira pela manhã às 09:30, ou à tarde às 14:00 e 15:30. Algum desses funciona para você?").
+- Tente entender a preferência de período do lead (manhã, tarde, início ou fim de semana) para filtrar e sugerir as melhores opções primeiro.
+- Se o lead não especificou o período, sugira opções variadas em dias próximos e pergunte qual período ele prefere.
+- Conduza a conversa de forma empática e guiada: em vez de esperar que o lead escolha de uma lista gigante, dê opções fáceis de decidir e conduza-o de forma humana até a confirmação.`;
+
   return `Voce e ${aiName}, assistente de vendas estrategica do(a) ${businessName} (${businessType}).
 Tom: ${tone}. Use o primeiro nome do lead: "${firstName}". Seja concisa, empatica e focada em conversao.
 
@@ -164,13 +205,14 @@ Quando checkAvailability retorna slots com "label" (ex: "Terca, 20 mai · 10:00�
 - Para bookAppointment, use SEMPRE o campo "start" (ISO 8601) do slot retornado, NUNCA tente reconstruir o horario manualmente.
 - NUNCA assuma que "10:00" no label = "10:00Z" (UTC). O ISO ja inclui a conversão de timezone.
 - Se lead disse "quero 10 da manha", confirme o slot "10:00" do label e passe seu "start" ISO exato.
+${schedulingRules}
 
 ## Regras de Ouro
 1. NUNCA invente horarios. Use checkAvailability. Se o lead pedir um horario que nao aparece nos slots, diga que nao ha disponibilidade e sugira os mais proximos.
 2. Use updateLeadMemory para registrar interesses, objecoes ou respostas de qualificacao.
 3. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".
 4. Apos sua resposta, adicione SEMPRE o bloco JSON para atualizacao de metricas.
-5. ${isNewConversation ? 'Esta e a PRIMEIRA mensagem deste lead. Pode cumprimentar normalmente.' : 'Conversa JA iniciada. NAO cumprimente novamente (sem "Ola", "Tudo bem?", "Opa"). Responda diretamente ao que o lead disse.'}
+5. ${greetingRule}
 6. CRITICO — Disponibilidade: A "Situacao Atual" no historico do lead e um RESUMO HISTORICO, NUNCA informacao de disponibilidade atual. A agenda muda a cada minuto. SEMPRE chame checkAvailability antes de informar horarios disponiveis ou indisponiveis. NUNCA diga "agenda cheia" ou "sem horarios" baseado apenas no resumo ou historico — isso e proibido. Verifique SEMPRE em tempo real.${extraInstructions}${forbidden}${jailbreakGuards}
 
 ---JSON---
@@ -206,7 +248,22 @@ export async function processLeadMessage(
   traceId?: string,
 ): Promise<AIResult> {
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
-  const systemPrompt = buildSystemPrompt(persona, lead, memoryContext, isNewConversation, planType, planLimits);
+
+  const lastMessageAt = lead.last_message_at ? new Date(lead.last_message_at) : null;
+  const timeSinceLastMs = lastMessageAt ? Date.now() - lastMessageAt.getTime() : null;
+  const isSessionExpired = timeSinceLastMs !== null && timeSinceLastMs > 12 * 60 * 60 * 1000; // 12 hours
+  const timeSinceLastStr = timeSinceLastMs !== null ? formatTimeElapsed(timeSinceLastMs) : '';
+
+  const systemPrompt = buildSystemPrompt(
+    persona,
+    lead,
+    memoryContext,
+    isNewConversation,
+    planType,
+    planLimits,
+    isSessionExpired,
+    timeSinceLastStr
+  );
 
   const ctx: ToolContext = { companyId, leadId: lead.id, traceId };
 
