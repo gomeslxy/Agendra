@@ -370,8 +370,9 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
 }
 
 /**
- * Convida um membro do time via Supabase Auth Admin.
- * Apenas admins podem convidar. Cria linha pendente em memberships.
+ * Invite a team member. Creates invitation row and either:
+ * - Creates in-app notification (if user already has account)
+ * - Sends email invite via Supabase Auth (new users)
  */
 export async function inviteTeamMember(email: string, role: "admin" | "member") {
   const profile = await getUserProfile();
@@ -380,44 +381,121 @@ export async function inviteTeamMember(email: string, role: "admin" | "member") 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
 
-  // Verificar se o usuário atual é admin
   const currentRole = profile.memberships?.[0]?.role;
-  if (currentRole !== "admin") throw new Error("Apenas administradores podem convidar membros.");
+  if (currentRole !== "admin" && currentRole !== "owner") {
+    throw new Error("Apenas administradores podem convidar membros.");
+  }
 
-  if (!email || !email.includes("@")) throw new Error("E-mail inválido.");
+  const normalizedEmail = email.toLowerCase().trim();
+  if (!normalizedEmail || !normalizedEmail.includes("@")) throw new Error("E-mail inválido.");
 
   const admin = createAdminClient();
 
-  // Enviar convite via Supabase Auth
-  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.agendra.com.br"}/accept-invite`,
-    data: {
-      company_id: companyId,
-      invited_role: role,
-    },
-  });
+  // Rate limit: max 5 pending invites per company
+  const { count: pendingCount } = await admin
+    .from("invitations")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("status", "pending");
 
-  if (inviteError) {
-    // Tratar caso onde usuário já existe
-    if (inviteError.message.includes("already registered")) {
-      throw new Error("Este e-mail já possui uma conta. Peça para o usuário fazer login.");
-    }
-    throw new Error(inviteError.message);
+  if ((pendingCount ?? 0) >= 5) {
+    throw new Error("Limite de 5 convites pendentes atingido. Cancele um convite existente primeiro.");
   }
 
-  // Criar linha pendente em memberships (sem user_id até aceitação)
-  const { error: memberError } = await admin.from("memberships").upsert(
-    {
-      company_id: companyId,
-      user_id: inviteData.user.id,
-      role,
-    },
-    { onConflict: "company_id,user_id" }
+  // Check for duplicate active invite
+  const { data: duplicate } = await admin
+    .from("invitations")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("invited_email", normalizedEmail)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (duplicate) {
+    throw new Error("Já existe um convite pendente para este e-mail.");
+  }
+
+  // Look up if user already exists in auth
+  const { data: allUsers } = await admin.auth.admin.listUsers();
+  const existingUser = allUsers?.users?.find(
+    (u) => u.email?.toLowerCase() === normalizedEmail
   );
 
-  if (memberError) {
-    console.error("[INVITE] Erro ao criar membership pendente:", memberError);
-    // Não lança erro — o convite por e-mail já foi enviado
+  if (existingUser) {
+    // Check if already member
+    const { data: alreadyMember } = await admin
+      .from("memberships")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("user_id", existingUser.id)
+      .maybeSingle();
+
+    if (alreadyMember) {
+      throw new Error("Este usuário já faz parte da equipe.");
+    }
+  }
+
+  // Fetch company and inviter names for notification
+  const { data: company } = await admin.from("companies").select("name").eq("id", companyId).maybeSingle();
+  const { data: inviterProfile } = await admin.from("users").select("full_name").eq("id", profile.id).maybeSingle();
+
+  const companyName = company?.name ?? "uma empresa";
+  const inviterName = inviterProfile?.full_name ?? "Alguém";
+
+  // Create invitation record
+  const { data: invitation, error: inviteErr } = await admin
+    .from("invitations")
+    .insert({
+      company_id: companyId,
+      invited_email: normalizedEmail,
+      invited_by: profile.id,
+      role,
+    })
+    .select("id")
+    .single();
+
+  if (inviteErr) throw new Error("Erro ao criar convite: " + inviteErr.message);
+
+  const invitationId = invitation.id;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.agendra.com.br";
+
+  if (existingUser) {
+    // In-app notification — Realtime delivers immediately
+    const { createNotification } = await import("@/lib/notifications/create");
+    const notifId = await createNotification({
+      company_id: companyId,
+      user_id: existingUser.id,
+      type: "invite",
+      title: "Convite para equipe",
+      body: `${inviterName} convidou você para fazer parte de ${companyName} como ${role === "admin" ? "Administrador" : "Membro"}.`,
+      action_url: "/settings",
+      metadata: {
+        invitation_id: invitationId,
+        inviter_name: inviterName,
+        company_name: companyName,
+        role,
+      },
+      priority: "high",
+    });
+
+    if (notifId) {
+      await admin.from("invitations").update({ notification_id: notifId }).eq("id", invitationId);
+    }
+  } else {
+    // New user — send email invite with deep link
+    const { error: emailErr } = await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
+      redirectTo: `${appUrl}/accept-invite?invitationId=${invitationId}`,
+      data: { company_id: companyId, invited_role: role },
+    });
+
+    if (emailErr) {
+      // Roll back invitation row
+      await admin.from("invitations").delete().eq("id", invitationId);
+      if (emailErr.message.includes("already registered")) {
+        throw new Error("Este e-mail já possui uma conta. O usuário pode fazer login e aceitar o convite.");
+      }
+      throw new Error(emailErr.message);
+    }
   }
 
   revalidatePath("/settings");
