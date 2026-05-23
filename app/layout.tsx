@@ -76,8 +76,11 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: "/assets/agendra-glyph.svg",
-    apple: "/assets/agendra-glyph.svg",
+    icon: [
+      { url: "/assets/agendra-glyph.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/assets/apple-touch-icon.png",
   },
 };
 
@@ -105,6 +108,14 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="antialiased" suppressHydrationWarning>
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <link
+            rel="preconnect"
+            href={process.env.NEXT_PUBLIC_SUPABASE_URL}
+            crossOrigin="anonymous"
+          />
+        )}
+        <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
         <JsonLd />
         <MotionProvider>{children}</MotionProvider>
         <Toaster theme="dark" position="top-center" richColors />
