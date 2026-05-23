@@ -29,8 +29,12 @@ import { neutralToolDefinitions } from './tool-schemas';
 import type { NormalizedMessage } from './providers/types';
 import { isUnderHumanTakeover } from './takeover';
 
-// Gemini SDK kept ONLY for text-embedding-005 (RAG) — no chat provider direct here
-const _embeddingGenAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+// Gemini SDK kept ONLY for text-embedding-005 (RAG) — lazy to avoid crashing if key absent at module load
+let _embeddingGenAI: GoogleGenerativeAI | null = null;
+function getEmbeddingClient(): GoogleGenerativeAI {
+  if (!_embeddingGenAI) _embeddingGenAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+  return _embeddingGenAI;
+}
 
 interface Service {
   id: string;
@@ -296,7 +300,7 @@ async function getSemanticKnowledge(
 ): Promise<{ text: string; status: 'ok' | 'empty' | 'failed' | 'timeout' }> {
   try {
     if (!process.env.GOOGLE_AI_API_KEY) return { text: '', status: 'empty' };
-    const embedModel = _embeddingGenAI.getGenerativeModel({ model: 'text-embedding-005' });
+    const embedModel = getEmbeddingClient().getGenerativeModel({ model: 'text-embedding-005' });
 
     // 4-second timeout using Promise.race (W2.2)
     const embeddingPromise = embedModel.embedContent(query);
@@ -409,6 +413,12 @@ export async function handleIncomingMessage(
 
     if (isUnderHumanTakeover(activeLead)) {
       console.log(`[Engine] skip — lead ${activeLead.id} em human takeover até ${activeLead.human_takeover_until}`);
+      // Persist so the message appears in the inbox for the human operator
+      await admin.from('messages').insert({
+        lead_id: activeLead.id, company_id: companyId,
+        role: 'user', content: messageText,
+        metadata: incomingMetadata ?? null,
+      });
       if (providerMessageId) {
         await admin.from('processed_messages').update({ status: 'completed' })
           .eq('provider_message_id', providerMessageId);
@@ -559,7 +569,7 @@ export async function handleIncomingMessage(
     .eq('company_id', companyId) // ALWAYS filter by company_id!
     .eq('role', 'assistant');
 
-  if (activeLead.is_paused) {
+  if (activeLead.is_paused && activeLead.control_mode !== 'shadow') {
     if (providerMessageId) {
       await admin.from('processed_messages').update({ status: 'completed' })
         .eq('provider_message_id', providerMessageId);
@@ -780,7 +790,9 @@ export async function handleIncomingMessage(
       }).then(() => {}, () => {});
     }
 
-    await releaseLock();
+    try { await releaseLock(); } catch (lockErr) {
+      console.error('[Engine] releaseLock failed in error handler:', lockErr);
+    }
     if (providerMessageId) {
       await admin.from('processed_messages').update({
         status: 'error',

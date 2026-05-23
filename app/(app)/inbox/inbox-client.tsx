@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Image, Search } from "lucide-react";
+import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
@@ -860,7 +860,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
                 className="flex flex-col gap-3 p-4 sm:p-6"
               >
-                {!isPaused && (
+                {!isPaused && selected.control_mode !== 'shadow' && (
                   <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
                 )}
                 {selected.control_mode === 'shadow' && (
@@ -1005,7 +1005,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   </div>
                 )}
 
-                {isTyping && selected.id === selectedId && (
+                {isTyping && (
                   <motion.div
                     initial={{ opacity: 0, y: 8, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1174,7 +1174,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 </div>
               </div>
 
-              {!isPaused && (
+              {!isPaused && selected.control_mode !== 'shadow' && (
                 <p className="mt-3 text-center text-[9px] font-black uppercase tracking-[0.2em] text-brand-blue-400 animate-pulse">
                   Modo Automático Ativo · Agendra IA está no controle
                 </p>

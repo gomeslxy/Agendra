@@ -27,15 +27,15 @@ export default async function AppLayout({
 
   const companyId = profile.memberships?.[0]?.company_id ?? null;
 
-  if (companyId) {
-    try {
-      const onboardingStatus = await getOnboardingStatus(companyId);
-      if (onboardingStatus !== 'completed') {
-        redirect('/onboarding');
-      }
-    } catch {
+  if (!companyId) redirect('/onboarding');
+
+  try {
+    const onboardingStatus = await getOnboardingStatus(companyId);
+    if (onboardingStatus !== 'completed') {
       redirect('/onboarding');
     }
+  } catch {
+    redirect('/onboarding');
   }
 
   let hotCount = 0;

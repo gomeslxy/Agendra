@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
 import { handleIncomingMessage } from '@/lib/ai/engine';
-import { genAI } from '@/lib/ai/client';
+import { routeGenerate } from '@/lib/ai/providers/router';
 import { getPlanLimits } from '@/lib/billing/plans';
 import { getCompanyUsage } from '@/lib/billing/limits';
 
@@ -125,8 +125,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
             if ((recentCount ?? 0) > 0) continue;
 
-            // Generate personalized re-engagement message using Gemini
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+            // Generate personalized re-engagement message via multi-provider BG chain
             const firstName = lead.name?.split(' ')[0] ?? lead.name ?? 'cliente';
             const lastSummary = lead.summary ?? 'Demonstrou interesse em nossos serviços.';
             const daysSilent = Math.floor(
@@ -152,10 +151,8 @@ Regras:
 - Seja direto e pessoal.
 Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
 
-            const result = await model.generateContent(prompt);
-            const message = result.response.text().trim();
-
-            if (!message) continue;
+            const { text: message } = await routeGenerate({ prompt }, { chain: 'bg' });
+            if (!message?.trim()) continue;
 
             // Send via WhatsApp client
             await sendWhatsAppMessage(lead.phone!, message, company.id);

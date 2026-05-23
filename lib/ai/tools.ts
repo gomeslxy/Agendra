@@ -194,7 +194,8 @@ export async function handleListServices(_args: any, ctx: ToolContext) {
     .from('services')
     .select('id, name, description, duration, price')
     .eq('company_id', ctx.companyId)
-    .eq('active', true);
+    .eq('active', true)
+    .neq('is_paused', true);
 
   if (error) throw new Error(`Erro ao listar serviços: ${error.message}`);
   
@@ -353,6 +354,7 @@ export async function handleBookAppointment(
   const company = coRes.data;
 
   let gcalId: string | null = null;
+  let gcalFailed = false;
   if (company?.google_refresh_token) {
     try {
       // DOUBLE-CHECK: Verificar se o GCal ainda está livre neste exato momento
@@ -386,6 +388,7 @@ export async function handleBookAppointment(
       } catch (e: any) {
         console.error('[Tools] GCal double-check or creation failed:', e.message);
         if (e.message.includes('calendário externo')) throw e; // Rethrow business error
+        gcalFailed = true;
       }
     }
 
@@ -402,6 +405,7 @@ export async function handleBookAppointment(
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
         gcal_event_id: gcalId,
+        gcal_sync_status: gcalFailed ? 'failed' : (gcalId ? 'synced' : null),
         notes: args.notes,
         duration_minutes: service.duration,
         status: 'confirmed'
