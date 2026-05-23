@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -23,32 +23,19 @@ export function BentoGrid({ children, className }: { children: React.ReactNode; 
 export function BentoCard({ title, description, icon, className, index = 0 }: BentoItemProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.2 });
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [opacity, setOpacity] = useState(0);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current) return;
-
-    const div = ref.current;
-    const rect = div.getBoundingClientRect();
-
-    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  };
-
-  const handleMouseEnter = () => {
-    setOpacity(1);
-  };
-
-  const handleMouseLeave = () => {
-    setOpacity(0);
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--bento-x", `${e.clientX - rect.left}px`);
+    el.style.setProperty("--bento-y", `${e.clientY - rect.top}px`);
   };
 
   return (
     <motion.div
       ref={ref}
       onMouseMove={handleMouseMove}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       initial={{ opacity: 0, y: 20 }}
       animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -59,11 +46,11 @@ export function BentoCard({ title, description, icon, className, index = 0 }: Be
         className
       )}
     >
+      {/* Radial highlight via CSS vars — no getBoundingClientRect on every event */}
       <div
-        className="pointer-events-none absolute -inset-px opacity-0 transition duration-300"
+        className="pointer-events-none absolute -inset-px opacity-0 transition duration-300 group-hover:opacity-100"
         style={{
-          opacity,
-          background: `radial-gradient(600px circle at ${position.x}px ${position.y}px, rgba(59, 130, 246, 0.1), transparent 40%)`,
+          background: "radial-gradient(600px circle at var(--bento-x, 50%) var(--bento-y, 50%), rgba(59,130,246,0.10), transparent 40%)",
         }}
       />
       <div className="relative z-10">
@@ -74,7 +61,6 @@ export function BentoCard({ title, description, icon, className, index = 0 }: Be
         <p className="text-sm leading-relaxed text-fg-2">{description}</p>
       </div>
 
-      {/* Decorative gradient */}
       <div className="pointer-events-none absolute -right-12 -top-12 h-64 w-64 rounded-full bg-brand-blue-600/5 blur-[80px] transition-opacity group-hover:opacity-100" />
     </motion.div>
   );

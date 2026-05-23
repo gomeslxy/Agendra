@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Glass } from "@/components/ui/glass";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/analytics";
+import { PasswordInput } from "@/components/ui/password-input";
 
 // Mensagens de erro Supabase → pt-BR
 function translateError(msg: string): string {
@@ -127,15 +128,14 @@ function LoginContent() {
               />
             </Field>
             <Field label="Senha">
-              <input
-                type="password"
+              <PasswordInput
                 required
                 autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
-                className="input w-full disabled:opacity-50"
+                className="disabled:opacity-50"
               />
             </Field>
 

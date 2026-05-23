@@ -35,7 +35,7 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <>
-      <div className="bg-aurora grid h-screen overflow-hidden md:grid-cols-[240px_1fr]">
+      <div className="bg-aurora grid overflow-hidden md:grid-cols-[240px_1fr] h-[calc(100dvh-3.5rem)] md:h-screen">
         <Suspense fallback={<SidebarFallback />}>
           <Sidebar hotCount={hotCount} />
         </Suspense>

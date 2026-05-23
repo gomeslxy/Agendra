@@ -12,6 +12,7 @@ import { LegalModal } from "@/components/ui/legal-modal";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/analytics";
 import { TermosContent, PrivacidadeContent } from "@/components/legal/legal-content";
+import { PasswordInput } from "@/components/ui/password-input";
 
 // Mensagens de erro Supabase → pt-BR
 function translateError(msg: string): string {
@@ -41,6 +42,7 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [legalModal, setLegalModal] = useState<"termos" | "privacidade" | null>(null);
@@ -51,6 +53,7 @@ export default function SignupPage() {
 
     const pwError = validatePassword(password);
     if (pwError) { setError(pwError); return; }
+    if (password !== confirmPassword) { setError("As senhas não coincidem."); return; }
     if (!companyName.trim()) { setError("Informe o nome do seu negócio."); return; }
 
     setLoading(true);
@@ -146,15 +149,25 @@ export default function SignupPage() {
               />
             </Field>
             <Field label="Senha">
-              <input
-                type="password"
+              <PasswordInput
                 required
                 minLength={8}
                 placeholder="Mínimo 8 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
-                className="input disabled:opacity-50"
+                className="disabled:opacity-50"
+              />
+            </Field>
+            <Field label="Confirmar senha">
+              <PasswordInput
+                required
+                minLength={8}
+                placeholder="Repita sua senha"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={loading}
+                className="disabled:opacity-50"
               />
             </Field>
 

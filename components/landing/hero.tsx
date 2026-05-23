@@ -7,47 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Glass } from "@/components/ui/glass";
 import { fadeUp } from "@/components/motion/variants";
-import { useEffect, useRef } from "react";
-import { Spotlight } from "@/components/ui/spotlight";
+import { SpotlightCSS } from "@/components/ui/spotlight";
 import { GridBeam } from "@/components/ui/grid-beam";
 import { ShinyButton } from "@/components/ui/shiny-button";
 import { trackEvent } from "@/lib/analytics";
-
-function Counter({ to, duration = 1200, suffix = "" }: { to: number; duration?: number; suffix?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const reduce = useReducedMotion();
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    if (reduce) {
-      const useInt = to >= 10;
-      node.textContent = `${useInt ? Math.round(to) : to.toFixed(1)}${suffix}`;
-      return;
-    }
-
-    let raf: number;
-    const start = performance.now();
-    const useInt = to >= 10;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const v = to * eased;
-      node.textContent = `${useInt ? Math.round(v) : v.toFixed(1)}${suffix}`;
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [to, duration, suffix, reduce]);
-  return <span ref={ref}>0{suffix}</span>;
-}
+import { CounterClient } from "@/components/landing/counter-client";
 
 export function Hero() {
   const reduce = useReducedMotion();
 
   return (
     <section className="relative overflow-hidden pb-24 pt-40 sm:pt-48">
-      <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" fill="#3b82f6" />
+      <SpotlightCSS className="-top-40 left-0 md:left-60 md:-top-20" />
       <GridBeam className="absolute inset-0 pointer-events-none" />
       <div className="mx-auto grid max-w-[1200px] items-center gap-12 px-6 lg:grid-cols-[1.05fr_1fr]">
         <motion.div variants={fadeUp} initial="hidden" animate="show">
@@ -163,7 +134,7 @@ export function Hero() {
           <Glass className="absolute -left-7 top-[36%] w-[200px] p-3.5 float [animation-direction:reverse] [animation-duration:7s]">
             <div className="eyebrow" style={{ color: "var(--color-brand-teal-300)" }}>RESPOSTA</div>
             <div className="my-1 text-4xl font-bold tracking-[-0.03em]">
-              <Counter to={4} suffix="" />
+              <CounterClient to={4} />
               <span className="text-base" style={{ color: "var(--color-fg-3)" }}>s</span>
             </div>
             <svg viewBox="0 0 120 28" width="100%" height="22" fill="none">

@@ -88,7 +88,7 @@ function Connector({ index, total }: { index: number; total: number }) {
           x: [0, 30],
           opacity: [0, 1, 1, 0],
         }}
-        viewport={{ once: false, amount: 0.4 }}
+        viewport={{ once: true, amount: 0.4 }}
         transition={{
           duration: 2,
           ease: "linear",
