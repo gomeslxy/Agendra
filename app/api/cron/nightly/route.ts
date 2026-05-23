@@ -81,6 +81,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .eq('company_id', company.id)
           .in('status', ['cold', 'warm'])
           .not('is_paused', 'eq', true)
+          .eq('followup_in_progress', false) // Avoid reactivating leads mid-followup
           .lt('last_message_at', cutoffDate)
           .not('phone', 'is', null)
           .order('last_message_at', { ascending: true })

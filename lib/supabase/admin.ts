@@ -5,9 +5,13 @@
  * ⚠️  NEVER import in client components.
  * ⚠️  NEVER expose SUPABASE_SERVICE_ROLE_KEY to the browser.
  */
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+
+let cachedAdminClient: SupabaseClient | null = null;
 
 export function createAdminClient() {
+  if (cachedAdminClient) return cachedAdminClient;
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -17,10 +21,12 @@ export function createAdminClient() {
     );
   }
 
-  return createClient(url, key, {
+  cachedAdminClient = createClient(url, key, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+
+  return cachedAdminClient;
 }

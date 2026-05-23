@@ -95,12 +95,13 @@ export async function bufferAndDebounce(args: {
     (acc, i) => ({ ...acc, ...(i.metadata ?? {}) }), {}
   );
 
-  console.log(`[Debounce][${dbgTag}] 🚦 flushing batch=${items.length} firstMsgId=${items[0].provider_message_id.slice(-8)}`);
+  const lastItem = items[items.length - 1];
+  console.log(`[Debounce][${dbgTag}] 🚦 flushing batch=${items.length} lastMsgId=${lastItem.provider_message_id.slice(-8)}`);
 
   await handleIncomingMessage(
     args.companyId, args.leadPhone, args.leadName,
     items.map((i) => i.body).join('\n'),
-    items[0].provider_message_id,
+    lastItem.provider_message_id,
     args.usage,
     { ...mergedMetadata, debounce_batch_size: items.length,
       debounce_message_ids: items.map((i) => i.provider_message_id) }

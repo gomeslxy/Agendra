@@ -1,5 +1,32 @@
 # Histórico de Sessões
 
+## Sessão (23/05/2026) — Auditoria Fase 2: Correção de Bugs do Motor de IA, Webhooks, Caching de Clientes e Crons
+
+**OBJETIVO**: Concluir a Auditoria de Qualidade, Segurança e Performance (Fase 2). Resolver todas as inconsistências remanescentes em crons, webhooks, motor de IA e concorrência, alcançando 100% de estabilidade e build com sucesso.
+
+### Resultados — 10 correções e otimizações aplicadas, `tsc --noEmit` exit 0 (zero erros!)
+
+| ID | Severidade | Área | Problema | Arquivo | Status |
+|---|---|---|---|---|---|
+| FIX-F1 / FIX-F9 | 🔴 P0 | Automatização | Cron `/api/cron/followup` era um placeholder, impedindo disparos automáticos e contagem de follow-up. | `followup/route.ts` | ✅ Implementado com checagem de plano, verificação de concorrência e CRON_SECRET |
+| FIX-F2 | 🟠 P1 | Concorrência | GCal double-check em `bookAppointment` sem timeout de proteção. | `tools.ts:365` | ✅ Corrigido (5s timeout) |
+| FIX-F3 / IMP-A | 🟡 P2 | Performance | Chamada duplicada de `subscriptions.retrieve` no webhook Stripe. | `stripe/webhook/route.ts` | ✅ Caching de sub em memória implementado |
+| FIX-F5 | 🟡 P2 | Segurança | Cron `check-channels` não validava tokens ativamente nas contas (só liu status error). | `check-channels/route.ts` | ✅ Corrigido com validação proativa de token Meta e proteção CRON_SECRET |
+| FIX-F6 | 🟡 P2 | Inbox / IA | No modo Shadow, o `followup_count` era resetado a 0 ao receber novas msgs de lead, mesmo sem resposta humana. | `engine.ts:456` | ✅ Reset condicionado apenas a leads fora do modo shadow |
+| FIX-F7 | 🟠 P1 | Integrações | Cancelamento de agendamento não disparava webhook externo `booking.cancelled`. | `tools.ts:520` | ✅ Webhook dispatch ativado |
+| FIX-F8 | 🟠 P1 | Integrações | Reagendamento não disparava webhook externo `booking.rescheduled`. | `tools.ts:602` | ✅ Webhook dispatch ativado |
+| IMP-B | 🟡 P2 | Infraestrutura | Supabase `createAdminClient` gerava novas instâncias a cada chamada, sobrecarregando o connection pool. | `supabase/admin.ts` | ✅ Caching global (singleton/cachedAdminClient) implementado no módulo |
+| IMP-C | 🟡 P2 | Debounce | Processamento em lote (batch) usava o `provider_message_id` da primeira mensagem em vez da última (mais recente) para dedup. | `debounce.ts:98` | ✅ Corrigido para utilizar a última mensagem |
+| IMP-D | 🟡 P2 | Cron | Reativação noturna de leads frios (`nightly` cron) não respeitava o guard `followup_in_progress`. | `nightly/route.ts:83` | ✅ Filtro de followup adicionado |
+| JSON-SPLIT | 🔴 P1 | Robustez IA | O split do delimitador `---JSON---` falhava se o provider não incluía o delimitador ou usava markdown, expondo dados JSON internos para o cliente. | `engine.ts:259` | ✅ Corrigido com extrator robusto regex / braces e limpeza dupla de segurança |
+
+**Verificação**:
+- `pnpm tsc --noEmit` ➡️ **EXIT 0 (ZERO ERROS)** ✅
+- `pnpm test` (Vitest) ➡️ **21/21 PASSANDO (100%)** ✅
+- Multitenancy e segurança rigorosamente preservados.
+
+---
+
 ## Sessão (23/05/2026) — Auditoria Avançada: Motor IA, /agenda, Multitenancy e Segurança
 
 **OBJETIVO**: Auditoria proativa sênior do sistema completo — motor IA, integração com /agenda (Google Calendar), webhooks, crons, multitenancy, segurança, race conditions, performance. 9 problemas encontrados e 7 corrigidos imediatamente.

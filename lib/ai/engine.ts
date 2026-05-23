@@ -257,23 +257,56 @@ export async function processLeadMessage(
   );
 
   const fullText = result.text;
-  const [replyPart, jsonPart] = fullText.split('---JSON---');
-  const reply = replyPart ? replyPart.trim() : '';
-
+  let reply = fullText.trim();
   let heat_score = lead.heat_score;
   let status = lead.status;
   let summary = lead.summary ?? '';
 
-  if (jsonPart) {
-    try {
-      const parsed = JSON.parse(jsonPart.trim());
-      heat_score = parsed.heat_score ?? heat_score;
-      status = parsed.status ?? status;
-      summary = parsed.summary ?? summary;
-    } catch (e) {
-      console.warn('[AI Engine] JSON parse failed', e);
+  // 1. Try to find ---JSON--- separator case-insensitively
+  const separatorRegex = /---JSON---/i;
+  const separatorMatch = fullText.match(separatorRegex);
+
+  if (separatorMatch && separatorMatch.index !== undefined) {
+    const replyPart = fullText.substring(0, separatorMatch.index).trim();
+    const jsonPart = fullText.substring(separatorMatch.index + separatorMatch[0].length).trim();
+    reply = replyPart;
+    if (jsonPart) {
+      try {
+        // Clean markdown backticks if AI wrapped it
+        const cleanJson = jsonPart.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+        const parsed = JSON.parse(cleanJson);
+        heat_score = parsed.heat_score ?? heat_score;
+        status = parsed.status ?? status;
+        summary = parsed.summary ?? summary;
+      } catch (e) {
+        console.warn('[AI Engine] JSON parse failed after separator:', e);
+      }
+    }
+  } else {
+    // 2. Fallback: No separator found, but might have a JSON block at the end
+    const lastOpenBrace = fullText.lastIndexOf('{');
+    const lastCloseBrace = fullText.lastIndexOf('}');
+    if (lastOpenBrace !== -1 && lastCloseBrace !== -1 && lastCloseBrace > lastOpenBrace) {
+      const jsonCandidate = fullText.substring(lastOpenBrace, lastCloseBrace + 1);
+      try {
+        const parsed = JSON.parse(jsonCandidate.trim());
+        if ('heat_score' in parsed || 'status' in parsed || 'summary' in parsed) {
+          // It's indeed our metadata JSON block!
+          reply = fullText.substring(0, lastOpenBrace).trim();
+          heat_score = parsed.heat_score ?? heat_score;
+          status = parsed.status ?? status;
+          summary = parsed.summary ?? summary;
+        }
+      } catch (e) {
+        // Not a valid JSON, keep full text as reply
+      }
     }
   }
+
+  // Double check: if there is any leftover raw JSON-like block in reply, strip it if possible
+  // to absolutely prevent leaking internal JSON to clients.
+  reply = reply.replace(/```json[\s\S]*?```/gi, '').trim();
+  reply = reply.replace(/\n\s*\{\s*"heat_score"[\s\S]*\}\s*$/i, '').trim();
 
   return {
     reply,
@@ -447,18 +480,19 @@ export async function handleIncomingMessage(
       }
     }
 
-    // Atomic lock acquisition: only succeeds if is_processing was false.
-    // Two concurrent webhooks for the same lead cannot both win.
-    // W2.3 Reset followup_count on response
+    const updatePayload: any = {
+      is_processing: true,
+      processing_started_at: new Date().toISOString(),
+      last_message_at: new Date().toISOString(),
+    };
+    if (activeLead.control_mode !== 'shadow') {
+      updatePayload.followup_count = 0;
+    }
+
     logDebug('Attempting atomic lock acquisition for lead');
     const { data: locked } = await admin
       .from('leads')
-      .update({
-        is_processing: true,
-        processing_started_at: new Date().toISOString(),
-        followup_count: 0,
-        last_message_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', activeLead.id)
       .eq('company_id', companyId) // ALWAYS filter by company_id!
       .eq('is_processing', false)

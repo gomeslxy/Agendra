@@ -362,13 +362,17 @@ export async function handleBookAppointment(
   let gcalFailed = false;
   if (company?.google_refresh_token) {
     try {
-      // DOUBLE-CHECK: Verificar se o GCal ainda está livre neste exato momento
-      const gcalBusy = await getFreeBusySlots(
+      // FIX-F2: 5s timeout so booking stall doesn't block the AI if GCal is slow at booking time
+      const gcalDoubleCheckPromise = getFreeBusySlots(
         company.google_refresh_token,
         company.google_calendar_id ?? 'primary',
         startTime.toISOString(),
         endTime.toISOString()
       );
+      const gcalDoubleCheckTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('GCal double-check timeout (5s)')), 5000)
+      );
+      const gcalBusy = await Promise.race([gcalDoubleCheckPromise, gcalDoubleCheckTimeout]);
 
       if (gcalBusy.length > 0) {
         throw new Error('Este horário foi ocupado recentemente no calendário externo. Por favor, tente outro.');
@@ -513,6 +517,13 @@ export async function handleCancelAppointment(args: { event_id: string; reason?:
     }
   }
 
+  // Dispatch webhook booking.cancelled (non-blocking — FIX-F7)
+  void dispatchWebhook(_ctx.companyId, 'booking.cancelled', {
+    event_id: args.event_id,
+    lead_id: _ctx.leadId,
+    reason: args.reason ?? null,
+  });
+
   return { message: 'Agendamento cancelado com sucesso.' };
 }
 
@@ -587,6 +598,14 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
       await admin.from('events').update({ gcal_sync_status: 'failed' }).eq('id', args.event_id).eq('company_id', ctx.companyId);
     }
   }
+
+  // Dispatch webhook booking.rescheduled (non-blocking — FIX-F8)
+  void dispatchWebhook(ctx.companyId, 'booking.rescheduled', {
+    event_id: args.event_id,
+    lead_id: ctx.leadId,
+    new_start_time: newStart.toISOString(),
+    new_end_time: newEnd.toISOString(),
+  });
 
   return { message: 'Reagendamento concluído com sucesso.' };
 }

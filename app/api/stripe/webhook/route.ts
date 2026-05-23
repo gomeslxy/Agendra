@@ -290,9 +290,12 @@ export async function POST(req: Request) {
       let periodStart: number | undefined;
       let periodEnd: number | undefined;
 
+      let subscriptionObj: Stripe.Subscription | null = null;
+
       if (invAny2.subscription) {
         try {
           const sub = await stripe.subscriptions.retrieve(invAny2.subscription as string);
+          subscriptionObj = sub;
           companyId = sub.metadata?.companyId
             || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
           const priceId = sub.items.data[0]?.price?.id;
@@ -313,7 +316,9 @@ export async function POST(req: Request) {
       if (companyId) {
         // Obter cancel_at real da sub se possível
         let cancelAt = false;
-        if (invAny2.subscription) {
+        if (subscriptionObj) {
+          cancelAt = subscriptionObj.cancel_at_period_end;
+        } else if (invAny2.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(invAny2.subscription as string);
             cancelAt = sub.cancel_at_period_end;
