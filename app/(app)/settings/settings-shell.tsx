@@ -41,6 +41,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel, saveAutomationConfig, updateCompany, inviteTeamMember, saveWebhookConfig, deleteWebhook, saveReactivationConfig } from "./actions";
+import { cancelInvitation, resendInvitation } from "./invitations/actions";
 import { createService, updateService, deleteService, toggleServiceStatus } from "./services/actions";
 import Script from "next/script";
 import { toast } from "sonner";
@@ -158,6 +159,16 @@ interface AutomationStats {
   followupsWeek: number;
 }
 
+interface PendingInvitation {
+  id: string;
+  invited_email: string;
+  role: string;
+  status: string;
+  expires_at: string;
+  created_at: string;
+  invited_by: string;
+}
+
 interface SettingsShellProps {
   company: Company | null;
   memberships: Member[];
@@ -168,9 +179,10 @@ interface SettingsShellProps {
   automationStats: AutomationStats;
   automationEvents: AutomationEvent[];
   webhooks: WebhookSubscription[];
+  pendingInvitations: PendingInvitation[];
 }
 
-export function SettingsShell({ company, memberships, channels, services, usage, aiLogs, automationStats, automationEvents, webhooks }: SettingsShellProps) {
+export function SettingsShell({ company, memberships, channels, services, usage, aiLogs, automationStats, automationEvents, webhooks, pendingInvitations }: SettingsShellProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -306,7 +318,7 @@ export function SettingsShell({ company, memberships, channels, services, usage,
         {/* Main Content Area */}
         <div className="flex-1 w-full max-w-3xl min-w-0">
           <TabPanel active={tab === "account"}>
-            <Team memberships={memberships} company={company} />
+            <Team memberships={memberships} company={company} pendingInvitations={pendingInvitations} />
           </TabPanel>
           <TabPanel active={tab === "rules"}>
             <Rules company={company} />
@@ -2060,10 +2072,38 @@ function Flows({
   );
 }
 
-function Team({ memberships, company }: { memberships: Member[]; company: Company | null }) {
+function Team({ memberships, company, pendingInvitations }: { memberships: Member[]; company: Company | null; pendingInvitations: PendingInvitation[] }) {
   const [companyName, setCompanyName] = useState(company?.name ?? "");
   const [savingName, startNameTransition] = useTransition();
   const [nameSaved, setNameSaved] = useState(false);
+
+  // Pending invitations state
+  const [pendingList, setPendingList] = useState<PendingInvitation[]>(pendingInvitations);
+  const [cancelPending, startCancelTransition] = useTransition();
+  const [resendPending, startResendTransition] = useTransition();
+
+  function handleCancel(invitationId: string) {
+    startCancelTransition(async () => {
+      try {
+        await cancelInvitation(invitationId);
+        setPendingList((prev) => prev.filter((i) => i.id !== invitationId));
+        toast.success("Convite cancelado.");
+      } catch (err: any) {
+        toast.error(err.message);
+      }
+    });
+  }
+
+  function handleResend(invitationId: string) {
+    startResendTransition(async () => {
+      try {
+        await resendInvitation(invitationId);
+        toast.success("Convite reenviado com sucesso.");
+      } catch (err: any) {
+        toast.error(err.message);
+      }
+    });
+  }
 
   // Invite modal state
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -2179,6 +2219,71 @@ function Team({ memberships, company }: { memberships: Member[]; company: Compan
           })}
         </CardContent>
       </Card>
+
+      {/* Convites Pendentes */}
+      {pendingList.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Convites Pendentes</CardTitle>
+            <CardDescription>{pendingList.length} convite{pendingList.length !== 1 ? "s" : ""} aguardando resposta</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <AnimatePresence initial={false}>
+              {pendingList.map((inv) => {
+                const expiresAt = new Date(inv.expires_at);
+                const now = new Date();
+                const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+                const expiresSoon = daysLeft <= 2;
+                return (
+                  <motion.div
+                    key={inv.id}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 hover:bg-white/[0.05] transition-colors"
+                  >
+                    <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-dashed border-white/20 bg-white/[0.04] text-white/30">
+                      <UserPlus size={15} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold truncate">{inv.invited_email}</div>
+                      <div className="text-[11px] flex items-center gap-1.5" style={{ color: expiresSoon ? "#F97316" : "var(--color-fg-3)" }}>
+                        <Clock size={10} />
+                        {expiresSoon ? `Expira em ${daysLeft}d` : `${daysLeft} dias restantes`}
+                        <span className="text-white/20">·</span>
+                        <Badge variant={inv.role === "admin" ? "hot" : "cold"}>{inv.role}</Badge>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[11px] text-brand-teal-400 hover:bg-brand-teal-500/10 hover:text-brand-teal-300"
+                        onClick={() => handleResend(inv.id)}
+                        disabled={resendPending}
+                      >
+                        <RefreshCw size={12} className="mr-1" />
+                        Reenviar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[11px] text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                        onClick={() => handleCancel(inv.id)}
+                        disabled={cancelPending}
+                      >
+                        <Trash2 size={12} className="mr-1" />
+                        Cancelar
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Modal de Convite */}
       <AnimatePresence>
