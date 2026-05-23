@@ -213,7 +213,8 @@ ${schedulingRules}
 3. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".
 4. Apos sua resposta, adicione SEMPRE o bloco JSON para atualizacao de metricas.
 5. ${greetingRule}
-6. CRITICO — Disponibilidade: A "Situacao Atual" no historico do lead e um RESUMO HISTORICO, NUNCA informacao de disponibilidade atual. A agenda muda a cada minuto. SEMPRE chame checkAvailability antes de informar horarios disponiveis ou indisponiveis. NUNCA diga "agenda cheia" ou "sem horarios" baseado apenas no resumo ou historico — isso e proibido. Verifique SEMPRE em tempo real.${extraInstructions}${forbidden}${jailbreakGuards}
+6. CRITICO — Disponibilidade: A "Situacao Atual" no historico do lead e um RESUMO HISTORICO, NUNCA informacao de disponibilidade atual. A agenda muda a cada minuto. SEMPRE chame checkAvailability antes de informar horarios disponiveis ou indisponiveis. NUNCA diga "agenda cheia" ou "sem horarios" baseado apenas no resumo ou historico — isso e proibido. Verifique SEMPRE em tempo real.
+7. CRITICO — ZERO VAZAMENTOS TÉCNICOS: Voce esta terminantemente proibido de citar nomes de ferramentas internas (como bookAppointment, checkAvailability, updateLeadMemory, etc.), nomes de parametros (como service_id, start_time, lead_id), formados de dados tecnicos (como ISO 8601, UTC) ou mensagens de erro do sistema com o cliente. Responda sempre de forma 100% humanizada, comercial e limpa.${extraInstructions}${forbidden}${jailbreakGuards}
 
 ---JSON---
 {
@@ -221,6 +222,77 @@ ${schedulingRules}
   "status": "cold" | "warm" | "hot" | "success",
   "summary": "<resumo curtissimo da ultima interacao>"
 }`;
+}
+
+/**
+ * sanitizeClientResponse — Absolute shield to sanitize any technical details,
+ * JSON blocks, tool names, or internal terms before sending messages to WhatsApp leads.
+ */
+export function sanitizeClientResponse(text: string): string {
+  if (!text) return '';
+
+  let clean = text.trim();
+
+  // 1. Remove markdown json blocks or backticks containing JSON completely.
+  clean = clean.replace(/```json[\s\S]*?```/gi, '').trim();
+  clean = clean.replace(/```[\s\S]*?```/gi, '').trim();
+
+  // 2. Remove balanced curly brace groups { ... } to completely erase JSON objects/inline JSON
+  let braceDepth = 0;
+  let newClean = '';
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean[i];
+    if (char === '{') {
+      braceDepth++;
+    } else if (char === '}') {
+      if (braceDepth > 0) {
+        braceDepth--;
+      }
+    } else {
+      if (braceDepth === 0) {
+        newClean += char;
+      }
+    }
+  }
+  if (braceDepth === 0) {
+    clean = newClean.trim();
+  }
+
+  // 3. Remove raw ---JSON--- or ---JSON--- blocks if left over
+  clean = clean.replace(/---JSON---/gi, '').trim();
+
+  // 4. Strip internal tool/function names completely.
+  const toolNames = [
+    'bookAppointment', 'checkAvailability', 'listServices', 'cancelAppointment',
+    'rescheduleAppointment', 'myAppointments', 'updateLeadInfo', 'updateLeadMemory',
+    'requestHumanAgent', 'generatePixCharge', 'checkPaymentStatus'
+  ];
+  for (const name of toolNames) {
+    const regex = new RegExp(`\\b${name}\\b`, 'gi');
+    clean = clean.replace(regex, '');
+  }
+
+  // 5. Remove jargon terms that can leak internal mechanisms.
+  const technicalJargon = [
+    '\\bstart_time\\b', '\\bservice_id\\b', '\\bcompany_id\\b', '\\blead_id\\b',
+    '\\btimezone\\b', '\\bparameter\\b', '\\bargument\\b', '\\bfunction\\b',
+    '\\bmetadata\\b', '\\buuid\\b', '\\biso 8601\\b', '\\biso\\b', '\\bstring\\b',
+    '\\bboolean\\b', '\\bjson\\b', '\\bxml\\b', '\\bfuncão\\b', '\\bfunção\\b',
+    '\\butc\\b', '\\b8601\\b'
+  ];
+  for (const jargon of technicalJargon) {
+    const regex = new RegExp(jargon, 'gi');
+    clean = clean.replace(regex, '');
+  }
+
+  // 6. If the response became empty or contains only spacing/punctuation after removing technical terms, fallback.
+  if (!clean.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?\s]/g, '').trim()) {
+    return 'Entendido! Como posso ajudar você hoje?';
+  }
+
+  // 7. General cleanup of multiple spaces, newlines, and trailing characters.
+  clean = clean.replace(/\n{3,}/g, '\n\n');
+  return clean.trim();
 }
 
 interface AIResult {
@@ -292,7 +364,20 @@ export async function processLeadMessage(
       if (name === 'checkPaymentStatus') return await handleCheckPaymentStatus(args as any, ctx);
       return { error: 'Ferramenta desconhecida' };
     } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) };
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      const lowercase = rawMessage.toLowerCase();
+      const technicalIndicators = [
+        'select', 'insert', 'update', 'delete', 'postgres', 'supabase', 'database', 'db',
+        'gcal', 'google', 'calendar', 'token', 'auth', 'unauthorized', 'jwt', 'secret',
+        'network', 'fetch', 'http', 'status', 'timeout', 'connection', 'null', 'undefined',
+        'reference', 'typeerror', 'syntaxerror', 'parse', 'json', 'xml', 'api', 'internal',
+        'server error', 'row', 'column', 'foreign key', 'unique constraint', 'violates'
+      ];
+      const hasTechnicalIndicator = technicalIndicators.some(indicator => lowercase.includes(indicator));
+      const safeMessage = hasTechnicalIndicator 
+        ? 'Não foi possível completar esta ação no momento devido a uma instabilidade temporária. Por favor, tente novamente em instantes ou fale com um de nossos atendentes.'
+        : rawMessage;
+      return { error: safeMessage };
     }
   }
 
@@ -364,6 +449,7 @@ export async function processLeadMessage(
   // to absolutely prevent leaking internal JSON to clients.
   reply = reply.replace(/```json[\s\S]*?```/gi, '').trim();
   reply = reply.replace(/\n\s*\{\s*"heat_score"[\s\S]*\}\s*$/i, '').trim();
+  reply = sanitizeClientResponse(reply);
 
   return {
     reply,
@@ -727,7 +813,7 @@ export async function handleIncomingMessage(
     );
 
     // 8. Watermark — only on truly first assistant response, never repeated
-    finalReply = aiResult!.reply;
+    finalReply = sanitizeClientResponse(aiResult!.reply);
     if (usage.limits.hasWatermark && isNewConversation) {
       // Single-fire: isNewConversation = assistantTotal === 0 (db-level check, not history window)
       finalReply += '\n\n_Atendimento via Agendra_ ✦';
@@ -1086,6 +1172,8 @@ Mensagem de follow-up:`;
       console.error('[AI Engine] Follow-up: empty response from all providers.');
       return;
     }
+
+    followupText = sanitizeClientResponse(followupText);
 
     await sendWhatsAppMessage(lead.phone, followupText, lead.company_id);
 

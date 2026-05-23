@@ -1,5 +1,20 @@
 # Histórico de Sessões
 
+## Sessão (23/05/2026) — Auditoria Avançada e Hardening contra Vazamento Técnico no Motor de IA
+
+**OBJETIVO**: Auditar de forma profunda e robustecer o motor de IA contra qualquer vazamento de lógica interna, JSONs (metadata blocks), jargões de programação (bookAppointment, checkAvailability, service_id, start_time, ISO, etc.) ou stack traces em mensagens do cliente final ou rascunhos.
+
+### Resultados — 100% de sucesso nas compilações e testes de regressão!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Hardening de Adapters** | Erros brutos (banco, vault, GCal, etc.) podiam ser passados diretamente para o modelo de IA nas tool calls. | Adicionada sanitização robusta com fallback humanizado em caso de exceções técnicas em todos os adapters de provedores. | `gemini-adapter.ts`, `groq-adapter.ts`, `cerebras-adapter.ts`, `sambanova-adapter.ts` | ✅ Fixo e Validado |
+| **Sanitização Central** | AI podia reter blocos JSON de metadados (`---JSON---`) ou usar termos técnicos se não recebesse um escudo central. | Implementada a função robusta `sanitizeClientResponse` que remove qualquer formato JSON, chaves, jargões, formatação de dados técnica e nomes de ferramentas de forma estrita. Aplicada na resposta final e nos follow-ups automáticos. | `lib/ai/engine.ts` | ✅ Fixo e Validado |
+| **Jailbreak Prompt Guard** | Prompt do sistema não deixava explícita a proibição de uso de termos técnicos. | Injetada a nova **Regra de Ouro #7: ZERO VAZAMENTOS TÉCNICOS** no Prompt Principal. | `lib/ai/engine.ts` | ✅ Fixo e Validado |
+| **Validação** | Assegurar integridade e ausência de regressões. | Criado e executado script de simulação `scratch/test_leak_prevention.ts`. 100% dos testes passaram. Executados `pnpm tsc --noEmit` (exit 0) e `pnpm test` (21/21 testes vitest passados com sucesso). | `scratch/test_leak_prevention.ts` | ✅ Validado |
+
+---
+
 ## Sessão (23/05/2026) — Auditoria Avançada de Agnosticismo e Placeholders Adaptativos por Tipo de Negócio
 
 **OBJETIVO**: Realizar auditoria técnica de agnosticismo de nicho (purga de premissas duras de barbearia) e multitenancy do Agendra. Implementar placeholders e exemplos dinâmicos adaptados por tipo de negócio no settings de serviços de cada tenant.

@@ -118,10 +118,24 @@ export class GeminiAdapter implements AIProviderAdapter {
             const result = await params.toolHandler(fc.name, fc.args ?? {});
             return { functionResponse: { name: fc.name, response: result } };
           } catch (err) {
+            const rawMessage = err instanceof Error ? err.message : String(err);
+            const lowercase = rawMessage.toLowerCase();
+            const technicalIndicators = [
+              'select', 'insert', 'update', 'delete', 'postgres', 'supabase', 'database', 'db',
+              'gcal', 'google', 'calendar', 'token', 'auth', 'unauthorized', 'jwt', 'secret',
+              'network', 'fetch', 'http', 'status', 'timeout', 'connection', 'null', 'undefined',
+              'reference', 'typeerror', 'syntaxerror', 'parse', 'json', 'xml', 'api', 'internal',
+              'server error', 'row', 'column', 'foreign key', 'unique constraint', 'violates'
+            ];
+            const hasTechnicalIndicator = technicalIndicators.some(indicator => lowercase.includes(indicator));
+            const safeMessage = hasTechnicalIndicator 
+              ? 'Não foi possível completar esta ação no momento devido a uma instabilidade temporária. Por favor, tente novamente em instantes ou fale com um de nossos atendentes.'
+              : rawMessage;
+
             return {
               functionResponse: {
                 name: fc.name,
-                response: { error: err instanceof Error ? err.message : String(err) },
+                response: { error: safeMessage },
               },
             };
           }

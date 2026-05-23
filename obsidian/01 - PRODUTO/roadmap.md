@@ -63,6 +63,7 @@
 - [x] **W2.13** `reminderMinutes` aceito e repassado para o GCal.
 - [x] **W2.14** GCal sync com bulk query `.in()` e inserts em chunks de 100.
 - [x] **W2.15** Booking com compensação atômica: `deleteGCalEvent` desfaz criação se DB insert falhar.
+- [x] **Prevenção de Vazamento Técnico (Leak Hardening)**: Proteção arquitetural em todos os adapters, `toolHandler` centralizado e nova Regra de Ouro anti-termos de programação. Sanitização profunda `sanitizeClientResponse` ativa em live messages, follow-ups e Shadow drafts. 21/21 testes unitários passando.
 - [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅
 
 ## 🔀 Fase 4: Multi-Provider AI Resilience (✅ Concluído 21/05/2026)

@@ -66,7 +66,22 @@ export class SambaNovaAdapter implements AIProviderAdapter {
         const fn = tc.function as { name: string; arguments: string };
         let result: any;
         try { result = await params.toolHandler(fn.name, JSON.parse(fn.arguments)); }
-        catch (e) { result = { error: e instanceof Error ? e.message : String(e) }; }
+        catch (e) {
+          const rawMessage = e instanceof Error ? e.message : String(e);
+          const lowercase = rawMessage.toLowerCase();
+          const technicalIndicators = [
+            'select', 'insert', 'update', 'delete', 'postgres', 'supabase', 'database', 'db',
+            'gcal', 'google', 'calendar', 'token', 'auth', 'unauthorized', 'jwt', 'secret',
+            'network', 'fetch', 'http', 'status', 'timeout', 'connection', 'null', 'undefined',
+            'reference', 'typeerror', 'syntaxerror', 'parse', 'json', 'xml', 'api', 'internal',
+            'server error', 'row', 'column', 'foreign key', 'unique constraint', 'violates'
+          ];
+          const hasTechnicalIndicator = technicalIndicators.some(indicator => lowercase.includes(indicator));
+          const safeMessage = hasTechnicalIndicator 
+            ? 'Não foi possível completar esta ação no momento devido a uma instabilidade temporária. Por favor, tente novamente em instantes ou fale com um de nossos atendentes.'
+            : rawMessage;
+          result = { error: safeMessage };
+        }
         toolsCalled.push({ name: fn.name, args_summary: fn.arguments.slice(0, 500) });
         return { role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) };
       }));

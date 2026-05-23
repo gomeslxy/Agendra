@@ -77,7 +77,20 @@ export class GroqAdapter implements AIProviderAdapter {
             const args = JSON.parse(fn.arguments);
             result = await params.toolHandler(fn.name, args);
           } catch (err) {
-            result = { error: err instanceof Error ? err.message : String(err) };
+            const rawMessage = err instanceof Error ? err.message : String(err);
+            const lowercase = rawMessage.toLowerCase();
+            const technicalIndicators = [
+              'select', 'insert', 'update', 'delete', 'postgres', 'supabase', 'database', 'db',
+              'gcal', 'google', 'calendar', 'token', 'auth', 'unauthorized', 'jwt', 'secret',
+              'network', 'fetch', 'http', 'status', 'timeout', 'connection', 'null', 'undefined',
+              'reference', 'typeerror', 'syntaxerror', 'parse', 'json', 'xml', 'api', 'internal',
+              'server error', 'row', 'column', 'foreign key', 'unique constraint', 'violates'
+            ];
+            const hasTechnicalIndicator = technicalIndicators.some(indicator => lowercase.includes(indicator));
+            const safeMessage = hasTechnicalIndicator 
+              ? 'Não foi possível completar esta ação no momento devido a uma instabilidade temporária. Por favor, tente novamente em instantes ou fale com um de nossos atendentes.'
+              : rawMessage;
+            result = { error: safeMessage };
           }
           toolsCalled.push({
             name: fn.name,
