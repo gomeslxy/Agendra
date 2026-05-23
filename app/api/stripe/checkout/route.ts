@@ -21,10 +21,22 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-04-22.dahlia' as any,
 });
 
+/** Returns '/settings' or '/planos' based on referer — never allows external redirects. */
+function resolveReturnPath(referer: string | null): '/settings' | '/planos' {
+  if (referer) {
+    try {
+      const ref = new URL(referer);
+      if (ref.pathname.startsWith('/settings')) return '/settings';
+    } catch { /* ignore malformed referer */ }
+  }
+  return '/planos';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { priceId, planType: planTypeFromBody } = await request.json();
-    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL;
+    // origin comes from the request origin header; fall back to env — never from user body
+    const origin = process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin') || '';
 
     if (!priceId) {
       return NextResponse.json({ error: 'priceId é obrigatório' }, { status: 400 });
@@ -116,17 +128,13 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ url: latestInvoice.hosted_invoice_url });
         }
 
-        // Sucesso imediato! Redirecionamos para a origem com flag de sucesso.
-        // Se veio do /settings, voltamos para lá. Se veio do /planos, voltamos para lá.
-        const referer = request.headers.get('referer');
-        const successPath = referer?.includes('/settings') 
-          ? '/settings?tab=billing&stripe=success' 
-          : '/planos?stripe=success';
-        
+        // Sucesso imediato — resolve path from referer with whitelist guard
+        const returnPath = resolveReturnPath(request.headers.get('referer'));
+        const successPath = `${returnPath}?tab=billing&stripe=success`;
         console.log('[DEBUG CHECKOUT] Upgrade processado instantaneamente. Redirect:', successPath);
-        return NextResponse.json({ 
+        return NextResponse.json({
           url: `${origin}${successPath}`,
-          directSuccess: true 
+          directSuccess: true
         });
 
       } catch (upgradeError: any) {
@@ -145,9 +153,8 @@ export async function POST(request: NextRequest) {
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      // [FIX] Redireciona para /planos com celebração premium ou settings dependendo da origem
-      success_url: `${origin}${request.headers.get('referer')?.includes('/settings') ? '/settings?tab=billing&stripe=success' : '/planos?stripe=success'}`,
-      cancel_url: `${origin}${request.headers.get('referer')?.includes('/settings') ? '/settings?tab=billing&stripe=cancel' : '/planos?stripe=cancel'}`,
+      success_url: `${origin}${resolveReturnPath(request.headers.get('referer'))}?tab=billing&stripe=success`,
+      cancel_url: `${origin}${resolveReturnPath(request.headers.get('referer'))}?tab=billing&stripe=cancel`,
       // [FIX] Stripe does not allow both customer and customer_email
       ...(company?.stripe_customer_id 
         ? { customer: company.stripe_customer_id } 

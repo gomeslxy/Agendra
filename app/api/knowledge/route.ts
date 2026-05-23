@@ -14,11 +14,40 @@ import { genAI } from '@/lib/ai/client';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 200;
+const MAX_CHUNKS = 200; // cap embedding API calls per upload
 const ALLOWED_TYPES = [
   'text/plain',
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
+
+// Magic-byte signatures for allowed formats
+const MAGIC_BYTES: Record<string, number[][]> = {
+  'application/pdf': [[0x25, 0x50, 0x44, 0x46]], // %PDF
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
+    [0x50, 0x4b, 0x03, 0x04], // PK (ZIP-based OOXML)
+  ],
+  // text/plain: no magic bytes — validated by UTF-8 decode below
+};
+
+function validateMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  const sigs = MAGIC_BYTES[mimeType];
+  if (!sigs) return true; // text/plain — no binary magic check
+  return sigs.some((sig) => sig.every((byte, i) => buffer[i] === byte));
+}
+
+/**
+ * Strips path separators and HTML from a filename, keeps only the last component.
+ * Returns a safe, displayable name up to 255 chars.
+ */
+function sanitizeSourceName(raw: string): string {
+  // Strip directory traversal characters and null bytes
+  const base = raw.replace(/[\\/\0]/g, '_').replace(/\.\./g, '_');
+  // Strip HTML tags
+  const noHtml = base.replace(/<[^>]*>/g, '');
+  // Trim and cap length
+  return noHtml.trim().slice(0, 255) || 'documento';
+}
 
 /** Divide texto em chunks com overlap */
 function chunkText(text: string, size = CHUNK_SIZE, overlap = CHUNK_OVERLAP): string[] {
@@ -100,6 +129,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate declared MIME against allowlist (client-supplied header)
     const mimeType = file.type || 'text/plain';
     if (!ALLOWED_TYPES.includes(mimeType)) {
       return NextResponse.json(
@@ -111,6 +141,15 @@ export async function POST(req: NextRequest) {
     // 1. Extrair texto
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    // Validate actual file content via magic bytes — prevents disguised executables
+    if (!validateMagicBytes(buffer, mimeType)) {
+      return NextResponse.json(
+        { error: 'Conteúdo do arquivo não corresponde ao tipo declarado.' },
+        { status: 400 }
+      );
+    }
+
     let text: string;
 
     try {
@@ -129,14 +168,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Chunking
-    const chunks = chunkText(text);
+    // 2. Chunking — cap to MAX_CHUNKS to bound embedding API calls
+    const allChunks = chunkText(text);
+    const chunks = allChunks.slice(0, MAX_CHUNKS);
     if (chunks.length === 0) {
       return NextResponse.json({ error: 'Nenhum chunk válido gerado' }, { status: 422 });
     }
 
     // 3. Gerar embeddings em série (evita rate limit)
-    const sourceName = file.name;
+    // Sanitize filename to prevent path traversal and stored XSS
+    const sourceName = sanitizeSourceName(file.name);
     const rows: Array<{
       company_id: string;
       source_name: string;
@@ -150,7 +191,6 @@ export async function POST(req: NextRequest) {
         rows.push({ company_id: companyId, source_name: sourceName, content: chunk, embedding });
       } catch (err) {
         console.error('[Knowledge API] Falha ao gerar embedding para chunk:', err);
-        // Continua com os outros chunks
       }
     }
 

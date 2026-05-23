@@ -130,12 +130,16 @@ export async function setConversationTone(leadId: string, tone: "cold" | "warm" 
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
   const supabase = await createClient();
 
   const { error } = await supabase
     .from("leads")
     .update({ conversation_tone: tone })
-    .eq("id", leadId);
+    .eq("id", leadId)
+    .eq("company_id", companyId); // IDOR guard
 
   if (error) throw new Error(error.message);
 
@@ -186,13 +190,17 @@ export async function approveDraftMessage(messageId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
   const supabase = await createClient();
 
-  // 1. Buscar a mensagem de rascunho
+  // 1. Buscar a mensagem de rascunho — company_id guard prevents IDOR
   const { data: msg, error: fetchError } = await supabase
     .from("messages")
     .select("*, lead:leads(phone)")
     .eq("id", messageId)
+    .eq("company_id", companyId)
     .single();
 
   if (fetchError || !msg) throw new Error("Mensagem não encontrada");
@@ -221,9 +229,13 @@ export async function approveDraftMessage(messageId: string) {
 
 export async function editAndSendDraft(messageId: string, editedText: string) {
   if (!editedText.trim()) throw new Error("Texto não pode ser vazio");
+  if (editedText.length > 4096) throw new Error("Mensagem muito longa (máx 4096 chars)");
 
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
 
   const supabase = await createClient();
 
@@ -231,6 +243,7 @@ export async function editAndSendDraft(messageId: string, editedText: string) {
     .from("messages")
     .select("*, lead:leads(phone)")
     .eq("id", messageId)
+    .eq("company_id", companyId)
     .single();
 
   if (fetchError || !msg) throw new Error("Mensagem não encontrada");
@@ -257,12 +270,16 @@ export async function deleteDraftMessage(messageId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
   const supabase = await createClient();
 
   const { error } = await supabase
     .from("messages")
     .delete()
-    .eq("id", messageId);
+    .eq("id", messageId)
+    .eq("company_id", companyId); // IDOR guard
 
   if (error) throw new Error(error.message);
 

@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomInt } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/send";
 import { verificationEmail } from "@/lib/email/templates/verification";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimitAsync } from "@/lib/rate-limit";
 
 function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
 }
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!checkRateLimit(`send-otp:${ip}`, 20, 60_000)) {
+  if (!(await checkRateLimitAsync(`send-otp:${ip}`, 20, 60_000))) {
     return NextResponse.json({ error: "Muitas tentativas. Aguarde 1 minuto." }, { status: 429 });
   }
 

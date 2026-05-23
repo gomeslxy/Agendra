@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/send";
 import { welcomeEmail } from "@/lib/email/templates/welcome";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimitAsync } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!checkRateLimit(`verify-otp:${ip}`, 15, 60_000)) {
+  if (!(await checkRateLimitAsync(`verify-otp:${ip}`, 15, 60_000))) {
     return NextResponse.json({ error: "Muitas tentativas. Aguarde um momento." }, { status: 429 });
   }
 

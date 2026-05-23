@@ -22,15 +22,20 @@ export async function createService(formData: FormData) {
   const profile = await getUserProfile()
   if (!profile) throw new Error("Unauthorized")
 
+  // company_id comes from the authenticated session, never from client input
+  const company_id = profile.memberships?.[0]?.company_id
+  if (!company_id) throw new Error("No company")
+
   const supabase = await createClient()
 
-  const company_id = formData.get("company_id") as string
   const name = (formData.get("name") as string)?.trim()
-  if (!name) throw new Error("Nome do serviço é obrigatório")
+  if (!name || name.length > 200) throw new Error("Nome do serviço é obrigatório (máx 200 chars)")
 
-  const description = (formData.get("description") as string) || null
-  const duration = parseInt(formData.get("duration") as string)
-  const price = formData.get("price") ? parseFloat(formData.get("price") as string) : null
+  const description = ((formData.get("description") as string) || "").trim().slice(0, 1000) || null
+  const duration = parseInt(formData.get("duration") as string, 10)
+  if (isNaN(duration) || duration < 5 || duration > 480) throw new Error("Duração inválida (5–480 minutos)")
+  const priceRaw = formData.get("price") ? parseFloat(formData.get("price") as string) : null
+  const price = priceRaw !== null ? (isNaN(priceRaw) || priceRaw < 0 || priceRaw > 99999 ? null : priceRaw) : null
 
   const { error } = await supabase
     .from("services")

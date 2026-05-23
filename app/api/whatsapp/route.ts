@@ -103,11 +103,11 @@ async function validateMetaSignature(
 
   const actualSignature = signature.replace("sha256=", "");
 
-  if (actualSignature !== expectedSignature) {
-    console.error(`[WhatsApp] ❌ Assinatura inválida!
-      Esperada: ${expectedSignature.slice(0, 10)}...
-      Recebida: ${actualSignature.slice(0, 10)}...
-    `);
+  // Timing-safe comparison prevents oracle attacks on the HMAC secret
+  const expected = Buffer.from(expectedSignature, "hex");
+  const actual = Buffer.from(actualSignature.length === expectedSignature.length ? actualSignature : expectedSignature, "hex");
+  if (!crypto.timingSafeEqual(expected, actual) || actualSignature.length !== expectedSignature.length) {
+    console.error(`[WhatsApp] ❌ Assinatura inválida! Esperada: ${expectedSignature.slice(0, 10)}... Recebida: ${actualSignature.slice(0, 10)}...`);
     return false;
   }
 

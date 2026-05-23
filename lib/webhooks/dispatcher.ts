@@ -10,6 +10,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import crypto from 'crypto';
+import { isPrivateUrl } from '@/lib/security/url-guard';
 
 export type WebhookEventType =
   | 'booking.created'
@@ -87,25 +88,30 @@ export async function dispatchWebhook(
         const signature = signPayload(sub.secret, body);
         let lastError: string | null = null;
 
-        try {
-          const response = await fetch(sub.url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-agendra-signature': `sha256=${signature}`,
-              'x-agendra-event': event,
-              'x-agendra-timestamp': payload.timestamp,
-              'User-Agent': 'Agendra-Webhooks/1.0',
-            },
-            body,
-            signal: AbortSignal.timeout(5000), // 5s timeout
-          });
+        if (isPrivateUrl(sub.url)) {
+          lastError = 'URL blocked: private or internal address';
+          console.warn(`[WebhookDispatcher] SSRF blocked: ${sub.url.slice(0, 60)}`);
+        } else {
+          try {
+            const response = await fetch(sub.url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-agendra-signature': `sha256=${signature}`,
+                'x-agendra-event': event,
+                'x-agendra-timestamp': payload.timestamp,
+                'User-Agent': 'Agendra-Webhooks/1.0',
+              },
+              body,
+              signal: AbortSignal.timeout(5000),
+            });
 
-          if (!response.ok) {
-            lastError = `HTTP ${response.status} ${response.statusText}`;
+            if (!response.ok) {
+              lastError = `HTTP ${response.status} ${response.statusText}`;
+            }
+          } catch (err: any) {
+            lastError = err?.message ?? 'Unknown error';
           }
-        } catch (err: any) {
-          lastError = err?.message ?? 'Unknown error';
         }
 
         // 4. Atualizar registro de último disparo (não-bloqueante)

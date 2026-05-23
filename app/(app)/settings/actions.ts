@@ -6,6 +6,7 @@ import { exchangeForLongLivedToken, getWhatsAppNumberDetails } from "@/lib/whats
 import { validateWhatsAppToken } from "@/lib/whatsapp/validate";
 import { getCompanyUsage } from "@/lib/billing/limits";
 import { revalidatePath } from "next/cache";
+import { assertSafeWebhookUrl } from "@/lib/security/url-guard";
 
 export async function updatePersona(formData: FormData) {
   const profile = await getUserProfile();
@@ -40,6 +41,29 @@ export async function updatePersona(formData: FormData) {
   const autoEscalateRaw = formData.get("auto_escalate");
   const slotDuration = parseInt(formData.get("slot_duration_minutes") as string, 10);
 
+  // Length + bounds guards
+  if (aiName !== undefined && aiName !== null && aiName.length > 100)
+    throw new Error("ai_name muito longo (máx 100 chars)");
+  if (aiGreeting !== undefined && aiGreeting !== null && aiGreeting.length > 500)
+    throw new Error("ai_greeting muito longo (máx 500 chars)");
+  if (aiForbidden !== undefined && aiForbidden !== null && aiForbidden.length > 2000)
+    throw new Error("ai_forbidden muito longo (máx 2000 chars)");
+  if (!isNaN(escalationThreshold) && (escalationThreshold < 1 || escalationThreshold > 100))
+    throw new Error("escalation_threshold deve ser entre 1 e 100");
+  if (!isNaN(slotDuration) && (slotDuration < 5 || slotDuration > 480))
+    throw new Error("slot_duration_minutes deve ser entre 5 e 480");
+  if (formData.has("timezone") && formData.get("timezone")) {
+    const tz = formData.get("timezone") as string;
+    try { Intl.DateTimeFormat(undefined, { timeZone: tz }); } catch {
+      throw new Error("Timezone inválida");
+    }
+  }
+  const extraInstructions = formData.has("extra_instructions")
+    ? (formData.get("extra_instructions") as string).trim()
+    : undefined;
+  if (extraInstructions !== undefined && extraInstructions.length > 3000)
+    throw new Error("extra_instructions muito longo (máx 3000 chars)");
+
   // Read current persona_config to merge (single round-trip)
   const { data: existing } = await supabase
     .from("companies")
@@ -66,7 +90,7 @@ export async function updatePersona(formData: FormData) {
   if (formData.has("timezone") && formData.get("timezone")) personaConfigPatch.timezone = formData.get("timezone") as string;
   if (working_hours) personaConfigPatch.working_hours = working_hours;
   // extra_instructions: has() = field present; empty string = user cleared → set null
-  if (formData.has("extra_instructions")) personaConfigPatch.extra_instructions = (formData.get("extra_instructions") as string).trim() || null;
+  if (extraInstructions !== undefined) personaConfigPatch.extra_instructions = extraInstructions || null;
 
   // Build update object — omit undefined fields so Rules form doesn't wipe identity columns
   const updatePayload: Record<string, unknown> = { persona_config: personaConfigPatch };
@@ -219,6 +243,20 @@ export async function saveAutomationConfig(data: {
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
+
+  // Bounds: prevent logic abuse or DoS via extreme values
+  if (data.reminder_advance_hours !== undefined) {
+    if (!Number.isInteger(data.reminder_advance_hours) || data.reminder_advance_hours < 0 || data.reminder_advance_hours > 48)
+      throw new Error("reminder_advance_hours deve ser inteiro entre 0 e 48");
+  }
+  if (data.followup_delay_hours !== undefined) {
+    if (!Number.isInteger(data.followup_delay_hours) || data.followup_delay_hours < 1 || data.followup_delay_hours > 168)
+      throw new Error("followup_delay_hours deve ser inteiro entre 1 e 168");
+  }
+  if (data.followup_max_retries !== undefined) {
+    if (!Number.isInteger(data.followup_max_retries) || data.followup_max_retries < 0 || data.followup_max_retries > 10)
+      throw new Error("followup_max_retries deve ser inteiro entre 0 e 10");
+  }
 
   const supabase = await createClient();
 
@@ -400,7 +438,7 @@ export async function saveWebhookConfig(data: {
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
 
-  if (!data.url || !data.url.startsWith("http")) throw new Error("URL inválida. Use https://...");
+  assertSafeWebhookUrl(data.url);
   if (!data.event_types.length) throw new Error("Selecione ao menos um tipo de evento.");
 
   const supabase = await createClient();
@@ -475,6 +513,11 @@ export async function saveReactivationConfig(data: {
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
 
+  if (!Number.isInteger(data.reactivation_days) || data.reactivation_days < 1 || data.reactivation_days > 365)
+    throw new Error("reactivation_days deve ser inteiro entre 1 e 365");
+  if (typeof data.reactivation_hook !== "string" || data.reactivation_hook.trim().length > 1000)
+    throw new Error("reactivation_hook inválido (máx 1000 chars)");
+
   const supabase = await createClient();
 
   const { data: existing } = await supabase
@@ -491,7 +534,7 @@ export async function saveReactivationConfig(data: {
       persona_config: {
         ...current,
         reactivation_days: data.reactivation_days,
-        reactivation_hook: data.reactivation_hook,
+        reactivation_hook: data.reactivation_hook.trim(),
       },
     })
     .eq("id", companyId);
