@@ -1,6 +1,30 @@
 # Histórico de Sessões
 
+## Sessão (23/05/2026) — Auditoria Avançada: Motor IA, /agenda, Multitenancy e Segurança
+
+**OBJETIVO**: Auditoria proativa sênior do sistema completo — motor IA, integração com /agenda (Google Calendar), webhooks, crons, multitenancy, segurança, race conditions, performance. 9 problemas encontrados e 7 corrigidos imediatamente.
+
+### Resultados — 7 correções aplicadas, `tsc --noEmit` exit 0
+
+| ID | Severidade | Área | Problema | Arquivo | Status |
+|---|---|---|---|---|---|
+| CRIT-2 | P0 | Segurança/IDOR | `setControlMode('shadow')` sem `company_id` guard no UPDATE | `actions.ts:168` | ✅ Corrigido |
+| CRIT-3 | P1 | Confiabilidade | `approveDraftMessage` sem guard de `is_draft` → duplo envio por double-click | `actions.ts:211` | ✅ Corrigido |
+| CRIT-6 | P1 | IA/Agenda | `getFreeBusySlots` sem timeout → tool call da IA bloqueado indefinidamente | `tools.ts:249` | ✅ Corrigido (5s timeout) |
+| CRIT-7 | P2 | Infraestrutura | Health check só validava canais `error`, ignorava canais `active` com token expirado | `morning/route.ts` | ✅ Corrigido |
+| CRIT-8 | P2 | IA/Agenda | Cancel GCal sem marcar `gcal_sync_status='failed'` → desincronização silenciosa | `tools.ts:503` | ✅ Corrigido |
+| CRIT-9 | P2 | IA/Agenda | Reschedule GCal sem marcar `gcal_sync_status='failed'` → desincronização silenciosa | `tools.ts:572` | ✅ Corrigido |
+| IMP-1 | Melhoria | IA/UX | `handleMyAppointments` expunha ISO UTC para a IA → IA podia citar horário errado | `tools.ts:598` | ✅ Corrigido |
+| IMP-4 | Melhoria | IA/Performance | TOOLS_CHAIN timeout 12s → fallback prematuro em SambaNova cold starts | `router.ts:74` | ✅ 15s |
+
+**Riscos remanescentes documentados no backlog**: `[RACE-BOOK]` (race condition residual no bookAppointment), `[JSON-SPLIT]` (delimitador `---JSON---` frágil), `[GCAL-CACHE]` (cache não compartilhado entre instâncias Vercel), `[REACTIVATION-GUARD]` (sem guard de `followup_in_progress` na reativação noturna).
+
+**Segurança multitenancy**: 14 vetores auditados — todos isolados por `company_id` exceto CRIT-2 (corrigido).
+
+---
+
 ## Sessão (23/05/2026) — Auditoria Completa de Qualidade, Segurança e Gating de Planos
+
 
 **OBJETIVO**: Auditoria completa de backend, frontend, banco de dados, regras de negócio e multitenancy com correções automáticas de erros de compilação e bypasses de planos.
 

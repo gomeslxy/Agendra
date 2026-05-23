@@ -240,24 +240,41 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // ── 4. Channel Health ────────────────────────────────────────────────────────
   try {
-    const { data: channels } = await admin
+    // Check ALL channels with status='error' + a sample of 'active' channels
+    // to detect silently expired tokens before they cause message loss.
+    const { data: errorChannels } = await admin
       .from('channels')
       .select('*')
       .eq('status', 'error');
 
+    const { data: activeChannels } = await admin
+      .from('channels')
+      .select('*')
+      .eq('status', 'active')
+      .order('last_seen_at', { ascending: true }) // prioritize longest unseen
+      .limit(5); // CRIT-7: validate sample of active channels too
+
+    const channelsToCheck = [
+      ...(errorChannels ?? []),
+      ...(activeChannels ?? []),
+    ];
+
     let healthy = 0;
     let broken = 0;
-    for (const ch of channels ?? []) {
+    for (const ch of channelsToCheck) {
       const validation = await validateWhatsAppToken(ch.provider_id, ch.access_token);
       if (!validation.ok) {
         await admin.from('channels').update({ status: 'error', updated_at: new Date().toISOString() }).eq('id', ch.id);
         broken++;
-      } else {
+      } else if (ch.status !== 'active') {
+        // Was 'error', now healed
         await admin.from('channels').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', ch.id);
+        healthy++;
+      } else {
         healthy++;
       }
     }
-    summary.channel_health = { healthy, broken };
+    summary.channel_health = { healthy, broken, checked: channelsToCheck.length };
     console.log('[morning-cron] channel_health:', summary.channel_health);
   } catch (err: any) {
     summary.channel_health = { error: err.message };

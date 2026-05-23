@@ -165,7 +165,8 @@ export async function setControlMode(leadId: string, mode: 'autonomous' | 'shado
     await supabase
       .from("leads")
       .update({ control_mode: mode, is_paused: isPaused })
-      .eq("id", leadId);
+      .eq("id", leadId)
+      .eq("company_id", company_id); // IDOR guard — must always filter by company_id
   }
 
   const modeLabels = {
@@ -206,6 +207,13 @@ export async function approveDraftMessage(messageId: string) {
   if (fetchError || !msg) throw new Error("Mensagem não encontrada");
   const phone = (msg.lead as any)?.phone;
   if (!phone) throw new Error("Telefone do lead não encontrado");
+
+  // Guard: prevent double-send if race condition (user clicked Approve 2x)
+  // If is_draft was already removed by a previous call, abort silently.
+  if (!(msg.metadata as any)?.is_draft) {
+    console.warn(`[approveDraftMessage] Message ${messageId} already approved — skipping duplicate send.`);
+    return { success: true };
+  }
 
   // 2. Enviar WhatsApp via API no backend
   await sendWhatsAppMessage(phone, msg.content, msg.company_id);

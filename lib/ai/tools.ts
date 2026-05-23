@@ -242,14 +242,19 @@ export async function handleCheckAvailability(
   let gcalBusy: any[] = [];
   if (company?.google_refresh_token && company?.google_calendar_id) {
     try {
-      gcalBusy = await getFreeBusySlots(
+      // CRIT-6: 5s timeout to prevent tool-call stall on GCal slowness
+      const gcalPromise = getFreeBusySlots(
         company.google_refresh_token,
         company.google_calendar_id,
         now.toISOString(),
         rangeEnd.toISOString()
       );
-    } catch (e) {
-      console.warn('[Tools] GCal Free/Busy failed, using local only.');
+      const gcalTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('GCal Free/Busy timeout (5s)')), 5000)
+      );
+      gcalBusy = await Promise.race([gcalPromise, gcalTimeout]);
+    } catch (e: any) {
+      console.warn('[Tools] GCal Free/Busy failed or timed out, using local only:', e.message);
     }
   }
 
@@ -497,13 +502,14 @@ export async function handleCancelAppointment(args: { event_id: string; reason?:
   // Reset followup_count on success
   await admin.from('leads').update({ followup_count: 0 }).eq('id', _ctx.leadId).eq('company_id', _ctx.companyId);
 
-  // Sync GCal
+  // Sync GCal — update gcal_sync_status on failure for observability
   const co = event.companies as any;
   if (event.gcal_event_id && co?.google_refresh_token) {
     try {
       await deleteGCalEvent(co.google_refresh_token, co.google_calendar_id ?? 'primary', event.gcal_event_id);
     } catch (e) {
-      console.warn('[Tools] Failed to delete GCal event');
+      console.warn('[Tools] Failed to delete GCal event on cancel — marking gcal_sync_status=failed');
+      await admin.from('events').update({ gcal_sync_status: 'failed' }).eq('id', args.event_id).eq('company_id', _ctx.companyId);
     }
   }
 
@@ -566,7 +572,7 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
       .eq('status', 'pending');
   }
 
-  // Sync GCal
+  // Sync GCal — update gcal_sync_status on failure for observability
   const co = event.companies as any;
   if (event.gcal_event_id && co?.google_refresh_token) {
     try {
@@ -577,7 +583,8 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
         timeZone: co.persona_config?.timezone
       });
     } catch (e) {
-      console.warn('[Tools] Failed to update GCal event');
+      console.warn('[Tools] Failed to update GCal event on reschedule — marking gcal_sync_status=failed');
+      await admin.from('events').update({ gcal_sync_status: 'failed' }).eq('id', args.event_id).eq('company_id', ctx.companyId);
     }
   }
 
@@ -597,7 +604,15 @@ export async function handleMyAppointments(_args: any, ctx: ToolContext) {
 
   if (!events?.length) return { message: 'Você não possui agendamentos futuros.' };
 
-  const list = events.map(e => `- ${e.title} em ${e.start_time} [ID: ${e.id}]`).join('\n');
+  // IMP-1: Format start_time in company timezone for AI readability (not raw UTC)
+  const { data: coData } = await admin.from('companies').select('persona_config').eq('id', ctx.companyId).single();
+  const tz = (coData?.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
+  const list = events.map(e => {
+    const localStart = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    }).format(new Date(e.start_time));
+    return `- ${e.title} em ${localStart} [ID: ${e.id}]`;
+  }).join('\n');
   return { message: `Seus agendamentos:\n${list}`, appointments: events };
 }
 export async function handleUpdateLeadInfo(

@@ -10,6 +10,7 @@ import type {
 
 const CHAT_TIMEOUT_MS = 12_000;
 const GEN_TIMEOUT_MS = 12_000;
+const TOOLS_TIMEOUT_MS = 15_000; // IMP-4: tools chain gets more time (SambaNova cold starts)
 const DEGRADED_TIMEOUT_MS = 25_000;
 
 const cerebras = new CerebrasAdapter();
@@ -71,8 +72,9 @@ export async function routeChat(
   opts: RouteOptions = {}
 ): Promise<ProviderRouteResult> {
   const chain = opts.chain === 'tools' ? TOOLS_CHAIN : CONV_CHAIN;
+  const baseTimeout = opts.chain === 'tools' ? TOOLS_TIMEOUT_MS : CHAT_TIMEOUT_MS;
   const { result, provider, fallbackUsed } = await runChain(
-    chain, (p, signal) => p.chat({ ...params, signal }), CHAT_TIMEOUT_MS, opts.traceId
+    chain, (p, signal) => p.chat({ ...params, signal }), baseTimeout, opts.traceId
   );
   return { ...result, provider, fallbackUsed };
 }
