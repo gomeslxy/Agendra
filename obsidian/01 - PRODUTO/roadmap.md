@@ -95,8 +95,26 @@
 - [x] **Fix 4 (Analytics Prevention)**: Refinado prompt de `processBackgroundAnalytics` em `lib/ai/memory.ts` para nunca salvar estados temporários de indisponibilidade nos novos resumos de lead.
 - [x] **Validação**: `pnpm tsc --noEmit` → exit 0 ✅ | `scratch/test_ai.ts` simulador passando 100% para saudações ("opa td bom") e agendamento direto ("quero agendar um corte e barba" - retorna 15 slots) ✅
 
-## 💅 Fase 4: Polimento Premium & Escala
-- [x] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
+## 🔧 Fase 3.8: Auditoria Total & Fixup — Motor de IA (✅ Concluído 22/05/2026)
+- [x] **Auditoria completa** da stack IA: `engine.ts`, `tools.ts`, `router.ts`, adapters, `inbox-client.tsx`, layout, crons
+- [x] **P0 — Crítico (2 bugs)**:
+  - Mensagem perdida durante `human_takeover` → user message agora persiste ANTES do early return (engine.ts:410)
+  - `flush-buffer` endpoint morto com bug column reference → deletado arquivo inteiro
+- [x] **P1 — Alto Impacto (6 bugs)**:
+  - Shadow mode bloqueado por `is_paused` → guard corrigido para permitir drafts (engine.ts:562)
+  - GCal errors silenciados → now seta `gcal_sync_status='failed'` (tools.ts)
+  - Lock release without try/catch → wrapped (engine.ts:783)
+  - Layout sem redirect em `companyId=null` → added (layout.tsx)
+  - Embedding client carregado no module load → lazy getter (engine.ts:33)
+  - Serviços pausados listados para IA → filter adicionado (tools.ts:197)
+- [x] **P2 — Qualidade (5 fixos)**:
+  - Dual banner bug → guard para não mostrar ambas (inbox-client.tsx)
+  - Imports mortos e checks redundantes removidos
+  - Nightly reactivation usando Gemini direto → migrado para `routeGenerate` com fallback (nightly/route.ts)
+- [x] **Verificação**: `pnpm tsc --noEmit` → exit 0 ✅ | `.next` cache limpo | TSC clean
+
+## 💅 Fase 5: Polimento Premium & Escala
+- [ ] **Performance**: Otimização de navegação (<150ms) e cache via React `cache()`.
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.
 - [x] **Analytics**: Dashboard de performance de conversão e BI avançado.
 
