@@ -43,21 +43,20 @@ export default async function AppLayout({
 
   if (companyId) {
     const supabase = await createClient();
-    
-    // Fetch Hot Leads
-    const { count: hc } = await supabase
-      .from("leads")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyId)
-      .eq("status", "hot");
-    hotCount = hc ?? 0;
 
-    // Fetch Unhealthy Channels
-    const { count: uc } = await supabase
-      .from("channels")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyId)
-      .eq("status", "error");
+    const [{ count: hc }, { count: uc }] = await Promise.all([
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "hot"),
+      supabase
+        .from("channels")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "error"),
+    ]);
+    hotCount = hc ?? 0;
     unhealthyChannelsCount = uc ?? 0;
   }
 
