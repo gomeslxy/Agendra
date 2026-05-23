@@ -120,9 +120,9 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
     >
       <div className="flex items-start gap-2.5">
         <div className="relative mt-0.5 flex-shrink-0">
-          <span className={cn("absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full", PRIORITY_DOT[notification.priority])} />
+          <span className={cn("absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full", PRIORITY_DOT[notification.priority] || "bg-white/30")} />
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.06]">
-            {TYPE_ICON[notification.type]}
+            {TYPE_ICON[notification.type] || <Bell size={14} className="text-white/40" />}
           </div>
         </div>
 
@@ -255,14 +255,17 @@ export function NotificationBell({ userId }: NotificationBellProps) {
 
   return (
     <div ref={panelRef} className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
+      <button
         aria-label="Notificações"
         onClick={() => setOpen((v) => !v)}
-        className="relative"
+        className={cn(
+          "relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500",
+          open 
+            ? "bg-white/15 text-white shadow-inner" 
+            : "text-white/70 hover:bg-white/10 hover:text-white"
+        )}
       >
-        <Bell size={18} />
+        <Bell size={18} className={cn("transition-transform", open && "scale-105")} />
         <AnimatePresence>
           {displayCount && (
             <motion.span
@@ -271,29 +274,29 @@ export function NotificationBell({ userId }: NotificationBellProps) {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.5, opacity: 0 }}
               transition={{ type: "spring", stiffness: 500, damping: 25 }}
-              className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white"
+              className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border border-[rgba(11,18,34,0.9)] bg-red-500 px-1 text-[9px] font-bold text-white shadow-sm"
             >
               {displayCount}
             </motion.span>
           )}
         </AnimatePresence>
-      </Button>
+      </button>
 
       <AnimatePresence>
         {open && (
           <motion.div
             key="notif-panel"
-            initial={{ opacity: 0, y: 8, scale: 0.97 }}
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.97 }}
-            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-0 top-full z-50 mt-2 w-[340px] overflow-hidden rounded-2xl border border-white/[0.1] bg-[rgba(11,18,34,0.97)] shadow-2xl backdrop-blur-2xl"
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute right-0 sm:-right-4 top-full z-[100] mt-3 w-[340px] origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-[rgba(11,18,34,0.95)] shadow-2xl shadow-black/50 backdrop-blur-xl ring-1 ring-white/5"
           >
-            <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
+            <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.02] px-4 py-3">
               <div className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold text-white">Notificações</span>
+                <span className="text-[14px] font-semibold text-white tracking-tight">Notificações</span>
                 {unreadCount > 0 && (
-                  <span className="rounded-full bg-brand-blue-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-brand-blue-400">
+                  <span className="rounded-full bg-brand-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-brand-blue-400">
                     {unreadCount} nova{unreadCount !== 1 ? "s" : ""}
                   </span>
                 )}
@@ -302,28 +305,33 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                 <button
                   onClick={handleMarkAll}
                   disabled={markingAll}
-                  className="flex items-center gap-1 text-[11px] text-white/40 transition-colors hover:text-white/70 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-white/50 transition-colors hover:bg-white/5 hover:text-white/90 disabled:opacity-50"
                 >
-                  <CheckCheck size={12} />
+                  <CheckCheck size={14} />
                   Marcar lidas
                 </button>
               )}
             </div>
 
-            <div className="max-h-[420px] overflow-y-auto">
+            <div className="max-h-[420px] overflow-y-auto overscroll-contain">
               {!loaded ? (
                 <div className="space-y-2 p-3">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-16 animate-pulse rounded-xl bg-white/[0.04]" />
+                    <div key={i} className="h-[72px] animate-pulse rounded-xl bg-white/5" />
                   ))}
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-10 text-center">
-                  <Bell size={24} className="text-white/20" />
-                  <p className="text-[12px] text-white/30">Nenhuma notificação</p>
+                <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5">
+                    <Bell size={24} className="text-white/20" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[13px] font-medium text-white/60">Tudo limpo por aqui</p>
+                    <p className="text-[11px] text-white/30">Nenhuma notificação no momento</p>
+                  </div>
                 </div>
               ) : (
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                   <div className="space-y-1.5 p-3">
                     {notifications.map((n) => (
                       <NotificationCard
@@ -339,8 +347,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             </div>
 
             {notifications.length > 0 && (
-              <div className="border-t border-white/[0.08] px-4 py-2.5">
-                <p className="text-center text-[11px] text-white/25">
+              <div className="border-t border-white/5 bg-white/[0.01] px-4 py-2.5">
+                <p className="text-center text-[11px] font-medium text-white/30">
                   Mostrando as últimas {notifications.length} notificações
                 </p>
               </div>
