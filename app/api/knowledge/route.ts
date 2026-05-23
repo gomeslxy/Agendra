@@ -185,13 +185,17 @@ export async function POST(req: NextRequest) {
       embedding: number[];
     }> = [];
 
-    for (const chunk of chunks) {
-      try {
-        const embedding = await generateEmbedding(chunk);
-        rows.push({ company_id: companyId, source_name: sourceName, content: chunk, embedding });
-      } catch (err) {
-        console.error('[Knowledge API] Falha ao gerar embedding para chunk:', err);
-      }
+    const EMBED_BATCH = 10;
+    for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
+      const batch = chunks.slice(i, i + EMBED_BATCH);
+      const results = await Promise.allSettled(batch.map((chunk) => generateEmbedding(chunk)));
+      results.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          rows.push({ company_id: companyId, source_name: sourceName, content: batch[idx], embedding: result.value });
+        } else {
+          console.error('[Knowledge API] Falha ao gerar embedding para chunk:', result.reason);
+        }
+      });
     }
 
     if (rows.length === 0) {
