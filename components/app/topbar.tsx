@@ -5,9 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, LogOut, Plus, Search, X, Zap } from "lucide-react";
+import { LogOut, Plus, Search, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { NotificationBell } from "@/components/app/notification-bell";
 import { getInitials } from "@/lib/utils";
 import { calculateTrialStatus, calculateTrialProgress } from "@/lib/billing/plans";
 
@@ -28,9 +29,7 @@ export function Topbar({ cta }: TopbarProps) {
   const pathname = usePathname();
   const { profile, signOut, loading } = useAuth();
   const [query, setQuery] = useState("");
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const bellRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onLeadsPage = pathname.startsWith("/leads");
@@ -74,17 +73,6 @@ export function Topbar({ cta }: TopbarProps) {
     const target = trimmed ? `/leads?q=${encodeURIComponent(trimmed)}` : "/leads";
     router.push(target);
   }
-
-  // Close notification panel on outside click
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
-        setShowNotifications(false);
-      }
-    }
-    if (showNotifications) document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [showNotifications]);
 
   return (
     <>
@@ -139,33 +127,8 @@ export function Topbar({ cta }: TopbarProps) {
             IA ativa
           </div>
 
-          {/* Bell — notification panel stub */}
-          <div ref={bellRef} className="relative">
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label="Notificações"
-              onClick={() => setShowNotifications((v) => !v)}
-            >
-              <Bell size={18} />
-            </Button>
-            <AnimatePresence>
-              {showNotifications && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                  transition={{ duration: 0.14 }}
-                  className="absolute right-0 top-full z-50 mt-1.5 w-72 rounded-2xl border border-white/[0.1] bg-[rgba(11,18,34,0.97)] p-4 shadow-2xl backdrop-blur-xl"
-                >
-                  <p className="text-xs font-semibold">Notificações</p>
-                  <p className="mt-2 text-[12px]" style={{ color: "var(--color-fg-3)" }}>
-                    Nenhuma notificação no momento.
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          {/* Notification Bell */}
+          {profile?.id && <NotificationBell userId={profile.id} />}
 
           {/* Novo fluxo — desktop only */}
           <Link href={cta?.href ?? "/settings#flows"} className="hidden md:block">
