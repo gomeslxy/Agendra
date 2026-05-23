@@ -70,21 +70,44 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   }, [leads, selectedId, showChatOnMobile]);
 
   useEffect(() => {
+    if (!companyId) return; // Cannot subscribe without a tenant filter
+
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );
 
+    const companyFilter = `company_id=eq.${companyId}`;
+
+    // [FIX] When a message arrives for a lead not in our local state (e.g. lead was
+    // created after the initial 30-lead window, or lead INSERT realtime event hasn't
+    // landed yet), fetch the lead from the server and prepend it instead of dropping
+    // the message silently.
+    const fetchLeadById = async (leadId: string): Promise<LeadWithMessages | null> => {
+      const { data, error } = await supabase
+        .from("leads")
+        .select(`*, messages(id, lead_id, company_id, content, role, metadata, created_at)`)
+        .eq("id", leadId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error || !data) {
+        console.warn("[Inbox] failed to fetch unknown lead", leadId, error?.message);
+        return null;
+      }
+      const messages = ((data.messages ?? []) as Message[])
+        .slice()
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      return { ...(data as Lead), messages, next_event: null };
+    };
+
     const channel = supabase
-      .channel("inbox-realtime")
+      .channel(`inbox-realtime-${companyId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        { event: "INSERT", schema: "public", table: "messages", filter: companyFilter },
         (payload) => {
           const newMsg = payload.new as Message;
-          // Ensure the message belongs to the current company context
-          if (companyId && newMsg.company_id !== companyId) return;
-if (newMsg.role === "user") {
+          if (newMsg.role === "user") {
             setIsTyping(true);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
             typingTimerRef.current = setTimeout(() => setIsTyping(false), 8000);
@@ -92,7 +115,29 @@ if (newMsg.role === "user") {
             setIsTyping(false);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
           }
+
           setLeads((prev) => {
+            const leadExists = prev.some((l) => l.id === newMsg.lead_id);
+            if (!leadExists) {
+              // Lead not in local cache — fetch it from server in the background.
+              // Message will be re-attached when the lead lands.
+              console.warn(`[Inbox] message ${newMsg.id} for unknown lead ${newMsg.lead_id} — fetching lead`);
+              void fetchLeadById(newMsg.lead_id).then((lead) => {
+                if (!lead) return;
+                setLeads((p) => {
+                  if (p.some((l) => l.id === lead.id)) {
+                    // Lead arrived through another path — just attach the message.
+                    return p.map((l) =>
+                      l.id === lead.id && !l.messages.some((m) => m.id === newMsg.id)
+                        ? { ...l, messages: [...l.messages, newMsg] }
+                        : l,
+                    );
+                  }
+                  return [lead, ...p];
+                });
+              });
+              return prev;
+            }
             const next = prev.map((lead) => {
               if (lead.id !== newMsg.lead_id) return lead;
               if (lead.messages.some((m) => m.id === newMsg.id)) return lead;
@@ -108,7 +153,7 @@ if (newMsg.role === "user") {
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "leads" },
+        { event: "UPDATE", schema: "public", table: "leads", filter: companyFilter },
         (payload) => {
           const updatedLead = payload.new as Lead;
           setLeads((prev) => {
@@ -127,11 +172,9 @@ if (newMsg.role === "user") {
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "leads" },
+        { event: "INSERT", schema: "public", table: "leads", filter: companyFilter },
         (payload) => {
           const newLead = payload.new as Lead;
-          // Only add lead if it belongs to current company
-          if (companyId && newLead.company_id !== companyId) return;
           setLeads((prev) => {
             if (prev.some((l) => l.id === newLead.id)) return prev;
             return [{ ...newLead, messages: [] }, ...prev].sort((a, b) => {
@@ -143,6 +186,7 @@ if (newMsg.role === "user") {
         },
       )
       .subscribe((status) => {
+        console.log(`[Inbox] realtime status: ${status}`);
         setIsConnected(status === "SUBSCRIBED");
       });
 

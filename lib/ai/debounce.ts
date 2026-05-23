@@ -66,16 +66,24 @@ export async function bufferAndDebounce(args: {
     return;
   }
 
+  const dbgTag = `${args.companyId.slice(0, 6)}:${args.leadPhone.slice(-4)}`;
+  console.log(`[Debounce][${dbgTag}] ⏲️  waiting ${DEBOUNCE_MS}ms (gen=${gen.slice(0, 6)})`);
   await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
 
   // FIX B2: outro flusher mais recente assume
   const winner = await redis.get(tokenKey);
-  if (winner !== gen) return;
+  if (winner !== gen) {
+    console.log(`[Debounce][${dbgTag}] 🪂 superseded by newer flusher, exiting`);
+    return;
+  }
 
   const raw = await redis.lrange(bufKey, 0, -1);
   await redis.del(bufKey);
   await redis.del(tokenKey);
-  if (raw.length === 0) return;
+  if (raw.length === 0) {
+    console.warn(`[Debounce][${dbgTag}] ⚠️  empty buffer after wait — race lost`);
+    return;
+  }
 
   const items: Buffered[] = raw
     .map((s) => { try { return JSON.parse(s) as Buffered; } catch { return null; } })
@@ -86,6 +94,8 @@ export async function bufferAndDebounce(args: {
   const mergedMetadata = items.reduce<Record<string, any>>(
     (acc, i) => ({ ...acc, ...(i.metadata ?? {}) }), {}
   );
+
+  console.log(`[Debounce][${dbgTag}] 🚦 flushing batch=${items.length} firstMsgId=${items[0].provider_message_id.slice(-8)}`);
 
   await handleIncomingMessage(
     args.companyId, args.leadPhone, args.leadName,

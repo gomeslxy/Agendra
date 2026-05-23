@@ -21,7 +21,7 @@ export default async function InboxPage() {
   const [{ data, error }, { data: events }] = await Promise.all([
     supabase
       .from("leads")
-      .select(`*, messages(id, content, role, created_at)`)
+      .select(`*, messages(id, lead_id, company_id, content, role, metadata, created_at)`)
       .eq("company_id", companyId)
       .order("updated_at", { ascending: false })
       .order("created_at", { foreignTable: "messages", ascending: false })

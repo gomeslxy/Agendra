@@ -7,6 +7,7 @@ import {
   CheckCheck,
   Clock,
   Flame,
+  RefreshCw,
   Thermometer,
   Zap,
 } from "lucide-react";
@@ -107,7 +108,6 @@ function ChatPanel() {
   const [shown, setShown] = useState(0);
   const [typing, setTyping] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (shown >= SCRIPT.length) return;
@@ -126,6 +126,11 @@ function ChatPanel() {
   }, [shown, typing]);
 
   const confirmed = shown >= SCRIPT.length;
+
+  function handleReplay() {
+    setShown(0);
+    setTyping(false);
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-[20px] border border-white/[0.10] bg-gradient-to-b from-[rgba(255,255,255,0.06)] to-[rgba(255,255,255,0.03)] shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
@@ -148,7 +153,7 @@ function ChatPanel() {
       </div>
 
       {/* Mensagens */}
-      <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div ref={scrollContainerRef} className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {SCRIPT.slice(0, shown).map((m, i) => (
           <Bubble key={i} who={m.who} text={m.text} />
         ))}
@@ -165,7 +170,6 @@ function ChatPanel() {
             </motion.div>
           )}
         </AnimatePresence>
-        <div ref={bottomRef} />
       </div>
 
       {/* Confirmação agendada */}
@@ -186,7 +190,16 @@ function ChatPanel() {
                 Quinta, 14:00 · Dra. Maria · Sala 02
               </div>
             </div>
-            <CheckCheck size={14} className="flex-shrink-0 text-[#5EEAD4]" />
+            <div className="flex items-center gap-2">
+              <CheckCheck size={14} className="flex-shrink-0 text-[#5EEAD4]" />
+              <button
+                onClick={handleReplay}
+                aria-label="Reiniciar demo"
+                className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/40 transition-colors hover:bg-white/[0.12] hover:text-white/80"
+              >
+                <RefreshCw size={11} />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -196,13 +209,6 @@ function ChatPanel() {
 
 /* ─── Sidebar direita ────────────────────────────────────────── */
 function SidePanel() {
-  const [barsDone, setBarsDone] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setBarsDone(true), 300);
-    return () => clearTimeout(t);
-  }, []);
-
   return (
     <div className="flex flex-col gap-4">
       {/* Classificação */}

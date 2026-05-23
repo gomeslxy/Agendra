@@ -76,16 +76,16 @@ function Connector({ index, total }: { index: number; total: number }) {
         viewport={{ once: true, margin: "-60px" }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.3 + index * 0.18 }}
       />
-      {/* Dot animado percorrendo a linha. Mantém `left` por compat, mas marca will-change. */}
       <motion.div
-        className="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full will-change-[left,opacity]"
+        className="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full will-change-transform"
         style={{
           background: STEPS[index + 1].color,
           boxShadow: `0 0 10px ${STEPS[index + 1].glow}`,
+          left: 0,
         }}
-        initial={{ left: "0%", opacity: 0 }}
+        initial={{ x: 0, opacity: 0 }}
         whileInView={{
-          left: ["0%", "100%"],
+          x: [0, 30],
           opacity: [0, 1, 1, 0],
         }}
         viewport={{ once: false, amount: 0.4 }}

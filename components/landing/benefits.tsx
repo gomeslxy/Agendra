@@ -27,7 +27,7 @@ const ITEMS = [
   { 
     Icon: Filter,        
     t: "Qualificação Automática",  
-    d: "O robô identifica leads prontos para fechar e descarta os curiosos.",
+    d: "A Agendra identifica leads prontos para fechar e descarta os curiosos.",
     span: "md:col-span-2"
   },
   { 

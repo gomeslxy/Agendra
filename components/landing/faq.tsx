@@ -43,7 +43,7 @@ export function FAQ() {
         <FadeUp delay={0.1}>
           <Accordion type="single" collapsible className="w-full">
             {FAQS.map((f, i) => (
-              <AccordionItem key={i} value={`item-${i}`} className="border-white/10">
+              <AccordionItem key={f.q} value={`item-${i}`} className="border-white/10">
                 <AccordionTrigger className="text-left text-lg font-medium hover:no-underline hover:text-brand-blue-400">
                   {f.q}
                 </AccordionTrigger>

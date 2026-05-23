@@ -34,9 +34,12 @@ export function FinalCTA() {
               <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "final_cta", target: "signup" })}>
                 <Button variant="primary" pulse>Começar grátis →</Button>
               </Link>
-              <Button 
+              <Button
                 variant="secondary"
-                onClick={() => trackEvent("cta_click", { location: "final_cta", target: "demo" })}
+                onClick={() => {
+                  trackEvent("cta_click", { location: "final_cta", target: "demo" });
+                  document.getElementById("demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
               >
                 <Play size={14} />
                 Ver demo

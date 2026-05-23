@@ -352,6 +352,8 @@ export async function handleIncomingMessage(
   const admin = createAdminClient();
   const timer = createTimer();
   const traceId = crypto.randomUUID(); // W2.6 Trace ID generation
+  const tag = traceId.slice(0, 8);
+  console.log(`[Engine][${tag}] 🚀 start company=${companyId} phone=${phone.slice(0, 6)}*** msgId=${providerMessageId?.slice(-8) ?? 'n/a'} len=${messageText.length}`);
 
   // 1. Atomic deduplication — INSERT with PK conflict means duplicate webhook.
   // Race-safe: PostgreSQL guarantees only one inserter wins.
@@ -366,10 +368,10 @@ export async function handleIncomingMessage(
       // Unique violation = already being processed or completed by another worker.
       // Any other error: surface and abort to avoid blind retries.
       if ((insErr as any).code === '23505') {
-        console.log(`[AI Engine] Mensagem ${providerMessageId} ja em processamento (race detectada). Ignorando.`);
+        console.log(`[Engine][${tag}] 🔁 dedup race detected, skipping (msgId=${providerMessageId.slice(-8)})`);
         return;
       }
-      console.error('[AI Engine] processed_messages insert failed:', insErr);
+      console.error(`[Engine][${tag}] 💥 processed_messages insert failed:`, insErr);
       return;
     }
   }
@@ -454,7 +456,7 @@ export async function handleIncomingMessage(
       .maybeSingle();
 
     if (!locked) {
-      logInfo(`[AI Engine] Lead ${phone} já está sendo processado (lock atômico). Abortando.`);
+      console.warn(`[Engine][${tag}] 🔒 lead lock contention — another worker holds it (phone=${phone.slice(0, 6)}***)`);
       if (providerMessageId) {
         await admin
           .from('processed_messages')
@@ -527,7 +529,7 @@ export async function handleIncomingMessage(
   if (usage.isLimitReached) {
     const fallback =
       'Ola! No momento estamos com alta demanda. Recebemos sua mensagem e um consultor humano entrara em contato em breve.';
-    logInfo('Sending fallback WhatsApp message due to billing limit');
+    console.warn(`[Engine][${tag}] 🚫 billing limit reached — sending fallback`);
     await sendWhatsAppMessage(phone, fallback, companyId);
     if (providerMessageId) {
       await admin.from('processed_messages').update({ status: 'completed' })
@@ -595,6 +597,8 @@ export async function handleIncomingMessage(
   let sentMessage: any = null;
 
   try {
+    console.log(`[Engine][${tag}] 🤖 calling AI (planType=${usage.planType} historyLen=${historyToSend.length} newConv=${isNewConversation})`);
+    const aiStart = Date.now();
     try {
       aiResult = await processLeadMessage(
         activeLead,
@@ -607,8 +611,9 @@ export async function handleIncomingMessage(
         usage.limits,
         traceId
       );
+      console.log(`[Engine][${tag}] 🎯 AI replied in ${Date.now() - aiStart}ms via ${aiResult.provider_used}/${aiResult.model_used} tools=${aiResult.tools_called?.length ?? 0} fallback=${aiResult.fallback_used} replyLen=${aiResult.reply?.length ?? 0}`);
     } catch (aiErr: any) {
-      console.error('[AI Engine] processLeadMessage failed:', aiErr);
+      console.error(`[Engine][${tag}] 💥 processLeadMessage failed after ${Date.now() - aiStart}ms:`, aiErr?.message ?? aiErr);
       throw aiErr;
     }
 
@@ -664,10 +669,10 @@ export async function handleIncomingMessage(
       if (!sentAudio) {
         try {
           await sendWhatsAppMessage(phone, finalReply, companyId);
-        } catch (sendErr) {
-          console.error('[WhatsApp] Failed to send reply:', sendErr);
+          console.log(`[Engine][${tag}] 📤 reply sent to ${phone.substring(0, 6)}*** (text, ${finalReply.length} chars)`);
+        } catch (sendErr: any) {
+          console.error(`[Engine][${tag}] 💥 sendWhatsAppMessage failed:`, sendErr?.message ?? sendErr);
         }
-        logInfo(`[WhatsApp Client] 📤 Mensagem enviada para ${phone.substring(0, 6)}***`);
       }
     } else {
       console.log(`[AI Engine] Modo Shadow ativo para lead ${phone}. Mensagem persistida como rascunho (is_draft: true).`);
@@ -709,6 +714,8 @@ export async function handleIncomingMessage(
         .eq('provider_message_id', providerMessageId);
     }
 
+    console.log(`[Engine][${tag}] ✅ turn complete in ${timer()}ms`);
+
     // 11. Observability
     const schedulingIntentLocal = /\b(agend|hor[áa]rio|marcar|dispon[íi]v|hoje|amanh[ãa]|que dia|que horas|cancel|reagend)\b/i.test(messageText);
     await persistAILog({
@@ -738,6 +745,7 @@ export async function handleIncomingMessage(
   } catch (err: any) {
     const errMsg = String(err?.message ?? '');
     const isAllProvidersFailed = errMsg.includes('AI_ALL_PROVIDERS_FAILED');
+    console.error(`[Engine][${tag}] 💥 turn failed (allProvidersFailed=${isAllProvidersFailed}): ${errMsg.slice(0, 300)}`);
 
     if (isAllProvidersFailed) {
       const hours = (company.persona_config as any)?.fallback_takeover_hours ?? 2;

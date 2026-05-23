@@ -77,10 +77,13 @@ export function Hero() {
                 <ArrowRight size={18} className="ml-2 inline-block transition-transform group-hover:translate-x-1" />
               </ShinyButton>
             </Link>
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               className="px-6 rounded-full border-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10"
-              onClick={() => trackEvent("cta_click", { location: "hero", target: "demo" })}
+              onClick={() => {
+                trackEvent("cta_click", { location: "hero", target: "demo" });
+                document.getElementById("demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
             >
               <Play size={14} className="mr-2" />
               Ver demo de 2 min

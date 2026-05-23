@@ -12,10 +12,10 @@ import { createClient } from "@/lib/supabase/client";
 import { User } from "@supabase/supabase-js";
 
 const NAV = [
-  { href: "#como",     label: "Como funciona" },
-  { href: "#produto",  label: "Produto" },
-  { href: "#casos",    label: "Casos" },
-  { href: "/planos",   label: "Planos" },
+  { href: "#como-funciona", label: "Como funciona" },
+  { href: "#demo",          label: "Produto" },
+  { href: "#casos",         label: "Casos" },
+  { href: "/planos",        label: "Planos" },
 ];
 
 const HEADER_HEIGHT = 68;

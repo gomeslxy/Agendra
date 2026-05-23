@@ -16,6 +16,7 @@
  */
 
 import { createHmac } from "crypto";
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -217,23 +218,31 @@ if (isDebug) logDebug('[Webhook] Raw body', rawBody);
 // ─── Processamento Assíncrono ─────────────────────────────────────────────────
 
 async function processWebhookPayload(rawBody: string): Promise<void> {
+  const wbId = crypto.randomBytes(4).toString('hex');
+  const wbStart = Date.now();
   let payload: MetaWebhookPayload;
 
   try {
     payload = JSON.parse(rawBody) as MetaWebhookPayload;
 if (isDebug) logDebug('[Webhook] Parsed payload', payload);
   } catch {
-    console.error("[WhatsApp] ❌ Payload inválido — não é JSON válido.");
+    console.error(`[WhatsApp][${wbId}] ❌ Payload inválido — não é JSON válido.`);
     return;
   }
 
   // Verificar se é um payload de WhatsApp Business
   if (payload.object !== "whatsapp_business_account") {
-    console.warn("[WhatsApp] ⚠️  Objeto inesperado:", payload.object);
+    console.warn(`[WhatsApp][${wbId}] ⚠️  Objeto inesperado: ${payload.object}`);
     return;
   }
 
-  console.log(`[WhatsApp] 📦 Payload recebido | entries=${payload.entry?.length ?? 0}`);
+  console.log(`[WhatsApp][${wbId}] 📦 Payload recebido | entries=${payload.entry?.length ?? 0}`);
+
+  // Collect all in-flight debounce promises so we can await them before exiting.
+  // [FIX P0] Without this await, Vercel's after() callback finishes immediately and the
+  // serverless function shuts down before the 4s debounce setTimeout fires — meaning the
+  // AI engine NEVER runs and the lead never gets a response.
+  const pendingDebounces: Promise<void>[] = [];
 
   for (const entry of payload.entry ?? []) {
     
@@ -311,11 +320,14 @@ if (isDebug) logDebug('[Webhook] Parsed payload', payload);
         const contact = contacts.find((c) => c.wa_id === msg.from);
         if (!contact) continue;
 
+        const msgLogId = `${wbId}:${msg.id.slice(-8)}`;
+        console.log(`[Webhook][${msgLogId}] 📨 type=${msg.type} from=${msg.from.slice(0, 6)}*** company=${companyId}`);
+
         // 1. Dedup síncrono PRIMEIRO (FIX: economia 100% em retry Meta)
         const { claimMessage, bufferAndDebounce, bufferInDB } = await import('@/lib/ai/debounce');
         const claimed = await claimMessage(msg.id);
         if (!claimed) {
-          console.log(`[Webhook] dedup skip ${msg.id}`);
+          console.log(`[Webhook][${msgLogId}] 🔁 dedup skip (already processed)`);
           continue;
         }
 
@@ -334,18 +346,25 @@ if (isDebug) logDebug('[Webhook] Parsed payload', payload);
           msg as any, channel.access_token ?? '', msg.id
         );
         const incomingMetadata = { ...mediaMetadata };
-        if (!messageText) continue;
+        if (!messageText) {
+          console.warn(`[Webhook][${msgLogId}] ⚠️ empty body after media routing — skip`);
+          continue;
+        }
+
+        console.log(`[Webhook][${msgLogId}] ➡️ buffering text (len=${messageText.length})`);
 
         // 4. Debounce 4s — fallback DB se Redis off
         const debouncePromise = (async () => {
+          const dbStart = Date.now();
           try {
             await bufferAndDebounce({
               companyId, leadPhone: msg.from, leadName: contact.profile.name,
               body: messageText, providerMessageId: msg.id, msgType: msg.type,
               usage, metadata: incomingMetadata,
             });
+            console.log(`[Webhook][${msgLogId}] ✅ debounce flushed in ${Date.now() - dbStart}ms`);
           } catch (err: any) {
-            console.error('[Webhook] debounce err:', err.message);
+            console.error(`[Webhook][${msgLogId}] 💥 debounce err: ${err.message}`);
             // Fallback: SQL buffer + cron flush
             try {
               await bufferInDB({
@@ -353,13 +372,33 @@ if (isDebug) logDebug('[Webhook] Parsed payload', payload);
                 body: messageText, providerMessageId: msg.id, msgType: msg.type,
                 metadata: incomingMetadata,
               });
-            } catch {}
+              console.log(`[Webhook][${msgLogId}] 🛟 buffered to DB (cron will flush)`);
+            } catch (dbErr: any) {
+              console.error(`[Webhook][${msgLogId}] 💥 DB buffer also failed: ${dbErr.message}`);
+            }
           }
         })();
 
-        // Não esperar — o `after()` mantém promise viva
-        void debouncePromise;
+        // [FIX P0] Track promise so we can await before after() resolves.
+        // Previously: `void debouncePromise` — Vercel killed the function before 4s timer fired.
+        pendingDebounces.push(debouncePromise);
       }
     }
   }
+
+  // [FIX P0] Await all debounce + engine work so the Vercel function stays alive.
+  // allSettled so one failure does not cancel siblings.
+  if (pendingDebounces.length > 0) {
+    console.log(`[WhatsApp][${wbId}] ⏳ awaiting ${pendingDebounces.length} debounce promise(s)`);
+    const results = await Promise.allSettled(pendingDebounces);
+    const rejected = results.filter((r) => r.status === 'rejected');
+    if (rejected.length > 0) {
+      console.error(`[WhatsApp][${wbId}] ⚠️ ${rejected.length}/${results.length} debounce(s) rejected`);
+      for (const r of rejected) {
+        console.error(`[WhatsApp][${wbId}]   reason: ${(r as PromiseRejectedResult).reason?.message ?? r}`);
+      }
+    }
+  }
+
+  console.log(`[WhatsApp][${wbId}] 🏁 done in ${Date.now() - wbStart}ms (${pendingDebounces.length} msg)`);
 }

@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Github, Linkedin, Twitter, Instagram, MessageCircle, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 const NAVIGATION = {
   produto: [
@@ -109,15 +108,10 @@ export function Footer() {
             © 2026 Agendra Technologies. Todos os direitos reservados.
           </p>
           
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-xs text-fg-3">
-              <CheckCircle2 className="h-3.5 w-3.5 text-brand-teal-400" />
-              <span>Protegido por Supabase RLS</span>
-            </div>
-            <div className="h-4 w-[1px] bg-white/[0.08]" />
-            <p className="text-xs text-fg-3">
-              Desenvolvido por <span className="text-white font-medium">Lucas Gomes do Amaral</span>
-            </p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacidade" className="text-xs text-fg-3 hover:text-white transition-colors">Privacidade</Link>
+            <div className="h-3 w-[1px] bg-white/[0.08]" />
+            <Link href="/termos" className="text-xs text-fg-3 hover:text-white transition-colors">Termos</Link>
           </div>
         </div>
       </div>
