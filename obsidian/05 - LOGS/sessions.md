@@ -1,5 +1,20 @@
 # Histórico de Sessões
 
+## Sessão (25/05/2026) — Blindagem Cirúrgica de Segurança (Resíduos de Auditoria)
+
+**OBJETIVO**: Sanar resíduos de segurança e validação identificados em `imperative-waddling-lightning.md`, abrangendo whitelists de colunas em exports de relatórios e convites de time, sanitização de PII em logs de produção e validação/normalização de celular (E.164) em leads.
+
+### Resultados — 100% de sucesso nas compilações e testes de regressão!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Reports Whitelisting** | `SELECT *` no exportador XLSX de relatórios expunha e carregava colunas sensíveis (memórias, AI traces) desnecessariamente. | Substituído por whitelist estrita de colunas no select de `leads`, `events` e `messages`. | `app/(app)/reports/actions.ts` | ✅ Corrigido e Validado |
+| **Invitations Whitelisting** | `SELECT *` nos lookups de convites trazia dados excessivos em aceitações, recusas e reenvios. | Substituído por whitelist restrita de campos nas 3 consultas do admin client na tabela `invitations`. | `app/(app)/settings/invitations/actions.ts` | ✅ Corrigido e Validado |
+| **Inbox sendNote Validation** | `sendNote` permitia mensagens vazias e texto excessivamente longo (>4096 chars), corrompendo a entrega do WhatsApp. | Adicionado trimming de string, check contra vazio (`throw new Error`) e limite rígido de tamanho de 4096 caracteres. | `app/(app)/inbox/actions.ts` | ✅ Corrigido e Validado |
+| **PII & Secrets Leak** | Logs de desenvolvimento no `sendNote` expunham telefones e IDs de leads no console do Vercel em produção. | Removidos os `console.log` de depuração, preservando apenas `console.error` sem dados de PII. | `app/(app)/inbox/actions.ts` | ✅ Corrigido e Validado |
+| **Leads Validation & Normalization** | Cadastro de leads aceitava números de telefone formatados ou strings inválidas, gerando falhas silenciosas na Meta API. | Adicionada sanitização profunda (limpeza de espaços, hífens, parênteses) e validação contra regex E.164 lenient, salvando `phoneClean`. | `app/(app)/leads/actions.ts` | ✅ Corrigido e Validado |
+| **Validação Geral** | Validar que as modificações permanecem perfeitamente estáveis. | Executados `pnpm tsc --noEmit` (exit 0), `pnpm test` (21/21 testes passando com 100% de sucesso) e `pnpm build` (sucesso). | N/A | ✅ Validado |
+
 ## Sessão (25/05/2026) — Auditoria Sênior de Segurança & Resiliência (Hardening Full-Stack)
 
 **OBJETIVO**: Executar as correções de segurança, multitenancy, concorrência e resiliência referentes a 25 findings identificados (C1-C3, H1-H7, M1-M9, L1-L6), abrangendo isolamento de dados por empresa, criptografia sob demanda via Vault RPC, sanitização de logs e endurecimento de crons.
