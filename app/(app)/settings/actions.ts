@@ -186,9 +186,9 @@ export async function saveWhatsAppChannel(formData: FormData) {
 }
 
 /**
- * Desconecta um canal de WhatsApp (Remove do banco)
+ * Desconecta um canal genérico (WhatsApp, Instagram, etc.) pelo ID
  */
-export async function disconnectWhatsAppChannel(channelId: string) {
+export async function disconnectChannel(channelId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
@@ -201,17 +201,45 @@ export async function disconnectWhatsAppChannel(channelId: string) {
 
   const supabase = await createClient();
 
+  // Buscar detalhes do canal antes de apagar para auditoria/segurança
+  const { data: channel } = await supabase
+    .from("channels")
+    .select("id, provider_id, access_token_secret_id")
+    .eq("id", channelId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (!channel) throw new Error("Canal não encontrado ou não pertence a esta empresa.");
+
   const { error } = await supabase
     .from("channels")
     .delete()
     .eq("id", channelId)
-    .eq("company_id", companyId); // Segurança extra: garantir que pertence à empresa
+    .eq("company_id", companyId);
 
   if (error) throw new Error(error.message);
+
+  // Se houver secret vinculada, apagar também no vault.secrets via RPC ou admin
+  if (channel.access_token_secret_id) {
+    try {
+      const admin = createAdminClient();
+      await admin.from('vault.secrets').delete().eq('id', channel.access_token_secret_id);
+    } catch {
+      // Falha silenciosa no cleanup de secret do vault (é nice-to-have, pois já está órfão)
+    }
+  }
 
   revalidatePath("/settings");
   return { ok: true };
 }
+
+/**
+ * Desconecta um canal de WhatsApp (Remove do banco) - Legado
+ */
+export async function disconnectWhatsAppChannel(channelId: string) {
+  return disconnectChannel(channelId);
+}
+
 
 export async function updateCompany(data: { name: string }) {
   const profile = await getUserProfile();

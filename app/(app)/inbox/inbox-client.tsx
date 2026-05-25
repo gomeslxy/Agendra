@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Search } from "lucide-react";
+import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Search, MessageCircle, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
@@ -202,6 +202,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     };
   }, [companyId]);
 
+  const [channelFilter, setChannelFilter] = useState<string>("all");
+
   const selected = useMemo(
     () => leads.find((l) => l.id === selectedId) ?? null,
     [leads, selectedId],
@@ -215,9 +217,10 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         l.name.toLowerCase().includes(normalizedSearch) ||
         l.phone.includes(normalizedSearch);
       const matchStatus = statusFilter === 'all' || l.status === statusFilter;
-      return matchSearch && matchStatus;
+      const matchChannel = channelFilter === 'all' || l.channel === channelFilter;
+      return matchSearch && matchStatus && matchChannel;
     });
-  }, [leads, normalizedSearch, statusFilter]);
+  }, [leads, normalizedSearch, statusFilter, channelFilter]);
 
   // Restore focus after sending message or taking over
   useEffect(() => {
@@ -717,7 +720,25 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                       : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
                   )}
                 >
-                  {status === 'all' ? 'Todos' : status}
+                  {status === 'all' ? 'Todos' : status === 'hot' ? 'Quente' : status === 'warm' ? 'Morno' : status === 'cold' ? 'Frio' : 'Convertidos'}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto custom-scrollbar pb-1">
+              {['all', 'whatsapp', 'instagram'].map((chan) => (
+                <button
+                  key={chan}
+                  onClick={() => setChannelFilter(chan)}
+                  className={cn(
+                    "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all whitespace-nowrap flex items-center gap-1",
+                    channelFilter === chan 
+                      ? "bg-brand-blue-500/20 border-brand-blue-500/50 text-brand-blue-400" 
+                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                  )}
+                >
+                  {chan === 'whatsapp' && <MessageCircle size={10} className="text-teal-400" />}
+                  {chan === 'instagram' && <Instagram size={10} className="text-pink-400" />}
+                  {chan === 'all' ? 'Canais' : chan === 'whatsapp' ? 'WhatsApp' : 'Instagram'}
                 </button>
               ))}
             </div>
@@ -777,7 +798,15 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[14px] font-bold tracking-tight text-white">{l.name}</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="truncate text-[14px] font-bold tracking-tight text-white">{l.name}</span>
+                          {l.channel === "whatsapp" && (
+                            <MessageCircle size={12} className="text-teal-400 shrink-0" />
+                          )}
+                          {l.channel === "instagram" && (
+                            <Instagram size={12} className="text-pink-400 shrink-0" />
+                          )}
+                        </div>
                         <span className="font-mono text-[10px] font-bold uppercase text-white/30 whitespace-nowrap">
                           {last ? relativeTime(last.created_at) : "—"}
                         </span>

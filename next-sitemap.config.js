@@ -5,7 +5,6 @@ module.exports = {
     policies: [{ userAgent: '*', allow: '/' }],
     additionalSitemaps: ['https://www.agendra.site/sitemap.xml'],
   },
-  // Exclude API routes, admin pages, metadata files, and authentication steps
   exclude: [
     '/admin/*',
     '/api/*',
@@ -16,8 +15,5 @@ module.exports = {
     '/nova-senha',
     '/recuperar-senha',
     '/onboarding',
-  ],
-  additionalPaths: async (config) => [
-    await config.transform(config, '/'),
   ],
 };

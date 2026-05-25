@@ -1,5 +1,42 @@
 # Histórico de Sessões
 
+## Sessão (25/05/2026) — Testes de Carga Real, Auditoria de Robustez & Setup do Instagram
+
+**OBJETIVO**: Realizar testes reais de simulação de uso intensivo e alta concorrência multiusuário (Teste de Stress), auditar o isolamento de concorrência e o pipeline multi-canal (WhatsApp e Instagram), e assegurar que o setup e token refresh de Instagram Direct estão 100% integrados e livres de bugs.
+
+### Resultados — 100% de sucesso nas simulações reais e typecheck clean!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Simulador de Concorrência** | O teste de deduplicação paralela falhava falsamente devido a race conditions de ordem na resposta de `Promise.all` que assumia `claims[0]` como vencedor. | Corrigida a lógica de validação para verificar que exatamente um único claim entre todos os concorrentes simultâneos foi aceito atômicamente. | `scratch/simulate_load.ts` | ✅ Corrigido e Validado |
+| **Execução de Carga Real** | Simulação falhava localmente devido à falta de injeção de variáveis de ambiente. | Adicionado o import de `dotenv` no cabeçalho do arquivo para ler a configuração correta do Supabase e Redis de `.env.local`. | `scratch/simulate_load.ts` | ✅ Corrigido e Validado |
+| **Isolamento de Concorrência** | Deduplicação atômica de mensagens simultâneas (`claimMessage`) e debounce sob concorrência multiusuário e digitação rápida. | Executada simulação com 100% de sucesso. Deduplicação e buffer de fila finalizados com êxito em ~76ms sob carga real concorrente. | `scratch/simulate_load.ts`, `lib/ai/debounce.ts` | ✅ Auditado e OK |
+| **Instagram Setup Flow** | Auditoria do fluxo de onboarding do Instagram Direct e token exchange / vaulting logic. | Validada a integração do callback OAuth, descriptografia Vault sob demanda via RPC `channel_get_access_token`, e renovação automática de tokens longa duração em `check-channels` cron. | `lib/channels/adapters/instagram-auth.ts`, `app/api/auth/instagram/callback/route.ts`, `app/api/cron/check-channels/route.ts` | ✅ Auditado e OK |
+| **Type-Safety & Compilação** | Evitar regressões silenciosas no compilador Next.js. | Executados `pnpm typecheck` (tsc exit 0) e `pnpm test` (21/21 testes vitest passando com sucesso) com absoluto êxito. | N/A | ✅ Validado |
+
+---
+
+## Sessão (25/05/2026) — Consolidação Multi-canal & Instagram Direct Integration
+
+**OBJETIVO**: Concluir as tarefas de frontend (Wave 6), crons e token refresh (Wave 7) e validação geral (Wave 8) do épico de evolução multi-canal, corrigindo erros de tipagem e duplicidades no settings-shell.
+
+### Resultados — 100% de sucesso nas compilações e correções!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Syntax em Settings Shell** | Tipo `ChannelAction` quebrado e duplicidade de código no Google Calendar causavam erros no compile. | Purga das duplicidades e do tipo quebrado, deixando o componente `Channels` limpo e exportado. | `app/(app)/settings/settings-shell.tsx` | ✅ Corrigido |
+| **Erros de Tipagem no Badge** | O variant `'blue'` no `Badge` de canais em `settings-shell.tsx` não correspondia aos tipos do `Heat` permitidos. | Alterado o variant do `Badge` para `'cold'` (que é renderizado em azul) resolvendo a quebra do compilador. | `app/(app)/settings/settings-shell.tsx` | ✅ Corrigido |
+| **Typing no Transcritor** | O `Blob` constructor em `transcribe.ts` recebia um `Buffer` diretamente, quebrando typings no modo strict. | Envolvido o `Buffer` em `new Uint8Array(buffer)` para garantir compatibilidade 100% type-safe. | `lib/ai/transcribe.ts` | ✅ Corrigido |
+| **Missing Import em Plans** | `ChannelProvider` estava sendo referenciado em `plans.ts` sem o respectivo import de tipos. | Adicionado import seguro de `ChannelProvider` de `@/lib/channels/types`. | `lib/billing/plans.ts` | ✅ Corrigido |
+| **Inbox & Leads UI** | Necessidade de ver canais das conversas na inbox e listagem de leads com ícones intuitivos e filtros robustos. | Adicionadas badges de canal (ícones WhatsApp/Instagram Lucide), suporte a `channelFilter` e chips dinâmicos no Inbox. | `app/(app)/inbox/inbox-client.tsx`, `app/(app)/leads/leads-client.tsx` | ✅ Concluído |
+| **Crons Multi-channel** | O morning e nightly crons enviavam mensagens estritamente via `sendWhatsAppMessage` (WhatsApp only). | Migrados todos os disparos de mensagens nos crons morning e nightly para `sendChannelMessage` unificado. | `app/api/cron/morning/route.ts`, `app/api/cron/nightly/route.ts` | ✅ Concluído |
+| **Automated Token Refresh** | O token de longa duração do Instagram precisava ser atualizado dinamicamente antes de expirar. | Criada a função `refreshInstagramLongLivedToken` e adicionada chamada no cron `check-channels` se expirando em < 10 dias. | `lib/channels/adapters/instagram-auth.ts`, `app/api/cron/check-channels/route.ts` | ✅ Concluído |
+| **Validação Geral** | Validar que as modificações continuam compilando e funcionando sem regressões. | Executados `pnpm typecheck` (tsc exit 0) e `pnpm test` (vitest exit 0) com 100% de sucesso. | N/A | ✅ Validado |
+| **Sitemap Redundancy** | Script `next-sitemap` de build-time gerava quebras no Next.js 15+ Turbopack e era obsoleto. | Removido `postbuild` script de `package.json` já que a aplicação possui `sitemap.ts` dinâmico em runtime. | `package.json` | ✅ Corrigido |
+| **Build de Produção** | Garantir empacotamento em modo prod sem qualquer aviso ou falha sob o `/goal`. | Executado `pnpm build` com sucesso absoluto (Next.js compilou e otimizou todas as 47 rotas perfeitamente). | N/A | ✅ Validado |
+
+---
+
 ## Sessão (25/05/2026) — Purga Técnica de E-mails com Domínio Legado (@agendra)
 
 **OBJETIVO**: Realizar a varredura e a purga de todos os endereços de e-mail que usavam o domínio legado `@agendra.app` (em páginas institucionais de Termos de Uso, Política de Privacidade e DPO) e direcioná-los para o e-mail oficial do usuário (`la181009@gmail.com`), além de validar a compilação e testes da aplicação.

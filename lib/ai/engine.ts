@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logDebug, logInfo, logError, isDebug } from '@/lib/logging';
-import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
+import { sendChannelMessage } from '@/lib/channels/send';
 import type { Lead, Message } from '@/lib/types/database';
 import crypto from 'crypto';
 import {
@@ -177,6 +177,22 @@ function buildSystemPrompt(
 - Se o lead não especificou o período, sugira opções variadas em dias próximos e pergunte qual período ele prefere.
 - Conduza a conversa de forma empática e guiada: em vez de esperar que o lead escolha de uma lista gigante, dê opções fáceis de decidir e conduza-o de forma humana até a confirmação.`;
 
+  const channelProvider = lead.channel;
+  let formatBlock = '';
+  if (channelProvider === 'instagram') {
+    formatBlock = `FORMATACAO (CRITICO): Esta conversa e via Instagram Direct.
+- O Instagram Direct NAO suporta nenhuma formatacao de texto em markdown.
+- NUNCA use negrito com asteriscos (como *texto* ou **texto**).
+- NUNCA use italico com sublinhados (_texto_).
+- Envie respostas em TEXTO PURO limpo.
+- Use emojis de forma harmônica e bonita para organizar suas mensagens.`;
+  } else {
+    formatBlock = `FORMATACAO (CRITICO): Esta conversa e via WhatsApp. Use APENAS formatacao WhatsApp:
+- Negrito: *texto* (UM asterisco). NUNCA use **texto** (dois asteriscos).
+- Italico: _texto_. NUNCA use markdown como #, ##, ---, backticks.
+- Listas: use hifen simples "-" ou numero "1."`;
+  }
+
   return `Voce e ${aiName}, assistente de vendas estrategica do(a) ${businessName} (${businessType}).
 Tom: ${tone}. Use o primeiro nome do lead: "${firstName}". Seja concisa, empatica e focada em conversao.
 
@@ -186,10 +202,7 @@ Servicos disponiveis:
 ${servicesDisplay}
 Fuso horario: ${timezone}.
 
-FORMATACAO (CRITICO): Esta conversa e via WhatsApp. Use APENAS formatacao WhatsApp:
-- Negrito: *texto* (UM asterisco). NUNCA use **texto** (dois asteriscos).
-- Italico: _texto_. NUNCA use markdown como #, ##, ---, backticks.
-- Listas: use hifen simples "-" ou numero "1."
+${formatBlock}
 
 ${planContext}
 
@@ -660,7 +673,8 @@ export async function handleIncomingMessage(
         company_id: companyId,
         name: senderName,
         phone,
-        channel: 'whatsapp',
+        channel: incomingMetadata?.channelProvider || 'whatsapp',
+        channel_id: incomingMetadata?.channelId || null,
         lead_memory: EMPTY_MEMORY,
         is_processing: true,
         processing_started_at: new Date().toISOString(),
@@ -709,7 +723,13 @@ export async function handleIncomingMessage(
   // 4. Persist incoming message (must happen before any early return so inbox always shows it)
   await admin
     .from('messages')
-    .insert({ lead_id: activeLead.id, company_id: companyId, role: 'user', content: messageText });
+    .insert({
+      lead_id: activeLead.id,
+      company_id: companyId,
+      role: 'user',
+      content: messageText,
+      channel_id: incomingMetadata?.channelId || activeLead.channel_id || null,
+    });
 
   // 5. Billing gate
   const usage = preloadedUsage ?? await getCompanyUsage(companyId);
@@ -717,7 +737,7 @@ export async function handleIncomingMessage(
     const fallback =
       'Ola! No momento estamos com alta demanda. Recebemos sua mensagem e um consultor humano entrara em contato em breve.';
     console.warn(`[Engine][${tag}] 🚫 billing limit reached — sending fallback`);
-    await sendWhatsAppMessage(phone, fallback, companyId);
+    await sendChannelMessage(phone, fallback, companyId);
     if (providerMessageId) {
       await admin.from('processed_messages').update({ status: 'completed' })
         .eq('provider_message_id', providerMessageId);
@@ -828,6 +848,7 @@ export async function handleIncomingMessage(
         company_id: companyId,
         role: 'assistant',
         content: finalReply,
+        channel_id: activeLead.channel_id || incomingMetadata?.channelId || null,
         metadata: isShadowMode ? { is_draft: true } : null,
       })
       .select()
@@ -844,8 +865,8 @@ export async function handleIncomingMessage(
         const { synthesizeSpeech } = await import('@/lib/whatsapp/tts');
         const audio = await synthesizeSpeech(finalReply);
         if (audio) {
-          const { sendWhatsAppAudio } = await import('@/lib/whatsapp/client');
-          const result = await sendWhatsAppAudio(company.id, phone, audio);
+          const { sendChannelMedia } = await import('@/lib/channels/send');
+          const result = await sendChannelMedia(phone, '', 'audio', 'tts.mp3', '', company.id, audio);
           if (result.ok) {
             sentAudio = true;
             await admin.from('messages').update({ metadata: { tts: true } }).eq('id', sentMessage.id);
@@ -855,10 +876,10 @@ export async function handleIncomingMessage(
 
       if (!sentAudio) {
         try {
-          await sendWhatsAppMessage(phone, finalReply, companyId);
+          await sendChannelMessage(phone, finalReply, companyId);
           console.log(`[Engine][${tag}] 📤 reply sent to ${phone.substring(0, 6)}*** (text, ${finalReply.length} chars)`);
         } catch (sendErr: any) {
-          console.error(`[Engine][${tag}] 💥 sendWhatsAppMessage failed:`, sendErr?.message ?? sendErr);
+          console.error(`[Engine][${tag}] 💥 sendChannelMessage failed:`, sendErr?.message ?? sendErr);
         }
       }
     } else {
@@ -942,7 +963,7 @@ export async function handleIncomingMessage(
 
       if (!alreadyInTakeover) {
         try {
-          await sendWhatsAppMessage(
+          await sendChannelMessage(
             phone,
             'Recebi sua mensagem! Em instantes uma pessoa do nosso time vai responder. 🙏',
             companyId
@@ -1175,7 +1196,7 @@ Mensagem de follow-up:`;
 
     followupText = sanitizeClientResponse(followupText);
 
-    await sendWhatsAppMessage(lead.phone, followupText, lead.company_id);
+    await sendChannelMessage(lead.phone, followupText, lead.company_id);
 
     await admin.from('messages').insert({
       lead_id: lead.id,

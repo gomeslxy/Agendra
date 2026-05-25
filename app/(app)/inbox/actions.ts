@@ -4,7 +4,7 @@ import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireOnboarding } from "@/lib/onboarding/guards";
 import { activateTakeover, deactivateTakeover } from "@/lib/ai/takeover";
-import { sendWhatsAppMessage, sendWhatsAppMedia } from "@/lib/whatsapp/client";
+import { sendChannelMessage, sendChannelMedia } from "@/lib/channels/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { persistAITrace } from "@/lib/ai/observability";
 
@@ -45,8 +45,8 @@ export async function sendNote(leadId: string, content: string) {
 
     if (dbError) throw new Error(`Erro no Banco: ${dbError.message}`);
 
-    // 2. Enviar WhatsApp
-    await sendWhatsAppMessage(phone, trimmed, company_id);
+    // 2. Enviar WhatsApp / Canal unificado
+    await sendChannelMessage(phone, trimmed, company_id);
 
     revalidatePath("/inbox");
     return { success: true };
@@ -227,8 +227,8 @@ export async function approveDraftMessage(messageId: string) {
     return { success: true };
   }
 
-  // 2. Enviar WhatsApp via API no backend
-  await sendWhatsAppMessage(phone, msg.content, msg.company_id);
+  // 2. Enviar mensagem via Canal unificado no backend
+  await sendChannelMessage(phone, msg.content, msg.company_id);
 
   // 3. Atualizar metadados do rascunho (remover is_draft)
   const newMetadata = msg.metadata ? { ...msg.metadata } : {};
@@ -270,7 +270,7 @@ export async function editAndSendDraft(messageId: string, editedText: string) {
   const phone = (msg.lead as any)?.phone;
   if (!phone) throw new Error("Telefone do lead não encontrado");
 
-  await sendWhatsAppMessage(phone, editedText.trim(), msg.company_id);
+  await sendChannelMessage(phone, editedText.trim(), msg.company_id);
 
   const newMetadata = msg.metadata ? { ...msg.metadata } : {};
   delete newMetadata.is_draft;
@@ -360,7 +360,7 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
   });
   if (dbError) return { success: false, error: `DB: ${dbError.message}` };
 
-  await sendWhatsAppMedia(phone, publicUrl, waType, file.name, caption, company_id);
+  await sendChannelMedia(phone, publicUrl, waType, file.name, caption, company_id);
 
   revalidatePath('/inbox');
   return { success: true };

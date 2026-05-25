@@ -1,8 +1,8 @@
 export type LeadStatus = 'cold' | 'warm' | 'hot' | 'success';
-export type LeadChannel = 'whatsapp' | 'instagram' | 'form';
+export type LeadChannel = 'whatsapp' | 'instagram' | 'telegram' | 'messenger' | 'webchat' | 'email' | 'discord' | 'form';
 export type MessageRole = 'user' | 'assistant' | 'note' | 'agent';
 export type CompanyPlan = 'trial' | 'starter' | 'pro' | 'business' | 'enterprise';
-export type ChannelProvider = 'whatsapp' | 'instagram';
+export type ChannelProvider = 'whatsapp' | 'instagram' | 'telegram' | 'messenger' | 'webchat' | 'email' | 'discord';
 export type ChannelStatus = 'active' | 'error' | 'paused';
 
 export interface Lead {
@@ -11,6 +11,7 @@ export interface Lead {
   name: string;
   phone: string;
   channel: LeadChannel;
+  channel_id?: string | null; // Novo campo de vínculo
   source: string | null;
   status: LeadStatus;
   summary: string | null;
@@ -45,6 +46,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   metadata?: any;
+  channel_id?: string | null; // Novo campo de vínculo
   created_at: string;
 }
 
@@ -80,9 +82,25 @@ export interface Channel {
   access_token: string | null;
   status: ChannelStatus;
   meta: Record<string, unknown>;
+  display_name: string | null;
+  last_seen_at: string | null;
+  last_error: string | null;
+  token_expires_at: string | null;
+  token_refreshed_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface PlanChannelConfig {
+  id: string;
+  company_id: string;
+  channel_provider: ChannelProvider;
+  enabled: boolean;
+  config: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
 
 // ── AI Engine v3 Types ──────────────────────────────────────────────────────
 

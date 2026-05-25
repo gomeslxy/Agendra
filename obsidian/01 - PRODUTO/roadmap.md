@@ -143,7 +143,8 @@
 - [x] **Auditoria Sênior de Segurança & Resiliência (Hardening)**: Varredura profunda e correção de 25 vulnerabilidades e bugs (C1-C3, H1-H7, M1-M9, L1-L6) abrangendo vazamento de dados, IDORs, multi-tenant leaks em notificações, token decryption on-demand via Vault, chunking de bulk inserts, e eliminação de fallbacks inseguros de cron secrets. (✅ Concluído 25/05/2026)
 - [x] **Blindagem Cirúrgica de Segurança (Resíduos de Auditoria)**: Whitelist de colunas no exportador XLSX de relatórios e convites de time, trimming, empty checking e length checks em `sendNote` (inbox), purga de logs com PII e validação/normalização de telefone E.164 no leads. (✅ Concluído 25/05/2026)
 - [x] **Auditoria de E-mails Legados**: Purga completa de referências a e-mails com o domínio antigo `@agendra.app` nos Termos de Uso, Política de Privacidade e DPO para o e-mail real do usuário (`la181009@gmail.com`). (✅ Concluído 25/05/2026)
-- [ ] **Multi-channel**: Preparação para Instagram & Messenger.
+- [x] **Multi-channel**: Implementação completa de arquitetura multi-channel e multi-tenant (Registry + Adapters + Facade). Webhook unificado, integração completa com Instagram Direct (OAuth + tokens no Vault). Crons atualizados para usar `sendChannelMessage`. (✅ Concluído 25/05/2026)
+  - [x] **Testes de Concorrência & Stress**: Simulação real concorrente multiusuário executada com sucesso, comprovando isolamento atômico de claims e debounce sob stress (~76ms de processamento concorrente total). (✅ Concluído 25/05/2026)
 - [x] **Analytics**: Dashboard de performance de conversão e BI avançado.
 
 ## 🚀 Fase 5: Agendra v4 — Sistema Operacional Comercial (Em Progresso)

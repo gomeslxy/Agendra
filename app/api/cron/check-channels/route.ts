@@ -22,7 +22,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Fetch all channels (M2 FIX: Exclude access_token from bulk query)
   const { data: channels, error: channelsError } = await admin
     .from('channels')
-    .select('id, company_id, provider_id, status, last_error');
+    .select('id, company_id, provider_id, provider, status, token_expires_at, last_error');
 
   if (channelsError) {
     console.error('[check-channels] Failed to fetch channels:', channelsError.message);
@@ -43,19 +43,78 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         continue;
       }
 
-      const validation = await validateWhatsAppToken(ch.provider_id, token);
-      if (!validation.ok) {
-        await admin
-          .from('channels')
-          .update({
-            status: 'error',
-            last_error: validation.error || 'Token inválido ou expirado',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', ch.id);
-        ch.status = 'error'; // update local status for notification flow
-        ch.last_error = validation.error || 'Token inválido ou expirado';
-        markedError++;
+      if (ch.provider === 'instagram') {
+        let tokenExpired = false;
+        
+        // Dynamic Instagram Token Refresh: if expiration is < 10 days, refresh it!
+        if (ch.token_expires_at) {
+          const expiresDate = new Date(ch.token_expires_at);
+          const diffDays = (expiresDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+          
+          if (diffDays < 10) {
+            console.log(`[check-channels] Instagram token for channel ${ch.id} expires in ${diffDays.toFixed(1)} days. Refreshing token...`);
+            try {
+              const { refreshInstagramLongLivedToken } = await import('@/lib/channels/adapters/instagram-auth');
+              const refreshRes = await refreshInstagramLongLivedToken(ch.id, token);
+              
+              if (!refreshRes.success) {
+                await admin
+                  .from('channels')
+                  .update({
+                    status: 'error',
+                    last_error: refreshRes.error || 'Falha ao atualizar token Instagram',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', ch.id);
+                ch.status = 'error';
+                ch.last_error = refreshRes.error || 'Falha ao atualizar token Instagram';
+                markedError++;
+                tokenExpired = true;
+              }
+            } catch (refErr: any) {
+              console.error(`[check-channels] Failed to refresh Instagram token for channel ${ch.id}:`, refErr.message);
+            }
+          }
+        }
+
+        // If refresh did not fail, do standard validation check against Facebook Graph API
+        if (!tokenExpired) {
+          try {
+            const pageRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${token}`);
+            if (!pageRes.ok) {
+              const errData = await pageRes.json();
+              throw new Error(errData?.error?.message || `HTTP ${pageRes.status}`);
+            }
+          } catch (valErr: any) {
+            await admin
+              .from('channels')
+              .update({
+                status: 'error',
+                last_error: `Instagram validation failed: ${valErr.message}`,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', ch.id);
+            ch.status = 'error';
+            ch.last_error = `Instagram validation failed: ${valErr.message}`;
+            markedError++;
+          }
+        }
+      } else {
+        // WhatsApp validation
+        const validation = await validateWhatsAppToken(ch.provider_id, token);
+        if (!validation.ok) {
+          await admin
+            .from('channels')
+            .update({
+              status: 'error',
+              last_error: validation.error || 'Token inválido ou expirado',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', ch.id);
+          ch.status = 'error'; // update local status for notification flow
+          ch.last_error = validation.error || 'Token inválido ou expirado';
+          markedError++;
+        }
       }
     }
   }

@@ -40,7 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectWhatsAppChannel, saveAutomationConfig, updateCompany, inviteTeamMember, saveWebhookConfig, deleteWebhook, saveReactivationConfig } from "./actions";
+import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectChannel, disconnectWhatsAppChannel, saveAutomationConfig, updateCompany, inviteTeamMember, saveWebhookConfig, deleteWebhook, saveReactivationConfig } from "./actions";
 import { cancelInvitation, resendInvitation } from "./invitations/actions";
 import { createService, updateService, deleteService, toggleServiceStatus } from "./services/actions";
 import Script from "next/script";
@@ -1011,22 +1011,6 @@ function Persona({
   );
 }
 
-type ChannelAction =
-  | { kind: "google-connect" }
-  | { kind: "google-manage"; email: string }
-  | { kind: "whatsapp-connected"; provider_id: string }
-  | { kind: "coming-soon" };
-
-interface ChannelItem {
-  name: string;
-  Icon: LucideIcon;
-  ok: boolean;
-  bg: string;
-  col: string;
-  action: ChannelAction;
-  sub?: string;
-}
-
 function Channels({
   company,
   channels,
@@ -1037,52 +1021,171 @@ function Channels({
   usage: any;
 }) {
   const gcalConnected = !!company?.google_calendar_email;
-  const waChannels = channels.filter((c) => c.provider === "whatsapp" && c.status === "active");
+  const waChannels = channels.filter((c) => c.provider === "whatsapp");
+  const igChannels = channels.filter((c) => c.provider === "instagram");
 
-  const maxWaChannels = usage?.limits?.maxChannels ?? 1;
-  const canAddMore = waChannels.length < maxWaChannels;
-
-  // One card per connected WA channel
-  const connectedItems: ChannelItem[] = waChannels.map((ch, idx) => ({
-    name: idx === 0 ? "WhatsApp Business" : `WhatsApp #${idx + 1}`,
-    Icon: MessageCircle,
-    ok: true,
-    bg: "rgba(20,184,166,0.14)",
-    col: "#14B8A6",
-    action: { kind: "whatsapp-connected", provider_id: ch.provider_id },
-    sub: `ID: ${ch.provider_id}`,
-  }));
-
-  // "Add new" card shown when no channel or plan allows more
-  const addItem: ChannelItem = {
-    name: waChannels.length === 0 ? "WhatsApp Business" : "Adicionar canal WhatsApp",
-    Icon: MessageCircle,
-    ok: false,
-    bg: "rgba(255,255,255,0.05)",
-    col: "var(--color-fg-3)",
-    action: { kind: "coming-soon" },
-  };
-
-  const gcalItem: ChannelItem = {
-    name: "Google Calendar",
-    Icon: Calendar,
-    ok: gcalConnected,
-    bg: gcalConnected ? "rgba(37,99,235,0.14)" : "rgba(255,255,255,0.05)",
-    col: gcalConnected ? "#60A5FA" : "var(--color-fg-3)",
-    action: gcalConnected
-      ? { kind: "google-manage", email: company!.google_calendar_email! }
-      : { kind: "google-connect" },
-  };
+  const planType = company?.plan_type ?? "trial";
+  const allowedProviders = usage?.limits?.allowedChannels || ["whatsapp"];
+  
+  const isInstagramAllowed = allowedProviders.includes("instagram");
+  const maxChannels = usage?.limits?.maxChannels ?? 1;
+  const totalActiveChannels = channels.filter(c => c.status === "active").length;
+  const canAddMore = totalActiveChannels < maxChannels;
 
   return (
-    <>
-      <div className="flex flex-col gap-3">
-        {connectedItems.map((item) => (
-          <ChannelCard key={item.sub} item={item} channels={channels} />
-        ))}
-        {canAddMore && <ChannelCard key="add-wa" item={addItem} channels={channels} />}
-        <ChannelCard key="gcal" item={gcalItem} channels={channels} />
+    <div className="flex flex-col gap-6">
+      {/* Resumo de Limites de Canais */}
+      <div className="glass p-4 rounded-xl border border-brand-blue-500/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+            <Zap size={15} className="text-brand-blue-400" />
+            Canais da Empresa ({totalActiveChannels}/{maxChannels})
+          </h3>
+          <p className="text-[11px] text-white/50 mt-1">
+            Seu plano {planType.toUpperCase()} permite até {maxChannels} conexões simultâneas de canais autorizados.
+          </p>
+        </div>
+        <Badge variant="cold" className="text-[10px] px-2.5 py-1">
+          {planType.toUpperCase()}
+        </Badge>
       </div>
+
+      <div className="flex flex-col gap-4">
+        {/* 1. SEÇÃO WHATSAPP */}
+        <div className="flex flex-col gap-2.5">
+          <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/40 flex items-center gap-1.5 pl-1">
+            <MessageCircle size={12} className="text-brand-teal-400" />
+            WhatsApp Business Cloud API
+          </h4>
+          
+          {waChannels.map((ch) => (
+            <WhatsAppChannelCard key={ch.id} channel={ch} onDisconnect={disconnectChannel} />
+          ))}
+
+          {canAddMore ? (
+            <NewWhatsAppChannelConnector 
+              companyId={company?.id} 
+              completeWhatsAppOnboarding={completeWhatsAppOnboarding} 
+              saveWhatsAppChannel={saveWhatsAppChannel} 
+            />
+          ) : (
+            waChannels.length === 0 && (
+              <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center text-xs text-white/40 italic">
+                Limite de canais atingido. Faça upgrade para conectar mais números.
+              </div>
+            )
+          )}
+        </div>
+
+        {/* 2. SEÇÃO INSTAGRAM */}
+        <div className="flex flex-col gap-2.5">
+          <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/40 flex items-center gap-1.5 pl-1">
+            <Instagram size={12} className="text-pink-400" />
+            Instagram Direct
+          </h4>
+
+          {isInstagramAllowed ? (
+            <>
+              {igChannels.map((ch) => (
+                <InstagramChannelCard key={ch.id} channel={ch} onDisconnect={disconnectChannel} />
+              ))}
+
+              {igChannels.length === 0 && canAddMore && (
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03] flex items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center">
+                      <Instagram size={20} />
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-semibold">Conectar conta Instagram</div>
+                      <div className="text-[10px] text-white/40 mt-0.5">Atenda DMs e Stories automaticamente com IA</div>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="blue" 
+                    size="sm"
+                    className="shadow-md shadow-pink-500/10 font-bold bg-pink-600 hover:bg-pink-500"
+                    onClick={() => { window.location.href = "/api/auth/instagram"; }}
+                  >
+                    Conectar
+                  </Button>
+                </motion.div>
+              )}
+
+              {igChannels.length === 0 && !canAddMore && (
+                <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center text-xs text-white/40 italic">
+                  Você já atingiu o limite de canais do seu plano. Adicione mais canais fazendo upgrade.
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.01]">
+              <div className="p-4 flex items-center justify-between gap-4 blur-[2px] opacity-40 pointer-events-none select-none">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center">
+                    <Instagram size={20} />
+                  </div>
+                  <div>
+                    <div className="text-[13px] font-semibold">Instagram DMs & Stories</div>
+                    <div className="text-[10px] text-white/40 mt-0.5">Responda a DMs e reações com IA</div>
+                  </div>
+                </div>
+                <Button variant="secondary" size="sm">Conectar</Button>
+              </div>
+              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-center p-4">
+                <div className="glass px-4 py-3 rounded-xl border border-pink-500/20 text-pink-300 text-xs font-semibold flex items-center gap-2 shadow-lg shadow-pink-500/5">
+                  <Zap size={14} className="animate-pulse" />
+                  Conexão Instagram DMs é exclusiva do Plano PRO
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 3. SEÇÃO GOOGLE CALENDAR */}
+        <div className="flex flex-col gap-2.5">
+          <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/40 flex items-center gap-1.5 pl-1">
+            <Calendar size={12} className="text-brand-blue-400" />
+            Google Calendar (Agenda)
+          </h4>
+          <GoogleCalendarCard company={company} connected={gcalConnected} />
+        </div>
+
+        {/* 4. CANAIS EM BREVE */}
+        <div className="flex flex-col gap-2.5">
+          <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/20 flex items-center gap-1.5 pl-1">
+            <Globe size={12} className="text-white/20" />
+            Canais de Mensageria (Em Breve)
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-xl border border-white/[0.03] bg-white/[0.01] flex items-center gap-3 opacity-40">
+              <Slack size={18} className="text-white/40" />
+              <div>
+                <div className="text-xs font-semibold">Telegram Bots</div>
+                <div className="text-[9px] text-white/40 mt-0.5">Em breve</div>
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl border border-white/[0.03] bg-white/[0.01] flex items-center gap-3 opacity-40">
+              <Facebook size={18} className="text-white/40" />
+              <div>
+                <div className="text-xs font-semibold">Messenger</div>
+                <div className="text-[9px] text-white/40 mt-0.5">Em breve</div>
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl border border-white/[0.03] bg-white/[0.01] flex items-center gap-3 opacity-40">
+              <Globe size={18} className="text-white/40" />
+              <div>
+                <div className="text-xs font-semibold">Web Chat Widget</div>
+                <div className="text-[9px] text-white/40 mt-0.5">Em breve</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <Script
         src="https://connect.facebook.net/pt_BR/sdk.js"
         strategy="afterInteractive"
@@ -1097,33 +1200,24 @@ function Channels({
           };
         }}
       />
-    </>
+    </div>
   );
 }
 
-function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: ChannelRow[] }) {
+/* ==========================================================================
+   SUBCOMPONENTE: WhatsAppChannelCard
+   ========================================================================== */
+function WhatsAppChannelCard({ 
+  channel, 
+  onDisconnect 
+}: { 
+  channel: ChannelRow; 
+  onDisconnect: (id: string) => Promise<any>; 
+}) {
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const waAction = c.action.kind === "whatsapp-connected" ? c.action : null;
-
-
-  async function handleConnect(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    setError(null);
-    startTransition(async () => {
-      try {
-        await saveWhatsAppChannel(formData);
-        setExpanded(false);
-        toast.success("Canal conectado com sucesso!");
-        router.refresh();
-      } catch (err: any) {
-        setError(err.message);
-      }
-    });
-  }
 
   async function handleTest() {
     setError(null);
@@ -1144,24 +1238,221 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
   }
 
   async function handleDisconnect() {
-    const action = c.action;
-    if (action.kind !== "whatsapp-connected") return;
-    const providerId = action.provider_id;
-
     if (!confirm("Tem certeza que deseja desconectar este canal? Todas as mensagens enviadas para este número deixarão de ser processadas pela IA.")) {
       return;
     }
 
     startTransition(async () => {
       try {
-        const channel = channels.find(ch => ch.provider_id === providerId);
-        if (!channel) throw new Error("Canal não encontrado");
-
-        await disconnectWhatsAppChannel(channel.id);
+        await onDisconnect(channel.id);
         toast.success("Canal desconectado com sucesso");
         router.refresh();
       } catch (err: any) {
         toast.error(err.message || "Erro ao desconectar");
+      }
+    });
+  }
+
+  const isError = channel.status === "error";
+
+  return (
+    <motion.div layout className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+      <div className="flex items-center gap-3 p-4">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-500/10 text-teal-400">
+          <MessageCircle size={20} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-semibold">WhatsApp Connection</div>
+          <div className="mt-0.5 font-mono text-[11px] font-medium flex items-center gap-1.5">
+            {isError ? (
+              <span className="flex items-center gap-1.5 text-red-400">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                Erro de Autenticação
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-brand-teal-300">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-brand-teal-500 animate-pulse" />
+                Ativo
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 font-mono text-[10px] text-white/40 truncate">
+            ID: {channel.provider_id}
+          </div>
+        </div>
+        <Button variant="secondary" size="sm" onClick={() => setExpanded(!expanded)}>
+          {expanded ? "Fechar" : "Detalhes"}
+        </Button>
+      </div>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-3"
+          >
+            {channel.last_error && (
+              <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+                <p className="text-[10px] uppercase tracking-wider text-red-400 font-bold mb-1">Último Erro</p>
+                <p className="text-[11px] text-red-200/80 font-mono break-all">{channel.last_error}</p>
+              </div>
+            )}
+
+            <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] p-3 text-[11px] text-white/50 leading-relaxed">
+              Este canal está associado ao número do WhatsApp Cloud API cadastrado. A IA da Agendra monitora e responde às mensagens que chegam.
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="blue" size="sm" className="flex-1 font-bold" onClick={handleTest} disabled={pending}>
+                {pending ? "Testando..." : "Testar Conexão"}
+              </Button>
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                className="flex-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20 font-bold"
+                onClick={handleDisconnect}
+                disabled={pending}
+              >
+                Desconectar
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/* ==========================================================================
+   SUBCOMPONENTE: InstagramChannelCard
+   ========================================================================== */
+function InstagramChannelCard({ 
+  channel, 
+  onDisconnect 
+}: { 
+  channel: ChannelRow; 
+  onDisconnect: (id: string) => Promise<any>; 
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  async function handleDisconnect() {
+    if (!confirm("Tem certeza que deseja desconectar o Instagram? Suas DMs deixarão de ser respondidas pela IA.")) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await onDisconnect(channel.id);
+        toast.success("Instagram desconectado com sucesso");
+        router.refresh();
+      } catch (err: any) {
+        toast.error(err.message || "Erro ao desconectar");
+      }
+    });
+  }
+
+  const isError = channel.status === "error";
+
+  return (
+    <motion.div layout className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+      <div className="flex items-center gap-3 p-4">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-pink-500/10 text-pink-400">
+          <Instagram size={20} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-semibold">Instagram Direct DMs</div>
+          <div className="mt-0.5 font-mono text-[11px] font-medium flex items-center gap-1.5">
+            {isError ? (
+              <span className="flex items-center gap-1.5 text-red-400">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                Erro na conexão
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-pink-300">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-pink-500 animate-pulse" />
+                Ativo
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 font-mono text-[10px] text-white/40 truncate">
+            IG Account ID: {channel.provider_id}
+          </div>
+        </div>
+        <Button variant="secondary" size="sm" onClick={() => setExpanded(!expanded)}>
+          {expanded ? "Fechar" : "Gerenciar"}
+        </Button>
+      </div>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-3"
+          >
+            {channel.last_error && (
+              <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+                <p className="text-[10px] uppercase tracking-wider text-red-400 font-bold mb-1">Erro</p>
+                <p className="text-[11px] text-red-200/80 font-mono break-all">{channel.last_error}</p>
+              </div>
+            )}
+
+            <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] p-3 text-[11px] text-white/50 leading-relaxed">
+              O Instagram Direct está conectado e monitorando DMs recebidas. O atendimento automático está ativo de acordo com a aba Automação.
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20 font-bold"
+                onClick={handleDisconnect}
+                disabled={pending}
+              >
+                Desconectar Instagram
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/* ==========================================================================
+   SUBCOMPONENTE: NewWhatsAppChannelConnector
+   ========================================================================== */
+function NewWhatsAppChannelConnector({
+  companyId,
+  completeWhatsAppOnboarding,
+  saveWhatsAppChannel,
+}: {
+  companyId?: string;
+  completeWhatsAppOnboarding: (token: string) => Promise<any>;
+  saveWhatsAppChannel: (fd: FormData) => Promise<any>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  async function handleConnect(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await saveWhatsAppChannel(formData);
+        setExpanded(false);
+        toast.success("Canal conectado com sucesso!");
+        router.refresh();
+      } catch (err: any) {
+        setError(err.message);
       }
     });
   }
@@ -1201,261 +1492,173 @@ function ChannelCard({ item: c, channels }: { item: ChannelItem; channels: Chann
   }
 
   return (
-    <motion.div
-      layout
-      className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm"
-    >
-      <div className="flex items-center gap-3 p-4">
-        <div
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-          style={{ background: c.bg, color: c.col }}
-        >
-          <c.Icon size={20} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold">{c.name}</div>
-          <div
-            className="mt-0.5 font-mono text-[11px] font-medium flex items-center gap-1.5"
-            style={{ color: c.ok ? "var(--color-brand-teal-300)" : "var(--color-fg-3)" }}
-          >
-            {c.ok ? (
-              <>
-                <span className="flex h-1.5 w-1.5 rounded-full bg-brand-teal-500 animate-pulse" />
-                Conectado
-              </>
-            ) : (
-              <>
-                <span className="flex h-1.5 w-1.5 rounded-full bg-white/20" />
-                Não conectado
-              </>
-            )}
+    <motion.div layout className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+      <div className="flex items-center justify-between gap-4 p-4">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-white/[0.05] text-white/50 flex items-center justify-center">
+            <MessageCircle size={20} />
           </div>
-          {c.sub && (
-            <div className="mt-0.5 font-mono text-[10px]" style={{ color: "var(--color-fg-3)" }}>
-              {c.sub}
-            </div>
-          )}
+          <div>
+            <div className="text-[13px] font-semibold text-white/80">Conectar Novo WhatsApp</div>
+            <div className="text-[10px] text-white/40 mt-0.5">Adicione uma linha do WhatsApp Business</div>
+          </div>
         </div>
-
-        {c.action.kind === "google-connect" && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => { window.location.href = "/api/auth/google"; }}
-          >
-            Conectar
-          </Button>
-        )}
-
-        {c.action.kind === "google-manage" && (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? "Fechar" : "Gerenciar"}
-          </Button>
-        )}
-
-        {c.action.kind === "whatsapp-connected" && (
-          <Button variant="secondary" size="sm" onClick={() => setExpanded((v) => !v)}>
-            {expanded ? "Fechar" : "Detalhes"}
-          </Button>
-        )}
-
-        {c.action.kind === "coming-soon" && c.name === "WhatsApp Business" ? (
-          <Button variant="blue" size="sm" onClick={() => setExpanded(!expanded)}>
-             {expanded ? "Cancelar" : "Conectar"}
-          </Button>
-        ) : c.action.kind === "coming-soon" && (
-          <Badge variant="cold" className="text-[10px] px-2 py-0.5">Em breve</Badge>
-        )}
+        <Button variant="secondary" size="sm" onClick={() => setExpanded(!expanded)}>
+          {expanded ? "Cancelar" : "Conectar"}
+        </Button>
       </div>
 
       <AnimatePresence>
-        {/* Formulário de Conexão WhatsApp */}
-        {c.name === "WhatsApp Business" && !c.ok && expanded && (
+        {expanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/[0.06] bg-white/[0.02]"
+            className="border-t border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-4"
           >
-            <div className="p-4 flex flex-col gap-4">
-              <div className="flex flex-col gap-3">
-                <p className="text-[11px] font-medium text-white/70">Conexão Automática (Recomendado)</p>
-                <button
-                  onClick={handleMetaLogin}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white text-[13px] font-semibold transition-all shadow-lg shadow-[#1877F2]/20 group"
-                >
-                  <Facebook size={16} fill="currentColor" />
-                  Conectar com Meta
-                </button>
-                <p className="text-[10px] text-white/40 leading-relaxed text-center">
-                  Método oficial e seguro. Não exige preenchimento manual de IDs.
-                </p>
-              </div>
+            <div className="flex flex-col gap-3">
+              <p className="text-[11px] font-bold text-white/70">Conexão Automática via Facebook (Recomendado)</p>
+              <button
+                onClick={handleMetaLogin}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white text-[13px] font-semibold transition-all shadow-lg shadow-[#1877F2]/20 group"
+              >
+                <Facebook size={16} fill="currentColor" />
+                Conectar com Meta
+              </button>
+              <p className="text-[10px] text-white/40 text-center">
+                Método oficial e homologado. Configuração em 1 minuto.
+              </p>
+            </div>
 
-              <div className="relative flex items-center py-2">
-                <div className="flex-grow border-t border-white/5"></div>
-                <span className="flex-shrink mx-3 text-[9px] uppercase tracking-widest text-white/20 font-bold">Ou manual</span>
-                <div className="flex-grow border-t border-white/5"></div>
-              </div>
+            <div className="relative flex items-center py-1">
+              <div className="flex-grow border-t border-white/5"></div>
+              <span className="flex-shrink mx-3 text-[9px] uppercase tracking-widest text-white/20 font-bold">Ou manual</span>
+              <div className="flex-grow border-t border-white/5"></div>
+            </div>
 
-              <form onSubmit={handleConnect} className="flex flex-col gap-4">
-                <div className="rounded-lg bg-brand-blue-500/10 border border-brand-blue-500/20 p-3 mb-2">
-                  <p className="text-[11px] leading-relaxed text-brand-blue-200">
-                    <span className="font-bold">Manual:</span> Use se você já possui um 
-                    <span className="text-white mx-1">Phone ID</span> e <span className="text-white">Token Permanente</span>.
-                  </p>
-                </div>
-
+            <form onSubmit={handleConnect} className="flex flex-col gap-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Phone Number ID</label>
-                  <Input 
-                    name="phone_number_id" 
-                    placeholder="Ex: 1092837465..." 
-                    className="h-9 text-xs"
-                    required
-                  />
+                  <Input name="phone_number_id" placeholder="Ex: 1092837465..." className="h-9 text-xs" required />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Nome do Canal</label>
-                  <Input 
-                    name="name" 
-                    placeholder="Ex: WhatsApp Vendas" 
-                    className="h-9 text-xs"
-                  />
+                  <Input name="name" placeholder="Ex: WhatsApp Vendas" className="h-9 text-xs" />
                 </div>
               </div>
 
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Access Token (Permanente)</label>
-                <Input 
-                  name="access_token" 
-                  type="password"
-                  placeholder="EAAW..." 
-                  className="h-9 text-xs"
-                  required
-                />
+                <Input name="access_token" type="password" placeholder="EAAW..." className="h-9 text-xs" required />
               </div>
 
               {error && <p className="text-[10px] text-red-400 font-medium">{error}</p>}
 
-              <Button type="submit" variant="blue" size="sm" className="w-full" disabled={pending}>
+              <Button type="submit" variant="blue" size="sm" className="w-full font-bold" disabled={pending}>
                 {pending ? "Conectando..." : "Salvar Canal WhatsApp"}
               </Button>
-              </form>
-            </div>
-          </motion.div>
-        )}
-
-        {/* WhatsApp details panel */}
-        {c.action.kind === "whatsapp-connected" && expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <div className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Configurações Ativas</div>
-                <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                  <MessageCircle size={13} className="text-brand-teal-300" />
-                  <span className="font-mono text-[12px] text-white/70">
-                    Phone ID: {waAction?.provider_id}
-                  </span>
-                </div>
-              </div>
-
-              {/* Display Error if any */}
-              {channels.find(ch => ch.id === waAction?.provider_id || ch.provider_id === waAction?.provider_id)?.last_error && (
-                <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-red-400 font-bold mb-1">Erro de Conexão</p>
-                  <p className="text-[11px] text-red-200/80 font-mono break-all">
-                    {channels.find(ch => ch.provider_id === waAction?.provider_id)?.last_error}
-                  </p>
-                </div>
-              )}
-              
-              <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
-                <p className="text-[11px] leading-relaxed text-white/50">
-                  Este canal está roteado para o webhook oficial da Agendra. Suas mensagens são processadas pela IA configurada na aba Persona.
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <Button 
-                  variant="blue" 
-                  size="sm" 
-                  className="flex-1" 
-                  onClick={handleTest}
-                  disabled={pending}
-                >
-                  {pending ? "Testando..." : "Testar Conexão"}
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  className="flex-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20" 
-                  onClick={handleDisconnect}
-                  disabled={pending}
-                >
-                  Desconectar
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-
-        {/* Google Calendar management panel */}
-        {c.action.kind === "google-manage" && expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 flex flex-col gap-3">
-              <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                <Calendar size={13} style={{ color: "var(--color-brand-teal-300)" }} />
-                <span className="font-mono text-[12px]" style={{ color: "var(--color-fg-2)" }}>
-                  {c.action.email}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => { window.location.href = "/api/auth/google"; }}
-                >
-                  <ExternalLink size={12} />
-                  Reconectar / atualizar permissões
-                </Button>
-              </div>
-              <p className="text-[11px]" style={{ color: "var(--color-fg-3)" }}>
-                Para desconectar, remova o acesso da Agendra em{" "}
-                <a
-                  href="https://myaccount.google.com/permissions"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:text-white"
-                >
-                  myaccount.google.com/permissions
-                </a>
-                .
-              </p>
-            </div>
+            </form>
           </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
   );
 }
+
+/* ==========================================================================
+   SUBCOMPONENTE: GoogleCalendarCard
+   ========================================================================== */
+function GoogleCalendarCard({ 
+  company, 
+  connected 
+}: { 
+  company: Company | null; 
+  connected: boolean; 
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <motion.div layout className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+      <div className="flex items-center gap-3 p-4">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-400">
+          <Calendar size={20} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-semibold">Google Calendar</div>
+          <div className="mt-0.5 font-mono text-[11px] font-medium flex items-center gap-1.5">
+            {connected ? (
+              <span className="flex items-center gap-1.5 text-blue-300">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                Conectado
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-white/40">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-white/20" />
+                Não conectado
+              </span>
+            )}
+          </div>
+        </div>
+
+        {connected ? (
+          <Button variant="secondary" size="sm" onClick={() => setExpanded(!expanded)}>
+            {expanded ? "Fechar" : "Gerenciar"}
+          </Button>
+        ) : (
+          <Button 
+            variant="primary" 
+            size="sm" 
+            onClick={() => { window.location.href = "/api/auth/google"; }}
+          >
+            Conectar
+          </Button>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {connected && expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-3"
+          >
+            <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+              <Calendar size={13} className="text-blue-300" />
+              <span className="font-mono text-[12px] text-white/70">
+                {company?.google_calendar_email}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full gap-1.5 font-bold"
+                onClick={() => { window.location.href = "/api/auth/google"; }}
+              >
+                <ExternalLink size={12} />
+                Reconectar / Atualizar Agenda
+              </Button>
+            </div>
+            <p className="text-[11px] text-white/40 leading-relaxed">
+              Para revogar permanentemente o acesso à sua conta Google, remova a permissão da Agendra em{" "}
+              <a
+                href="https://myaccount.google.com/permissions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-white hover:text-white/80"
+              >
+                myaccount.google.com/permissions
+              </a>.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 
 function Flows({
   company,

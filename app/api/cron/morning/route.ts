@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
+import { sendChannelMessage } from '@/lib/channels/send';
 import { syncCompanyCalendar } from '@/lib/calendar/sync';
 import { validateWhatsAppToken } from '@/lib/whatsapp/validate';
 import { triggerAutoFollowUp, handleIncomingMessage } from '@/lib/ai/engine';
@@ -203,7 +203,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
           const message = `Olá ${lead.name.split(' ')[0]}! Passando para lembrar do seu agendamento de "${event.title}" às ${timeStr}. Nos vemos em breve! 🗓`;
 
-          await sendWhatsAppMessage(lead.phone, message, rem.company_id);
+          await sendChannelMessage(lead.phone, message, rem.company_id);
 
           // Log message history to lead
           await admin.from('messages').insert({

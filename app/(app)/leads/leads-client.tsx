@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, UserPlus, X, Plus, Loader2, Phone, Mail, MapPin, MessageSquare } from "lucide-react";
+import { Download, UserPlus, X, Plus, Loader2, Phone, Mail, MapPin, MessageSquare, MessageCircle, Instagram } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
@@ -202,7 +202,15 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                       </Badge>
                     </td>
                     <td className="px-4 py-3.5">
-                      <span className="font-mono text-xs capitalize">{l.channel}</span>
+                      <div className="flex items-center gap-1.5 font-mono text-xs">
+                        {l.channel === "whatsapp" && (
+                          <MessageCircle size={14} className="text-teal-400 shrink-0" />
+                        )}
+                        {l.channel === "instagram" && (
+                          <Instagram size={14} className="text-pink-400 shrink-0" />
+                        )}
+                        <span className="capitalize">{l.channel}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3.5 text-sm" style={{ color: "var(--color-fg-2)" }}>
                       {l.source ?? "—"}

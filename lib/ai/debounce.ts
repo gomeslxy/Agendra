@@ -24,8 +24,8 @@ export async function bufferAndDebounce(args: {
   usage?: any;
   metadata?: Record<string, any>;
 }): Promise<void> {
-  const bufKey = `wa:buf:${args.companyId}:${args.leadPhone}`;
-  const tokenKey = `wa:bufgen:${args.companyId}:${args.leadPhone}`;
+  const bufKey = `ch:buf:${args.companyId}:${args.leadPhone}`;
+  const tokenKey = `ch:bufgen:${args.companyId}:${args.leadPhone}`;
   const gen = crypto.randomBytes(8).toString('hex');
 
   await redis.rpush(bufKey, JSON.stringify({
@@ -109,7 +109,8 @@ export async function bufferAndDebounce(args: {
 }
 
 export async function claimMessage(messageId: string): Promise<boolean> {
-  const r = await redis.setNX(`wa:dedup:${messageId}`, '1', 600);
+  const r = await redis.setNX(`ch:dedup:${messageId}`, '1', 600);
+
   if (r === true) return true;
   if (r === false) return false;
   // Redis off → fallback PG

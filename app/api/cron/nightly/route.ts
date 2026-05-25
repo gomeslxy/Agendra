@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { sendWhatsAppMessage } from '@/lib/whatsapp/client';
+import { sendChannelMessage } from '@/lib/channels/send';
 import { handleIncomingMessage } from '@/lib/ai/engine';
 import { routeGenerate } from '@/lib/ai/providers/router';
 import { getPlanLimits } from '@/lib/billing/plans';
@@ -157,7 +157,7 @@ Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
             if (!message?.trim()) continue;
 
             // Send via WhatsApp client
-            await sendWhatsAppMessage(lead.phone!, message, company.id);
+            await sendChannelMessage(lead.phone!, message, company.id);
 
             // Record in message history
             await admin.from('messages').insert({
@@ -258,7 +258,7 @@ Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
 
           const message = `Olá ${lead.name.split(' ')[0]}! Passando para lembrar do seu agendamento de "${event.title}" às ${timeStr}. Nos vemos em breve! 🗓`;
 
-          await sendWhatsAppMessage(lead.phone, message, rem.company_id);
+          await sendChannelMessage(lead.phone, message, rem.company_id);
 
           // Log message history to lead
           await admin.from('messages').insert({

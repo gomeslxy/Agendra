@@ -6,6 +6,8 @@
  * Nunca duplicar Price IDs ou valores fora deste arquivo.
  */
 
+import type { ChannelProvider } from '@/lib/channels/types';
+
 export type PlanType = 'trial' | 'starter' | 'pro' | 'business';
 export type BillingPeriod = 'monthly' | 'annual';
 
@@ -39,6 +41,7 @@ export const PRICE_ID_TO_PLAN: Record<string, PlanType> = Object.entries(STRIPE_
 export interface PlanLimits {
   maxLeads: number;
   maxChannels: number;
+  allowedChannels: ChannelProvider[];
   maxCalendars: number;
   hasWatermark: boolean;
   hasWebhooks: boolean;
@@ -54,6 +57,7 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
   trial: {
     maxLeads: 50,
     maxChannels: 1,
+    allowedChannels: ['whatsapp'],
     maxCalendars: 1,
     hasWatermark: true,
     hasWebhooks: false,
@@ -66,6 +70,7 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
   starter: {
     maxLeads: 150,
     maxChannels: 1,
+    allowedChannels: ['whatsapp'],
     maxCalendars: 1,
     hasWatermark: true,
     hasWebhooks: false,
@@ -78,6 +83,7 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
   pro: {
     maxLeads: 1000,
     maxChannels: 3,
+    allowedChannels: ['whatsapp', 'instagram'],
     maxCalendars: 3,
     hasWatermark: false,
     hasWebhooks: true,
@@ -90,6 +96,7 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
   business: {
     maxLeads: 5000,
     maxChannels: 10,
+    allowedChannels: ['whatsapp', 'instagram', 'telegram', 'messenger', 'webchat', 'email', 'discord'],
     maxCalendars: 10,
     hasWatermark: false,
     hasWebhooks: true,
@@ -122,7 +129,7 @@ export const PLANS_META: PlanMeta[] = [
     annual: 67,
     leads: '150 leads/mês',
     features: [
-      '1 WhatsApp conectado',
+      '1 Canal conectado (WhatsApp)',
       '1 Calendário sincronizado',
       'Agendamento automático 24/7',
       "Marca d'água Agendra",
@@ -137,7 +144,7 @@ export const PLANS_META: PlanMeta[] = [
     annual: 147,
     leads: '1.000 leads/mês',
     features: [
-      'Até 3 WhatsApps conectados',
+      'Até 3 Canais (WhatsApp + Instagram)',
       'Até 3 Calendários',
       "Sem marca d'água",
       'Webhooks (Zapier/Make)',
@@ -153,7 +160,7 @@ export const PLANS_META: PlanMeta[] = [
     annual: 397,
     leads: '5.000 leads/mês',
     features: [
-      'Até 10 WhatsApps conectados',
+      'Até 10 Canais (Todos os canais)',
       'Até 10 Calendários',
       "Sem marca d'água",
       'Prioridade de processamento',
@@ -163,6 +170,7 @@ export const PLANS_META: PlanMeta[] = [
     recommended: false,
   },
 ];
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
