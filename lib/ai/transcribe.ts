@@ -1,7 +1,7 @@
 import { genAI } from './client';
 import { logInfo } from '@/lib/logging';
 
-const MAX_AUDIO_SIZE = 20 * 1024 * 1024;
+const MAX_AUDIO_SIZE = 25 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 10_000;
 const TRANSCRIBE_TIMEOUT_MS = 15_000;
 const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
@@ -27,7 +27,14 @@ export async function transcribeWhatsAppAudio(
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!audioRes.ok) return { text: '[Áudio recebido — falha no download direto]', error: `audio_direct ${audioRes.status}` };
+    const contentLength = audioRes.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > MAX_AUDIO_SIZE) {
+      return { text: '[Áudio recebido — muito grande]', error: 'too large' };
+    }
     buffer = Buffer.from(await audioRes.arrayBuffer());
+    if (buffer.length > MAX_AUDIO_SIZE) {
+      return { text: '[Áudio recebido — muito grande]', error: 'too large' };
+    }
     const contentType = audioRes.headers.get('content-type');
     if (contentType) mimeType = contentType;
   } else {
