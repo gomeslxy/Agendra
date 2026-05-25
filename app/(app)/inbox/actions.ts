@@ -8,25 +8,30 @@ import { sendWhatsAppMessage, sendWhatsAppMedia } from "@/lib/whatsapp/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { persistAITrace } from "@/lib/ai/observability";
 
-async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
+async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string, companyId: string) {
   const { data, error } = await supabase
     .from("leads")
     .select("company_id, phone")
     .eq("id", leadId)
+    .eq("company_id", companyId)
     .single();
   if (error || !data) throw new Error("Lead não encontrado");
   return { company_id: data.company_id as string, phone: data.phone as string };
 }
 
 export async function sendNote(leadId: string, content: string) {
-  console.log(`[Action:sendNote] 🚀 Iniciando envio manual para leadId=${leadId}`);
+  const trimmed = content?.trim() ?? "";
+  if (!trimmed) throw new Error("Mensagem vazia");
+  if (trimmed.length > 4096) throw new Error("Mensagem muito longa (máx 4096 chars)");
+
   try {
     const profile = await getUserProfile();
     if (!profile) throw new Error("Não autorizado");
+    const companyId = profile.memberships?.[0]?.company_id;
+    if (!companyId) throw new Error("Não autorizado");
 
     const supabase = await createClient();
-    const { company_id, phone } = await getLeadInfo(supabase, leadId);
-    console.log(`[Action:sendNote] 📱 Lead encontrado: ${phone} (Empresa: ${company_id})`);
+    const { company_id, phone } = await getLeadInfo(supabase, leadId, companyId);
     
     await requireOnboarding(company_id);
 
@@ -34,16 +39,14 @@ export async function sendNote(leadId: string, content: string) {
     const { error: dbError } = await supabase.from("messages").insert({
       lead_id: leadId,
       company_id,
-      content,
+      content: trimmed,
       role: "agent",
     });
 
     if (dbError) throw new Error(`Erro no Banco: ${dbError.message}`);
-    console.log(`[Action:sendNote] ✅ Mensagem salva no banco`);
 
     // 2. Enviar WhatsApp
-    await sendWhatsAppMessage(phone, content, company_id);
-    console.log(`[Action:sendNote] ✉️ Mensagem enviada para WhatsApp com sucesso`);
+    await sendWhatsAppMessage(phone, trimmed, company_id);
 
     revalidatePath("/inbox");
     return { success: true };
@@ -58,8 +61,11 @@ export async function takeOverLead(leadId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("Unauthorized");
+
   const supabase = await createClient();
-  const { company_id } = await getLeadInfo(supabase, leadId);
+  const { company_id } = await getLeadInfo(supabase, leadId, companyId);
   await requireOnboarding(company_id);
 
   // Use centralized takeover helper
@@ -96,8 +102,11 @@ export async function automatizeLead(leadId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("Unauthorized");
+
   const supabase = await createClient();
-  const { company_id } = await getLeadInfo(supabase, leadId);
+  const { company_id } = await getLeadInfo(supabase, leadId, companyId);
   await requireOnboarding(company_id);
 
   // Use centralized takeover helper to deactivate human takeover
@@ -150,8 +159,11 @@ export async function setControlMode(leadId: string, mode: 'autonomous' | 'shado
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("Unauthorized");
+
   const supabase = await createClient();
-  const { company_id } = await getLeadInfo(supabase, leadId);
+  const { company_id } = await getLeadInfo(supabase, leadId, companyId);
   await requireOnboarding(company_id);
 
   // Use takeover helpers for supported modes
@@ -315,9 +327,11 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
 
   const profile = await getUserProfile();
   if (!profile) throw new Error('Não autorizado');
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error('Não autorizado');
 
   const supabase = await createClient();
-  const { company_id, phone } = await getLeadInfo(supabase, leadId);
+  const { company_id, phone } = await getLeadInfo(supabase, leadId, companyId);
   await requireOnboarding(company_id);
 
   const admin = createAdminClient();

@@ -250,12 +250,14 @@ export async function POST(req: Request) {
         // Notify company owner of payment failure
         try {
           const { createNotification } = await import("@/lib/notifications/create");
-          // Find company owner
+          // H5 FIX: Fallback from owner to admin — if no owner exists, at least notify an admin
           const { data: owner } = await admin
             .from("memberships")
             .select("user_id")
             .eq("company_id", companyId)
-            .eq("role", "owner")
+            .in("role", ["owner", "admin"])
+            .order("role", { ascending: false }) // owner > admin alphabetically — prefer owner
+            .limit(1)
             .maybeSingle();
 
           if (owner) {
@@ -376,9 +378,17 @@ export async function POST(req: Request) {
       } else if (tx) {
         console.log(`[Stripe Webhook] 💰 Pix paid! transaction=${tx.id} amount=R$${Number(tx.amount).toFixed(2)} lead=${tx.lead_id}`);
         // Mark lead with payment confirmed flag (engine polls checkPaymentStatus)
+        // C1 FIX: Merge instead of overwrite — preserve existing metadata fields
+        const { data: currentLead } = await admin
+          .from('leads')
+          .select('metadata')
+          .eq('id', tx.lead_id)
+          .eq('company_id', tx.company_id)
+          .maybeSingle();
+        const mergedMetadata = { ...((currentLead?.metadata as Record<string, unknown>) ?? {}), payment_confirmed: true };
         await admin
           .from('leads')
-          .update({ metadata: { payment_confirmed: true } } as any)
+          .update({ metadata: mergedMetadata } as any)
           .eq('id', tx.lead_id)
           .eq('company_id', tx.company_id);
       }

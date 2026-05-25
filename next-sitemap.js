@@ -1,6 +1,6 @@
 // next-sitemap config
 module.exports = {
-  siteUrl: 'https://agendra.site',
+  siteUrl: 'https://www.agendra.site',
   generateRobotsTxt: true,
   // optional: change frequency & priority defaults
   // changefreq: 'daily',

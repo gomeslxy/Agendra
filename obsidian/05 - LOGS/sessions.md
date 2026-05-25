@@ -1,5 +1,46 @@
 # Histórico de Sessões
 
+## Sessão (25/05/2026) — Auditoria Sênior de Segurança & Resiliência (Hardening Full-Stack)
+
+**OBJETIVO**: Executar as correções de segurança, multitenancy, concorrência e resiliência referentes a 25 findings identificados (C1-C3, H1-H7, M1-M9, L1-L6), abrangendo isolamento de dados por empresa, criptografia sob demanda via Vault RPC, sanitização de logs e endurecimento de crons.
+
+### Resultados — 100% de sucesso nas compilações e testes de regressão!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Stripe Metadata (C1)** | Webhook `payment_intent.succeeded` substituía todo o JSON `metadata` por `{ payment_confirmed: true }`, gerando perda permanente de dados anteriores do lead. | Adicionada leitura prévia do lead, mesclagem (`merge`) dos metadados existentes com o novo campo e salvamento completo. | `app/api/stripe/webhook/route.ts` | ✅ Corrigido e Validado |
+| **Auth listUsers (C2)** | Enumeração O(n) ineficiente de todos os usuários Supabase Auth da plataforma via `listUsers()` em fluxos de time. | Substituída por query SQL indexada direta na tabela `users` por email, isolando o escopo. | `app/(app)/settings/actions.ts`, `app/(app)/settings/invitations/actions.ts` | ✅ Corrigido e Validado |
+| **Invitation Rollback (C3)** | Falhas ao criar notificação para novos usuários em time deixavam a linha de convite em estado órfão no banco. | Adicionado bloco `try/catch` de contingência: se falhar em gerar a notificação, a linha do convite é deletada atômicamente. | `app/(app)/settings/actions.ts` | ✅ Corrigido e Validado |
+| **Multi-membership (H1)** | Notificações in-app listavam feeds globais baseados apenas no id do usuário, permitindo cross-tenant leaks em contas com múltiplos acessos. | Adicionada query de resolução de empresa ativa (`company_id`) nas memberships e inserido o filtro estrito no `getNotifications()`. | `app/(app)/settings/invitations/actions.ts` | ✅ Corrigido e Validado |
+| **Aceitação de Convite (H2)** | `acceptInvitation` inseria memberships sem upsert, gerando erro de chave única se houvesse race condition ou clique duplo. | Migrado de `insert` para `upsert` com `onConflict` estruturado. | `app/(app)/settings/invitations/actions.ts` | ✅ Corrigido e Validado |
+| **Reenvio de Convite (H4)** | `resendInvitation` permitia re-convidar usuários cujos acessos já constavam ativos nas memberships por outros caminhos. | Inserido check de existência de membership no reenvio, abortando com mensagem informativa. | `app/(app)/settings/invitations/actions.ts` | ✅ Corrigido e Validado |
+| **Webhook Stripe Fallback (H5)** | Falha de faturamento `payment_failed` notificava apenas role `owner`, caindo em silent drop se a empresa estivesse configurada sem owner. | Adicionado fallback para ordenar e buscar role `admin` caso a role owner não seja localizada. | `app/api/stripe/webhook/route.ts` | ✅ Corrigido e Validado |
+| **PII & Secrets Leak (H6, H7)** | Logs públicos Vercel expunham plaintext do `verify_token` Meta e emails reais dos usuários no sincronizador Stripe. | Aplicados mascaramentos profundos (`slice + split`) nos logs do webhook WhatsApp e da rota de sincronização Stripe. | `app/api/whatsapp/route.ts`, `app/api/stripe/sync/route.ts` | ✅ Corrigido e Validado |
+| **Cron check-channels (M1, M2)** | Rota cron sem limite `maxDuration` (potencial timeout hobby de 10s) e puxava tokens plaintext no bulk select. | Adicionado `export const maxDuration = 60`. Removida a coluna `access_token` da query bulk; tokens agora são descriptografados individualmente via Vault RPC `channel_get_access_token` sob demanda na validação. | `app/api/cron/check-channels/route.ts` | ✅ Corrigido e Validado |
+| **Bulk Notifications (M5)** | `createNotificationForUsers` inseria múltiplas linhas no banco de uma vez, arriscando timeouts e limitação do Supabase. | Adicionado fatiamento automático (`chunking`) em batches de 500 no helper de bulk insertion. | `lib/notifications/create.ts` | ✅ Corrigido e Validado |
+| **Purga de Código Morto (M7)** | Diretório de cron `flush-buffer` estava sem arquivo `route.ts` e permanecia vazio no codebase. | Removido o diretório órfão fisicamente da estrutura de diretórios. | N/A | ✅ Removido |
+| **Isolamento de Inbox (M8)** | `getLeadInfo` buscava dados por id do lead sem filtro por empresa, confiando 100% no RLS. | Adicionado o parâmetro `companyId` no helper de inbox e inserido `.eq('company_id', companyId)` em todos os 5 endpoints de inbox (sendNote, takeOverLead, etc.). | `app/(app)/inbox/actions.ts` | ✅ Corrigido e Validado |
+| **SEO settings (M9)** | Tags OpenGraph ativas e robots permitindo indexação na rota autenticada `/settings`. | Removidas as tags e fixada diretiva `robots: { index: false, follow: false }`. | `app/(app)/settings/page.tsx` | ✅ Corrigido e Validado |
+| **Cron Secrets Query (L5)** | Todos os 4 crons (`check-channels`, `morning`, `nightly`, `followup`) permitiam autenticação insegura via parâmetro query string (`?secret=`). | Removidos os fallbacks query strings; aceita exclusivamente o cabeçalho seguro HTTP `Authorization: Bearer`. | `app/api/cron/check-channels/route.ts`, `app/api/cron/nightly/route.ts`, `app/api/cron/morning/route.ts`, `app/api/cron/followup/route.ts` | ✅ Corrigido e Validado |
+| **Validação Geral** | Validar que as modificações permanecem estáveis e operacionais. | Executados `pnpm tsc --noEmit` (exit 0) e `pnpm test` (21/21 testes passando com 100% de sucesso). | N/A | ✅ Validado |
+
+---
+
+## Sessão (24/05/2026) — Auditoria e Correção Geral de Domínios (https://www.agendra.site)
+
+**OBJETIVO**: Realizar varredura técnica abrangente, identificando e corrigindo menções a domínios antigos ou incorretos (ex: `.com`, `.com.br` ou legacy configurations sem `www.`) em sitemaps, templates de email e payloads de simulação. Consolidar o domínio oficial correto `https://www.agendra.site`.
+
+### Resultados — 100% de sucesso nas compilações e testes de regressão!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Configuração de Sitemaps** | Configuração do gerador de sitemaps possuía URL de produção antiga/incompleta (`https://agendra.site`). | Atualizada para usar o domínio oficial `https://www.agendra.site`. | `next-sitemap.js` | ✅ Corrigido e Validado |
+| **Templates de Email** | Links de redirecionamento (`inbox`) e links de copyright no footer do template base usavam domínio incompleto (`https://agendra.site`). | Atualizados para utilizar o domínio oficial completo `https://www.agendra.site` e formato textual `www.agendra.site`. | `lib/email/templates/_base.ts`, `lib/email/templates/welcome.ts` | ✅ Corrigido e Validado |
+| **Payloads de Simulação (Fintech)** | Chave Pix de simulação de cobrança continha domínio mockado `.com.br` (`api.agendra.com.br`). | Modificada a URL base do payload dinâmico para `api.agendra.site` a fim de padronizar. | `lib/ai/tools.ts` | ✅ Corrigido e Validado |
+| **Validação** | Garantir que o build e os testes continuem 100% funcionais. | Executados `pnpm tsc --noEmit` (exit 0) e `pnpm test` (21/21 testes passando com sucesso). | N/A | ✅ Validado |
+
+---
+
 ## Sessão (23/05/2026) — Auditoria Avançada e Hardening contra Vazamento Técnico no Motor de IA
 
 **OBJETIVO**: Auditar de forma profunda e robustecer o motor de IA contra qualquer vazamento de lógica interna, JSONs (metadata blocks), jargões de programação (bookAppointment, checkAvailability, service_id, start_time, ISO, etc.) ou stack traces em mensagens do cliente final ou rascunhos.
@@ -10,6 +51,7 @@
 |---|---|---|---|---|
 | **Hardening de Adapters** | Erros brutos (banco, vault, GCal, etc.) podiam ser passados diretamente para o modelo de IA nas tool calls. | Adicionada sanitização robusta com fallback humanizado em caso de exceções técnicas em todos os adapters de provedores. | `gemini-adapter.ts`, `groq-adapter.ts`, `cerebras-adapter.ts`, `sambanova-adapter.ts` | ✅ Fixo e Validado |
 | **Sanitização Central** | AI podia reter blocos JSON de metadados (`---JSON---`) ou usar termos técnicos se não recebesse um escudo central. | Implementada a função robusta `sanitizeClientResponse` que remove qualquer formato JSON, chaves, jargões, formatação de dados técnica e nomes de ferramentas de forma estrita. Aplicada na resposta final e nos follow-ups automáticos. | `lib/ai/engine.ts` | ✅ Fixo e Validado |
+| **Prevenção de Loop de Fallback** | AI de pequeno porte (`llama3.1-8b` de conversação) tentava rodar ferramentas de agendamento em paralelo e gerava JSONs brutos, acionando a purga severa e o fallback repetitivo do *"Entendido!"*. | 1. Limitada a injeção de `tools` apenas quando `schedulingIntent` é `true`. 2. Expandida a regex de detecção de intenção para abranger termos conjugados (como `"cancela"`, `"marcar"`) sem limites estritos `\b`. 3. Tornado o prompt abstrato sem nomes de funções reais para evitar loops. | `lib/ai/engine.ts` | ✅ Fixo e Validado |
 | **Jailbreak Prompt Guard** | Prompt do sistema não deixava explícita a proibição de uso de termos técnicos. | Injetada a nova **Regra de Ouro #7: ZERO VAZAMENTOS TÉCNICOS** no Prompt Principal. | `lib/ai/engine.ts` | ✅ Fixo e Validado |
 | **Validação** | Assegurar integridade e ausência de regressões. | Criados e executados scripts de simulação `scratch/test_leak_prevention.ts` e `scratch/test_ai_leak_breakers.ts` (testando prompt injections, tool failures e graceful degradations). 100% dos testes passaram. Executados `pnpm tsc --noEmit` (exit 0) e `pnpm test` (21/21 testes vitest passados com sucesso). | `scratch/test_leak_prevention.ts`, `scratch/test_ai_leak_breakers.ts` | ✅ Validado |
 

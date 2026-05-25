@@ -71,8 +71,12 @@ export async function createNotificationForUsers(
       priority: base.priority ?? 'medium',
       read: false,
     }));
-    const { error } = await admin.from('notifications').insert(rows);
-    if (error) console.error('[createNotificationForUsers] error:', error.message);
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const { error } = await admin.from('notifications').insert(batch);
+      if (error) console.error('[createNotificationForUsers] error in batch:', error.message);
+    }
   } catch (err: any) {
     console.error('[createNotificationForUsers] unexpected error:', err.message);
   }

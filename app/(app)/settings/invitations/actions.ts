@@ -18,7 +18,7 @@ export async function acceptInvitation(invitationId: string) {
   // Fetch invitation
   const { data: invite, error: fetchErr } = await admin
     .from("invitations")
-    .select("*")
+    .select("id, company_id, role, invited_email, expires_at, notification_id, invited_by")
     .eq("id", invitationId)
     .eq("status", "pending")
     .maybeSingle();
@@ -53,12 +53,12 @@ export async function acceptInvitation(invitationId: string) {
     return;
   }
 
-  // Create membership
-  const { error: memberErr } = await admin.from("memberships").insert({
-    company_id: invite.company_id,
-    user_id: user.id,
-    role: invite.role,
-  });
+  // H2 FIX: Use upsert instead of insert to handle race conditions where membership
+  // was created via another path (e.g., accept-invite/page.tsx concurrent with this action)
+  const { error: memberErr } = await admin.from("memberships").upsert(
+    { company_id: invite.company_id, user_id: user.id, role: invite.role },
+    { onConflict: "company_id,user_id" }
+  );
   if (memberErr) throw new Error("Erro ao criar membership: " + memberErr.message);
 
   // Mark invitation accepted
@@ -115,7 +115,7 @@ export async function declineInvitation(invitationId: string) {
 
   const { data: invite, error: fetchErr } = await admin
     .from("invitations")
-    .select("*")
+    .select("id, company_id, invited_email, notification_id, invited_by")
     .eq("id", invitationId)
     .eq("status", "pending")
     .maybeSingle();
@@ -207,7 +207,7 @@ export async function resendInvitation(invitationId: string) {
 
   const { data: invite, error } = await admin
     .from("invitations")
-    .select("*")
+    .select("id, company_id, role, invited_email, status, created_at, notification_id")
     .eq("id", invitationId)
     .eq("company_id", companyId)
     .maybeSingle();
@@ -227,10 +227,27 @@ export async function resendInvitation(invitationId: string) {
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   }).eq("id", invitationId);
 
-  const { data: existingUsers } = await admin.auth.admin.listUsers();
-  const targetUser = existingUsers?.users?.find(
-    (u) => u.email?.toLowerCase() === invite.invited_email.toLowerCase()
-  );
+  // C2 FIX: Query users table directly by email instead of enumerating ALL platform users
+  const { data: targetUser } = await admin
+    .from("users")
+    .select("id, email")
+    .eq("email", invite.invited_email.toLowerCase())
+    .maybeSingle();
+
+  // H4 FIX: Check if user is already a member before resending
+  if (targetUser) {
+    const { data: alreadyMember } = await admin
+      .from("memberships")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("user_id", targetUser.id)
+      .maybeSingle();
+    if (alreadyMember) {
+      // Mark invite as accepted since user is already a member
+      await admin.from("invitations").update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("id", invitationId);
+      throw new Error("Este usu\u00e1rio j\u00e1 faz parte da equipe.");
+    }
+  }
 
   const { data: company } = await admin.from("companies").select("name").eq("id", companyId).maybeSingle();
   const { data: inviterProfile } = await admin.from("users").select("full_name").eq("id", profile.id).maybeSingle();
@@ -276,10 +293,23 @@ export async function getNotifications() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
+  // H1 FIX: Retrieve user's active membership company_id to enforce multi-tenant isolation
+  const admin = createAdminClient();
+  const { data: membership } = await admin
+    .from("memberships")
+    .select("company_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
+
+  const companyId = membership?.company_id;
+  if (!companyId) return [];
+
   const { data, error } = await supabase
     .from("notifications")
     .select("*")
     .eq("user_id", user.id)
+    .eq("company_id", companyId)
     .order("created_at", { ascending: false })
     .limit(20);
 

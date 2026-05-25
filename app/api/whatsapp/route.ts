@@ -164,7 +164,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  console.log(`[WhatsApp] 🔍 Verificação de Webhook | mode=${mode} | token=${token}`);
+  console.log(`[WhatsApp] 🔍 Verificação de Webhook | mode=${mode} | token=${token?.slice(0, 4)}***`);
 
   if (mode !== "subscribe") {
     console.error("[WhatsApp] ❌ Modo inválido:", mode);

@@ -3,12 +3,13 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotificationForUsers } from '@/lib/notifications/create';
 import { validateWhatsAppToken } from '@/lib/whatsapp/validate';
 
+export const maxDuration = 60;
+
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return false;
   const header = req.headers.get('authorization') ?? '';
-  const query = new URL(req.url).searchParams.get('secret') ?? '';
-  return header === `Bearer ${cronSecret}` || query === cronSecret;
+  return header === `Bearer ${cronSecret}`;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -18,10 +19,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const admin = createAdminClient();
 
-  // Fetch all channels
+  // Fetch all channels (M2 FIX: Exclude access_token from bulk query)
   const { data: channels, error: channelsError } = await admin
     .from('channels')
-    .select('id, company_id, provider_id, status, access_token, last_error');
+    .select('id, company_id, provider_id, status, last_error');
 
   if (channelsError) {
     console.error('[check-channels] Failed to fetch channels:', channelsError.message);
@@ -33,7 +34,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Active validation step
   for (const ch of channels ?? []) {
     if (ch.status === 'active') {
-      const validation = await validateWhatsAppToken(ch.provider_id, ch.access_token);
+      // M2 FIX: Decrypt and fetch access_token securely on demand using Vault RPC
+      const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: ch.id });
+      const token = tokenData as string;
+
+      if (!token) {
+        console.warn(`[check-channels] Access token missing for channel ${ch.id}`);
+        continue;
+      }
+
+      const validation = await validateWhatsAppToken(ch.provider_id, token);
       if (!validation.ok) {
         await admin
           .from('channels')

@@ -691,7 +691,7 @@ export async function handleGeneratePixCharge(
 
   const admin = createAdminClient();
 
-  const pixKey = "00020101021226830014br.gov.bcb.pix2561api.agendra.com.br/v2/cobv/" + ctx.companyId.replace(/-/g, '').substring(0, 15) + "5802BR5920Agendra Tecnologia6009Sao Paulo62070503***6304" + Math.random().toString(36).substring(2, 6).toUpperCase();
+  const pixKey = "00020101021226830014br.gov.bcb.pix2561api.agendra.site/v2/cobv/" + ctx.companyId.replace(/-/g, '').substring(0, 15) + "5802BR5920Agendra Tecnologia6009Sao Paulo62070503***6304" + Math.random().toString(36).substring(2, 6).toUpperCase();
 
   const { data: tx, error } = await admin
     .from('transactions')

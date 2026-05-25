@@ -61,7 +61,8 @@ export async function POST() {
 
     // 3. Se não tem stripe_customer_id, buscar no Stripe por email
     if (!customerId && user.email) {
-      console.log(`[Stripe Sync] 🔍 Buscando cliente Stripe por email: ${user.email}`);
+      const maskedEmail = user.email.split('@')[0].slice(0, 3) + '***@' + user.email.split('@')[1];
+      console.log(`[Stripe Sync] 🔍 Buscando cliente Stripe por email: ${maskedEmail}`);
       const customers = await stripe.customers.list({
         email: user.email,
         limit: 1,

@@ -22,9 +22,9 @@ export async function exportReportsXlsx(): Promise<string> {
     { data: messages }
   ] = await Promise.all([
     supabase.from("companies").select("name").eq("id", companyId).single(),
-    supabase.from("leads").select("*").eq("company_id", companyId).gte("created_at", since90.toISOString()),
-    supabase.from("events").select("*").eq("company_id", companyId).gte("created_at", since90.toISOString()),
-    supabase.from("messages").select("*").eq("company_id", companyId).gte("created_at", since90.toISOString())
+    supabase.from("leads").select("id, name, phone, status, channel, heat_score, created_at, summary").eq("company_id", companyId).gte("created_at", since90.toISOString()),
+    supabase.from("events").select("id, lead_id, created_at").eq("company_id", companyId).gte("created_at", since90.toISOString()),
+    supabase.from("messages").select("id, lead_id, role, created_at").eq("company_id", companyId).gte("created_at", since90.toISOString())
   ]);
 
   const allLeads = leads ?? [];

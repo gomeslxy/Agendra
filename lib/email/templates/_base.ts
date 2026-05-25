@@ -168,7 +168,7 @@ export function emailWrapper(content: string): string {
 
       <div class="divider"></div>
       <p class="footer" style="margin-top: 24px; margin-bottom: 0;">
-        &copy; 2026 Agendra &middot; <a href="https://agendra.site" style="color: #60A5FA; text-decoration: none; border-bottom: 1px solid rgba(96, 165, 250, 0.3);">agendra.site</a><br/>
+        &copy; 2026 Agendra &middot; <a href="https://www.agendra.site" style="color: #60A5FA; text-decoration: none; border-bottom: 1px solid rgba(96, 165, 250, 0.3);">www.agendra.site</a><br/>
         Voc&ecirc; est&aacute; recebendo porque se cadastrou
       </p>
     </div>

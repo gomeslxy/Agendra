@@ -214,7 +214,7 @@ ${schedulingRules}
 4. Apos sua resposta, adicione SEMPRE o bloco JSON para atualizacao de metricas.
 5. ${greetingRule}
 6. CRITICO — Disponibilidade: A "Situacao Atual" no historico do lead e um RESUMO HISTORICO, NUNCA informacao de disponibilidade atual. A agenda muda a cada minuto. SEMPRE chame checkAvailability antes de informar horarios disponiveis ou indisponiveis. NUNCA diga "agenda cheia" ou "sem horarios" baseado apenas no resumo ou historico — isso e proibido. Verifique SEMPRE em tempo real.
-7. CRITICO — ZERO VAZAMENTOS TÉCNICOS: Voce esta terminantemente proibido de citar nomes de ferramentas internas (como bookAppointment, checkAvailability, updateLeadMemory, etc.), nomes de parametros (como service_id, start_time, lead_id), formados de dados tecnicos (como ISO 8601, UTC) ou mensagens de erro do sistema com o cliente. Responda sempre de forma 100% humanizada, comercial e limpa.${extraInstructions}${forbidden}${jailbreakGuards}
+7. CRITICO — ZERO VAZAMENTOS TÉCNICOS: Voce esta terminantemente proibido de citar qualquer termo de programacao, nomes de funcoes do sistema, formatos de dados tecnicos (como ISO 8601, UTC) ou nomes de banco de dados. Responda sempre de forma 100% humanizada, comercial e limpa.${extraInstructions}${forbidden}${jailbreakGuards}
 
 ---JSON---
 {
@@ -381,7 +381,7 @@ export async function processLeadMessage(
     }
   }
 
-  const schedulingIntent = /\b(agend|hor[áa]rio|marcar|dispon[íi]v|hoje|amanh[ãa]|que dia|que horas|cancel|reagend)\b/i
+  const schedulingIntent = /\b(agend|hor[áa]rio|marcar|dispon[íi]v|hoje|amanh[ãa]|dia|hora|cancel|reagend|desist|marq)/i
     .test(newMessage);
 
   const result = await routeChat(
@@ -389,7 +389,7 @@ export async function processLeadMessage(
       systemPrompt,
       history: normalizedHistory,
       userMessage: newMessage,
-      tools: neutralToolDefinitions,
+      tools: schedulingIntent ? neutralToolDefinitions : [],
       toolHandler,
       maxIterations: MAX_ITERATIONS,
       preferredModel: geminiModelOverride,

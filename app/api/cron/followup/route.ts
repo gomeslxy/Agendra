@@ -13,8 +13,7 @@ function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return false;
   const header = req.headers.get('authorization') ?? '';
-  const query = new URL(req.url).searchParams.get('secret') ?? '';
-  return header === `Bearer ${cronSecret}` || query === cronSecret;
+  return header === `Bearer ${cronSecret}`;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {

@@ -56,6 +56,12 @@ export async function createLead(formData: FormData) {
 
   if (!name || name.length > 200) throw new Error("Nome inválido (máx 200 chars)");
   if (!phone || phone.length > 30) throw new Error("Telefone inválido");
+  
+  const phoneClean = phone.replace(/[\s\-()]/g, "");
+  if (!/^\+?[1-9]\d{7,14}$/.test(phoneClean)) {
+    throw new Error("Telefone inválido (use formato internacional, ex: +5511999998888)");
+  }
+
   if (!VALID_CHANNELS.includes(channel as Channel)) throw new Error("Canal inválido");
   if (source && source.length > 200) throw new Error("Source inválida");
   if (city && city.length > 100) throw new Error("Cidade inválida");
@@ -74,7 +80,7 @@ export async function createLead(formData: FormData) {
   const { error } = await supabase.from("leads").insert({
     company_id: companyId,
     name,
-    phone,
+    phone: phoneClean,
     channel,
     source,
     city,

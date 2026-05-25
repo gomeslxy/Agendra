@@ -8,7 +8,7 @@ export function welcomeEmail(opts: { companyName: string }): string {
       Sua conta Agendra está ativa. Lead novo → reunião marcada. Pronto para começar?
     </p>
 
-    <a href="https://agendra.site/inbox" class="cta-btn">
+    <a href="https://www.agendra.site/inbox" class="cta-btn">
       Abrir Agendra
     </a>
 

@@ -1,4 +1,9 @@
+# *
 User-agent: *
-Disallow: /api/
-Disallow: /private/
+Allow: /
+
+# Host
+Host: https://www.agendra.site
+
+# Sitemaps
 Sitemap: https://www.agendra.site/sitemap.xml

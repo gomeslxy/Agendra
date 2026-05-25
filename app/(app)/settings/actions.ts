@@ -415,11 +415,12 @@ export async function inviteTeamMember(email: string, role: "admin" | "member") 
     throw new Error("Já existe um convite pendente para este e-mail.");
   }
 
-  // Look up if user already exists in auth
-  const { data: allUsers } = await admin.auth.admin.listUsers();
-  const existingUser = allUsers?.users?.find(
-    (u) => u.email?.toLowerCase() === normalizedEmail
-  );
+  // C2 FIX: Query users table directly by email instead of enumerating ALL platform users
+  const { data: existingUser } = await admin
+    .from("users")
+    .select("id, email")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
 
   if (existingUser) {
     // Check if already member
@@ -454,32 +455,44 @@ export async function inviteTeamMember(email: string, role: "admin" | "member") 
     .select("id")
     .single();
 
-  if (inviteErr) throw new Error("Erro ao criar convite: " + inviteErr.message);
+  if (inviteErr) {
+    // M3 FIX: Friendly message for unique constraint violation (concurrent invite race)
+    if ((inviteErr as any)?.code === '23505') throw new Error("Já existe um convite pendente para este e-mail.");
+    throw new Error("Erro ao criar convite: " + inviteErr.message);
+  }
 
   const invitationId = invitation.id;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.agendra.site";
 
   if (existingUser) {
-    // In-app notification — Realtime delivers immediately
-    const { createNotification } = await import("@/lib/notifications/create");
-    const notifId = await createNotification({
-      company_id: companyId,
-      user_id: existingUser.id,
-      type: "invite",
-      title: "Convite para equipe",
-      body: `${inviterName} convidou você para fazer parte de ${companyName} como ${role === "admin" ? "Administrador" : "Membro"}.`,
-      action_url: "/settings",
-      metadata: {
-        invitation_id: invitationId,
-        inviter_name: inviterName,
-        company_name: companyName,
-        role,
-      },
-      priority: "high",
-    });
+    try {
+      // In-app notification — Realtime delivers immediately
+      const { createNotification } = await import("@/lib/notifications/create");
+      const notifId = await createNotification({
+        company_id: companyId,
+        user_id: existingUser.id,
+        type: "invite",
+        title: "Convite para equipe",
+        body: `${inviterName} convidou você para fazer parte de ${companyName} como ${role === "admin" ? "Administrador" : "Membro"}.`,
+        action_url: "/settings",
+        metadata: {
+          invitation_id: invitationId,
+          inviter_name: inviterName,
+          company_name: companyName,
+          role,
+        },
+        priority: "high",
+      });
 
-    if (notifId) {
-      await admin.from("invitations").update({ notification_id: notifId }).eq("id", invitationId);
+      if (notifId) {
+        await admin.from("invitations").update({ notification_id: notifId }).eq("id", invitationId);
+      } else {
+        throw new Error("Falha ao gerar o ID da notificação.");
+      }
+    } catch (notifErr: any) {
+      // Roll back invitation row
+      await admin.from("invitations").delete().eq("id", invitationId);
+      throw new Error("Erro ao criar notificação de convite: " + notifErr.message);
     }
   } else {
     // New user — send email invite with deep link

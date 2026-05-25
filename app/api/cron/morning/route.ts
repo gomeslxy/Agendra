@@ -21,8 +21,7 @@ function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return false;
   const header = req.headers.get('authorization') ?? '';
-  const query = new URL(req.url).searchParams.get('secret') ?? '';
-  return header === `Bearer ${cronSecret}` || query === cronSecret;
+  return header === `Bearer ${cronSecret}`;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -244,12 +243,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // to detect silently expired tokens before they cause message loss.
     const { data: errorChannels } = await admin
       .from('channels')
-      .select('*')
+      .select('id, company_id, provider_id, status, last_error')
       .eq('status', 'error');
 
     const { data: activeChannels } = await admin
       .from('channels')
-      .select('*')
+      .select('id, company_id, provider_id, status, last_error')
       .eq('status', 'active')
       .order('last_seen_at', { ascending: true }) // prioritize longest unseen
       .limit(5); // CRIT-7: validate sample of active channels too
@@ -262,7 +261,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let healthy = 0;
     let broken = 0;
     for (const ch of channelsToCheck) {
-      const validation = await validateWhatsAppToken(ch.provider_id, ch.access_token);
+      const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: ch.id });
+      const token = tokenData as string;
+
+      if (!token) {
+        console.warn(`[morning-cron] Access token missing for channel ${ch.id}`);
+        continue;
+      }
+
+      const validation = await validateWhatsAppToken(ch.provider_id, token);
       if (!validation.ok) {
         await admin.from('channels').update({ status: 'error', updated_at: new Date().toISOString() }).eq('id', ch.id);
         broken++;
