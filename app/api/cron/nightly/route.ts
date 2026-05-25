@@ -15,6 +15,7 @@ import { handleIncomingMessage } from '@/lib/ai/engine';
 import { routeGenerate } from '@/lib/ai/providers/router';
 import { getPlanLimits } from '@/lib/billing/plans';
 import { getCompanyUsage } from '@/lib/billing/limits';
+import { ACTIVE_SUBSCRIPTION_STATUSES } from '@/lib/billing/active-statuses';
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const { data: companies, error: companiesError } = await admin
     .from('companies')
     .select('id, plan_type, subscription_status, persona_config, name, ai_name, ai_tone')
-    .in('subscription_status', ['active', 'trial', 'trialing'])
+    .in('subscription_status', ACTIVE_SUBSCRIPTION_STATUSES)
     .not('subscription_status', 'eq', 'canceled');
 
   if (companiesError) {

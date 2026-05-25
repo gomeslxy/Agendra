@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { triggerAutoFollowUp } from '@/lib/ai/engine';
 import { getPlanLimits } from '@/lib/billing/plans';
 import { getCompanyUsage } from '@/lib/billing/limits';
+import { ACTIVE_SUBSCRIPTION_STATUSES } from '@/lib/billing/active-statuses';
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const { data: activeCompanies, error: companiesError } = await admin
     .from('companies')
     .select('id, name, plan_type, subscription_status, persona_config')
-    .in('subscription_status', ['active', 'trial', 'trialing'])
+    .in('subscription_status', ACTIVE_SUBSCRIPTION_STATUSES)
     .not('subscription_status', 'eq', 'canceled');
 
   if (companiesError) {
