@@ -212,8 +212,25 @@
 - [x] Wave 8 — Cron Free-Tier Fix, Bug Cleanup, UI Polish & Security (✅ Concluído 2026-05-22)
 
 ---
+
+## 🛡️ Fase 6.5: Audit Pass — Pré-Fase 7 (✅ Concluído 2026-05-25)
+> Relatório completo: `obsidian/07 - AUDITORIAS/audit-2026-05-25.md`
+
+- [x] **P0 — SECURITY DEFINER search_path**: `match_knowledge()` + `book_appointment_atomic()` sem `SET search_path` → privilege escalation via schema injection → **migration 046** corrige ambas + REVOKE/GRANT
+- [x] **P1 — RAG VECTOR(1536) vs 768D real**: embeddings corrompidos (zero-padded) → similaridade inválida → **migration 048** migra coluna para `VECTOR(768)`, novo HNSW index, `match_knowledge` atualizado
+- [x] **P1 — RLS deny-all explícito**: `message_buffer` + `dedup_keys` com RLS on mas zero policies → **migration 047** adiciona `deny_all_authenticated` explícito
+- [x] **P1 — Transcribe size limit**: `MAX_AUDIO_SIZE=20MB` vs Whisper 25MB cap + Instagram sem size check → alinhado para 25MB + check de `Content-Length` adicionado
+- [x] **P2 — Cron status filter centralizado**: `ACTIVE_SUBSCRIPTION_STATUSES` constante em `lib/billing/active-statuses.ts`, 3 cron routes atualizadas
+- [x] **Build validation**: `pnpm typecheck` exit 0 + `pnpm build` exit 0 (47 routes)
+- [x] **Confirmados como já implementados**: maxDuration webhook (300s), booking atomic lock, GCal Redis cache, analytics timeout, cron status consistency
+
+**Entry criteria Fase 7 satisfeitos**: SECURITY DEFINER hygiene completa, RAG matematicamente válido, build limpo.
+
+---
 [[visao-geral|⬅️ Voltar]]
 
 - [x] Implementado sistema completo de notificações in-app e convites de equipe (Liquid Glass, Realtime, server actions).
 - [x] **Placeholders Adaptativos & Purga de Nicho**: Auditoria avançada de agnosticismo de nicho (9.8/10 geral) e implementação de placeholders dinâmicos frontend no settings baseando-se no `business_type` cadastrado (Clínicas, Advocacia, Mentorias, etc.), certificando 100% de typecheck e testes passando com sucesso. (Concluído 23/05/2026)
+- [x] **Auditoria de Concorrência, Caching e Rate Limit (Hardening)**: Implementação de procedure PostgreSQL atômica (`book_appointment_atomic`) com bloqueio pessimista para garantir 100% de consistência sob concorrência intensa, migração de cache do Google Calendar para Upstash Redis com hashing SHA-256 seguro de refresh tokens, e blindagem de segurança distribuída contra rate limiter bypasses em rotas de redefinição de senha e OTP. (✅ Concluído 25/05/2026)
+
 

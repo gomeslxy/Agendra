@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomInt } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/send";
 import { passwordResetEmail } from "@/lib/email/templates/password-reset";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimitAsync } from "@/lib/rate-limit";
 
 function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // randomInt is CSPRNG — Math.random() is not safe for security tokens
+  return String(randomInt(100000, 1000000));
 }
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!checkRateLimit(`send-reset:${ip}`, 5, 60_000)) {
+  if (!(await checkRateLimitAsync(`send-reset:${ip}`, 5, 60_000))) {
     return NextResponse.json({ error: "Muitas tentativas. Aguarde 1 minuto." }, { status: 429 });
   }
 

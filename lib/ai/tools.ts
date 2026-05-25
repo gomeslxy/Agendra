@@ -315,52 +315,6 @@ export async function handleBookAppointment(
   if (startTime.getTime() < Date.now()) throw new Error('Não é possível agendar no passado.');
   const endTime = new Date(startTime.getTime() + service.duration * 60000);
 
-  // 2a. Check colisão geral (empresa) — expande janela por buffer_minutes
-  const bufferMs = bufferMinutes * 60_000;
-  const bufferedStart = new Date(startTime.getTime() - bufferMs);
-  const bufferedEnd = new Date(endTime.getTime() + bufferMs);
-  const { data: collision } = await admin
-    .from('events')
-    .select('id')
-    .eq('company_id', ctx.companyId)
-    .neq('status', 'cancelled')
-    .lt('start_time', bufferedEnd.toISOString())
-    .gt('end_time', bufferedStart.toISOString())
-    .maybeSingle();
-
-  if (collision) throw new Error('Este horário acabou de ser ocupado. Por favor, escolha outro.');
-
-  // 2b. Anti-abuso: limite de 3 agendamentos futuros por lead
-  const { count: futureCount } = await admin
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('lead_id', ctx.leadId)
-    .eq('company_id', ctx.companyId)
-    .neq('status', 'cancelled')
-    .gte('start_time', new Date().toISOString());
-
-  if ((futureCount ?? 0) >= 3) {
-    throw new Error('Você já possui 3 agendamentos futuros. Cancele ou conclua algum antes de marcar mais.');
-  }
-
-  // 2c. Anti-duplicidade: mesmo serviço já agendado no mesmo dia
-  const dayStart = new Date(startTime); dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(startTime); dayEnd.setHours(23, 59, 59, 999);
-  const { data: sameDay } = await admin
-    .from('events')
-    .select('id')
-    .eq('lead_id', ctx.leadId)
-    .eq('company_id', ctx.companyId)
-    .eq('service_id', args.service_id)
-    .neq('status', 'cancelled')
-    .gte('start_time', dayStart.toISOString())
-    .lte('start_time', dayEnd.toISOString())
-    .maybeSingle();
-
-  if (sameDay) {
-    throw new Error('Você já tem este mesmo serviço agendado neste dia. Quer reagendar o existente?');
-  }
-
   // 3. Sync GCal & Double-Check External
   const company = coRes.data;
 
@@ -384,52 +338,49 @@ export async function handleBookAppointment(
         throw new Error('Este horário foi ocupado recentemente no calendário externo. Por favor, tente outro.');
       }
 
-        const advanceHours = (company?.persona_config as any)?.reminder_advance_hours ?? 2;
-        const reminderMinutes = advanceHours * 60;
+      const advanceHours = (company?.persona_config as any)?.reminder_advance_hours ?? 2;
+      const reminderMinutes = advanceHours * 60;
 
-        gcalId = await createGoogleCalendarEvent(
-          company.google_refresh_token,
-          company.google_calendar_id ?? 'primary',
-          {
-            title: `${service.name} - ${lead?.name || 'Cliente'}`,
-            start: startTime.toISOString(),
-            end: endTime.toISOString(),
-            description: args.notes || `Agendamento realizado via Agendra AI.\nLead ID: ${ctx.leadId}`,
-            attendeeEmail: lead?.email || undefined,
-            timeZone: (company.persona_config as any)?.timezone,
-            reminderMinutes
-          }
-        );
-      } catch (e: any) {
-        console.error('[Tools] GCal double-check or creation failed:', e.message);
-        if (e.message.includes('calendário externo')) throw e; // Rethrow business error
-        gcalFailed = true;
-      }
+      gcalId = await createGoogleCalendarEvent(
+        company.google_refresh_token,
+        company.google_calendar_id ?? 'primary',
+        {
+          title: `${service.name} - ${lead?.name || 'Cliente'}`,
+          start: startTime.toISOString(),
+          end: endTime.toISOString(),
+          description: args.notes || `Agendamento realizado via Agendra AI.\nLead ID: ${ctx.leadId}`,
+          attendeeEmail: lead?.email || undefined,
+          timeZone: (company.persona_config as any)?.timezone,
+          reminderMinutes
+        }
+      );
+    } catch (e: any) {
+      console.error('[Tools] GCal double-check or creation failed:', e.message);
+      if (e.message.includes('calendário externo')) throw e; // Rethrow business error
+      gcalFailed = true;
     }
+  }
 
-  // 4. Salvar no banco com compensação atômica em caso de falha
+  // 4. Salvar no banco de forma atômica via procedure PL/pgSQL
   let event: any;
   try {
-    const { data, error } = await admin
-      .from('events')
-      .insert({
-        lead_id: ctx.leadId,
-        company_id: ctx.companyId,
-        service_id: args.service_id,
-        title: `${service.name} - ${lead?.name || 'Cliente'}`,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        gcal_event_id: gcalId,
-        gcal_sync_status: gcalFailed ? 'failed' : (gcalId ? 'synced' : null),
-        notes: args.notes,
-        duration_minutes: service.duration,
-        status: 'confirmed'
-      })
-      .select()
-      .single();
+    const { data: rpcRes, error: rpcErr } = await admin.rpc('book_appointment_atomic', {
+      p_lead_id: ctx.leadId,
+      p_company_id: ctx.companyId,
+      p_service_id: args.service_id,
+      p_title: `${service.name} - ${lead?.name || 'Cliente'}`,
+      p_start_time: startTime.toISOString(),
+      p_end_time: endTime.toISOString(),
+      p_gcal_event_id: gcalId,
+      p_notes: args.notes ?? null,
+      p_duration_minutes: service.duration,
+      p_buffer_minutes: bufferMinutes
+    });
 
-    if (error) throw error;
-    event = data;
+    if (rpcErr) throw rpcErr;
+    if (!rpcRes.success) throw new Error(rpcRes.error);
+
+    event = rpcRes.event;
 
     // 5. Agendar Lembrete Automático (antecedência configurável via persona_config)
     try {

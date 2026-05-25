@@ -1,5 +1,42 @@
 # Histórico de Sessões
 
+## Sessão (25/05/2026) — Auditoria Full-Production Pré-Fase 7
+
+**OBJETIVO**: Auditoria completa pós-Fase 6 (Multi-Provider Free Tier) — validar isolamento multi-tenant, SECURITY DEFINER hygiene, RAG dimensionality, rate limiting, booking race, audio transcription, cron consistency. Auto-fixar P0+P1.
+
+### Resultados — 1 P0 + 3 P1 + 1 P2 corrigidos, build limpo, 7 falsos positivos confirmados como já implementados.
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **SECURITY DEFINER** | `match_knowledge()` sem `SET search_path` → privilege escalation via schema injection | Migration 046 redefine com `SET search_path = public, extensions` + REVOKE/GRANT | `supabase/migrations/046_security_definer_search_path.sql` | ✅ P0 Corrigido |
+| **SECURITY DEFINER** | `book_appointment_atomic()` sem `SET search_path` | Mesma migration 046 | `supabase/migrations/046_security_definer_search_path.sql` | ✅ P0 Corrigido |
+| **RAG dimensionality** | Coluna `VECTOR(1536)` com modelo `text-embedding-005` que produz 768D → similaridade corrompida | Migration 048: nova coluna `VECTOR(768)`, HNSW index, `match_knowledge` aceita 768D, clear de embeddings antigos, rename | `supabase/migrations/048_knowledge_embedding_768d.sql` | ✅ P1 Corrigido |
+| **RLS deny-all** | `message_buffer` + `dedup_keys` com RLS on mas 0 policies (safe-by-accident) | Migration 047: `POLICY "deny_all_authenticated" USING (false)` explícito | `supabase/migrations/047_explicit_deny_policies.sql` | ✅ P1 Corrigido |
+| **Transcribe size** | `MAX_AUDIO_SIZE=20MB` vs Whisper 25MB cap; Instagram path sem size check | 20MB→25MB; check `Content-Length` + `buffer.length` no path direto | `lib/ai/transcribe.ts` | ✅ P1 Corrigido |
+| **Cron constants** | Status filter hardcoded em 3 arquivos independentes | `lib/billing/active-statuses.ts` constante centralizada, 3 cron routes atualizadas | `lib/billing/active-statuses.ts`, 3×`app/api/cron/*/route.ts` | ✅ P2 Corrigido |
+| **Build validation** | Garantir zero regressão após todas as mudanças | `pnpm typecheck` exit 0 + `pnpm build` exit 0 | — | ✅ Validado |
+
+**Falsos positivos confirmados como já implementados**: maxDuration webhook (300s), booking atomic lock (migration 045), GCal Redis cache (Upstash SHA-256), analytics timeout (Promise.race 20s), cron status consistency, vercel.json functions block desnecessário.
+
+---
+
+## Sessão (25/05/2026) — Hardening de Concorrência, Caching Distribuído & Blindagem de Segurança
+
+**OBJETIVO**: Auditar de forma sênior o sistema Agendra, aplicando correções cirúrgicas de alta robustez para concorrência (race conditions de agendamento), caching de calendários em arquitetura serverless multi-instância e rate limiting/tokens criptográficos em rotas críticas de autenticação.
+
+### Resultados — 100% de sucesso nos typechecks e conformidade de segurança!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **Atomic Booking** | Potencial race condition (`[RACE-BOOK]`) de ~50ms entre a checagem de colisão e o `INSERT` de novo agendamento de lead no JS. | Criada a procedure PostgreSQL `book_appointment_atomic` que faz os checks e o insert em transação atômica única no banco, usando bloqueio pessimista (`FOR UPDATE`) no nível de empresa. | `supabase/migrations/045_book_appointment_atomic.sql`, `lib/ai/tools.ts` | ✅ Corrigido e Validado |
+| **GCal Caching** | Cache do Google Calendar (`[GCAL-CACHE]`) residia estritamente em Maps in-memory, gerando perda e re-fetches sob concorrência devido à efemeridade de instâncias Vercel. | Migrado o cache de access tokens e free/busy slots para o Upstash Redis de forma compartilhada e distribuída, caindo de volta em Maps locais se Redis off. | `lib/calendar/google.ts` | ✅ Corrigido e Validado |
+| **Token Safety** | Riscos de vazamento ou exposição de refresh tokens nos logs ou chaves Redis ao salvar caches de calendar. | Hashing SHA-256 (`crypto.createHash`) de segurança aplicado a todas as chaves Redis do Google Calendar. | `lib/calendar/google.ts` | ✅ Corrigido e Validado |
+| **Rate Limit Bypasses** | Rotas de reset de senha e envio de link usavam o `checkRateLimit` síncrono local em memória, burlável devido às instâncias serverless. | Substituído pelo método distribuído e assíncrono `checkRateLimitAsync` baseado no Upstash Redis. | `app/api/auth/reset-password/route.ts`, `app/api/auth/send-reset/route.ts` | ✅ Corrigido e Validado |
+| **Secure OTP** | Geração de códigos OTP no reset de senha usava `Math.random()`, o que não é criptograficamente seguro para tokens. | Alterada a geração para usar `randomInt` da biblioteca `"crypto"`. | `app/api/auth/send-reset/route.ts` | ✅ Corrigido e Validado |
+| **Typecheck & Tests** | Garantir que o sistema continua 100% íntegro e type-safe. | Executados `pnpm typecheck` (tsc exit 0) e `pnpm test` (vitest exit 0) com absoluto sucesso. | N/A | ✅ Validado |
+
+---
+
 ## Sessão (25/05/2026) — Testes de Carga Real, Auditoria de Robustez & Setup do Instagram
 
 **OBJETIVO**: Realizar testes reais de simulação de uso intensivo e alta concorrência multiusuário (Teste de Stress), auditar o isolamento de concorrência e o pipeline multi-canal (WhatsApp e Instagram), e assegurar que o setup e token refresh de Instagram Direct estão 100% integrados e livres de bugs.
@@ -12,6 +49,7 @@
 | **Execução de Carga Real** | Simulação falhava localmente devido à falta de injeção de variáveis de ambiente. | Adicionado o import de `dotenv` no cabeçalho do arquivo para ler a configuração correta do Supabase e Redis de `.env.local`. | `scratch/simulate_load.ts` | ✅ Corrigido e Validado |
 | **Isolamento de Concorrência** | Deduplicação atômica de mensagens simultâneas (`claimMessage`) e debounce sob concorrência multiusuário e digitação rápida. | Executada simulação com 100% de sucesso. Deduplicação e buffer de fila finalizados com êxito em ~76ms sob carga real concorrente. | `scratch/simulate_load.ts`, `lib/ai/debounce.ts` | ✅ Auditado e OK |
 | **Instagram Setup Flow** | Auditoria do fluxo de onboarding do Instagram Direct e token exchange / vaulting logic. | Validada a integração do callback OAuth, descriptografia Vault sob demanda via RPC `channel_get_access_token`, e renovação automática de tokens longa duração em `check-channels` cron. | `lib/channels/adapters/instagram-auth.ts`, `app/api/auth/instagram/callback/route.ts`, `app/api/cron/check-channels/route.ts` | ✅ Auditado e OK |
+| **Instagram Config Bug** | A variável de ambiente `NEXT_PUBLIC_META_APP_ID` estava ausente em `.env.local`, quebrando o redirecionamento OAuth com erro no servidor. | Recuperado dinamicamente o App ID real via Graph API debug_token da Meta e adicionado à configuração. | `.env.local`, `.env.example` | ✅ Corrigido e Validado |
 | **Type-Safety & Compilação** | Evitar regressões silenciosas no compilador Next.js. | Executados `pnpm typecheck` (tsc exit 0) e `pnpm test` (21/21 testes vitest passando com sucesso) com absoluto êxito. | N/A | ✅ Validado |
 
 ---

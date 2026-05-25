@@ -16,13 +16,21 @@
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GCAL_API_BASE = 'https://www.googleapis.com/calendar/v3';
 
-// ─── In-Memory Caches (W2.11) ─────────────────────────────────────────────
-// Shared across serverless invocations in the same Node.js process instance.
-// TTLs well within token validity (1h) and freshness requirements.
+import crypto from 'crypto';
+import { redis, isAvailable as isRedisAvailable } from '@/lib/infra/redis';
+
+// Helper to secure refresh tokens against raw exposure in key/logs
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// ─── Distributed and In-Memory Caches (W2.11) ─────────────────────────────────
+// Uses Upstash Redis when available. Falls back to process memory (localMap)
+// inside Serverless environment.
 interface TokenCacheEntry { accessToken: string; expiresAt: number; }
 interface FreeBusyCacheEntry { slots: BusySlot[]; expiresAt: number; }
-const tokenCache = new Map<string, TokenCacheEntry>();
-const freeBusyCache = new Map<string, FreeBusyCacheEntry>();
+const localTokenCache = new Map<string, TokenCacheEntry>();
+const localFreeBusyCache = new Map<string, FreeBusyCacheEntry>();
 
 // ─── OAuth Config ─────────────────────────────────────────────────────────────
 
@@ -46,8 +54,21 @@ function getOAuthConfig() {
  * Chamado antes de qualquer requisição à API do Google Calendar.
  */
 export async function refreshAccessToken(refreshToken: string): Promise<string> {
-  // W2.11: Check in-memory cache (50-minute TTL — well within 1h Google token validity)
-  const cached = tokenCache.get(refreshToken);
+  const tokenHash = hashToken(refreshToken);
+  const cacheKey = `gcal:token:${tokenHash}`;
+
+  // 1. Try distributed Redis cache
+  if (isRedisAvailable()) {
+    try {
+      const cachedToken = await redis.get(cacheKey);
+      if (cachedToken) return cachedToken;
+    } catch (err) {
+      console.warn('[GCal Cache] Redis token get failed, falling back to local memory:', err);
+    }
+  }
+
+  // 2. Fallback to local process cache (50-minute TTL)
+  const cached = localTokenCache.get(refreshToken);
   if (cached && cached.expiresAt > Date.now()) return cached.accessToken;
 
   const { clientId, clientSecret } = getOAuthConfig();
@@ -69,8 +90,20 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
   }
 
   const json = (await res.json()) as { access_token: string };
-  // Store in cache with 50-minute TTL
-  tokenCache.set(refreshToken, { accessToken: json.access_token, expiresAt: Date.now() + 50 * 60 * 1000 });
+  const expiresAt = Date.now() + 50 * 60 * 1000;
+
+  // Store in process cache
+  localTokenCache.set(refreshToken, { accessToken: json.access_token, expiresAt });
+
+  // Store in distributed Redis cache (50-minute TTL = 3000 seconds)
+  if (isRedisAvailable()) {
+    try {
+      await redis.set(cacheKey, json.access_token, 3000);
+    } catch (err) {
+      console.warn('[GCal Cache] Redis token set failed:', err);
+    }
+  }
+
   return json.access_token;
 }
 
@@ -91,9 +124,24 @@ export async function getFreeBusySlots(
   timeMin: string,
   timeMax: string,
 ): Promise<BusySlot[]> {
-  // W2.11: Check in-memory cache (90-second TTL — safe for concurrent lead messages)
-  const cacheKey = `${refreshToken.slice(-8)}:${calendarId}:${timeMin}:${timeMax}`;
-  const cached = freeBusyCache.get(cacheKey);
+  const tokenHash = hashToken(refreshToken);
+  const cacheKey = `gcal:freebusy:${tokenHash}:${calendarId}:${timeMin}:${timeMax}`;
+  const localCacheKey = `${refreshToken.slice(-8)}:${calendarId}:${timeMin}:${timeMax}`;
+
+  // 1. Try distributed Redis cache
+  if (isRedisAvailable()) {
+    try {
+      const cachedData = await redis.get(cacheKey);
+      if (cachedData) {
+        return JSON.parse(cachedData) as BusySlot[];
+      }
+    } catch (err) {
+      console.warn('[GCal Cache] Redis freebusy get failed, falling back to local memory:', err);
+    }
+  }
+
+  // 2. Fallback to local process cache (90-second TTL)
+  const cached = localFreeBusyCache.get(localCacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.slots;
 
   const accessToken = await refreshAccessToken(refreshToken);
@@ -121,8 +169,20 @@ export async function getFreeBusySlots(
   };
 
   const slots = json.calendars[calendarId]?.busy ?? [];
-  // Cache for 90 seconds
-  freeBusyCache.set(cacheKey, { slots, expiresAt: Date.now() + 90 * 1000 });
+  const expiresAt = Date.now() + 90 * 1000;
+
+  // Store in process cache
+  localFreeBusyCache.set(localCacheKey, { slots, expiresAt });
+
+  // Store in distributed Redis cache (90-second TTL)
+  if (isRedisAvailable()) {
+    try {
+      await redis.set(cacheKey, JSON.stringify(slots), 90);
+    } catch (err) {
+      console.warn('[GCal Cache] Redis freebusy set failed:', err);
+    }
+  }
+
   return slots;
 }
 
