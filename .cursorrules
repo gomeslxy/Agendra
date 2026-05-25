@@ -30,11 +30,15 @@ Priority order: 1. Correctness | 2. Safety | 3. Minimal change | 4. Codebase con
 14. **Omnirepo Context**: Use `omnirepo-mcp` and `omnirepo.db` for repository-wide indexing and deep context.
 15. **Environment Awareness**: If `pnpm` or `supabase` are not found, use absolute paths (e.g., `C:\Users\lucas\AppData\Local\pnpm\bin\pnpm.CMD`) or `npx`. `supabase` is now a dev dependency; always use `npx supabase` or `pnpm supabase`.
 
-## 📅 COMPLETION PROTOCOL (EVERY TASK)
-After completing a task, you MUST update:
-- `obsidian/01 - PRODUTO/roadmap.md` (Mark as done/update status).
-- `obsidian/06 - BACKLOG/backlog.md` (Add technical debt or next steps).
-- `obsidian/05 - LOGS/sessions.md` (Summarize what was done).
+## 📅 COMPLETION PROTOCOL (CRITICAL & AUTOMATIC)
+> [!IMPORTANT]
+> **EVERY SINGLE TASK** that modifies code or project state MUST have its Obsidian documentation updated **in the same step/turn**, BEFORE you output your response to the user.
+> Do NOT wait for the user to request documentation or updates. This is absolute.
+
+Update the following files immediately upon any modification:
+- `obsidian/01 - PRODUTO/roadmap.md` (Mark as done/update status)
+- `obsidian/06 - BACKLOG/backlog.md` (Add technical debt or next steps)
+- `obsidian/05 - LOGS/sessions.md` (Summarize what was done)
 
 ## 💎 Liquid Glass Design System
 - **Philosophy**: Premium, transparent, animated, responsive.

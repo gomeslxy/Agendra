@@ -54,8 +54,8 @@ export function TermosContent() {
           <li>Toda atividade realizada sob sua conta é de sua responsabilidade.</li>
           <li>
             Notifique-nos imediatamente em caso de acesso não autorizado:{" "}
-            <a href="mailto:suporte@agendra.app" className="text-blue-400 hover:underline">
-              suporte@agendra.app
+            <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+              la181009@gmail.com
             </a>
             .
           </li>
@@ -139,8 +139,8 @@ export function TermosContent() {
       <Section title="12. Contato">
         <p>
           Dúvidas sobre estes Termos:{" "}
-          <a href="mailto:juridico@agendra.app" className="text-blue-400 hover:underline">
-            juridico@agendra.app
+          <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+            la181009@gmail.com
           </a>
         </p>
       </Section>
@@ -167,8 +167,8 @@ export function PrivacidadeContent() {
         </p>
         <p>
           DPO (Encarregado de Proteção de Dados):{" "}
-          <a href="mailto:dpo@agendra.app" className="text-blue-400 hover:underline">
-            dpo@agendra.app
+          <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+            la181009@gmail.com
           </a>
         </p>
       </Section>
@@ -291,8 +291,8 @@ export function PrivacidadeContent() {
         </ul>
         <p>
           Solicite via{" "}
-          <a href="mailto:dpo@agendra.app" className="text-blue-400 hover:underline">
-            dpo@agendra.app
+          <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+            la181009@gmail.com
           </a>
           . Respondemos em até 15 dias úteis.
         </p>
@@ -324,8 +324,8 @@ export function PrivacidadeContent() {
       <Section title="10. Contato">
         <p>
           <strong className="text-white/80">DPO:</strong>{" "}
-          <a href="mailto:dpo@agendra.app" className="text-blue-400 hover:underline">
-            dpo@agendra.app
+          <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+            la181009@gmail.com
           </a>{" "}
           — resposta em até 15 dias úteis.
         </p>

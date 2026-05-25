@@ -1,5 +1,19 @@
 # Histórico de Sessões
 
+## Sessão (25/05/2026) — Purga Técnica de E-mails com Domínio Legado (@agendra)
+
+**OBJETIVO**: Realizar a varredura e a purga de todos os endereços de e-mail que usavam o domínio legado `@agendra.app` (em páginas institucionais de Termos de Uso, Política de Privacidade e DPO) e direcioná-los para o e-mail oficial do usuário (`la181009@gmail.com`), além de validar a compilação e testes da aplicação.
+
+### Resultados — 100% de sucesso nas compilações e testes de regressão!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **E-mails nos Termos & Privacidade** | Endereços de e-mail institucionais usavam o domínio antigo `@agendra.app` (`suporte@agendra.app`, `juridico@agendra.app` e `dpo@agendra.app`). | Substituídos todos os e-mails e links `mailto:` para o e-mail real do usuário `la181009@gmail.com`. | `components/legal/legal-content.tsx` | ✅ Corrigido e Validado |
+| **Página de Contato** | O e-mail de contato em `app/contato/page.tsx` estava estático sem link clicável para envio. | Transformado em link clicável dinâmico com estilo de transição premium hover para melhor experiência do usuário (UX). | `app/contato/page.tsx` | ✅ Melhorado e Validado |
+| **Validação Geral** | Garantir que o projeto continua type-safe e com todos os testes passando. | Executados `pnpm typecheck` (tsc exit 0) e `pnpm test` (21/21 testes passando com 100% de sucesso). | N/A | ✅ Validado |
+
+---
+
 ## Sessão (25/05/2026) — Blindagem Cirúrgica de Segurança (Resíduos de Auditoria)
 
 **OBJETIVO**: Sanar resíduos de segurança e validação identificados em `imperative-waddling-lightning.md`, abrangendo whitelists de colunas em exports de relatórios e convites de time, sanitização de PII em logs de produção e validação/normalização de celular (E.164) em leads.

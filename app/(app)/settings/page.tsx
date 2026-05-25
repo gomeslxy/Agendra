@@ -62,7 +62,7 @@ export default async function SettingsPage() {
       .eq("company_id", companyId),
     supabase
       .from("services")
-      .select("*")
+      .select("id, company_id, name, description, duration, price, active, is_paused, created_at, updated_at")
       .eq("company_id", companyId)
       .eq("active", true)
       .order("name"),
@@ -90,7 +90,7 @@ export default async function SettingsPage() {
       .limit(15),
     supabase
       .from("webhook_subscriptions")
-      .select("*")
+      .select("id, url, event_types, secret, label, is_active, created_at, last_fired_at, last_error")
       .eq("company_id", companyId),
     supabase
       .from("invitations")

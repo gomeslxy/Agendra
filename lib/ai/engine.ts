@@ -730,7 +730,7 @@ export async function handleIncomingMessage(
   const historyLimit = usage.limits.hasAdvancedModel ? 20 : 10;
   const { data: historyRaw } = await admin
     .from('messages')
-    .select('*')
+    .select('id, role, content, created_at, metadata')
     .eq('lead_id', activeLead.id)
     .eq('company_id', companyId) // ALWAYS filter by company_id!
     .order('created_at', { ascending: false })
@@ -741,7 +741,7 @@ export async function handleIncomingMessage(
   // Reliable first-response check: query count directly, not from the windowed history
   const { count: assistantTotal } = await admin
     .from('messages')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('lead_id', activeLead.id)
     .eq('company_id', companyId) // ALWAYS filter by company_id!
     .eq('role', 'assistant');
@@ -1119,7 +1119,7 @@ export async function triggerAutoFollowUp(leadId: string, preloadedUsage?: Compa
   const company = lead.companies as any;
   const { data: messages } = await admin
     .from('messages')
-    .select('*')
+    .select('id, role, content, created_at')
     .eq('lead_id', leadId)
     .eq('company_id', lead.company_id) // ALWAYS filter by company_id!
     .order('created_at', { ascending: false })

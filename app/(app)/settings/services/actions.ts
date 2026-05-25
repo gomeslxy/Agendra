@@ -9,7 +9,7 @@ export async function getServices(companyId: string) {
 
   const { data, error } = await supabase
     .from("services")
-    .select("*")
+    .select("id, company_id, name, description, duration, price, active, is_paused, created_at, updated_at")
     .eq("company_id", companyId)
     .eq("active", true)
     .order("name")

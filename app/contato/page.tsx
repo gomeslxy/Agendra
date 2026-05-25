@@ -124,7 +124,9 @@ export default function ContatoPage() {
                   </div>
                   <div>
                     <CardTitle className="text-base">E-mail</CardTitle>
-                    <CardDescription className="font-medium text-white/80">la181009@gmail.com</CardDescription>
+                    <CardDescription className="font-medium text-white/80 hover:text-white transition-colors">
+                      <a href="mailto:la181009@gmail.com">la181009@gmail.com</a>
+                    </CardDescription>
                   </div>
                 </CardHeader>
               </Card>

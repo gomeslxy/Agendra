@@ -142,6 +142,7 @@
 - [x] **Auditoria e Correção de Domínio**: Varredura técnica e correção de menções a domínios legados ou incorretos em sitemaps, emails e payloads de simulação para o domínio oficial correto `https://www.agendra.site`. (✅ Concluído 24/05/2026)
 - [x] **Auditoria Sênior de Segurança & Resiliência (Hardening)**: Varredura profunda e correção de 25 vulnerabilidades e bugs (C1-C3, H1-H7, M1-M9, L1-L6) abrangendo vazamento de dados, IDORs, multi-tenant leaks em notificações, token decryption on-demand via Vault, chunking de bulk inserts, e eliminação de fallbacks inseguros de cron secrets. (✅ Concluído 25/05/2026)
 - [x] **Blindagem Cirúrgica de Segurança (Resíduos de Auditoria)**: Whitelist de colunas no exportador XLSX de relatórios e convites de time, trimming, empty checking e length checks em `sendNote` (inbox), purga de logs com PII e validação/normalização de telefone E.164 no leads. (✅ Concluído 25/05/2026)
+- [x] **Auditoria de E-mails Legados**: Purga completa de referências a e-mails com o domínio antigo `@agendra.app` nos Termos de Uso, Política de Privacidade e DPO para o e-mail real do usuário (`la181009@gmail.com`). (✅ Concluído 25/05/2026)
 - [ ] **Multi-channel**: Preparação para Instagram & Messenger.
 - [x] **Analytics**: Dashboard de performance de conversão e BI avançado.
 

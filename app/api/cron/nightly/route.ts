@@ -111,19 +111,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const businessName = company.name ?? 'nossa empresa';
         const customHook = pc.reactivation_hook ?? '';
 
+        // Batch: fetch all leads reactivated in the last 72h in a single query (avoids N+1)
+        const recentCutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+        const eligibleLeadIds = eligibleLeads.map((l) => l.id);
+        const { data: recentReactivations } = await admin
+          .from('automation_events')
+          .select('lead_id')
+          .eq('company_id', company.id)
+          .eq('type', 'reactivation_sent')
+          .gte('created_at', recentCutoff)
+          .in('lead_id', eligibleLeadIds);
+        const recentlyReactivatedSet = new Set(recentReactivations?.map((r) => r.lead_id) ?? []);
+
         for (const lead of eligibleLeads) {
           try {
-            // Guard against duplicate reactivation within the last 72h
-            const recentCutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
-            const { count: recentCount } = await admin
-              .from('automation_events')
-              .select('id', { count: 'exact', head: true })
-              .eq('lead_id', lead.id)
-              .eq('company_id', company.id)
-              .eq('type', 'reactivation_sent')
-              .gte('created_at', recentCutoff);
-
-            if ((recentCount ?? 0) > 0) continue;
+            if (recentlyReactivatedSet.has(lead.id)) continue;
 
             // Generate personalized re-engagement message via multi-provider BG chain
             const firstName = lead.name?.split(' ')[0] ?? lead.name ?? 'cliente';
