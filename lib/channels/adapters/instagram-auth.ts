@@ -18,9 +18,9 @@ function getRedirectUri() {
  * Generates the Facebook OAuth dialog URL to authenticate page and messaging scopes.
  */
 export function getInstagramOAuthUrl(companyId: string): string {
-  const appId = process.env.NEXT_PUBLIC_META_APP_ID;
+  const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
   if (!appId) {
-    throw new Error('NEXT_PUBLIC_META_APP_ID is not configured.');
+    throw new Error('NEXT_PUBLIC_INSTAGRAM_APP_ID is not configured.');
   }
 
   const redirectUri = getRedirectUri();
@@ -41,8 +41,8 @@ export async function exchangeCodeForInstagramChannel(
   code: string,
   companyId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const appId = process.env.NEXT_PUBLIC_META_APP_ID;
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
+  const appSecret = process.env.INSTAGRAM_APP_SECRET;
 
   if (!appId || !appSecret) {
     return { success: false, error: 'Configuração da Meta (App ID ou Secret) ausente no servidor.' };
@@ -207,8 +207,8 @@ export async function refreshInstagramLongLivedToken(
   channelId: string,
   currentToken: string
 ): Promise<{ success: boolean; token?: string; error?: string }> {
-  const appId = process.env.NEXT_PUBLIC_META_APP_ID;
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
+  const appSecret = process.env.INSTAGRAM_APP_SECRET;
 
   if (!appId || !appSecret) {
     return { success: false, error: 'Configuração da Meta (App ID ou Secret) ausente no servidor.' };
