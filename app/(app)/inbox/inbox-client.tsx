@@ -872,18 +872,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  variant={!isPaused ? "secondary" : "blue"}
-                  size="sm"
-                  className={cn(
-                    "h-8 rounded-lg px-3 text-[11px] font-black uppercase tracking-wider transition-all",
-                    isPaused && "shadow-glow-blue/20"
-                  )}
-                  disabled={takePending}
-                  onClick={!isPaused ? handleTakeOver : handleAutomatize}
-                >
-                  {takePending ? "…" : !isPaused ? "Assumir" : "Automatizar"}
-                </Button>
+                <ControlModeDropdown compact />
                 <div className="hidden sm:block">
                   <ToneDropdown compact />
                 </div>

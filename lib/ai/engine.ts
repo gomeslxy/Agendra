@@ -1032,16 +1032,25 @@ export async function handleIncomingMessage(
       const statusChanged = aiResult.status !== activeLead.status;
       const isFirstAssistantMsg = safeCount === 1; // we just inserted one
       const cadenceTrigger = safeCount > 0 && safeCount % cadenceN === 0;
-      const eventTrigger = isFirstAssistantMsg || statusChanged || calledMeaningfulTool;
+
+      // Smart cognitive/content triggers to override cadence on high-value interactions
+      const userMsgLower = messageText.toLowerCase();
+      const isLongMessage = messageText.length > 150;
+      const containsCriticalKeywords = /\b(pre[çc]o|valor|caro|desconto|pagar|pagamento|pix|cart[ãa]o|boleto|custo|gr[áa]tis|contrato|ruim|errado|problema|reclama|suporte|humano|atendente|falar|pessoa|funciona|dif[íi]cil|p[ée]ssimo|odiei|cancelar|mudar|alterar|d[úu]vida|pergunta|como fa[çc]o)\b/i.test(userMsgLower);
+      const isComplexTurn = isLongMessage || containsCriticalKeywords;
+
+      const eventTrigger = isFirstAssistantMsg || statusChanged || calledMeaningfulTool || isComplexTurn;
 
       void cadence; // silence unused — kept for backwards-compat comment
 
       if (cadenceTrigger || eventTrigger) {
         const reason = eventTrigger
-          ? (isFirstAssistantMsg ? 'first_msg' : statusChanged ? `status:${activeLead.status}->${aiResult.status}` : 'tool_call')
+          ? (isFirstAssistantMsg ? 'first_msg' : statusChanged ? `status:${activeLead.status}->${aiResult.status}` : calledMeaningfulTool ? 'tool_call' : 'cognitive_trigger')
           : `cadence_${cadenceN}`;
 
-        void (async () => {
+        // Await the background analytics promise to prevent premature serverless platform suspension.
+        // Latency is not affected since sendChannelMessage has already completed and returned!
+        await (async () => {
           try {
             const recentHistory = historyList.slice(-5);
             const analyticsTimeout = new Promise<never>((_, reject) =>
@@ -1134,7 +1143,7 @@ export async function handleIncomingMessage(
 
             console.log(`[AI Engine] Mente da IA log gravado (reason=${reason}).`);
           } catch (e) {
-            console.error('[AI Engine] Background analytics failed (non-blocking):', e);
+            console.error('[AI Engine] Background analytics failed:', e);
           }
         })();
       }
@@ -1263,7 +1272,7 @@ Mensagem de follow-up:`;
       .eq('company_id', lead.company_id);
 
     // Registrar no feed de automações (silencioso — falha não interrompe)
-    admin.from('automation_events').insert({
+    await admin.from('automation_events').insert({
       company_id: lead.company_id,
       lead_id: lead.id,
       type: 'followup_sent',

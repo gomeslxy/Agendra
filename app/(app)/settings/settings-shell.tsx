@@ -3301,10 +3301,10 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
   const [liveLogs, setLiveLogs] = useState<AiDecisionLog[]>(logs);
   const [pulseId, setPulseId] = useState<string | null>(null);
 
-  // Realtime subscription — only Business tier gets live updates (Pro relies on refresh
-  // to keep payload light; both tiers still see the same persisted data).
+  // Realtime subscription — enabled for both Pro and Business tiers!
+  // (Starter/Trial are already blocked by the outer FeatureGate wrapper).
   useEffect(() => {
-    if (!companyId || !isBusiness) return;
+    if (!companyId) return;
 
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -3320,10 +3320,44 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
           const row = payload.new as AiDecisionLog & { company_id?: string };
           // Defensive: drop anything that slipped past the RLS/filter
           if ((row as any).company_id && (row as any).company_id !== companyId) return;
+
           setLiveLogs((prev) => {
             if (prev.some((l) => l.id === row.id)) return prev;
-            return [row, ...prev].slice(0, 100);
+
+            // Resolve name from existing state if available
+            const existingLeadName = prev.find((l) => l.lead_id === row.lead_id)?.leads?.[0]?.name;
+            const leadsObj = existingLeadName ? [{ name: existingLeadName }] : null;
+
+            const newLog: AiDecisionLog = {
+              ...row,
+              leads: leadsObj
+            };
+
+            // If name is not cached, fetch asynchronously from Supabase
+            if (!leadsObj) {
+              supabase
+                .from('leads')
+                .select('name')
+                .eq('id', row.lead_id)
+                .single()
+                .then(({ data, error }) => {
+                  if (error) {
+                    console.error("[LogsView] Failed to resolve lead name:", error);
+                    return;
+                  }
+                  if (data?.name) {
+                    setLiveLogs((current) =>
+                      current.map((l) =>
+                        l.id === row.id ? { ...l, leads: [{ name: data.name }] } : l
+                      )
+                    );
+                  }
+                });
+            }
+
+            return [newLog, ...prev].slice(0, 100);
           });
+
           setPulseId(row.id);
           setTimeout(() => setPulseId(null), 1500);
         },
@@ -3333,7 +3367,7 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [companyId, isBusiness]);
+  }, [companyId]);
 
   const visibleLogs = liveLogs.slice(0, visibleCount);
   const triggerHint = isBusiness

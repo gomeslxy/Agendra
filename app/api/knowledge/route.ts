@@ -77,17 +77,11 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
   }
 
   if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    // Para DOCX: extrair texto simples removendo XML tags
-    // Uma abordagem leve sem dependência extra
-    const content = buffer.toString('utf-8');
-    // Extrair texto dos elementos w:t do XML do docx
-    const textMatches = content.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) ?? [];
-    const text = textMatches
-      .map((m) => m.replace(/<[^>]+>/g, ''))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return text || buffer.toString('utf-8').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    // Para DOCX: extração robusta usando a biblioteca mammoth (pure JS, segura e rápida para serverless)
+    const mammothModule = await import('mammoth');
+    const mammoth = mammothModule.default || mammothModule;
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value;
   }
 
   throw new Error(`Tipo de arquivo não suportado: ${mimeType}`);
