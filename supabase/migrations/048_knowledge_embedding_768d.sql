@@ -26,7 +26,25 @@ CREATE INDEX IF NOT EXISTS company_knowledge_hnsw_768_idx
   ON public.company_knowledge
   USING hnsw (embedding_768 vector_cosine_ops);
 
--- Step 4: Update match_knowledge to query embedding_768
+-- Step 5: Clear corrupt 1536D embeddings (zeros-padded, invalid for cosine similarity)
+-- Knowledge content is preserved; only the corrupt embedding vectors are cleared.
+-- The app re-embeds rows where embedding IS NULL on next RAG context build.
+UPDATE public.company_knowledge SET embedding = NULL WHERE embedding IS NOT NULL;
+
+-- Step 6: Rename old column to mark as deprecated (keep for rollback safety 30 days)
+ALTER TABLE public.company_knowledge
+  RENAME COLUMN embedding TO embedding_1536_deprecated;
+
+ALTER TABLE public.company_knowledge
+  RENAME COLUMN embedding_768 TO embedding;
+
+-- Update HNSW index name to match new column name
+DROP INDEX IF EXISTS company_knowledge_hnsw_768_idx;
+CREATE INDEX IF NOT EXISTS company_knowledge_hnsw_idx
+  ON public.company_knowledge
+  USING hnsw (embedding vector_cosine_ops);
+
+-- Step 4: Update match_knowledge to query embedding (now VECTOR(768))
 CREATE OR REPLACE FUNCTION public.match_knowledge(
   p_company_id UUID,
   p_embedding VECTOR(768),
@@ -46,33 +64,15 @@ BEGIN
   SELECT
     k.id,
     k.content,
-    1 - (k.embedding_768 <=> p_embedding) AS similarity
+    1 - (k.embedding <=> p_embedding) AS similarity
   FROM public.company_knowledge k
   WHERE k.company_id = p_company_id
-    AND k.embedding_768 IS NOT NULL
-    AND 1 - (k.embedding_768 <=> p_embedding) > p_match_threshold
-  ORDER BY k.embedding_768 <=> p_embedding
+    AND k.embedding IS NOT NULL
+    AND 1 - (k.embedding <=> p_embedding) > p_match_threshold
+  ORDER BY k.embedding <=> p_embedding
   LIMIT p_match_count;
 END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.match_knowledge(UUID, VECTOR, FLOAT, INT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.match_knowledge(UUID, VECTOR, FLOAT, INT) TO service_role;
-
--- Step 5: Clear corrupt 1536D embeddings (zeros-padded, invalid for cosine similarity)
--- Knowledge content is preserved; only the corrupt embedding vectors are cleared.
--- The app re-embeds rows where embedding_768 IS NULL on next RAG context build.
-UPDATE public.company_knowledge SET embedding = NULL WHERE embedding IS NOT NULL;
-
--- Step 6: Rename old column to mark as deprecated (keep for rollback safety 30 days)
-ALTER TABLE public.company_knowledge
-  RENAME COLUMN embedding TO embedding_1536_deprecated;
-
-ALTER TABLE public.company_knowledge
-  RENAME COLUMN embedding_768 TO embedding;
-
--- Update HNSW index name to match new column name
-DROP INDEX IF EXISTS company_knowledge_hnsw_768_idx;
-CREATE INDEX IF NOT EXISTS company_knowledge_hnsw_idx
-  ON public.company_knowledge
-  USING hnsw (embedding vector_cosine_ops);

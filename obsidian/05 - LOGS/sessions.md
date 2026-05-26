@@ -1,5 +1,88 @@
 # Histórico de Sessões
 
+## Sessão (25/05/2026) — Mente da IA Revival: Root Cause + Smart Logging + Realtime (Fase 6.6)
+
+**OBJETIVO**: Investigar profundamente por que a feature `/settings?tab=logs` ("Mente da IA" / Explainability) parou de funcionar, identificar root cause real (não apenas sintoma), refatorar para sistema inteligente plan-aware com gate event-driven, e adicionar atualização em tempo real com isolamento multi-tenant.
+
+### Diagnóstico — 5 root causes concorrentes
+
+| # | Causa | Impacto | Evidência |
+|---|---|---|---|
+| 1 | `leads.last_sentiment` era `TEXT` com CHECK enum (migration 019), engine escrevia `FLOAT` -1..1 | Supabase-js retorna `{error}` em violação de CHECK em vez de throw — engine continuava mas em ambiente onde a IIFE catch englobava tudo, o INSERT no `ai_decision_logs` ainda passava. **Mas** sentiment nunca persistia no lead. | `information_schema.columns` mostrava `last_sentiment: text` mesmo após migration 035 que era no-op (`IF NOT EXISTS` + col já existia) |
+| 2 | `leads.last_sentiment_at` jamais criada | Mesma causa do #1 — 035 silenciosamente skipped a coluna inteira | Query SQL `\"column last_sentiment_at does not exist\"` em produção |
+| 3 | Gate `safeCount > 0 && safeCount % 5 === 0` hardcoded | Logs só nasciam exatamente na assistant msg #5, #10, #15. **Pulava agendamentos, mudanças de status, primeira interação**. Para uma empresa com 4 mensagens/lead na média, nunca gerava log. | Última entrada em `ai_decision_logs`: 2026-05-23 02:45 (2 dias zerado mesmo com Business ativo) |
+| 4 | UI `FeatureGate requiredPlan="business"` mas server fetch usava `hasAnalytics` (Pro+Business) | Cliente Pro pagava analytics, IA gerava logs, UI mostrava blur de upgrade. Desperdício de tokens + UX confusa. | settings-shell.tsx:345 vs settings/page.tsx:29 |
+| 5 | `ai_decision_logs` fora de `supabase_realtime` publication | Página server-rendered sem subscription — usuário precisava recarregar para ver novos logs. | `SELECT * FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='ai_decision_logs'` retornava vazio |
+
+### Resultados — 7 correções, 0 regressões, 100% type-safe
+
+| Área | Mudança Aplicada | Arquivos | Status |
+|---|---|---|---|
+| **Schema sentiment** | Migration 049: DROP CONSTRAINT enum, RENAME `last_sentiment TEXT → last_sentiment_label` (preserva forense), ADD `last_sentiment NUMERIC(3,2)` + `last_sentiment_at TIMESTAMPTZ` + 2 indexes | `supabase/migrations/049_mente_da_ia_hardening.sql` | ✅ Aplicada em prod via MCP |
+| **Realtime publication** | Migration 050: ALTER PUBLICATION supabase_realtime ADD TABLE ai_decision_logs (RLS já isola por company_id) | `supabase/migrations/050_ai_decision_logs_realtime.sql` | ✅ Aplicada |
+| **Smart gate engine** | Gate plan-aware (Business=5, Pro=10) + event triggers OVERRIDE (booking/cancel/reschedule/payment/human-agent OR primeira assistant msg OR status transition). Trial/Starter nunca. Cada turno classifica razão em `automation_events.payload.reason` para auditoria. | `lib/ai/engine.ts` (bloco analytics 100% reescrito) | ✅ |
+| **Decoupling writes** | UPDATE memory, UPDATE sentiment e INSERT log agora 3 writes independentes — falha em 1 coluna não derruba o log. Sentiment clamp `Math.max(-1, Math.min(1, x))`. | `lib/ai/engine.ts` | ✅ |
+| **UI plan gate** | `FeatureGate` baixado de `business` para `pro` (alinhado com `hasAnalytics`). Pro vê 30 logs (refresh manual), Business vê 50 + realtime. | `app/(app)/settings/settings-shell.tsx` | ✅ |
+| **Realtime subscription** | Channel `mente-da-ia-${companyId}` com filtro `company_id=eq.X`, dedupe por id, pulse animation 1.5s (border teal glow) no novo log. Defensive: drop se row.company_id divergir. | `app/(app)/settings/settings-shell.tsx` (LogsView) | ✅ |
+| **Empty state honesto** | Explica triggers reais ("primeira mensagem, agendamento, cancelamento, mudança de status, a cada N respostas") + plan-tier do usuário | `app/(app)/settings/settings-shell.tsx` | ✅ |
+| **Validação** | `pnpm typecheck` exit 0, `pnpm test` 21/21 vitest, `pnpm build` 47 routes OK, RLS confirmada via `pg_policy` (2 policies SELECT+INSERT com `get_my_company_ids()`) | — | ✅ |
+
+### Como o sistema agora decide logar (algoritmo final)
+
+```
+SE planType ∈ {trial, starter}: NUNCA loga.
+SENÃO:
+  cadenceN = (planType === 'business') ? 5 : 10
+  cadenceTrigger  = (assistantCount % cadenceN === 0)
+  eventTrigger    = (1ª assistant msg) OR
+                    (status transition: cold→warm→hot→success) OR
+                    (tool ∈ {bookAppointment, cancelAppointment, rescheduleAppointment,
+                             requestHumanAgent, generatePixCharge, checkPaymentStatus})
+  SE cadenceTrigger OR eventTrigger:
+    roda processBackgroundAnalytics (timeout 20s)
+    grava ai_decision_logs com razão (first_msg | status:X->Y | tool_call | cadence_N)
+    publica automation_events analytics_processed com payload.reason
+```
+
+### Cobertura multi-tenant validada
+
+- RLS `ai_decision_logs`: 2 policies (`SELECT own company`, `INSERT own company`) via `get_my_company_ids()`.
+- Realtime herda RLS (Supabase enforce em subscription).
+- Subscription filtra `company_id=eq.X` + double-check defensivo no callback.
+- Server query `.eq('company_id', companyId)` + RLS dupla defesa.
+
+### Custo & performance
+
+- Trial/Starter: **0** chamadas analytics (eram 0 antes via gate `hasAnalytics`, agora explicitamente).
+- Pro: cadência 10 + eventos críticos. Em conversa de 5 turnos com booking, ~2 chamadas analytics (antes: 0 ou 1 dependendo de ser múltiplo de 5).
+- Business: cadência 5 + eventos críticos. Para conversa típica de 7 turnos com booking, ~2-3 chamadas (mesma ordem de antes, mas distribuídas em pontos de inflexão e não no acaso do módulo 5).
+
+### Arquivos afetados
+
+- `supabase/migrations/049_mente_da_ia_hardening.sql` (novo, 60 linhas)
+- `supabase/migrations/050_ai_decision_logs_realtime.sql` (novo, 12 linhas)
+- `lib/ai/engine.ts` (bloco linhas ~1003-1095 reescrito, +60 linhas líquidas)
+- `app/(app)/settings/page.tsx` (limit plan-aware: Business 50, Pro 30)
+- `app/(app)/settings/settings-shell.tsx` (FeatureGate `pro`, LogsView com realtime + pulse + plan hint)
+- `obsidian/01 - PRODUTO/roadmap.md` (Fase 6.6)
+- `obsidian/06 - BACKLOG/backlog.md` (Closed 6.6)
+
+---
+
+## Sessão (25/05/2026) — Verificação & Hardening de Auditoria Paralela e Teia de Regressões
+
+**OBJETIVO**: Auditar a integridade da mesclagem de auditorias paralelas de produção (CTO agent & Antigravity), corrigir conflitos lógicos ou de timing em migrations estruturais de banco de dados (RAG vector dimensions e renames), e aplicar proteções de runtime do webhook Stripe contra TypeErrors catastróficos em planos ou subscriptions vazias.
+
+### Resultados — 100% de sucesso na integridade do código e na blindagem de produção!
+
+| Área | Problema Encontrado | Mudança Aplicada | Arquivos Afetados | Status |
+|---|---|---|---|---|
+| **SQL/RAG Migration** | Conflito de tempo na Migration 048: a função `match_knowledge` era recriada com `embedding_768` antes da coluna ser renomeada para `embedding`, gerando falhas catastróficas ao tentar usá-la no backend. | Reordenado e corrigido o script de migração `048_knowledge_embedding_768d.sql` para definir a função usando a coluna final `embedding` após os renames correspondentes. | `supabase/migrations/048_knowledge_embedding_768d.sql` | ✅ Corrigido |
+| **Stripe Webhook** | Risco de `TypeError: Cannot read properties of undefined (reading 'price')` se o array `items.data` estiver vazio na criação de sessão checkout. | Adicionado encadeamento opcional seguro (`item0?.price?.id`) na extração de plano a partir do preço. | `app/api/stripe/webhook/route.ts` | ✅ Corrigido |
+| **Integração Paralela** | Medo do usuário sobre sobrescritas ou quebras devido à execução paralela de duas auditorias. | Realizado typecheck (`pnpm typecheck` exit 0), testes unitários (`pnpm test` com 21/21 passando) e inspeção de commits. Ambos os conjuntos de melhorias estão totalmente presentes e sem conflitos. | Geral | ✅ Validado |
+
+---
+
 ## Sessão (25/05/2026) — Auditoria Full-Production Pré-Fase 7
 
 **OBJETIVO**: Auditoria completa pós-Fase 6 (Multi-Provider Free Tier) — validar isolamento multi-tenant, SECURITY DEFINER hygiene, RAG dimensionality, rate limiting, booking race, audio transcription, cron consistency. Auto-fixar P0+P1.

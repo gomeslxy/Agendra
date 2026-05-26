@@ -213,6 +213,34 @@
 
 ---
 
+## 🧠 Fase 6.6: Mente da IA — Revival & Smart Logging (✅ Concluído 2026-05-25)
+> Feature `/settings?tab=logs` (Explainability/Cognitive Audit) parou de gerar logs entre 23/05 e 25/05. Auditoria profunda, refatoração para logging inteligente e realtime.
+
+- [x] **Root cause #1 — Schema mismatch silencioso**: `leads.last_sentiment` era `TEXT` com `CHECK IN ('positive','neutral','frustrated','aggressively_cold')` (migration 019). Engine escrevia `FLOAT` (-1..1). `IF NOT EXISTS` da migration 035 era no-op porque a coluna já existia. UPDATE via supabase-js retornava `{error}` ao invés de throw → engine continuava, mas a IIFE catch englobava silenciosamente todas as falhas em produção.
+- [x] **Root cause #2 — Coluna `last_sentiment_at` jamais criada**: mesma causa do #1, migration 035 silenciosamente skipped.
+- [x] **Root cause #3 — Gate hard-coded `% 5`**: cadência fixa, não event-driven. Logs só nasciam exatamente em assistant msg #5, #10, #15... Pulava agendamentos, mudanças de status, primeira interação.
+- [x] **Root cause #4 — UI gate mismatch**: server fetch usava `hasAnalytics` (Pro+Business), UI bloqueava com `FeatureGate requiredPlan="business"`. Pro pagava por analytics e via blur de upgrade.
+- [x] **Root cause #5 — Sem realtime**: `ai_decision_logs` fora do `supabase_realtime` publication. Página server-rendered, usuário precisava recarregar.
+- [x] **Migration 049**: `DROP CONSTRAINT leads_last_sentiment_check` + `RENAME` coluna TEXT → `last_sentiment_label` (preserva histórico) + `ADD COLUMN last_sentiment NUMERIC(3,2)` + `ADD COLUMN last_sentiment_at TIMESTAMPTZ` + indexes.
+- [x] **Migration 050**: `ALTER PUBLICATION supabase_realtime ADD TABLE ai_decision_logs` (RLS já garante isolamento multi-tenant em realtime).
+- [x] **Engine smart gating**: gate event-driven (booking/cancel/reschedule/payment/human-agent OR primeira mensagem assistant OR status transition) + cadência plan-aware (Business=5, Pro=10) + trial/starter nunca. Cada turno classifica a razão (`first_msg | status:X->Y | tool_call | cadence_N`) para auditoria via `automation_events.payload.reason`.
+- [x] **Engine decoupling**: UPDATE de `lead_memory`, UPDATE de `last_sentiment` e INSERT de `ai_decision_logs` agora são writes independentes. Schema drift futuro em uma coluna não pode mais derrubar o log de explainability inteiro.
+- [x] **Engine sentiment clamp**: `Math.max(-1, Math.min(1, score))` antes de persistir — defesa adicional contra LLM ocasionalmente devolver score fora do range.
+- [x] **UI — Plan-aware**: FeatureGate baixado para `pro` (consistente com `hasAnalytics`). Business tier ganha 50 logs iniciais + realtime + cadência fina. Pro ganha 30 logs + refresh manual + hint de upgrade.
+- [x] **UI — Realtime**: Subscription Supabase channel `mente-da-ia-${companyId}` em INSERTs com filtro `company_id=eq.X` + pulse animation (border teal glow 1.5s) no novo log + dedupe por id.
+- [x] **UI — Empty state honesto**: agora explica os triggers reais ("primeira mensagem, agendamento, cancelamento, mudança de status, a cada N respostas") e indica plan-tier do usuário.
+- [x] **page.tsx**: `aiLogsLimit` plan-aware (Business=50, Pro=30) com fallback `0` em trial/starter.
+- [x] **Verificação**: `pnpm typecheck` exit 0 ✅ | `pnpm test` 21/21 ✅ | `pnpm build` exit 0 (47 routes) ✅ | RLS confirmada em `pg_policy` ai_decision_logs.
+
+**Arquivos afetados**:
+- `supabase/migrations/049_mente_da_ia_hardening.sql` (novo)
+- `supabase/migrations/050_ai_decision_logs_realtime.sql` (novo)
+- `lib/ai/engine.ts` — bloco analytics 100% reescrito
+- `app/(app)/settings/page.tsx` — limit plan-aware
+- `app/(app)/settings/settings-shell.tsx` — gate Pro + LogsView com realtime
+
+---
+
 ## 🛡️ Fase 6.5: Audit Pass — Pré-Fase 7 (✅ Concluído 2026-05-25)
 > Relatório completo: `obsidian/07 - AUDITORIAS/audit-2026-05-25.md`
 

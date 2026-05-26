@@ -26,13 +26,15 @@ export default async function SettingsPage() {
 
   const usage = await getCompanyUsage(companyId).catch(() => null);
 
+  // Mente da IA fetch — Pro: 30 latest, Business: 50 latest (realtime augments client-side)
+  const aiLogsLimit = usage?.planType === 'business' ? 50 : 30;
   const aiLogsQuery = usage?.limits?.hasAnalytics
     ? supabase
         .from('ai_decision_logs')
         .select('id, lead_id, intent_detected, sentiment_score, urgency_detected, objection_handled, rationale, created_at, leads(name)')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false })
-        .limit(20)
+        .limit(aiLogsLimit)
     : Promise.resolve({ data: [] as any[] });
 
   const [

@@ -48,6 +48,7 @@ import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
 import { STRIPE_PRICE_IDS, PLANS_META } from "@/lib/billing/plans";
 import type { PlanType } from "@/lib/billing/plans";
+import { createBrowserClient } from "@supabase/ssr";
 
 type TabId = "account" | "rules" | "services" | "brain" | "channels" | "automation" | "logs" | "billing";
 
@@ -342,8 +343,8 @@ export function SettingsShell({ company, memberships, channels, services, usage,
             />
           </TabPanel>
           <TabPanel active={tab === "logs"}>
-            <FeatureGate planType={company?.plan_type} requiredPlan="business" onChangeTab={changeTab} title="Mente da IA (Explainability)" desc="Acompanhe em tempo real por que a IA tomou determinadas decisões e refine as orientações.">
-              <LogsView logs={aiLogs} />
+            <FeatureGate planType={company?.plan_type} requiredPlan="pro" onChangeTab={changeTab} title="Mente da IA (Explainability)" desc="Acompanhe em tempo real por que a IA tomou determinadas decisões e refine as orientações.">
+              <LogsView logs={aiLogs} companyId={company?.id ?? null} planType={company?.plan_type} />
             </FeatureGate>
           </TabPanel>
           <TabPanel active={tab === "billing"}>
@@ -3289,9 +3290,51 @@ function formatTimeAgo(iso: string): string {
   return `Há ${Math.floor(h / 24)} dias`;
 }
 
-function LogsView({ logs }: { logs: AiDecisionLog[] }) {
-  const [visibleCount, setVisibleCount] = useState(10);
-  const visibleLogs = logs.slice(0, visibleCount);
+function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; companyId: string | null; planType?: PlanType | null }) {
+  const isBusiness = planType === "business";
+  const initialLimit = isBusiness ? 15 : 10;
+  const [visibleCount, setVisibleCount] = useState(initialLimit);
+  const [liveLogs, setLiveLogs] = useState<AiDecisionLog[]>(logs);
+  const [pulseId, setPulseId] = useState<string | null>(null);
+
+  // Realtime subscription — only Business tier gets live updates (Pro relies on refresh
+  // to keep payload light; both tiers still see the same persisted data).
+  useEffect(() => {
+    if (!companyId || !isBusiness) return;
+
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+
+    const channel = supabase
+      .channel(`mente-da-ia-${companyId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ai_decision_logs", filter: `company_id=eq.${companyId}` },
+        (payload) => {
+          const row = payload.new as AiDecisionLog & { company_id?: string };
+          // Defensive: drop anything that slipped past the RLS/filter
+          if ((row as any).company_id && (row as any).company_id !== companyId) return;
+          setLiveLogs((prev) => {
+            if (prev.some((l) => l.id === row.id)) return prev;
+            return [row, ...prev].slice(0, 100);
+          });
+          setPulseId(row.id);
+          setTimeout(() => setPulseId(null), 1500);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [companyId, isBusiness]);
+
+  const visibleLogs = liveLogs.slice(0, visibleCount);
+  const triggerHint = isBusiness
+    ? "Logs gerados a cada 5 respostas da IA + sempre em agendamentos, cancelamentos, mudanças de status e primeira interação."
+    : "Logs gerados a cada 10 respostas da IA + sempre em agendamentos, cancelamentos, mudanças de status e primeira interação. Upgrade para Business desbloqueia atualização em tempo real e logs a cada 5 respostas.";
 
   return (
     <div className="flex flex-col gap-5">
@@ -3300,20 +3343,21 @@ function LogsView({ logs }: { logs: AiDecisionLog[] }) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Mente da IA (Explainability)</CardTitle>
-              <CardDescription>Audite as decisões da IA em tempo real.</CardDescription>
+              <CardDescription>Audite as decisões da IA{isBusiness ? " em tempo real" : ""}.</CardDescription>
             </div>
             <Badge variant="hot" className="text-[10px]">BETA</Badge>
           </div>
+          <p className="text-[11px] text-white/40 mt-2 leading-relaxed">{triggerHint}</p>
         </CardHeader>
         <CardContent>
-          {logs.length === 0 ? (
+          {liveLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
               <div className="h-12 w-12 rounded-full bg-white/[0.04] flex items-center justify-center">
                 <Zap size={22} className="text-white/20" />
               </div>
               <p className="text-sm font-medium text-white/40">Nenhuma decisão registrada ainda</p>
               <p className="text-[12px] text-white/25 max-w-xs leading-relaxed">
-                Os logs da IA aparecem aqui após as primeiras conversas no WhatsApp.
+                Os logs aparecem em interações relevantes: primeira mensagem, agendamento, cancelamento, mudança de status e a cada {isBusiness ? "5" : "10"} respostas da IA.
               </p>
             </div>
           ) : (
@@ -3322,8 +3366,17 @@ function LogsView({ logs }: { logs: AiDecisionLog[] }) {
                 const isPositive = (log.sentiment_score ?? 0) >= 0;
                 const leadName = log.leads?.[0]?.name ?? 'Lead';
                 const timeAgo = formatTimeAgo(log.created_at);
+                const isPulsing = pulseId === log.id;
                 return (
-                  <div key={log.id} className="p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:border-white/10 transition-colors">
+                  <div
+                    key={log.id}
+                    className={cn(
+                      "p-4 rounded-xl border bg-white/[0.02] transition-all",
+                      isPulsing
+                        ? "border-brand-teal-400/60 shadow-[0_0_24px_rgba(45,212,191,0.18)]"
+                        : "border-white/5 hover:border-white/10"
+                    )}
+                  >
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <div className={cn(
@@ -3364,14 +3417,14 @@ function LogsView({ logs }: { logs: AiDecisionLog[] }) {
                 );
               })}
 
-              {logs.length > visibleCount && (
+              {liveLogs.length > visibleCount && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="w-full text-white/40 hover:text-white/70 mt-1"
                   onClick={() => setVisibleCount((v) => v + 10)}
                 >
-                  Ver mais ({logs.length - visibleCount} restantes)
+                  Ver mais ({liveLogs.length - visibleCount} restantes)
                 </Button>
               )}
             </div>

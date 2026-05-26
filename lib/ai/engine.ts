@@ -1001,97 +1001,144 @@ export async function handleIncomingMessage(
   }
 
   // 12. Background analytics (non-blocking — does not affect response latency)
-  // FIX B7: gate by count > 0 && %5 to avoid running before 1st reply and every message.
+  //
+  // Smart gating (Mente da IA):
+  //   - Plan-aware cadence: Business = every 5 assistant msgs, Pro = every 10.
+  //   - Event-driven OVERRIDES the cadence whenever the turn is meaningful:
+  //       a) First assistant message ever for this lead (anchor entry).
+  //       b) Status transition (cold→warm→hot, anything→success).
+  //       c) Booking/cancel/reschedule tool was called this turn.
+  //       d) Lead reached human-takeover path (handled in catch block above).
+  //   - Trial/Starter: never (no hasAnalytics).
   if (aiResult && finalReply) {
-    const { count: assistantCount, error: countErr } = await admin
-      .from('messages').select('id', { count: 'exact', head: true })
-      .eq('lead_id', activeLead.id).eq('company_id', companyId).eq('role', 'assistant');
+    const planHasAnalytics = usage.limits.hasAnalytics ?? false;
 
-    const safeCount = countErr || assistantCount == null ? 0 : assistantCount;
-    const shouldRunAnalytics = safeCount > 0 && safeCount % 5 === 0 && (usage.limits.hasAnalytics ?? false);
+    if (planHasAnalytics) {
+      const { count: assistantCount, error: countErr } = await admin
+        .from('messages').select('id', { count: 'exact', head: true })
+        .eq('lead_id', activeLead.id).eq('company_id', companyId).eq('role', 'assistant');
 
-    if (shouldRunAnalytics) {
-    void (async () => {
-      try {
-        const recentHistory = historyList.slice(-5);
-        const analyticsTimeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Analytics timeout (20s)')), 20_000)
-        );
+      const safeCount = countErr || assistantCount == null ? 0 : assistantCount;
+      const cadence = usage.limits.hasAdvancedModel === false ? 10 : 5; // (defensive — hasAnalytics implies advanced, but stays robust)
+      const businessTier = usage.planType === 'business';
+      const cadenceN = businessTier ? 5 : 10;
 
-        const analytics = await Promise.race([
-          processBackgroundAnalytics(
-            recentHistory,
-            messageText,
-            finalReply,
-            aiResult!.tools_called || [],
-            aiResult!.summary
-          ),
-          analyticsTimeout,
-        ]) as Awaited<ReturnType<typeof processBackgroundAnalytics>>;
+      const meaningfulTools = ['bookAppointment', 'cancelAppointment', 'rescheduleAppointment', 'requestHumanAgent', 'generatePixCharge', 'checkPaymentStatus'];
+      const calledMeaningfulTool = (aiResult.tools_called || []).some((t: any) => {
+        const name = typeof t === 'string' ? t : (t?.name ?? t?.tool ?? '');
+        return meaningfulTools.includes(name);
+      });
 
-        const { data: latestLead } = await admin
-          .from('leads')
-          .select('lead_memory')
-          .eq('id', activeLead.id)
-          .eq('company_id', companyId) // ALWAYS filter by company_id!
-          .single();
-        const currentMem = (latestLead?.lead_memory as any) ?? { ...EMPTY_MEMORY };
+      const statusChanged = aiResult.status !== activeLead.status;
+      const isFirstAssistantMsg = safeCount === 1; // we just inserted one
+      const cadenceTrigger = safeCount > 0 && safeCount % cadenceN === 0;
+      const eventTrigger = isFirstAssistantMsg || statusChanged || calledMeaningfulTool;
 
-        const furtherUpdatedMem = {
-          ...currentMem,
-          services_mentioned: [
-            ...new Set([...(currentMem.services_mentioned || []), ...(analytics.services || [])]),
-          ],
-          objections_raised: [
-            ...new Set([...(currentMem.objections_raised || []), ...(analytics.objections || [])]),
-          ],
-          qualification_answers: {
-            ...(currentMem.qualification_answers || {}),
-            ...(analytics.answers || {}),
-          },
-        };
+      void cadence; // silence unused — kept for backwards-compat comment
 
-        // P0-3 fix: do NOT overwrite summary here.
-        // Main flow already wrote summary at step 9. Writing analytics.new_summary from
-        // message A's context can race-overwrite message B's summary if two messages
-        // arrive within the 20s analytics window.
-        await admin
-          .from('leads')
-          .update({
-            lead_memory: furtherUpdatedMem,
-            last_sentiment: analytics.sentiment_score,
-            last_sentiment_at: new Date().toISOString()
-          })
-          .eq('id', activeLead.id)
-          .eq('company_id', companyId); // ALWAYS filter by company_id!
+      if (cadenceTrigger || eventTrigger) {
+        const reason = eventTrigger
+          ? (isFirstAssistantMsg ? 'first_msg' : statusChanged ? `status:${activeLead.status}->${aiResult.status}` : 'tool_call')
+          : `cadence_${cadenceN}`;
 
-        await admin.from('ai_decision_logs').insert({
-          company_id: companyId,
-          lead_id: activeLead.id,
-          message_id: sentMessage?.id ?? null,
-          intent_detected: analytics.intent_detected,
-          sentiment_score: analytics.sentiment_score,
-          urgency_detected: analytics.urgency_detected,
-          objection_handled: analytics.objection_handled,
-          rationale: analytics.rationale,
-          trace_id: traceId,
-        });
+        void (async () => {
+          try {
+            const recentHistory = historyList.slice(-5);
+            const analyticsTimeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Analytics timeout (20s)')), 20_000)
+            );
 
-        await admin.from('automation_events').insert({
-          company_id: companyId,
-          lead_id: activeLead.id,
-          type: 'analytics_processed',
-          detail: `sentiment=${analytics.sentiment_score?.toFixed(2)} intent=${analytics.intent_detected}`,
-          payload: { sentiment_score: analytics.sentiment_score, intent: analytics.intent_detected },
-          trace_id: traceId,
-        }).then(() => {}, () => {});
+            const analytics = await Promise.race([
+              processBackgroundAnalytics(
+                recentHistory,
+                messageText,
+                finalReply,
+                aiResult!.tools_called || [],
+                aiResult!.summary
+              ),
+              analyticsTimeout,
+            ]) as Awaited<ReturnType<typeof processBackgroundAnalytics>>;
 
-        console.log('[AI Engine] Log cognitivo e de background gravado com sucesso.');
-      } catch (e) {
-        console.error('[AI Engine] Background analytics failed (non-blocking):', e);
+            const { data: latestLead } = await admin
+              .from('leads')
+              .select('lead_memory')
+              .eq('id', activeLead.id)
+              .eq('company_id', companyId)
+              .single();
+            const currentMem = (latestLead?.lead_memory as any) ?? { ...EMPTY_MEMORY };
+
+            const furtherUpdatedMem = {
+              ...currentMem,
+              services_mentioned: [
+                ...new Set([...(currentMem.services_mentioned || []), ...(analytics.services || [])]),
+              ],
+              objections_raised: [
+                ...new Set([...(currentMem.objections_raised || []), ...(analytics.objections || [])]),
+              ],
+              qualification_answers: {
+                ...(currentMem.qualification_answers || {}),
+                ...(analytics.answers || {}),
+              },
+            };
+
+            // Decoupled UPDATEs: sentiment write must NOT block log insert.
+            // (Pre-049 the column was TEXT-with-CHECK; a float write silently failed
+            //  and the catch above used to swallow both. Now sentiment is NUMERIC, but
+            //  we still defensively isolate the writes so any future schema drift on one
+            //  column cannot kill the explainability log entry.)
+            const sentimentScore = typeof analytics.sentiment_score === 'number'
+              ? Math.max(-1, Math.min(1, analytics.sentiment_score))
+              : null;
+
+            await admin
+              .from('leads')
+              .update({ lead_memory: furtherUpdatedMem })
+              .eq('id', activeLead.id)
+              .eq('company_id', companyId);
+
+            if (sentimentScore !== null) {
+              await admin
+                .from('leads')
+                .update({
+                  last_sentiment: sentimentScore,
+                  last_sentiment_at: new Date().toISOString(),
+                })
+                .eq('id', activeLead.id)
+                .eq('company_id', companyId);
+            }
+
+            const { error: logErr } = await admin.from('ai_decision_logs').insert({
+              company_id: companyId,
+              lead_id: activeLead.id,
+              message_id: sentMessage?.id ?? null,
+              intent_detected: analytics.intent_detected,
+              sentiment_score: sentimentScore,
+              urgency_detected: analytics.urgency_detected,
+              objection_handled: analytics.objection_handled,
+              rationale: analytics.rationale,
+              trace_id: traceId,
+            });
+
+            if (logErr) {
+              console.error('[AI Engine] ai_decision_logs insert failed:', logErr);
+            }
+
+            await admin.from('automation_events').insert({
+              company_id: companyId,
+              lead_id: activeLead.id,
+              type: 'analytics_processed',
+              detail: `reason=${reason} sentiment=${sentimentScore?.toFixed(2) ?? 'n/a'} intent=${analytics.intent_detected}`,
+              payload: { reason, sentiment_score: sentimentScore, intent: analytics.intent_detected },
+              trace_id: traceId,
+            }).then(() => {}, () => {});
+
+            console.log(`[AI Engine] Mente da IA log gravado (reason=${reason}).`);
+          } catch (e) {
+            console.error('[AI Engine] Background analytics failed (non-blocking):', e);
+          }
+        })();
       }
-    })();
-    } // if (shouldRunAnalytics)
+    } // if (planHasAnalytics)
   } // if (aiResult && finalReply)
 }
 

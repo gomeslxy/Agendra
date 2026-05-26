@@ -102,7 +102,7 @@ export async function POST(req: Request) {
         await updateCompanyStatus(
           companyId,
           subscription.status,
-          planFromPriceId(subscription.items.data[0].price.id) || 'pro',
+          planFromPriceId(item0?.price?.id) || 'pro',
           subscription.id,
           subscription.customer as string,
           item0?.current_period_start ?? subscription.current_period_start,
