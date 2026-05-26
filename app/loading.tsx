@@ -5,8 +5,13 @@ export default function RootLoading() {
       style={{ background: "#060A14" }}
     >
       <div className="flex flex-col items-center gap-4">
-        {/* Logo glyph placeholder — same dimensions as agendra-glyph.svg */}
-        <div className="h-8 w-8 animate-pulse rounded-lg bg-white/10" />
+        <img
+          src="/assets/agendra-glyph.svg"
+          alt="Agendra"
+          width={32}
+          height={32}
+          className="opacity-90"
+        />
         <div className="h-1 w-24 overflow-hidden rounded-full bg-white/[0.08]">
           <div
             className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-[#14B8A6]"
