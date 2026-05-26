@@ -32,11 +32,30 @@ CREATE INDEX IF NOT EXISTS company_knowledge_hnsw_768_idx
 UPDATE public.company_knowledge SET embedding = NULL WHERE embedding IS NOT NULL;
 
 -- Step 6: Rename old column to mark as deprecated (keep for rollback safety 30 days)
-ALTER TABLE public.company_knowledge
-  RENAME COLUMN embedding TO embedding_1536_deprecated;
+DO $$
+BEGIN
+  -- Se a coluna embedding_1536_deprecated já existir, removemos ela para evitar conflitos
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'company_knowledge' 
+      AND column_name = 'embedding_1536_deprecated'
+  ) THEN
+    ALTER TABLE public.company_knowledge DROP COLUMN embedding_1536_deprecated;
+  END IF;
 
-ALTER TABLE public.company_knowledge
-  RENAME COLUMN embedding_768 TO embedding;
+  -- Se a coluna embedding_768 existir, fazemos o rename
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'company_knowledge' 
+      AND column_name = 'embedding_768'
+  ) THEN
+    ALTER TABLE public.company_knowledge RENAME COLUMN embedding TO embedding_1536_deprecated;
+    ALTER TABLE public.company_knowledge RENAME COLUMN embedding_768 TO embedding;
+  END IF;
+END;
+$$;
 
 -- Update HNSW index name to match new column name
 DROP INDEX IF EXISTS company_knowledge_hnsw_768_idx;
