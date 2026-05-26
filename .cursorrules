@@ -3,11 +3,11 @@
 These rules apply to ALL agents (Claude, Antigravity, Cursor, Gemini) working on the Agendra project.
 
 ## 🏁 MANDATORY STARTUP (EVERY SESSION)
-1. **Sync with Truth**: At the start of every task, you MUST list `obsidian/` and read relevant context.
-2. **Definitive Files**:
-    - `obsidian/01 - PRODUTO/roadmap.md` (Current state & progress).
-    - `obsidian/02 - ARQUITETURA/` (Technical patterns).
-    - `obsidian/05 - LOGS/sessions.md` (Latest session context).
+1. **Sync with Truth**: Read the `obsidian/` folder. It is the DEFINITIVE truth.
+    - `obsidian/Map of Content.md` (Orientation hub).
+    - `obsidian/01 - PRODUTO/roadmap/_INDEX.md` (Current phase & status table).
+    - `obsidian/05 - LOGS/_INDEX.md` (Latest session logs index).
+2. **Governance**: Read `obsidian/00 - META/global-rules.md` (Autoridade máxima de regras).
 3. **Operational Protocol**: Read `CLAUDE.md` or `ANTIGRAVITY.md` for agent-specific commands.
 
 ## 🚀 PROJECT OPERATING RULES (The 14 Rules) 🛡️
@@ -35,10 +35,21 @@ Priority order: 1. Correctness | 2. Safety | 3. Minimal change | 4. Codebase con
 > **EVERY SINGLE TASK** that modifies code or project state MUST have its Obsidian documentation updated **in the same step/turn**, BEFORE you output your response to the user.
 > Do NOT wait for the user to request documentation or updates. This is absolute.
 
-Update the following files immediately upon any modification:
-- `obsidian/01 - PRODUTO/roadmap.md` (Mark as done/update status)
-- `obsidian/06 - BACKLOG/backlog.md` (Add technical debt or next steps)
-- `obsidian/05 - LOGS/sessions.md` (Summarize what was done)
+### 💻 Obsidian CLI Protocol (Mandatory)
+All note creations, edits, and reads MUST prioritize using the Obsidian CLI over direct file methods to ensure graph indexing integrity.
+- **Command**: `& "C:\Users\lucas\AppData\Local\Programs\obsidian\Obsidian.com" vault=obsidian <command>`
+- **Create**: `create path="folder/note.md" content="Text"`
+
+Update the following files immediately upon any modification in this exact order:
+1. **New session file** -> `create path="05 - LOGS/sessions/YYYY-MM-DD-<slug>.md" content="..."` via Obsidian CLI.
+2. **Sessions Index** -> Update `obsidian/05 - LOGS/_INDEX.md` adding one row + top 5.
+3. **Roadmap Index** -> Update status table in `obsidian/01 - PRODUTO/roadmap/_INDEX.md` if phase changed.
+4. **Backlog** -> Update appropriate file in `obsidian/06 - BACKLOG/open/` (or move to `closed/` if resolved).
+
+**NEVER update these deprecated files:**
+- ~~`obsidian/01 - PRODUTO/roadmap.md`~~ (deprecated stub)
+- ~~`obsidian/06 - BACKLOG/backlog.md`~~ (deprecated stub)
+- ~~`obsidian/05 - LOGS/sessions.md`~~ (deprecated stub)
 
 ## 💎 Liquid Glass Design System
 - **Philosophy**: Premium, transparent, animated, responsive.

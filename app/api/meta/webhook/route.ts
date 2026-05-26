@@ -204,6 +204,14 @@ async function processWebhookPayload(rawBody: string, headers: Headers): Promise
 
   const companyId = channel.company_id;
 
+  // 2.5 Webhook Flood / Throttling Protection
+  const { checkRateLimitAsync } = await import("@/lib/rate-limit");
+  const isAllowed = await checkRateLimitAsync(`flood:${companyId}`, 20, 10000); // 20 requests per 10s max
+  if (!isAllowed) {
+    console.error(`[Meta Webhook][${webId}] 🚫 Flood protection triggered for company ${companyId}. Webhook payload blocked.`);
+    return;
+  }
+
   // 3. Company & Subscription Guard
   const adminGuard = createAdminClient();
   const { data: company } = await adminGuard

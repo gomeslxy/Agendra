@@ -1188,18 +1188,22 @@ function Channels({
       </div>
 
       <Script
-        src="https://connect.facebook.net/pt_BR/sdk.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          (window as any).fbAsyncInit = function () {
-            (window as any).FB.init({
-              appId: process.env.NEXT_PUBLIC_META_APP_ID,
+        id="fb-sdk-init"
+        strategy="beforeInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `window.fbAsyncInit = function() {
+            FB.init({
+              appId: '${process.env.NEXT_PUBLIC_META_APP_ID}',
               cookie: true,
               xfbml: true,
-              version: "v19.0",
+              version: 'v19.0'
             });
-          };
+          };`,
         }}
+      />
+      <Script
+        src="https://connect.facebook.net/pt_BR/sdk.js"
+        strategy="afterInteractive"
       />
     </div>
   );

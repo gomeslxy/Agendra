@@ -4,7 +4,13 @@ import { logInfo, logError } from '@/lib/logging';
 const META_API_BASE = 'https://graph.facebook.com/v19.0';
 
 function getRedirectUri() {
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://www.agendra.site';
+  // SERVER_APP_URL takes priority (server-only, not exposed to client).
+  // Falls back to NEXT_PUBLIC_APP_URL, then to production domain.
+  // In local dev: set SERVER_APP_URL=http://localhost:3000 in .env.local
+  const base =
+    process.env.SERVER_APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    'https://www.agendra.site';
   return `${base}/api/auth/instagram/callback`;
 }
 
