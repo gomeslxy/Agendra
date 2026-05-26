@@ -27,6 +27,7 @@ async function resolveChannelConfig(companyId: string, to: string): Promise<Chan
           .from('channels')
           .select('*')
           .eq('id', lead.channel_id)
+          .eq('company_id', companyId) // CRITICAL: Strict Multi-tenant boundary isolation
           .maybeSingle();
 
         if (channel) {

@@ -132,6 +132,31 @@ export function AuthProvider({
     return () => subscription.unsubscribe();
   }, [supabase, router, fetchProfile, initialProfile]);
 
+  // Realtime: re-fetch profile when companies table plan/status changes (handles cross-tab upgrades)
+  useEffect(() => {
+    const companyId = profile?.companies?.id;
+    if (!companyId || !user) return;
+
+    const channel = supabase
+      .channel(`company-billing-${companyId}`)
+      .on(
+        'postgres_changes' as any,
+        { event: 'UPDATE', schema: 'public', table: 'companies', filter: `id=eq.${companyId}` },
+        (payload: any) => {
+          const { plan_type, subscription_status } = payload.new ?? {};
+          if (!plan_type && !subscription_status) return;
+          setProfile((prev) =>
+            prev?.companies
+              ? { ...prev, companies: { ...prev.companies, plan_type: plan_type ?? prev.companies.plan_type, subscription_status: subscription_status ?? prev.companies.subscription_status } }
+              : prev
+          );
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.companies?.id, user, supabase]);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     router.push("/");

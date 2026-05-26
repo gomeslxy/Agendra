@@ -1,21 +1,28 @@
-const URL = process.env.UPSTASH_REDIS_REST_URL ?? '';
-const TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? '';
-
 export function isAvailable(): boolean {
-  return Boolean(URL && TOKEN);
+  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+}
+
+async function callRaw<T>(path: string): Promise<{ result: T | null }> {
+  const url = process.env.UPSTASH_REDIS_REST_URL ?? '';
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? '';
+  if (!url || !token) {
+    throw new Error('Redis not available');
+  }
+  const res = await fetch(`${url}/${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(2_500),
+  });
+  if (!res.ok) {
+    throw new Error(`Redis HTTP error: ${res.status}`);
+  }
+  return (await res.json()) as { result: T };
 }
 
 async function call<T>(path: string): Promise<T | null> {
-  if (!isAvailable()) return null;
   try {
-    const res = await fetch(`${URL}/${path}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      signal: AbortSignal.timeout(2_500),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { result: T };
-    return json.result;
+    const res = await callRaw<T>(path);
+    return res.result;
   } catch {
     return null;
   }
@@ -24,12 +31,16 @@ async function call<T>(path: string): Promise<T | null> {
 export const redis = {
   async setNX(key: string, value: string, ttlSec: number): Promise<true | false | null> {
     if (!isAvailable()) return null;
-    const r = await call<string>(
-      `set/${encodeURIComponent(key)}/${encodeURIComponent(value)}?NX=true&EX=${ttlSec}`,
-    );
-    if (r === 'OK') return true;
-    if (r === null) return null;
-    return false;
+    try {
+      const res = await callRaw<string>(
+        `set/${encodeURIComponent(key)}/${encodeURIComponent(value)}?NX=true&EX=${ttlSec}`,
+      );
+      // Upstash REST API returns { result: "OK" } on success or { result: null } if NX fails
+      return res.result === 'OK' ? true : false;
+    } catch (err) {
+      // Return null only on genuine connection/HTTP failures
+      return null;
+    }
   },
 
   async set(key: string, value: string, ttlSec: number): Promise<true | null> {

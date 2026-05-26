@@ -59,7 +59,51 @@ export async function syncCompanyCalendar(companyId: string): Promise<SyncResult
     } else {
       gcalResult = await runFullSync();
     }
-  } catch (err) {
+  } catch (err: any) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const isRevoked = errMsg.includes('invalid_grant') || errMsg.includes('invalid_client') || errMsg.includes('Token expirado') || errMsg.includes('400') || errMsg.includes('401');
+
+    if (isRevoked) {
+      console.warn(`[GCal Background Sync] 🚫 Credentials revoked/expired for companyId=${companyId}. Disconnecting integration.`);
+      
+      // 1. Clear credentials in DB to prevent further retries
+      await admin
+        .from('companies')
+        .update({
+          google_refresh_token: null,
+          google_calendar_id: null,
+          google_calendar_email: null,
+          gcal_sync_token: null,
+        })
+        .eq('id', companyId);
+
+      // 2. Alert the company owners and admins via high-priority in-app notification
+      try {
+        const { data: members } = await admin
+          .from('memberships')
+          .select('user_id')
+          .eq('company_id', companyId)
+          .in('role', ['owner', 'admin']);
+
+        if (members && members.length > 0) {
+          const { createNotificationForUsers } = await import('@/lib/notifications/create');
+          await createNotificationForUsers(members, {
+            company_id: companyId,
+            type: 'channel_error',
+            title: 'Agenda Google desconectada',
+            body: `A conexão com seu Google Calendar foi revogada ou expirou. Por favor, reconecte nas configurações de agenda para continuar sincronizando seus horários.`,
+            action_url: '/settings',
+            priority: 'high',
+          });
+        }
+      } catch (notifErr: any) {
+        console.error('[GCal Background Sync] Failed to create revocation notification:', notifErr.message);
+      }
+
+      // Return a skipped sync result instead of crashing the cron
+      return { skipped: true, inserted: 0, updated: 0, deleted: 0, syncToken: '' };
+    }
+
     if (err instanceof Error && err.message === 'SYNC_TOKEN_EXPIRED') {
       // Clear stale token and retry as full sync
       await admin.from('companies').update({ gcal_sync_token: null }).eq('id', companyId);

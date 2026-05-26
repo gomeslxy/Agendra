@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 import { GridBeam } from "@/components/ui/grid-beam";
 import { Spotlight } from "@/components/ui/spotlight";
 import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/components/providers/AuthProvider";
 import {
   calculateTrialStatus,
   calculateTrialProgress,
@@ -28,7 +27,6 @@ type PlanKey = keyof typeof PRICE_IDS;
 export default function PlanosPage() {
   const [isAnnual, setIsAnnual] = useState(true);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
-  const { refreshProfile } = useAuth();
 
   // Auth / company state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -120,8 +118,6 @@ export default function PlanosPage() {
             setTrialDaysRemaining(null);
             setSyncing(false);
             setShowCelebration(true);
-            // Refresh AuthProvider so sidebar/topbar reflect new plan immediately
-            refreshProfile().catch(() => {});
           } else if (retries > 0) {
             // Webhook pode não ter chegado ainda, tentar novamente
             setTimeout(() => syncWithRetry(retries - 1), 2500);
