@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -29,6 +30,11 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { profile, signOut, loading } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "Usuário";
   const companyName = profile?.companies?.name ?? "Minha empresa";
@@ -100,7 +106,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
 
       {/* User card */}
       <div className="mt-auto rounded-xl border border-white/[0.08] bg-white/[0.04] p-3">
-        {loading ? (
+        {!mounted || loading ? (
           <div className="h-16 animate-pulse rounded-lg bg-white/[0.04]" />
         ) : (
           <>

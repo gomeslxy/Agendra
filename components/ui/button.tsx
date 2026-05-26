@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, type ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -35,21 +35,41 @@ const SIZE: Record<Size, string> = {
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = "secondary", size = "md", pulse, className, children, ...rest }, ref) => {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+      setMounted(true);
+    }, []);
+
+    const classNames = cn(
+      "inline-flex items-center gap-2.5 rounded-full border font-medium leading-none cursor-pointer select-none isolate",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950",
+      "transition-[box-shadow,background,filter] duration-200",
+      VARIANT[variant],
+      SIZE[size],
+      pulse && "pulse-cta",
+      className,
+    );
+
+    if (!mounted) {
+      return (
+        <button
+          ref={ref}
+          className={classNames}
+          {...rest}
+        >
+          {children}
+        </button>
+      );
+    }
+
     return (
       <motion.button
         ref={ref}
         whileHover={{ y: -1, filter: "brightness(1.05)" }}
         whileTap={{ scale: 0.98, y: 0 }}
         transition={{ type: "spring", stiffness: 400, damping: 28 }}
-        className={cn(
-          "inline-flex items-center gap-2.5 rounded-full border font-medium leading-none cursor-pointer select-none isolate",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950",
-          "transition-[box-shadow,background,filter] duration-200",
-          VARIANT[variant],
-          SIZE[size],
-          pulse && "pulse-cta",
-          className,
-        )}
+        className={classNames}
         {...(rest as React.ComponentProps<typeof motion.button>)}
       >
         {children}
