@@ -5,7 +5,6 @@ const config: NextConfig = {
   compress: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
-  compiler: { styledComponents: true },
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60 * 60 * 24 * 30,
@@ -26,6 +25,7 @@ const config: NextConfig = {
       "@supabase/ssr",
       "@supabase/supabase-js",
       "recharts",
+      "@next/third-parties",
     ],
   },
   async headers() {

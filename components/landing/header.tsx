@@ -8,7 +8,6 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
-import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { href: "#como-funciona", label: "Como funciona" },
@@ -70,20 +69,10 @@ interface HeaderProps {
   isLoggedIn?: boolean;
 }
 
-export function Header({ isLoggedIn: initialLoggedIn }: HeaderProps = {}) {
+export function Header({ isLoggedIn = false }: HeaderProps = {}) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  // If parent already resolved auth via SSR, skip the client fetch
-  const [isLoggedIn, setIsLoggedIn] = useState(initialLoggedIn ?? false);
 
-  useEffect(() => {
-    // Only run client-side auth check when not pre-resolved by SSR
-    if (initialLoggedIn !== undefined) return;
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setIsLoggedIn(!!user);
-    });
-  }, [initialLoggedIn]);
 
   useEffect(() => {
     let ticking = false;

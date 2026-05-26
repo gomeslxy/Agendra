@@ -183,7 +183,7 @@ export default function PlanosPage() {
 
   return (
     <div className="bg-[#0b1222] min-h-screen flex flex-col text-white selection:bg-brand-blue/30 relative">
-      <Header />
+      <Header isLoggedIn={isLoggedIn} />
 
       {/* ── Celebração Premium ── */}
       <AnimatePresence>

@@ -90,7 +90,6 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-import { MotionProvider } from "@/components/motion/motion-provider";
 import { JsonLd } from "@/components/seo/json-ld";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { GA_TRACKING_ID } from "@/lib/analytics";
@@ -116,9 +115,14 @@ export default function RootLayout({
             crossOrigin="anonymous"
           />
         )}
-        <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+        <link
+          rel="preload"
+          href="/assets/agendra-logo.svg"
+          as="image"
+          type="image/svg+xml"
+        />
         <JsonLd />
-        <MotionProvider>{children}</MotionProvider>
+        {children}
         <Toaster theme="dark" position="top-center" richColors />
         <SpeedInsights />
         <GoogleAnalytics gaId={GA_TRACKING_ID} />

@@ -3,12 +3,21 @@
 These rules apply to ALL agents (Claude, Antigravity, Cursor, Gemini) working on the Agendra project.
 
 ## 🏁 MANDATORY STARTUP (EVERY SESSION)
-1. **Sync with Truth**: At the start of every task, you MUST list `obsidian/` and read relevant context.
-2. **Definitive Files**:
-    - `obsidian/01 - PRODUTO/roadmap.md` (Current state & progress).
-    - `obsidian/02 - ARQUITETURA/` (Technical patterns).
-    - `obsidian/05 - LOGS/sessions.md` (Latest session context).
-3. **Operational Protocol**: Read `CLAUDE.md` or `ANTIGRAVITY.md` for agent-specific commands.
+
+Read in this exact order — indexes only, not full files:
+
+1. `obsidian/Map of Content.md` — master navigation hub
+2. `obsidian/01 - PRODUTO/roadmap/_INDEX.md` — current phase and status
+3. `obsidian/05 - LOGS/_INDEX.md` — last 5 sessions context (inline summaries)
+4. `obsidian/00 - META/global-rules.md` — this file (rules + doc protocol)
+5. `obsidian/02 - ARQUITETURA/` — only if task involves architecture
+
+**NEVER read these deprecated files directly:**
+- ~~`obsidian/01 - PRODUTO/roadmap.md`~~ → use `roadmap/_INDEX.md`
+- ~~`obsidian/05 - LOGS/sessions.md`~~ → use `05 - LOGS/_INDEX.md`
+- ~~`obsidian/06 - BACKLOG/backlog.md`~~ → use `06 - BACKLOG/_INDEX.md`
+
+Open individual session/phase/backlog files ONLY when the task specifically requires that historical context.
 
 ## 🚀 PROJECT OPERATING RULES (The 14 Rules) 🛡️
 
@@ -31,14 +40,58 @@ Priority order: 1. Correctness | 2. Safety | 3. Minimal change | 4. Codebase con
 15. **Environment Awareness**: If `pnpm` or `supabase` are not found, use absolute paths (e.g., `C:\Users\lucas\AppData\Local\pnpm\bin\pnpm.CMD`) or `npx`. `supabase` is now a dev dependency; always use `npx supabase` or `pnpm supabase`.
 
 ## 📅 COMPLETION PROTOCOL (CRITICAL & AUTOMATIC)
+
 > [!IMPORTANT]
 > **EVERY SINGLE TASK** that modifies code or project state MUST have its Obsidian documentation updated **in the same step/turn**, BEFORE you output your response to the user.
-> Do NOT wait for the user to request documentation or updates. This is absolute.
 
-Update the following files immediately upon any modification:
-- `obsidian/01 - PRODUTO/roadmap.md` (Mark as done/update status)
-- `obsidian/06 - BACKLOG/backlog.md` (Add technical debt or next steps)
-- `obsidian/05 - LOGS/sessions.md` (Summarize what was done)
+Update in this order:
+
+1. **New session file** → create `obsidian/05 - LOGS/sessions/YYYY-MM-DD-<slug>.md` with the session details
+2. **Update sessions index** → add one row to `obsidian/05 - LOGS/_INDEX.md` + update "Latest Sessions" section if in top 5
+3. **Roadmap phase** → if phase status changed, update status table in `obsidian/01 - PRODUTO/roadmap/_INDEX.md`
+4. **Backlog** → if new open items, add to appropriate file in `obsidian/06 - BACKLOG/open/`. If items closed, move to `closed/`.
+
+## 📁 DOC PROTOCOL (Mandatory)
+
+### When to CREATE a new file
+| Event | Create file in |
+|---|---|
+| New session | `05 - LOGS/sessions/YYYY-MM-DD-<slug>.md` |
+| New security/quality audit | `07 - AUDITORIAS/audit-YYYY-MM-DD.md` |
+| New incident / bug post-mortem | `03 - INCIDENTES/<slug>-YYYY-MM-DD.md` |
+| New feature spec | `03 - SPECS/<slug>.md` |
+| New architecture decision/pattern | `02 - ARQUITETURA/Standards/<slug>.md` |
+| New roadmap phase | `01 - PRODUTO/roadmap/fase-N-<slug>.md` |
+
+### When to UPDATE an _INDEX.md (not create)
+| Event | Update |
+|---|---|
+| Completing a roadmap phase | `01 - PRODUTO/roadmap/_INDEX.md` status table |
+| Closing backlog items | Remove from `open/` → move to `closed/fase-X-items.md` |
+| Adding a new session | Add one row in `05 - LOGS/_INDEX.md` |
+| New architecture doc | Add one row in `02 - ARQUITETURA/_INDEX.md` |
+
+### 💻 Obsidian CLI Protocol (Mandatory Note Management)
+- **Primary Mechanism**: All operations on notes (creation, reading, renaming, deleting) must prioritize using the **Obsidian CLI** over generic file methods to ensure graph indexing integrity.
+- **Invocation on Windows**:
+  - Command: `& "C:\Users\lucas\AppData\Local\Programs\obsidian\Obsidian.com" vault=obsidian <command>`
+  - Create file: `create path="folder/note.md" content="Text"` (Always use double-quotes and escape internal quotes or newlines with \n).
+  - Read file: `read path="folder/note.md"`
+  - Rename file: `rename path="folder/note.md" name="new-name.md"`
+  - Delete file: `delete path="folder/note.md"`
+  - List unresolved: `unresolved` (Lists unresolved wiki-links).
+
+### File size rule & Modularization
+- **150 Lines Cap**: If any note exceeds **150 lines** (excluding raw SQL migration scripts), it **MUST** be split. Break the topic down into logical modular sub-notes under the same folder, and convert the parent note into an `_INDEX.md` index of navigation links.
+- **Wikilinks Integrity**: Always use double bracket wiki-links `[[Note Name]]` or `[[Note Name|Readable Text]]` to interconnect notes.
+- **No Orphan Nodes**: Every newly created note must be immediately linked/indexed inside the local folder `_INDEX.md` or MOC file.
+
+### NEVER do this
+- Never accumulate multiple distinct sessions or epics in a single gigantic file.
+- Never write text dumps in deprecated stubs (`sessions.md`, `roadmap.md`, `backlog.md`). They must remain as tiny redirection pages (<10 lines) pointing to active indexes.
+- Never put raw implementation details or full task logs inside an `_INDEX.md` — index files are navigation directories only.
+- Never write standard markdown external links `[Text](path)` for vault internal notes; always use wikilinks `[[Path/Note\|Text]]`.
+- Never append a new session to `sessions.md` (deprecated) or put two distinct sessions in the same file.
 
 ## 💎 Liquid Glass Design System
 - **Philosophy**: Premium, transparent, animated, responsive.

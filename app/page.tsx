@@ -20,27 +20,47 @@ export const metadata: Metadata = {
   },
 };
 
+export const dynamic = "force-static";
+
 import { Header } from "@/components/landing/header";
 import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
-import { getUser } from "@/lib/supabase/server";
 
 // Below-fold sections lazy loaded
-import dynamic from "next/dynamic";
-const ProductDemo = dynamic(() => import("@/components/landing/product-demo").then((m) => m.ProductDemo));
-const Benefits = dynamic(() => import("@/components/landing/benefits").then((m) => m.Benefits));
-const Proof = dynamic(() => import("@/components/landing/proof").then((m) => m.Proof));
-const UseCases = dynamic(() => import("@/components/landing/use-cases").then((m) => m.UseCases));
-const FAQ = dynamic(() => import("@/components/landing/faq").then((m) => m.FAQ));
-const FinalCTA = dynamic(() => import("@/components/landing/final-cta").then((m) => m.FinalCTA));
-const Footer = dynamic(() => import("@/components/landing/footer").then((m) => m.Footer));
+import nextDynamic from "next/dynamic";
 
-export default async function LandingPage() {
-  const user = await getUser();
+const SectionSkeleton = () => (
+  <div className="w-full min-h-[350px] flex items-center justify-center opacity-10" aria-hidden="true">
+    <div className="h-6 w-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+  </div>
+);
 
+const ProductDemo = nextDynamic(() => import("@/components/landing/product-demo").then((m) => m.ProductDemo), {
+  loading: SectionSkeleton
+});
+const Benefits = nextDynamic(() => import("@/components/landing/benefits").then((m) => m.Benefits), {
+  loading: SectionSkeleton
+});
+const Proof = nextDynamic(() => import("@/components/landing/proof").then((m) => m.Proof), {
+  loading: SectionSkeleton
+});
+const UseCases = nextDynamic(() => import("@/components/landing/use-cases").then((m) => m.UseCases), {
+  loading: SectionSkeleton
+});
+const FAQ = nextDynamic(() => import("@/components/landing/faq").then((m) => m.FAQ), {
+  loading: SectionSkeleton
+});
+const FinalCTA = nextDynamic(() => import("@/components/landing/final-cta").then((m) => m.FinalCTA), {
+  loading: SectionSkeleton
+});
+const Footer = nextDynamic(() => import("@/components/landing/footer").then((m) => m.Footer), {
+  loading: SectionSkeleton
+});
+
+export default function LandingPage() {
   return (
     <div className="bg-aurora min-h-screen">
-      <Header isLoggedIn={!!user} />
+      <Header isLoggedIn={false} />
       <main className="pt-[68px]">
         <Hero />
         <HowItWorks />

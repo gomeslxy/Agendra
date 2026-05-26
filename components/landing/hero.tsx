@@ -1,27 +1,21 @@
-"use client";
-
-import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, CalendarCheck, Play } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import React from "react";
+import { CalendarCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Glass } from "@/components/ui/glass";
-import { fadeUp } from "@/components/motion/variants";
 import { SpotlightCSS } from "@/components/ui/spotlight";
 import { GridBeam } from "@/components/ui/grid-beam";
-import { ShinyButton } from "@/components/ui/shiny-button";
-import { trackEvent } from "@/lib/analytics";
 import { CounterClient } from "@/components/landing/counter-client";
+import { HeroLeftAnimation, HeroRightAnimation, HeroButtons } from "./hero-animations";
 
 export function Hero() {
-  const reduce = useReducedMotion();
-
   return (
     <section className="relative overflow-hidden pb-24 pt-40 sm:pt-48" aria-label="Hero — proposta de valor">
       <SpotlightCSS className="-top-40 left-0 md:left-60 md:-top-20" />
       <GridBeam className="absolute inset-0 pointer-events-none" />
+      
       <div className="mx-auto grid max-w-[1200px] items-center gap-12 px-6 lg:grid-cols-[1.05fr_1fr]">
-        <motion.div variants={fadeUp} initial="hidden" animate="show">
+        {/* Left column - text content */}
+        <HeroLeftAnimation>
           <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.04] px-3 py-1.5 backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-teal-400 shadow-[0_0_10px_var(--color-brand-teal-400)] animate-pulse" />
             <span className="eyebrow" style={{ color: "var(--color-fg-2)" }}>
@@ -41,25 +35,7 @@ export function Hero() {
             Sem fila, sem espera, sem lead perdido.
           </p>
 
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "hero", target: "signup" })}>
-              <ShinyButton className="px-8 group">
-                Começar grátis
-                <ArrowRight size={18} className="ml-2 inline-block transition-transform group-hover:translate-x-1" />
-              </ShinyButton>
-            </Link>
-            <Button
-              variant="secondary"
-              className="px-6 rounded-full border-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10"
-              onClick={() => {
-                trackEvent("cta_click", { location: "hero", target: "demo" });
-                document.getElementById("demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              <Play size={14} className="mr-2" />
-              Ver demo de 2 min
-            </Button>
-          </div>
+          <HeroButtons />
 
           <div className="mt-7 flex flex-wrap items-center gap-3.5 font-mono text-xs text-fg-3"
                style={{ color: "var(--color-fg-3)" }}>
@@ -69,14 +45,11 @@ export function Hero() {
             <span className="opacity-40">·</span>
             <span>+1.200 negócios</span>
           </div>
-        </motion.div>
+        </HeroLeftAnimation>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-          className={`relative aspect-[1.05/1] ${reduce ? "" : "float"}`}
-        >
+        {/* Right column - interactive mockup */}
+        <HeroRightAnimation className="relative aspect-[1.05/1] float">
+          {/* Main chat preview card */}
           <Glass className="absolute inset-x-0 top-0 p-5">
             <div className="flex items-center gap-2.5 border-b border-white/[0.08] pb-3">
               <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#14B8A6]" />
@@ -107,6 +80,7 @@ export function Hero() {
             </div>
           </Glass>
 
+          {/* Agenda floating card */}
           <Glass className="absolute -right-6 bottom-4 w-[62%] p-4 float [animation-duration:8s]">
             <div className="eyebrow mb-2" style={{ color: "var(--color-brand-teal-300)" }}>AGENDA · QUI</div>
             <div className="flex flex-col gap-1.5">
@@ -131,6 +105,7 @@ export function Hero() {
             </div>
           </Glass>
 
+          {/* Response time floating card */}
           <Glass className="absolute -left-7 top-[36%] w-[200px] p-3.5 float [animation-direction:reverse] [animation-duration:7s]">
             <div className="eyebrow" style={{ color: "var(--color-brand-teal-300)" }}>RESPOSTA</div>
             <div className="my-1 text-4xl font-bold tracking-[-0.03em]">
@@ -141,7 +116,7 @@ export function Hero() {
               <path d="M0 22 L20 18 L40 19 L60 12 L80 14 L100 8 L120 6" stroke="#14B8A6" strokeWidth="1.6" />
             </svg>
           </Glass>
-        </motion.div>
+        </HeroRightAnimation>
       </div>
     </section>
   );

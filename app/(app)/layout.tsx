@@ -13,6 +13,7 @@ import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/serv
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { AppShell } from "@/components/app/app-shell";
 import { getOnboardingStatus } from "@/lib/onboarding/guards";
+import { MotionProvider } from "@/components/motion/motion-provider";
 
 export default async function AppLayout({
   children,
@@ -62,12 +63,14 @@ export default async function AppLayout({
 
   return (
     <AuthProvider initialUser={user} initialProfile={profile}>
-      <AppShell 
-        hotCount={hotCount} 
-        unhealthyChannelsCount={unhealthyChannelsCount}
-      >
-        {children}
-      </AppShell>
+      <MotionProvider>
+        <AppShell 
+          hotCount={hotCount} 
+          unhealthyChannelsCount={unhealthyChannelsCount}
+        >
+          {children}
+        </AppShell>
+      </MotionProvider>
     </AuthProvider>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
+import { motion } from "framer-motion";
 import { CalendarCheck, Filter, Inbox, MessageCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +58,28 @@ const STEPS: Step[] = [
   },
 ];
 
+/* ─── Framer Motion Variants ─────────────────────────────────── */
+const containerVariants = {
+  hidden: {},
+  show: {
+    transition: {
+      staggerChildren: 0.12,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 22 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.55,
+      ease: [0.22, 1, 0.36, 1] as any,
+    },
+  },
+};
+
 /* ─── Connector (desktop) ────────────────────────────────────── */
 function Connector({ index, total }: { index: number; total: number }) {
   if (index >= total - 1) return null;
@@ -92,7 +113,7 @@ function Connector({ index, total }: { index: number; total: number }) {
         transition={{
           duration: 2,
           ease: "linear",
-          repeat: Infinity,
+          repeat: 3, // Finite repeating (3 cycles) to eliminate permanent CPU drain
           delay: 1.2 + index * 0.6,
           repeatDelay: 1.5,
         }}
@@ -102,20 +123,10 @@ function Connector({ index, total }: { index: number; total: number }) {
 }
 
 /* ─── Card ───────────────────────────────────────────────────── */
-function StepCard({ step, index }: { step: Step; index: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
-
+function StepCard({ step }: { step: Step }) {
   return (
     <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 24 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{
-        duration: 0.55,
-        ease: [0.22, 1, 0.36, 1],
-        delay: index * 0.1,
-      }}
+      variants={itemVariants}
       className="group relative flex min-w-0 flex-col"
     >
       {/* Card body */}
@@ -182,19 +193,19 @@ function StepCard({ step, index }: { step: Step; index: number }) {
 
 /* ─── Export ─────────────────────────────────────────────────── */
 export function HowItWorks() {
-  const headRef = useRef<HTMLDivElement>(null);
-  const headInView = useInView(headRef, { once: true, margin: "-60px" });
-
   return (
-    <section id="como-funciona" className="relative py-24" aria-label="Como funciona">
+    <motion.section
+      id="como-funciona"
+      className="relative py-24"
+      aria-label="Como funciona"
+      variants={containerVariants}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-100px" }}
+    >
       <div className="mx-auto max-w-[1200px] px-6">
         {/* Header */}
-        <motion.div
-          ref={headRef}
-          initial={{ opacity: 0, y: 20 }}
-          animate={headInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-        >
+        <motion.div variants={itemVariants}>
           <div className="eyebrow mb-3">COMO FUNCIONA</div>
           <h2 className="mb-2 max-w-[720px] text-balance text-[clamp(28px,3vw,40px)] font-bold leading-tight tracking-[-0.02em]">
             Quatro passos. Zero esforço humano.
@@ -212,7 +223,7 @@ export function HowItWorks() {
           {STEPS.flatMap((step, i) => {
             const els = [
               <div key={`card-${step.n}`} className="min-w-0 flex-1">
-                <StepCard step={step} index={i} />
+                <StepCard step={step} />
               </div>,
             ];
             if (i < STEPS.length - 1) {
@@ -237,6 +248,6 @@ export function HowItWorks() {
           ))}
         </div>
       </div>
-    </section>
+    </motion.section>
   );
 }

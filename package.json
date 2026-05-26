@@ -16,7 +16,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
     "@google/generative-ai": "^0.24.1",
-    "@lhci/cli": "^0.14.0",
     "@next/third-parties": "^16.2.6",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.46.0",
@@ -37,10 +36,10 @@
     "resend": "^6.12.3",
     "sonner": "^2.0.7",
     "stripe": "^22.1.1",
-    "tailwind-merge": "^2.5.5",
-    "web-vitals": "^5.2.0"
+    "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
+    "@lhci/cli": "^0.14.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/dotenv": "^8.2.3",
     "@types/node": "^22.10.1",
