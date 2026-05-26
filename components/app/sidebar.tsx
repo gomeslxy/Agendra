@@ -32,7 +32,6 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
 
   const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "Usuário";
   const companyName = profile?.companies?.name ?? "Minha empresa";
-  const planName = profile?.companies?.plan ?? "Teste Grátis";
   const planType = profile?.companies?.plan_type ?? "trial";
   const initials = getInitials(displayName);
 
@@ -44,7 +43,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
     business: "Business",
   };
 
-  const displayPlan = planLabel[planType] || planName;
+  const displayPlan = planLabel[planType] ?? "Teste Grátis";
 
   return (
     <aside
@@ -153,16 +152,18 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
             )}
 
             <div className="flex gap-1.5">
-              <Link href="/planos" className="flex-1">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="w-full justify-center bg-brand-blue-500/10 text-brand-blue-400 hover:bg-brand-blue-500/20 border-brand-blue-500/20"
-                >
-                  <IconZap size={13} />
-                  Upgrade
-                </Button>
-              </Link>
+              {planType !== "business" && (
+                <Link href="/planos" className="flex-1">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full justify-center bg-brand-blue-500/10 text-brand-blue-400 hover:bg-brand-blue-500/20 border-brand-blue-500/20"
+                  >
+                    <IconZap size={13} />
+                    {planType === "trial" ? "Assinar" : "Upgrade"}
+                  </Button>
+                </Link>
+              )}
               <Button
                 variant="ghost"
                 size="sm"

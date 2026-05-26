@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForInstagramChannel } from '@/lib/channels/adapters/instagram-auth';
+import { enforceChannelType } from '@/lib/billing/gate';
 import { revalidatePath } from 'next/cache';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -32,6 +33,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    await enforceChannelType(companyId, 'instagram');
+
     const result = await exchangeCodeForInstagramChannel(code, companyId);
 
     if (!result.success) {

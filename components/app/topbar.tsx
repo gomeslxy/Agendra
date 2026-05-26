@@ -37,7 +37,7 @@ export function Topbar({ cta }: TopbarProps) {
   const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "Usuário";
   const companyName = profile?.companies?.name ?? "Minha empresa";
   const planType = profile?.companies?.plan_type ?? "trial";
-  const displayPlan = PLAN_LABEL[planType] ?? (profile?.companies?.plan ?? "Teste Grátis");
+  const displayPlan = PLAN_LABEL[planType] ?? "Teste Grátis";
   const initials = getInitials(displayName);
   const { remaining, elapsed } = calculateTrialStatus(profile?.companies?.created_at);
   const trialProgress = calculateTrialProgress(elapsed);

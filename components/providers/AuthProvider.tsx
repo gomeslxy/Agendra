@@ -36,7 +36,6 @@ export interface UserProfile {
   companies: {
     id: string;
     name: string;
-    plan: string;
     plan_type: string;
     subscription_status: string;
     created_at: string;
@@ -50,6 +49,8 @@ interface AuthContextValue {
   session: Session | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  /** Re-fetches company profile from DB — call after billing changes (e.g. post-Stripe checkout) */
+  refreshProfile: () => Promise<void>;
 }
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ export function AuthProvider({
     async (userId: string) => {
       const { data } = await supabase
         .from("users")
-        .select("*, companies(id, name, plan, plan_type, subscription_status, created_at), memberships(role, company_id)")
+        .select("*, companies(id, name, plan_type, subscription_status, created_at), memberships(role, company_id)")
         .eq("id", userId)
         .single();
       setProfile(data ?? null);
@@ -136,9 +137,13 @@ export function AuthProvider({
     router.push("/");
   }, [supabase, router]);
 
+  const refreshProfile = useCallback(async () => {
+    if (user) await fetchProfile(user.id);
+  }, [user, fetchProfile]);
+
   const value = useMemo(
-    () => ({ user, profile, session, loading, signOut }),
-    [user, profile, session, loading, signOut],
+    () => ({ user, profile, session, loading, signOut, refreshProfile }),
+    [user, profile, session, loading, signOut, refreshProfile],
   );
 
   return (

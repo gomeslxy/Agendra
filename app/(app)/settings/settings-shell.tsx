@@ -2710,7 +2710,9 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
   const currentPeriodEnd = usage?.currentPeriodEnd;
 
   const trialDaysRemaining = usage?.trialDaysRemaining ?? null;
-  const isOnTrial = currentPlan === "trial";
+  // Genuine trial: plan is trial AND no active/past_due/canceled subscription
+  const isOnTrial = currentPlan === "trial" &&
+    (!subscriptionStatus || subscriptionStatus === "trial");
 
   return (
     <div className="flex flex-col gap-6 pb-12">
