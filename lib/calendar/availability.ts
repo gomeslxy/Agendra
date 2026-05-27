@@ -82,7 +82,7 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
     }
   }
 
-  while (cursor < rangeEnd && availableSlots.length < 15) {
+  while (cursor < rangeEnd && availableSlots.length < 30) {
     const offsetMin = getOffsetMinutes(cursor, timezone);
     const offsetMs = offsetMin * 60000;
     const localCursor = new Date(cursor.getTime() + offsetMs);

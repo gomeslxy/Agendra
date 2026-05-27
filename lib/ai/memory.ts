@@ -25,6 +25,10 @@ export function mountContext(memory: LeadMemory | null | undefined, summary: str
     lines.push(`- Situação Atual: ${summary}`);
   }
 
+  if (memory?.last_intent_signal) {
+    lines.push(`- Última Intenção Identificada: ${memory.last_intent_signal}`);
+  }
+
   if (!memory || memory.timeline.length === 0) {
     return lines.length > 1 ? lines.join('\n') : '';
   }

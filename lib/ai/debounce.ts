@@ -98,9 +98,13 @@ export async function bufferAndDebounce(args: {
   const lastItem = items[items.length - 1];
   console.log(`[Debounce][${dbgTag}] 🚦 flushing batch=${items.length} lastMsgId=${lastItem.provider_message_id.slice(-8)}`);
 
+  const mergedBody = items.length > 1
+    ? `[O lead enviou ${items.length} mensagens em sequência:]\n` + items.map((i) => i.body).join('\n')
+    : items[0].body;
+
   await handleIncomingMessage(
     args.companyId, args.leadPhone, args.leadName,
-    items.map((i) => i.body).join('\n'),
+    mergedBody,
     lastItem.provider_message_id,
     args.usage,
     { ...mergedMetadata, debounce_batch_size: items.length,

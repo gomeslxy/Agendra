@@ -3,14 +3,18 @@ import type { NeutralToolDefinition } from './providers/types';
 const baseDefs: NeutralToolDefinition[] = [
   {
     name: 'listServices',
-    description: 'Lista todos os serviços, preços e durações oferecidos pela empresa.',
+    description:
+      'Lista todos os serviços, preços e durações oferecidos pela empresa. ' +
+      'Use quando o lead perguntar quais serviços estão disponíveis ou o que a empresa faz. ' +
+      'NÃO use se o lead já especificou o serviço que deseja.',
     parameters: { type: 'object', properties: {}, required: [] },
   },
   {
     name: 'checkAvailability',
     description:
-      'Consulta horários disponíveis nos próximos dias. ' +
-      'Obrigatório informar o service_id para calcular a duração correta.',
+      'Consulta horários disponíveis nos próximos dias para um serviço específico. ' +
+      'Use quando o lead demonstrar interesse real em agendar um serviço específico. ' +
+      'OBRIGATÓRIO informar o service_id. NÃO use se você ainda não sabe qual serviço o lead deseja agendar.',
     parameters: {
       type: 'object',
       properties: {
@@ -23,8 +27,9 @@ const baseDefs: NeutralToolDefinition[] = [
   {
     name: 'bookAppointment',
     description:
-      'Cria um novo agendamento. Use após o lead escolher um horário de checkAvailability. ' +
-      'IMPORTANTE: start_time DEVE ser o valor "start" ISO retornado por checkAvailability, NUNCA reconstrua o horário manualmente.',
+      'Cria um novo agendamento de forma atômica no calendário. ' +
+      'Use SOMENTE depois de ter confirmado explicitamente com o lead o serviço, a data e o horário selecionados. ' +
+      'IMPORTANTE: start_time DEVE ser exatamente o valor "start" ISO retornado por checkAvailability, NUNCA reconstrua o horário manualmente.',
     parameters: {
       type: 'object',
       properties: {
@@ -41,7 +46,9 @@ const baseDefs: NeutralToolDefinition[] = [
   },
   {
     name: 'cancelAppointment',
-    description: 'Cancela um agendamento existente do lead.',
+    description:
+      'Cancela um agendamento futuro existente do lead. ' +
+      'Use quando o lead solicitar expressamente o cancelamento de um horário agendado.',
     parameters: {
       type: 'object',
       properties: {
@@ -53,7 +60,10 @@ const baseDefs: NeutralToolDefinition[] = [
   },
   {
     name: 'rescheduleAppointment',
-    description: 'Altera o horário de um agendamento existente.',
+    description:
+      'Altera o horário de um agendamento futuro existente do lead. ' +
+      'Use quando o lead pedir para mudar, remarcar ou reagendar o seu horário atual. ' +
+      'Exige o event_id e o novo horário (new_start_time).',
     parameters: {
       type: 'object',
       properties: {
@@ -65,12 +75,16 @@ const baseDefs: NeutralToolDefinition[] = [
   },
   {
     name: 'myAppointments',
-    description: 'Lista todos os agendamentos futuros do lead.',
+    description:
+      'Lista todos os agendamentos futuros e ativos do lead. ' +
+      'Use quando o lead perguntar sobre seus horários marcados ou se tem algum agendamento.',
     parameters: { type: 'object', properties: {}, required: [] },
   },
   {
     name: 'updateLeadInfo',
-    description: 'Atualiza email, cidade ou origem do lead.',
+    description:
+      'Atualiza informações cadastrais do lead no CRM (email, cidade ou origem/canal). ' +
+      'Use quando o lead informar espontaneamente esses dados na conversa.',
     parameters: {
       type: 'object',
       properties: {
@@ -82,7 +96,9 @@ const baseDefs: NeutralToolDefinition[] = [
   },
   {
     name: 'updateLeadMemory',
-    description: 'Atualiza a memória estratégica e comportamental do lead.',
+    description:
+      'Atualiza a memória comportamental e o funil estratégico do lead no CRM. ' +
+      'Use para registrar interesses reais, objeções superadas ou desqualificação. NÃO use para registrar saudações casuais.',
     parameters: {
       type: 'object',
       properties: {
@@ -106,8 +122,8 @@ const baseDefs: NeutralToolDefinition[] = [
   {
     name: 'requestHumanAgent',
     description:
-      'Pausa o atendimento da IA e solicita a intervenção de um atendente humano. ' +
-      'Use quando o lead demonstrar irritação, pedir explicitamente por um humano ou se o problema for complexo demais para a IA.',
+      'Pausa o atendimento automático da IA e solicita intervenção humana urgente. ' +
+      'Use imediatamente quando o lead demonstrar forte irritação, exigir falar com um humano, ou se a dúvida for complexa e fora do escopo comercial/agendamento.',
     parameters: {
       type: 'object',
       properties: {
@@ -123,7 +139,9 @@ const fintechDefs: NeutralToolDefinition[] =
         {
           name: 'generatePixCharge',
           description:
-            'Gera cobrança Pix para o lead confirmar agendamento. Use SOMENTE em planos Business após qualificar o agendamento.',
+            'Gera uma cobrança Pix (QR code e chave copia e cola) para o lead efetuar o pagamento. ' +
+            'Use somente após o lead concordar com o agendamento e o valor do serviço em planos pagos que exigem sinal. ' +
+            'NÃO use se o lead não aceitou o valor.',
           parameters: {
             type: 'object',
             properties: {
@@ -135,7 +153,9 @@ const fintechDefs: NeutralToolDefinition[] =
         },
         {
           name: 'checkPaymentStatus',
-          description: 'Verifica se uma cobrança Pix foi paga.',
+          description:
+            'Verifica em tempo real o status de pagamento de uma cobrança Pix gerada anteriormente. ' +
+            'Use após enviar a cobrança para validar se o pagamento foi confirmado antes de concluir o agendamento.',
           parameters: {
             type: 'object',
             properties: {
