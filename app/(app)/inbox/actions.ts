@@ -239,7 +239,8 @@ export async function approveDraftMessage(messageId: string) {
     .update({
       metadata: newMetadata,
     })
-    .eq("id", messageId);
+    .eq("id", messageId)
+    .eq("company_id", companyId); // IDOR guard — defense in depth
 
   if (updateError) throw new Error(updateError.message);
 
@@ -278,7 +279,8 @@ export async function editAndSendDraft(messageId: string, editedText: string) {
   const { error: updateError } = await supabase
     .from("messages")
     .update({ content: editedText.trim(), metadata: newMetadata })
-    .eq("id", messageId);
+    .eq("id", messageId)
+    .eq("company_id", companyId); // IDOR guard — defense in depth
 
   if (updateError) throw new Error(updateError.message);
 

@@ -21,6 +21,12 @@ const browserSupabase = createBrowserClient(
 
 const TONE_CYCLE: Array<"cold" | "warm" | "hot"> = ["cold", "warm", "hot"];
 const TONE_LABEL: Record<string, string> = { cold: "Formal", warm: "Amigável", hot: "Persuasivo" };
+const CONTROL_MODES: Array<"autonomous" | "shadow" | "manual"> = ["autonomous", "shadow", "manual"];
+const CONTROL_LABEL: Record<string, string> = {
+  autonomous: "Autônomo",
+  shadow: "Copiloto (Shadow)",
+  manual: "Manual",
+};
 
 function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -41,6 +47,164 @@ function relativeTime(dateStr: string) {
 function lastMsg(lead: LeadWithMessages) {
   const msgs = lead.messages;
   return msgs.length > 0 ? msgs[msgs.length - 1] : undefined;
+}
+
+// ─── Module-level components (outside InboxClient to avoid React remount on each render) ───
+
+interface ToneDropdownProps {
+  selected: LeadWithMessages;
+  toneOpen: boolean;
+  setToneOpen: (v: boolean) => void;
+  tonePending: boolean;
+  onToneChange: (tone: "cold" | "warm" | "hot") => void;
+  compact?: boolean;
+}
+
+function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChange, compact = false }: ToneDropdownProps) {
+  return (
+    <div className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setToneOpen(!toneOpen); }}
+        disabled={tonePending}
+        className={cn(
+          "flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/10 disabled:opacity-50",
+          toneOpen && "border-brand-blue-500/30 bg-white/10",
+          compact ? "h-8 px-2" : "w-full"
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            selected.conversation_tone === "hot" ? "bg-orange-400 shadow-[0_0_6px_rgba(251,146,60,0.6)]" :
+            selected.conversation_tone === "warm" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.6)]" :
+            "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)]"
+          )} />
+          <span className={cn(
+            "text-[10px] sm:text-[11px]",
+            selected.conversation_tone === "hot" ? "text-orange-400" :
+            selected.conversation_tone === "warm" ? "text-yellow-400" : "text-blue-400"
+          )}>
+            {TONE_LABEL[selected.conversation_tone ?? "warm"]}
+          </span>
+        </div>
+        <ChevronDown size={12} className={cn("text-white/40 transition-transform duration-300", toneOpen && "rotate-180")} />
+      </button>
+      <AnimatePresence>
+        {toneOpen && (
+          <>
+            <div className="fixed inset-0 z-[100]" onClick={() => setToneOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              animate={{ opacity: 1, y: 4, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.95 }}
+              className={cn(
+                "absolute z-[101] overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1 shadow-2xl shadow-black/50",
+                compact ? "right-0 top-full mt-1 w-32" : "left-0 top-full w-full"
+              )}
+            >
+              {TONE_CYCLE.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => { onToneChange(t); setToneOpen(false); }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide transition-colors",
+                    selected.conversation_tone === t ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                  )}
+                >
+                  <span className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    t === "hot" ? "bg-orange-400" : t === "warm" ? "bg-yellow-400" : "bg-blue-400"
+                  )} />
+                  {TONE_LABEL[t]}
+                </button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+interface ControlModeDropdownProps {
+  selected: LeadWithMessages;
+  controlOpen: boolean;
+  setControlOpen: (v: boolean) => void;
+  controlPending: boolean;
+  onControlModeChange: (mode: "autonomous" | "shadow" | "manual") => void;
+  compact?: boolean;
+}
+
+function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPending, onControlModeChange, compact = false }: ControlModeDropdownProps) {
+  const currentMode = selected.control_mode ?? (selected.is_paused ? "manual" : "autonomous");
+  return (
+    <div className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setControlOpen(!controlOpen); }}
+        disabled={controlPending}
+        className={cn(
+          "flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/10 disabled:opacity-50",
+          controlOpen && "border-brand-blue-500/30 bg-white/10",
+          compact ? "h-8 px-2" : "w-full"
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            currentMode === "autonomous" ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" :
+            currentMode === "shadow" ? "bg-brand-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)]" : "bg-white/40"
+          )} />
+          <span className={cn(
+            "text-[10px] sm:text-[11px]",
+            currentMode === "autonomous" ? "text-emerald-400" :
+            currentMode === "shadow" ? "text-brand-blue-400" : "text-white/60"
+          )}>
+            {CONTROL_LABEL[currentMode]}
+          </span>
+        </div>
+        <ChevronDown size={12} className={cn("text-white/40 transition-transform duration-300", controlOpen && "rotate-180")} />
+      </button>
+      <AnimatePresence>
+        {controlOpen && (
+          <>
+            <div className="fixed inset-0 z-[100]" onClick={() => setControlOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              animate={{ opacity: 1, y: 4, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.95 }}
+              className={cn(
+                "absolute z-[101] overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1 shadow-2xl shadow-black/50",
+                compact ? "right-0 top-full mt-1 w-44" : "left-0 top-full w-full"
+              )}
+            >
+              {CONTROL_MODES.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { onControlModeChange(m); setControlOpen(false); }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors text-left",
+                    currentMode === m ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                  )}
+                >
+                  <span className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    m === "autonomous" ? "bg-emerald-400" : m === "shadow" ? "bg-brand-blue-400" : "bg-white/40"
+                  )} />
+                  <div className="flex flex-col">
+                    <span>{CONTROL_LABEL[m]}</span>
+                    <span className="text-[8px] font-medium text-white/20 tracking-normal normal-case">
+                      {m === "autonomous" ? "IA responde automaticamente" :
+                       m === "shadow" ? "Gera rascunhos para aprovar" : "IA desativada para este lead"}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 export function InboxClient({ leads: initialLeads, companyId, fetchError }: { leads: LeadWithMessages[]; companyId: string | null; fetchError?: string | null }) {
@@ -64,10 +228,15 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const [isConnected, setIsConnected] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachPreview, setAttachPreview] = useState<string | null>(null);
+  // Track leads that received new messages while not being viewed
+  const [unreadLeadIds, setUnreadLeadIds] = useState<Set<string>>(new Set());
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref to latest selectedId for use inside realtime callbacks (avoids stale closure)
+  const selectedIdRef = useRef<string | null>(selectedId);
+  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
   const selectedMessageCount = useMemo(
     () => leads.find((l) => l.id === selectedId)?.messages.length ?? 0,
@@ -77,6 +246,12 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selectedMessageCount, showChatOnMobile]);
+
+  // Clear typing indicator when switching leads
+  useEffect(() => {
+    setIsTyping(false);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+  }, [selectedId]);
 
   useEffect(() => {
     if (!companyId) return; // Cannot subscribe without a tenant filter
@@ -113,13 +288,19 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         { event: "INSERT", schema: "public", table: "messages", filter: companyFilter },
         (payload) => {
           const newMsg = payload.new as Message;
-          if (newMsg.role === "user") {
+          // Only show typing indicator for the lead currently being viewed
+          if (newMsg.role === "user" && newMsg.lead_id === selectedIdRef.current) {
             setIsTyping(true);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
             typingTimerRef.current = setTimeout(() => setIsTyping(false), 8000);
-          } else {
+          } else if (newMsg.role !== "user") {
             setIsTyping(false);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+          }
+
+          // Track unread: messages from other leads mark that lead as unread
+          if (newMsg.role === "user" && newMsg.lead_id !== selectedIdRef.current) {
+            setUnreadLeadIds((prev) => new Set(prev).add(newMsg.lead_id));
           }
 
           setLeads((prev) => {
@@ -189,6 +370,21 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
               return new Date(bLast).getTime() - new Date(aLast).getTime();
             });
           });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages", filter: companyFilter },
+        (payload) => {
+          // Handles realtime draft deletion visible to multiple sessions (e.g. two agents)
+          const deletedId = (payload.old as { id?: string })?.id;
+          if (!deletedId) return;
+          setLeads((prev) =>
+            prev.map((lead) => ({
+              ...lead,
+              messages: lead.messages.filter((m) => m.id !== deletedId),
+            })),
+          );
         },
       )
       .subscribe((status) => {
@@ -341,7 +537,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         );
       }
     });
-  }, [selected, noteText]);
+  }, [selected, noteText, attachedFile, clearAttachment]);
 
   const handleTakeOver = useCallback(() => {
     if (!selected) return;
@@ -416,95 +612,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     });
   }, [selected]);
 
-  const ToneDropdown = ({ compact = false }: { compact?: boolean }) => {
-    if (!selected) return null;
-    return (
-      <div className="relative">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setToneOpen(!toneOpen);
-          }}
-          disabled={tonePending}
-          className={cn(
-            "flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/10 disabled:opacity-50",
-            toneOpen && "border-brand-blue-500/30 bg-white/10",
-            compact ? "h-8 px-2" : "w-full"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                selected.conversation_tone === "hot" ? "bg-orange-400 shadow-[0_0_6px_rgba(251,146,60,0.6)]" :
-                selected.conversation_tone === "warm" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.6)]" :
-                "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)]"
-              )}
-            />
-            <span className={cn(
-              "text-[10px] sm:text-[11px]",
-              selected.conversation_tone === "hot" ? "text-orange-400" :
-              selected.conversation_tone === "warm" ? "text-yellow-400" :
-              "text-blue-400"
-            )}>
-              {TONE_LABEL[selected.conversation_tone ?? "warm"]}
-            </span>
-          </div>
-          <ChevronDown size={12} className={cn("text-white/40 transition-transform duration-300", toneOpen && "rotate-180")} />
-        </button>
-
-        <AnimatePresence>
-          {toneOpen && (
-            <>
-              <div className="fixed inset-0 z-[100]" onClick={() => setToneOpen(false)} />
-              <motion.div
-                initial={{ opacity: 0, y: -4, scale: 0.95 }}
-                animate={{ opacity: 1, y: 4, scale: 1 }}
-                exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                className={cn(
-                  "absolute z-[101] overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1 shadow-2xl shadow-black/50",
-                  compact ? "right-0 top-full mt-1 w-32" : "left-0 top-full w-full"
-                )}
-              >
-                {TONE_CYCLE.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => {
-                      handleToneChange(t);
-                      setToneOpen(false);
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide transition-colors",
-                      selected.conversation_tone === t
-                        ? "bg-white/10 text-white"
-                        : "text-white/40 hover:bg-white/5 hover:text-white/70"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        t === "hot" ? "bg-orange-400" :
-                        t === "warm" ? "bg-yellow-400" : "bg-blue-400"
-                      )}
-                    />
-                    {TONE_LABEL[t]}
-                  </button>
-                ))}
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
-
-  const CONTROL_MODES: Array<"autonomous" | "shadow" | "manual"> = ["autonomous", "shadow", "manual"];
-  const CONTROL_LABEL: Record<string, string> = {
-    autonomous: "Autônomo",
-    shadow: "Copiloto (Shadow)",
-    manual: "Manual"
-  };
-
   const handleControlModeChange = useCallback((mode: "autonomous" | "shadow" | "manual") => {
     if (!selected) return;
     const current = selected.control_mode ?? (selected.is_paused ? "manual" : "autonomous");
@@ -528,96 +635,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       }
     });
   }, [selected]);
-
-  const ControlModeDropdown = ({ compact = false }: { compact?: boolean }) => {
-    if (!selected) return null;
-    const currentMode = selected.control_mode ?? (selected.is_paused ? "manual" : "autonomous");
-    return (
-      <div className="relative">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setControlOpen(!controlOpen);
-          }}
-          disabled={controlPending}
-          className={cn(
-            "flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/10 disabled:opacity-50",
-            controlOpen && "border-brand-blue-500/30 bg-white/10",
-            compact ? "h-8 px-2" : "w-full"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                currentMode === "autonomous" ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" :
-                currentMode === "shadow" ? "bg-brand-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)]" :
-                "bg-white/40"
-              )}
-            />
-            <span className={cn(
-              "text-[10px] sm:text-[11px]",
-              currentMode === "autonomous" ? "text-emerald-400" :
-              currentMode === "shadow" ? "text-brand-blue-400" :
-              "text-white/60"
-            )}>
-              {CONTROL_LABEL[currentMode]}
-            </span>
-          </div>
-          <ChevronDown size={12} className={cn("text-white/40 transition-transform duration-300", controlOpen && "rotate-180")} />
-        </button>
-
-        <AnimatePresence>
-          {controlOpen && (
-            <>
-              <div className="fixed inset-0 z-[100]" onClick={() => setControlOpen(false)} />
-              <motion.div
-                initial={{ opacity: 0, y: -4, scale: 0.95 }}
-                animate={{ opacity: 1, y: 4, scale: 1 }}
-                exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                className={cn(
-                  "absolute z-[101] overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1 shadow-2xl shadow-black/50",
-                  compact ? "right-0 top-full mt-1 w-44" : "left-0 top-full w-full"
-                )}
-              >
-                {CONTROL_MODES.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => {
-                      handleControlModeChange(m);
-                      setControlOpen(false);
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors text-left",
-                      currentMode === m
-                        ? "bg-white/10 text-white"
-                        : "text-white/40 hover:bg-white/5 hover:text-white/70"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        m === "autonomous" ? "bg-emerald-400" :
-                        m === "shadow" ? "bg-brand-blue-400" : "bg-white/40"
-                      )}
-                    />
-                    <div className="flex flex-col">
-                      <span>{CONTROL_LABEL[m]}</span>
-                      <span className="text-[8px] font-medium text-white/20 tracking-normal normal-case">
-                        {m === "autonomous" ? "IA responde automaticamente" :
-                         m === "shadow" ? "Gera rascunhos para aprovar" :
-                         "IA desativada para este lead"}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
 
   const handleApproveDraft = useCallback((messageId: string) => {
     setInboxError(null);
@@ -664,7 +681,9 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
   const sortedMessages = selected ? selected.messages : [];
   const isPaused = selected?.is_paused ?? false;
-  const inputBlocked = !isPaused || sendPending;
+  const isShadowMode = selected?.control_mode === 'shadow';
+  // Shadow mode: IA gera rascunhos mas humano pode também enviar notas diretas
+  const inputBlocked = (!isPaused && !isShadowMode) || sendPending;
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
@@ -747,8 +766,16 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-0">
           {inboxError && (
-            <div className="px-5 py-2 text-sm text-red-400 bg-red-900/30 rounded-md mb-2">
-              Erro ao carregar: {inboxError}
+            <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2">
+              <p className="text-[12px] font-medium text-red-400 leading-tight">
+                {inboxError}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="shrink-0 text-[11px] font-black uppercase tracking-wider text-red-400 hover:text-red-300 transition-colors"
+              >
+                Tentar novamente
+              </button>
             </div>
           )}
           {filteredLeads.length === 0 ? (
@@ -771,6 +798,14 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                     onClick={() => {
                       setSelectedId(l.id);
                       setShowChatOnMobile(true);
+                      // Clear unread indicator when lead is opened
+                      if (unreadLeadIds.has(l.id)) {
+                        setUnreadLeadIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(l.id);
+                          return next;
+                        });
+                      }
                     }}
                     className={cn(
                       "group relative flex cursor-pointer items-center gap-4 border-b border-white/[0.04] px-5 py-4 transition-all duration-200",
@@ -795,6 +830,14 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                         l.status === "warm" ? "bg-yellow-500" :
                         l.status === "success" ? "bg-teal-500" : "bg-blue-400"
                       )} />
+                      {/* Unread indicator — new message arrived while not viewing */}
+                      {unreadLeadIds.has(l.id) && (
+                        <motion.span
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-brand-blue-500 border-2 border-[#050505] shadow-[0_0_8px_rgba(59,130,246,0.7)]"
+                        />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
@@ -811,7 +854,12 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                           {last ? relativeTime(last.created_at) : "—"}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center gap-1.5">
+                      <div className="mt-1 flex items-center gap-1.5 min-w-0">
+                        {last && (last.metadata as any)?.is_draft && (
+                          <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-brand-blue-400 bg-brand-blue-500/10 border border-brand-blue-500/20 rounded px-1 py-0.5">
+                            Rascunho
+                          </span>
+                        )}
                         <span className={cn(
                           "truncate text-[12px] font-medium transition-colors",
                           isActive ? "text-white/70" : "text-white/40"
@@ -872,9 +920,23 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
               </div>
 
               <div className="flex items-center gap-2">
-                <ControlModeDropdown compact />
+                <ControlModeDropdown
+                  compact
+                  selected={selected}
+                  controlOpen={controlOpen}
+                  setControlOpen={setControlOpen}
+                  controlPending={controlPending}
+                  onControlModeChange={handleControlModeChange}
+                />
                 <div className="hidden sm:block">
-                  <ToneDropdown compact />
+                  <ToneDropdown
+                    compact
+                    selected={selected}
+                    toneOpen={toneOpen}
+                    setToneOpen={setToneOpen}
+                    tonePending={tonePending}
+                    onToneChange={handleToneChange}
+                  />
                 </div>
               </div>
             </div>
@@ -1065,8 +1127,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
             {/* Input Area */}
             <div className="relative bg-background/95 backdrop-blur-2xl border-t border-white/[0.08] p-3 sm:p-4 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-[env(safe-area-inset-bottom,16px)] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
               <div className="max-w-5xl mx-auto relative group">
-                {!isPaused && (
-                  <motion.div 
+                {!isPaused && !isShadowMode && (
+                  <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl"
@@ -1098,7 +1160,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
                 <div className={cn(
                   "flex items-center gap-2 sm:gap-3 transition-all duration-300",
-                  !isPaused && "blur-[2px] scale-[0.98] opacity-50"
+                  !isPaused && !isShadowMode && "blur-[2px] scale-[0.98] opacity-50"
                 )}>
                   <div className="flex-1 relative flex flex-col gap-0 bg-white/[0.03] border border-white/[0.08] rounded-2xl px-3 py-1.5 transition-all focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.06] focus-within:shadow-glow-blue/5">
                     {/* Attachment preview chip */}
@@ -1210,7 +1272,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
               {selected.control_mode === 'shadow' && (
                 <p className="mt-3 text-center text-[9px] font-black uppercase tracking-[0.2em] text-brand-blue-400">
                   <Sparkles className="inline mr-1" size={9} />
-                  Modo Copiloto · Aprovar rascunhos acima antes de enviar
+                  Modo Copiloto · Aprove rascunhos acima ou escreva diretamente
                 </p>
               )}
               {inboxError && (
@@ -1250,11 +1312,23 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 <div className="space-y-4">
                   <div>
                     <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-2">Tom da Conversa</span>
-                    <ToneDropdown />
+                    <ToneDropdown
+                      selected={selected}
+                      toneOpen={toneOpen}
+                      setToneOpen={setToneOpen}
+                      tonePending={tonePending}
+                      onToneChange={handleToneChange}
+                    />
                   </div>
                   <div>
                     <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-2">Modo de Operação</span>
-                    <ControlModeDropdown />
+                    <ControlModeDropdown
+                      selected={selected}
+                      controlOpen={controlOpen}
+                      setControlOpen={setControlOpen}
+                      controlPending={controlPending}
+                      onControlModeChange={handleControlModeChange}
+                    />
                   </div>
                   {selected.summary && (
                     <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">

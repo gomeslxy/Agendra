@@ -24,15 +24,16 @@ export default async function InboxPage() {
       .select(`*, messages(id, lead_id, company_id, content, role, metadata, created_at)`)
       .eq("company_id", companyId)
       .order("updated_at", { ascending: false })
-      .order("created_at", { foreignTable: "messages", ascending: false })
-      .limit(50, { foreignTable: "messages" })
+      .order("created_at", { referencedTable: "messages", ascending: false })
+      .limit(50, { referencedTable: "messages" })
       .limit(30),
     supabase
       .from("events")
       .select("id, lead_id, title, start_time, end_time")
       .eq("company_id", companyId)
       .gte("start_time", new Date().toISOString())
-      .order("start_time", { ascending: true }),
+      .order("start_time", { ascending: true })
+      .limit(200),
   ]);
 
   // Forward any fetch error to the client UI
