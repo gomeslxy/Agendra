@@ -29,46 +29,44 @@ export function mountContext(memory: LeadMemory | null | undefined, summary: str
     lines.push(`- Última Intenção Identificada: ${memory.last_intent_signal}`);
   }
 
-  if (!memory || memory.timeline.length === 0) {
-    return lines.length > 1 ? lines.join('\n') : '';
-  }
-
-  const firstContact = memory.timeline.find((e) => e.event === 'first_contact');
-  if (firstContact) {
-    const d = new Date(firstContact.date);
-    lines.push(`- Primeiro contato: ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`);
-  }
-
-  if (memory.services_mentioned.length > 0) {
+  if (memory?.services_mentioned && memory.services_mentioned.length > 0) {
     lines.push(`- Interesse: ${memory.services_mentioned.join(', ')}`);
   }
 
-  if (memory.objections_raised.length > 0) {
+  if (memory?.objections_raised && memory.objections_raised.length > 0) {
     lines.push(`- Objeções: ${memory.objections_raised.map((o) => `"${o}"`).join(', ')}`);
   }
 
-  const slotShown = memory.timeline.filter((e) => e.event === 'slot_shown').length;
-  if (slotShown > 0) {
-    const declined = memory.timeline.filter((e) => e.event === 'slot_declined').length;
-    lines.push(`- Engajamento: ${slotShown} convites de agenda${declined > 0 ? ` (${declined} recusas)` : ''}`);
-  }
-
-  if (memory.score_history.length > 0) {
+  if (memory?.score_history && memory.score_history.length > 0) {
     const recent = memory.score_history.slice(-3);
     const trend = recent.map((s) => s.score).join(' → ');
     lines.push(`- Evolução do Score: ${trend}`);
   }
 
-  const flags = [];
-  if (memory.timeline.some((e) => e.event === 'disqualified')) flags.push('⚠️ Lead Desqualificado');
-  if (memory.timeline.some((e) => e.event === 'no_show')) flags.push('⚠️ No-show anterior');
-  if (flags.length > 0) lines.push(`- Flags: ${flags.join(' | ')}`);
-
   // Extrair respostas de qualificação se houver
-  const answers = Object.entries(memory.qualification_answers || {});
+  const answers = Object.entries(memory?.qualification_answers || {});
   if (answers.length > 0) {
     lines.push('- Dados Coletados:');
     answers.forEach(([q, a]) => lines.push(`  * ${q}: ${a}`));
+  }
+
+  if (memory?.timeline && memory.timeline.length > 0) {
+    const firstContact = memory.timeline.find((e) => e.event === 'first_contact');
+    if (firstContact) {
+      const d = new Date(firstContact.date);
+      lines.push(`- Primeiro contato: ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`);
+    }
+
+    const slotShown = memory.timeline.filter((e) => e.event === 'slot_shown').length;
+    if (slotShown > 0) {
+      const declined = memory.timeline.filter((e) => e.event === 'slot_declined').length;
+      lines.push(`- Engajamento: ${slotShown} convites de agenda${declined > 0 ? ` (${declined} recusas)` : ''}`);
+    }
+
+    const flags = [];
+    if (memory.timeline.some((e) => e.event === 'disqualified')) flags.push('⚠️ Lead Desqualificado');
+    if (memory.timeline.some((e) => e.event === 'no_show')) flags.push('⚠️ No-show anterior');
+    if (flags.length > 0) lines.push(`- Flags: ${flags.join(' | ')}`);
   }
 
   return lines.join('\n');

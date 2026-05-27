@@ -97,6 +97,7 @@ function buildSystemPrompt(
   planLimits: PlanLimits,
   isSessionExpired?: boolean,
   timeSinceLastStr?: string,
+  clientProfileRule: string = '',
 ): string {
   const aiName = persona.name ?? 'Agendra';
   const businessName = persona.business_name ?? 'nossa empresa';
@@ -147,12 +148,10 @@ function buildSystemPrompt(
   } else if (isSessionExpired) {
     greetingRule = `ATENCAO: O lead esta retornando apos um intervalo de ${timeSinceLastStr}. Esta e uma RETOMADA de conversa (nova sessao de atendimento).
 - Cumprimente o lead de forma natural e calorosa (ex: "Ola, ${firstName}! Tudo bem? Que bom falar com voce de novo!", ou "Ola, ${firstName}! Bom dia! Como posso te ajudar hoje?").
-- NUNCA assuma que ele quer continuar o assunto anterior diretamente a menos que ele mencione isso na mensagem dele.
-- Analise a mensagem dele para decidir a melhor abordagem:
-  1. Se for uma saudacao casual ou mensagem curta (ex: "oi", "ola", "bom dia"): cumprimente-o de volta com simpatia, cite de forma natural e sutil que voces conversaram antes sobre [Assunto Recente: ${lead.summary || 'servicos'}] e pergunte como pode ajuda-lo hoje.
-  2. Se ele ja estiver respondendo ou continuando o assunto anterior diretamente (ex: "quero agendar", "tem vaga terça?"): prossiga diretamente com o agendamento ou fluxo correspondente sem rodeios.
-  3. Se ele trouxe uma nova duvida ou assunto: responda diretamente a nova solicitacao de forma prestativa.
-  4. Se for uma mensagem vaga ou sem contexto suficiente: responda com simpatia e pergunte como pode ajudar hoje.`;
+- **Super-Memória Conversacional**: Analise a "Memória Estratégica do Lead". Se houver serviços de interesse (como em Interesse) ou objeções ativas na memória, e o lead mandar apenas uma saudação casual ou mensagem curta ("Oi", "Olá", "Bom dia", "Voltei"), responda-o cumprimentando-o calorosamente de volta e faça uma ponte sutil e comercial resgatando o assunto anterior (ex: "Olá, ${firstName}! Tudo bem? Que bom ter você de volta! Estávamos conversando sobre o [Serviço]. Vamos marcar para essa semana?"). Não finja que é a primeira vez dele.
+- Se o lead já estiver respondendo ou continuando o assunto anterior diretamente (ex: "quero agendar", "tem vaga terça?"): prossiga diretamente com o agendamento ou fluxo correspondente sem rodeios.
+- Se ele trouxe uma nova dúvida ou assunto: responda diretamente à nova solicitação de forma prestativa.
+- Se for uma mensagem vaga ou sem contexto suficiente: responda com simpatia e pergunte como pode ajudar hoje.`;
   } else {
     greetingRule = `Conversa ATIVA e em andamento (ultima interacao ha menos de 12 horas).
 - NAO cumprimente novamente (sem "Ola", "Tudo bem?", "Bom dia", "Que bom falar com voce de novo").
@@ -188,7 +187,7 @@ Sua MISSÃO principal e absoluta é qualificar o lead com humanidade e conduzi-l
 ${memoryContext}
 
 ## 2. FLUXO CONVERSACIONAL E REGRAS DE AGENDA (MÉDIA PRIORIDADE)
-- **Condução Premium e Humanizada**: Aja como um atendente humano premium e acolhedor, não como um robô mecânico. Evite respostas longas, estruturadas demais ou listas rígidas. Seja direto, conciso e empático.
+- **Condução Premium e Humanizada**: Aja como um atendente humano premium e acolhedor, não como um robô mecânico. Evite respostas longas, estruturadas demais ou listas rígidas. Seja direto, conciso e empático.${clientProfileRule}
 - **Saudação & Contexto de Sessão**:
   ${greetingRule}
 - **Instruções de Agendamento**:
@@ -196,7 +195,9 @@ ${memoryContext}
   2. SEMPRE consulte a disponibilidade real com checkAvailability usando o ID do serviço. NUNCA invente horários ou assuma que a agenda está cheia sem consultar. A agenda muda a cada minuto; nunca diga "sem horários" baseado apenas no resumo ou histórico.
   3. **Apresentação de Horários (UX Conversacional)**: Quando checkAvailability retornar slots livres, NUNCA liste todos de uma vez (isso é robótico e cansativo). Sugira no máximo 3 a 4 opções mais relevantes por vez, agrupando-as por período (ex: "Tenho terça-feira pela manhã às 09:30, ou à tarde às 14:00. Algum desses funciona para você?").
   4. **Confirmação Obrigatória**: Antes de efetivamente agendar (bookAppointment), confirme de forma explícita com o lead o serviço desejado, a data e o horário (ex: "Perfeito! Então podemos confirmar o [Serviço] para segunda-feira, [Data], às [Horário]?").
-  5. **Agendamento no Calendário**: Chame bookAppointment SOMENTE após a confirmação clara e explícita do lead. Para bookAppointment, use SEMPRE o campo "start" ISO 8601 exato retornado pelo slot de checkAvailability, NUNCA tente reconstruir o horário manualmente nem assuma fuso horário de forma incorreta.
+  5. **Agendamento no Calendário**: Chame bookAppointment SOMENTE após a confirmation clara e explícita do lead. Para bookAppointment, use SEMPRE o campo "start" ISO 8601 exato retornado pelo slot de checkAvailability, NUNCA tente reconstruir o horário manualmente nem assuma fuso horário de forma incorreta.
+- **Regra de Ouro da Proatividade Comercial (Sempre Fechar com CTA)**: NUNCA responda a uma pergunta informativa do lead (como preço, localização, políticas, funcionamento) de forma puramente passiva ou inerte. Toda resposta informativa DEVE terminar com um convite proativo, gentil e sutil para o agendamento (ex: respondendo ao valor de um serviço e imediatamente sugerindo: "Inclusive, tenho algumas vagas para amanhã ou quinta-feira. Gostaria de garantir um horário?").
+- **Atalho de Agendamento (Fim de Loops Redundantes)**: Se o lead indicar qualquer parâmetro de tempo ou dia na conversa (ex: "segunda-feira", "amanhã", "à tarde", "quarta de manhã"), NÃO faça novas perguntas de qualificação nem repita perguntas pendentes. Considere isso como intenção clara de agendar, chame a ferramenta checkAvailability imediatamente para o serviço desejado e ofereça os slots correspondentes para o lead escolher. Guie-o ativamente.
 - **Atualização de Memória**: Use updateLeadMemory para registrar interesses reais, objeções ou respostas de qualificação. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".
 
 ## 3. SEGURANÇA, PLANO E FORMATAÇÃO (GUARDRAILS — PESO MENOR)
@@ -313,6 +314,21 @@ export async function processLeadMessage(
   const isSessionExpired = timeSinceLastMs !== null && timeSinceLastMs > 12 * 60 * 60 * 1000; // 12 hours
   const timeSinceLastStr = timeSinceLastMs !== null ? formatTimeElapsed(timeSinceLastMs) : '';
 
+  // --- Dynamic Profile Detection (SaaS Conversational Engine Refinement) ---
+  const lowerMsg = newMessage.toLowerCase().trim();
+  const isShort = lowerMsg.length < 15;
+  const isHurried = /\b(r[áa]pid|press|corr|urgente|agora|logo|tempo|rápido)\b/i.test(lowerMsg);
+  const isConfused = /\b(n[ãa]o sei|tanto faz|tanto fez|como funcion|me ajuda|o que fa[çc]o|tô perdido|estou perdido|vago|qualquer|sei l[áa]|complicado|difícil)\b/i.test(lowerMsg);
+
+  let clientProfileRule = '';
+  if (isShort || isHurried) {
+    clientProfileRule = `
+- **Perfil Comportamental: Lead Seco/Apressado (Máxima Concisão)**: O lead enviou uma mensagem muito curta ou demonstrou pressa. Responda de forma extremamente concisa, direta ao ponto e sem rodeios. Use no máximo 2 frases curtas na sua resposta e finalize com um CTA direto e proativo para manter a agilidade.`;
+  } else if (isConfused) {
+    clientProfileRule = `
+- **Perfil Comportamental: Lead Indeciso/Confuso (Escolha Simplificada)**: O lead demonstrou indecisão ou confusão. Evite dar opções muito abertas ou listar muitos horários/serviços. Apresente no máximo 2 opções estruturadas de escolha direta (ex: "Você prefere na terça ou na quinta?") para facilitar a tomada de decisão dele.`;
+  }
+
   const systemPrompt = buildSystemPrompt(
     persona,
     lead,
@@ -321,7 +337,8 @@ export async function processLeadMessage(
     planType,
     planLimits,
     isSessionExpired,
-    timeSinceLastStr
+    timeSinceLastStr,
+    clientProfileRule
   );
 
   const ctx: ToolContext = { companyId, leadId: lead.id, traceId };
