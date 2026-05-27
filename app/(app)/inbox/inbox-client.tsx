@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
+import { memo, useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Search, MessageCircle, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import type { Lead, Message } from "@/lib/types/database";
 import type { LeadWithMessages } from "./page";
 import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage, editAndSendDraft, sendFileAttachment } from "./actions";
 import { createBrowserClient } from "@supabase/ssr";
+import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
 
 const browserSupabase = createBrowserClient(
@@ -27,6 +28,11 @@ const CONTROL_LABEL: Record<string, string> = {
   shadow: "Copiloto (Shadow)",
   manual: "Manual",
 };
+
+// Module-level animation constants — defined outside component to avoid new object refs on each render
+const LEAD_LIST_VARIANTS = stagger(0.02, 0.03);
+const LEAD_ITEM_VARIANTS = { hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } };
+const LEAD_ITEM_HOVER = { backgroundColor: "rgba(255,255,255,0.03)" };
 
 function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -207,7 +213,88 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
   );
 }
 
+// ─── LeadListItem — memoized to prevent full-list re-render on every realtime message ───
+
+interface LeadListItemProps {
+  lead: LeadWithMessages;
+  isActive: boolean;
+  isUnread: boolean;
+  onSelect: (id: string) => void;
+}
+
+const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, onSelect }: LeadListItemProps) {
+  const last = lastMsg(l);
+  return (
+    <motion.div
+      variants={LEAD_ITEM_VARIANTS}
+      whileHover={LEAD_ITEM_HOVER}
+      onClick={() => onSelect(l.id)}
+      className={cn(
+        "group relative flex cursor-pointer items-center gap-4 border-b border-white/[0.04] px-5 py-4 transition-all duration-200",
+        isActive && "bg-brand-blue-600/10"
+      )}
+    >
+      {isActive && (
+        <motion.div
+          layoutId="active-lead"
+          className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+        />
+      )}
+      <div
+        className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full text-sm font-black text-white shadow-xl"
+        style={{ background: HEAT_GRADIENT[l.status] ?? HEAT_GRADIENT.cold }}
+      >
+        {initials(l.name)}
+        <div className={cn(
+          "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#050505] transition-all",
+          l.status === "hot" ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" :
+          l.status === "warm" ? "bg-yellow-500" :
+          l.status === "success" ? "bg-teal-500" : "bg-blue-400"
+        )} />
+        {isUnread && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-brand-blue-500 border-2 border-[#050505] shadow-[0_0_8px_rgba(59,130,246,0.7)]"
+          />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="truncate text-[14px] font-bold tracking-tight text-white">{l.name}</span>
+            {l.channel === "whatsapp" && (
+              <MessageCircle size={12} className="text-teal-400 shrink-0" />
+            )}
+            {l.channel === "instagram" && (
+              <Instagram size={12} className="text-pink-400 shrink-0" />
+            )}
+          </div>
+          <span className="font-mono text-[10px] font-bold uppercase text-white/30 whitespace-nowrap">
+            {last ? relativeTime(last.created_at) : "—"}
+          </span>
+        </div>
+        <div className="mt-1 flex items-center gap-1.5 min-w-0">
+          {last && (last.metadata as any)?.is_draft && (
+            <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-brand-blue-400 bg-brand-blue-500/10 border border-brand-blue-500/20 rounded px-1 py-0.5">
+              Rascunho
+            </span>
+          )}
+          <span className={cn(
+            "truncate text-[12px] font-medium transition-colors",
+            isActive ? "text-white/70" : "text-white/40"
+          )}>
+            {last?.content ?? "Nenhuma mensagem"}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+});
+
 export function InboxClient({ leads: initialLeads, companyId, fetchError }: { leads: LeadWithMessages[]; companyId: string | null; fetchError?: string | null }) {
+  const router = useRouter();
   const [leads, setLeads] = useState<LeadWithMessages[]>(initialLeads);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -237,6 +324,18 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   // Ref to latest selectedId for use inside realtime callbacks (avoids stale closure)
   const selectedIdRef = useRef<string | null>(selectedId);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+
+  // Stable callback so LeadListItem memo never breaks on re-render
+  const handleLeadSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setShowChatOnMobile(true);
+    setUnreadLeadIds((prev) => {
+      if (!prev.has(id)) return prev; // avoid state update if nothing to clear
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   const selectedMessageCount = useMemo(
     () => leads.find((l) => l.id === selectedId)?.messages.length ?? 0,
@@ -771,7 +870,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 {inboxError}
               </p>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => router.refresh()}
                 className="shrink-0 text-[11px] font-black uppercase tracking-wider text-red-400 hover:text-red-300 transition-colors"
               >
                 Tentar novamente
@@ -786,91 +885,16 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
               <p className="text-xs font-medium text-white/30 italic">Nenhum lead encontrado.</p>
             </div>
           ) : (
-            <motion.div variants={stagger(0.02, 0.03)} initial="hidden" animate="show" className="flex flex-col">
-              {filteredLeads.map((l) => {
-                const last = lastMsg(l);
-                const isActive = l.id === selectedId;
-                return (
-                  <motion.div
-                    key={l.id}
-                    variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
-                    whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }}
-                    onClick={() => {
-                      setSelectedId(l.id);
-                      setShowChatOnMobile(true);
-                      // Clear unread indicator when lead is opened
-                      if (unreadLeadIds.has(l.id)) {
-                        setUnreadLeadIds((prev) => {
-                          const next = new Set(prev);
-                          next.delete(l.id);
-                          return next;
-                        });
-                      }
-                    }}
-                    className={cn(
-                      "group relative flex cursor-pointer items-center gap-4 border-b border-white/[0.04] px-5 py-4 transition-all duration-200",
-                      isActive && "bg-brand-blue-600/10"
-                    )}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="active-lead"
-                        className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                      />
-                    )}
-                    <div
-                      className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full text-sm font-black text-white shadow-xl"
-                      style={{ background: HEAT_GRADIENT[l.status] ?? HEAT_GRADIENT.cold }}
-                    >
-                      {initials(l.name)}
-                      <div className={cn(
-                        "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#050505] transition-all",
-                        l.status === "hot" ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" :
-                        l.status === "warm" ? "bg-yellow-500" :
-                        l.status === "success" ? "bg-teal-500" : "bg-blue-400"
-                      )} />
-                      {/* Unread indicator — new message arrived while not viewing */}
-                      {unreadLeadIds.has(l.id) && (
-                        <motion.span
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-brand-blue-500 border-2 border-[#050505] shadow-[0_0_8px_rgba(59,130,246,0.7)]"
-                        />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="truncate text-[14px] font-bold tracking-tight text-white">{l.name}</span>
-                          {l.channel === "whatsapp" && (
-                            <MessageCircle size={12} className="text-teal-400 shrink-0" />
-                          )}
-                          {l.channel === "instagram" && (
-                            <Instagram size={12} className="text-pink-400 shrink-0" />
-                          )}
-                        </div>
-                        <span className="font-mono text-[10px] font-bold uppercase text-white/30 whitespace-nowrap">
-                          {last ? relativeTime(last.created_at) : "—"}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-1.5 min-w-0">
-                        {last && (last.metadata as any)?.is_draft && (
-                          <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-brand-blue-400 bg-brand-blue-500/10 border border-brand-blue-500/20 rounded px-1 py-0.5">
-                            Rascunho
-                          </span>
-                        )}
-                        <span className={cn(
-                          "truncate text-[12px] font-medium transition-colors",
-                          isActive ? "text-white/70" : "text-white/40"
-                        )}>
-                          {last?.content ?? "Nenhuma mensagem"}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+            <motion.div variants={LEAD_LIST_VARIANTS} initial="hidden" animate="show" className="flex flex-col">
+              {filteredLeads.map((l) => (
+                <LeadListItem
+                  key={l.id}
+                  lead={l}
+                  isActive={l.id === selectedId}
+                  isUnread={unreadLeadIds.has(l.id)}
+                  onSelect={handleLeadSelect}
+                />
+              ))}
             </motion.div>
           )}
         </div>
