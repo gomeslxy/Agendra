@@ -91,7 +91,7 @@ export const viewport: Viewport = {
 };
 
 import { JsonLd } from "@/components/seo/json-ld";
-import { GoogleAnalytics } from "@next/third-parties/google";
+import Script from "next/script";
 import { GA_TRACKING_ID } from "@/lib/analytics";
 import { Toaster } from "sonner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -125,7 +125,19 @@ export default function RootLayout({
         {children}
         <Toaster theme="dark" position="top-center" richColors />
         <SpeedInsights />
-        <GoogleAnalytics gaId={GA_TRACKING_ID} />
+        {/* GA4 — lazyOnload defers until after LCP is painted */}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`}
+          strategy="lazyOnload"
+        />
+        <Script id="ga-init" strategy="lazyOnload">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_TRACKING_ID}', { send_page_view: true });
+          `}
+        </Script>
       </body>
     </html>
   );

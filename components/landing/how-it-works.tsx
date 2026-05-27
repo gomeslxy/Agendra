@@ -1,8 +1,13 @@
-"use client";
+// Server Component — no "use client" directive
+// Motion animations are delegated to how-it-works-animations.tsx (client islands)
 
-import { motion } from "framer-motion";
 import { CalendarCheck, Filter, Inbox, MessageCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  HowItWorksWrapper,
+  HowItWorksItemMotion,
+  ConnectorClient,
+} from "./how-it-works-animations";
 
 interface Step {
   n: number;
@@ -58,77 +63,10 @@ const STEPS: Step[] = [
   },
 ];
 
-/* ─── Framer Motion Variants ─────────────────────────────────── */
-const containerVariants = {
-  hidden: {},
-  show: {
-    transition: {
-      staggerChildren: 0.12,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 22 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.55,
-      ease: [0.22, 1, 0.36, 1] as any,
-    },
-  },
-};
-
-/* ─── Connector (desktop) ────────────────────────────────────── */
-function Connector({ index, total }: { index: number; total: number }) {
-  if (index >= total - 1) return null;
-
-  return (
-    <div className="relative h-[2px] w-full self-center overflow-hidden" aria-hidden>
-      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-white/[0.08] to-white/[0.04]" />
-      <motion.div
-        className="absolute inset-y-0 left-0 rounded-full"
-        style={{
-          background: `linear-gradient(90deg, ${STEPS[index].color}, ${STEPS[index + 1].color})`,
-        }}
-        initial={{ width: "0%" }}
-        whileInView={{ width: "100%" }}
-        viewport={{ once: true, margin: "-60px" }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.3 + index * 0.18 }}
-      />
-      <motion.div
-        className="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full will-change-transform"
-        style={{
-          background: STEPS[index + 1].color,
-          boxShadow: `0 0 10px ${STEPS[index + 1].glow}`,
-          left: 0,
-        }}
-        initial={{ x: 0, opacity: 0 }}
-        whileInView={{
-          x: [0, 30],
-          opacity: [0, 1, 1, 0],
-        }}
-        viewport={{ once: true, amount: 0.4 }}
-        transition={{
-          duration: 2,
-          ease: "linear",
-          repeat: 3, // Finite repeating (3 cycles) to eliminate permanent CPU drain
-          delay: 1.2 + index * 0.6,
-          repeatDelay: 1.5,
-        }}
-      />
-    </div>
-  );
-}
-
-/* ─── Card ───────────────────────────────────────────────────── */
+/* ─── Card (Server Component — purely declarative) ───────────── */
 function StepCard({ step }: { step: Step }) {
   return (
-    <motion.div
-      variants={itemVariants}
-      className="group relative flex min-w-0 flex-col"
-    >
+    <HowItWorksItemMotion className="group relative flex min-w-0 flex-col">
       {/* Card body */}
       <div
         className={cn(
@@ -136,9 +74,7 @@ function StepCard({ step }: { step: Step }) {
           "border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.02]",
           "hover:border-white/[0.14] hover:shadow-[0_16px_40px_rgba(0,0,0,0.4)]",
         )}
-        style={{
-          boxShadow: "0 8px 32px rgba(0,0,0,0.32)",
-        }}
+        style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.32)" }}
       >
         {/* Subtle accent top-left glow on hover */}
         <div
@@ -172,8 +108,13 @@ function StepCard({ step }: { step: Step }) {
 
         {/* Text */}
         <div>
-          <div className="mb-1 text-[15px] font-semibold leading-snug text-white">{step.title}</div>
-          <div className="text-[13px] leading-relaxed" style={{ color: "var(--color-fg-3)" }}>
+          <div className="mb-1 text-[15px] font-semibold leading-snug text-white">
+            {step.title}
+          </div>
+          <div
+            className="text-[13px] leading-relaxed"
+            style={{ color: "var(--color-fg-3)" }}
+          >
             {step.sub}
           </div>
         </div>
@@ -187,25 +128,17 @@ function StepCard({ step }: { step: Step }) {
           aria-hidden
         />
       </div>
-    </motion.div>
+    </HowItWorksItemMotion>
   );
 }
 
 /* ─── Export ─────────────────────────────────────────────────── */
 export function HowItWorks() {
   return (
-    <motion.section
-      id="como-funciona"
-      className="relative py-24"
-      aria-label="Como funciona"
-      variants={containerVariants}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-100px" }}
-    >
+    <HowItWorksWrapper>
       <div className="mx-auto max-w-[1200px] px-6">
         {/* Header */}
-        <motion.div variants={itemVariants}>
+        <HowItWorksItemMotion>
           <div className="eyebrow mb-3">COMO FUNCIONA</div>
           <h2 className="mb-2 max-w-[720px] text-balance text-[clamp(28px,3vw,40px)] font-bold leading-tight tracking-[-0.02em]">
             Quatro passos. Zero esforço humano.
@@ -216,7 +149,7 @@ export function HowItWorks() {
           >
             Conecte os canais. A Agendra cuida do resto — do primeiro &quot;oi&quot; à reunião confirmada.
           </p>
-        </motion.div>
+        </HowItWorksItemMotion>
 
         {/* Steps */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -229,7 +162,13 @@ export function HowItWorks() {
             if (i < STEPS.length - 1) {
               els.push(
                 <div key={`conn-${step.n}`} className="hidden w-10 flex-shrink-0 lg:block">
-                  <Connector index={i} total={STEPS.length} />
+                  <ConnectorClient
+                    index={i}
+                    total={STEPS.length}
+                    fromColor={STEPS[i].color}
+                    toColor={STEPS[i + 1].color}
+                    toGlow={STEPS[i + 1].glow}
+                  />
                 </div>,
               );
             }
@@ -248,6 +187,6 @@ export function HowItWorks() {
           ))}
         </div>
       </div>
-    </motion.section>
+    </HowItWorksWrapper>
   );
 }

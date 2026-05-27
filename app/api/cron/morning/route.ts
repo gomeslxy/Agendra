@@ -149,11 +149,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.error('[morning-cron] followup failed:', err.message);
   }
 
-  // ── 3. Reminders ────────────────────────────────────────────────────────────
+  // ── 3. Reminders (fallback sweep — primary processing via /api/cron/reminders every 5min) ───────────────────────────────
   try {
     const now = new Date().toISOString();
+    // Expiry guard: events that started more than 30min ago — cancel their pending reminders
+    const expiryThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     let sent = 0;
     let failed = 0;
+    let expired = 0;
 
     for (const company of companiesList) {
       // Get reminders with an active event (not cancelled)
@@ -174,6 +177,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const tz = (company.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
 
       for (const rem of reminders ?? []) {
+        const lead = rem.leads as any;
+        const event = rem.events as any;
+
+        // Expiry guard: don't send reminders for events that already started
+        if (event?.start_time && new Date(event.start_time) < new Date(expiryThreshold)) {
+          await admin
+            .from('reminders')
+            .update({ status: 'cancelled', error_log: 'Evento expirado', updated_at: new Date().toISOString() })
+            .eq('id', rem.id)
+            .eq('status', 'pending');
+          expired++;
+          continue;
+        }
+
         try {
           // Atomic claim
           const { data: claimed } = await admin
@@ -186,8 +203,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
           if (!claimed) continue;
 
-          const lead = rem.leads as any;
-          const event = rem.events as any;
           if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
 
           const dateObj = new Date(event.start_time);
@@ -231,7 +246,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         }
       }
     }
-    summary.reminders = { sent, failed };
+    summary.reminders = { sent, failed, expired };
     console.log('[morning-cron] reminders:', summary.reminders);
   } catch (err: any) {
     summary.reminders = { error: err.message };

@@ -38,6 +38,7 @@ export function Footer() {
                 alt="Agendra - IA para Qualificação de Leads" 
                 width={120} 
                 height={30} 
+                loading="lazy"
                 className="brightness-110"
               />
             </Link>

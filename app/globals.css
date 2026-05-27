@@ -292,12 +292,29 @@
   .animate-beam-dot { animation: none; }
 }
 
+/* Beam dot runs infinite on mobile — disable to save GPU compositor budget
+   during LCP measurement window */
+@media (max-width: 768px) {
+  .animate-beam-dot { animation: none; }
+}
+
 .float { animation: float-y 6s var(--ease-soft) infinite; }
 .pulse-cta { animation: pulse-glow 2.4s var(--ease-soft) infinite; }
+
+/* Hero left column — CSS-driven fade-up (replaces Framer Motion wrapper)
+   so the h1 LCP element is painted before JS hydration completes */
+@keyframes hero-left-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-hero-left {
+  animation: hero-left-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .float, .pulse-cta { animation: none; }
+  .animate-hero-left { animation: none; }
   .glass::after { animation: none; opacity: 0.3; }
 }
 

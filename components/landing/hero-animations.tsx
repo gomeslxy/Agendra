@@ -6,14 +6,14 @@ import { motion } from "framer-motion";
 import { ArrowRight, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShinyButton } from "@/components/ui/shiny-button";
-import { fadeUp } from "@/components/motion/variants";
 import { trackEvent } from "@/lib/analytics";
 
+// CSS-driven fade-up — zero hydration cost, h1 (LCP element) visible immediately
 export function HeroLeftAnimation({ children }: { children: React.ReactNode }) {
   return (
-    <motion.div variants={fadeUp} initial="hidden" animate="show">
+    <div className="animate-hero-left">
       {children}
-    </motion.div>
+    </div>
   );
 }
 

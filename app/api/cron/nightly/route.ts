@@ -13,7 +13,6 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendChannelMessage } from '@/lib/channels/send';
 import { handleIncomingMessage } from '@/lib/ai/engine';
 import { routeGenerate } from '@/lib/ai/providers/router';
-import { getPlanLimits } from '@/lib/billing/plans';
 import { getCompanyUsage } from '@/lib/billing/limits';
 import { ACTIVE_SUBSCRIPTION_STATUSES } from '@/lib/billing/active-statuses';
 
@@ -204,11 +203,14 @@ Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
     console.error('[nightly-cron] reactivation failed:', err.message);
   }
 
-  // ── 2. Reminders (evening sweep) ─────────────────────────────────────────────
+  // ── 2. Reminders (evening sweep — fallback for /api/cron/reminders 5-min route) ────────────────────────────────────────
   try {
     const now = new Date().toISOString();
+    // Expiry guard: events that started more than 30min ago — cancel their pending reminders
+    const expiryThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     let totalSent = 0;
     let totalFailed = 0;
+    let totalExpired = 0;
 
     for (const company of activeCompanies) {
       // Fetch reminders with an active event (not cancelled)
@@ -229,6 +231,20 @@ Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
       const tz = (company.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
 
       for (const rem of reminders ?? []) {
+        const lead = rem.leads as any;
+        const event = rem.events as any;
+
+        // Expiry guard: don't send reminders for events that already started
+        if (event?.start_time && new Date(event.start_time) < new Date(expiryThreshold)) {
+          await admin
+            .from('reminders')
+            .update({ status: 'cancelled', error_log: 'Evento expirado', updated_at: new Date().toISOString() })
+            .eq('id', rem.id)
+            .eq('status', 'pending');
+          totalExpired++;
+          continue;
+        }
+
         try {
           // Atomic claim
           const { data: claimed } = await admin
@@ -241,8 +257,6 @@ Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
 
           if (!claimed) continue;
 
-          const lead = rem.leads as any;
-          const event = rem.events as any;
           if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
 
           const dateObj = new Date(event.start_time);
@@ -287,7 +301,7 @@ Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
       }
     }
 
-    summary.reminders_evening = { sent: totalSent, failed: totalFailed };
+    summary.reminders_evening = { sent: totalSent, failed: totalFailed, expired: totalExpired };
     console.log('[nightly-cron] reminders_evening:', summary.reminders_evening);
   } catch (err: any) {
     summary.reminders_evening = { error: err.message };
