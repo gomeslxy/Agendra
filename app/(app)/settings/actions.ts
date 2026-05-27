@@ -7,10 +7,16 @@ import { validateWhatsAppToken } from "@/lib/whatsapp/validate";
 import { getCompanyUsage } from "@/lib/billing/limits";
 import { revalidatePath } from "next/cache";
 import { assertSafeWebhookUrl } from "@/lib/security/url-guard";
+import { logAuditAction } from "@/lib/security/audit";
 
 export async function updatePersona(formData: FormData) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
+
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem atualizar as orientações da IA.");
+  }
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
@@ -106,12 +112,29 @@ export async function updatePersona(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  await logAuditAction({
+    action: "persona.update",
+    companyId,
+    payload: {
+      has_ai_name: aiName !== undefined,
+      has_ai_tone: aiTone !== undefined,
+      has_ai_greeting: aiGreeting !== undefined,
+      has_ai_forbidden: aiForbidden !== undefined,
+      has_extra_instructions: extraInstructions !== undefined,
+    }
+  });
+
   revalidatePath("/settings");
 }
 
 export async function saveWhatsAppChannel(formData: FormData) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
+
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem conectar canais.");
+  }
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
@@ -182,6 +205,12 @@ export async function saveWhatsAppChannel(formData: FormData) {
     await adminForVault.from('channels').update({ access_token: accessToken.trim() }).eq('id', channel.id);
   }
 
+  await logAuditAction({
+    action: "channel.connect",
+    companyId,
+    payload: { channel_id: channel.id, provider: "whatsapp", phone_number_id: phoneId }
+  });
+
   revalidatePath("/settings");
 }
 
@@ -192,7 +221,8 @@ export async function disconnectChannel(channelId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
-  if (profile.memberships?.[0]?.role !== "admin") {
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
     throw new Error("Apenas administradores podem desconectar canais.");
   }
 
@@ -219,7 +249,6 @@ export async function disconnectChannel(channelId: string) {
 
   if (error) throw new Error(error.message);
 
-  // Se houver secret vinculada, apagar também no vault.secrets via RPC ou admin
   if (channel.access_token_secret_id) {
     try {
       const admin = createAdminClient();
@@ -228,6 +257,12 @@ export async function disconnectChannel(channelId: string) {
       // Falha silenciosa no cleanup de secret do vault (é nice-to-have, pois já está órfão)
     }
   }
+
+  await logAuditAction({
+    action: "channel.disconnect",
+    companyId,
+    payload: { channel_id: channelId, provider_id: channel.provider_id }
+  });
 
   revalidatePath("/settings");
   return { ok: true };
@@ -245,6 +280,11 @@ export async function updateCompany(data: { name: string }) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem atualizar dados da empresa.");
+  }
+
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
 
@@ -258,6 +298,13 @@ export async function updateCompany(data: { name: string }) {
     .eq("id", companyId);
 
   if (error) throw new Error(error.message);
+
+  await logAuditAction({
+    action: "company.update",
+    companyId,
+    payload: { new_name: name }
+  });
+
   revalidatePath("/settings");
 }
 
@@ -268,6 +315,11 @@ export async function saveAutomationConfig(data: {
 }) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
+
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem alterar configurações de automação.");
+  }
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
@@ -308,6 +360,16 @@ export async function saveAutomationConfig(data: {
 
   if (error) throw new Error(error.message);
 
+  await logAuditAction({
+    action: "automation.update",
+    companyId,
+    payload: {
+      reminder_advance_hours: data.reminder_advance_hours,
+      followup_delay_hours: data.followup_delay_hours,
+      followup_max_retries: data.followup_max_retries,
+    }
+  });
+
   revalidatePath("/settings");
 }
 
@@ -317,6 +379,11 @@ export async function saveAutomationConfig(data: {
 export async function completeWhatsAppOnboarding(shortLivedToken: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Não autorizado");
+
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem configurar canais.");
+  }
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("Empresa não encontrada no perfil");
@@ -389,6 +456,13 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
       console.error('[Onboarding] Vault write failed, mantendo plaintext temporário:', vaultError);
       await adminForVault.from('channels').update({ access_token: longLivedToken }).eq('id', channel.id);
     }
+
+    await logAuditAction({
+      action: "channel.connect",
+      companyId,
+      payload: { channel_id: channel.id, provider: "whatsapp", method: "embedded_signup", phone: details.display_phone_number }
+    });
+
   revalidatePath("/settings");
   return { success: true, phone: details.display_phone_number };
   } catch (error: any) {
@@ -539,6 +613,12 @@ export async function inviteTeamMember(email: string, role: "admin" | "member") 
     }
   }
 
+  await logAuditAction({
+    action: "member.invite",
+    companyId,
+    payload: { invited_email: normalizedEmail, invited_role: role }
+  });
+
   revalidatePath("/settings");
 }
 
@@ -553,6 +633,11 @@ export async function saveWebhookConfig(data: {
 }) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
+
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem configurar webhooks.");
+  }
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
@@ -591,6 +676,12 @@ export async function saveWebhookConfig(data: {
     if (error) throw new Error(error.message);
   }
 
+  await logAuditAction({
+    action: "webhook.save",
+    companyId,
+    payload: { url: data.url, event_types: data.event_types, webhook_id: data.id || "new" }
+  });
+
   revalidatePath("/settings");
 }
 
@@ -601,7 +692,8 @@ export async function deleteWebhook(webhookId: string) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
-  if (profile.memberships?.[0]?.role !== "admin") {
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
     throw new Error("Apenas administradores podem excluir webhooks.");
   }
 
@@ -616,6 +708,13 @@ export async function deleteWebhook(webhookId: string) {
     .eq("company_id", companyId);
 
   if (error) throw new Error(error.message);
+
+  await logAuditAction({
+    action: "webhook.delete",
+    companyId,
+    payload: { webhook_id: webhookId }
+  });
+
   revalidatePath("/settings");
 }
 
@@ -628,6 +727,11 @@ export async function saveReactivationConfig(data: {
 }) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
+
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem configurar reativação.");
+  }
 
   const companyId = profile.memberships?.[0]?.company_id;
   if (!companyId) throw new Error("No company");
@@ -659,6 +763,13 @@ export async function saveReactivationConfig(data: {
     .eq("id", companyId);
 
   if (error) throw new Error(error.message);
+
+  await logAuditAction({
+    action: "reactivation.update",
+    companyId,
+    payload: { reactivation_days: data.reactivation_days, reactivation_hook: data.reactivation_hook }
+  });
+
   revalidatePath("/settings");
 }
 

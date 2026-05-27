@@ -181,9 +181,24 @@ interface SettingsShellProps {
   automationEvents: AutomationEvent[];
   webhooks: WebhookSubscription[];
   pendingInvitations: PendingInvitation[];
+  currentUserRole?: string;
+  auditLogs?: any[];
 }
 
-export function SettingsShell({ company, memberships, channels, services, usage, aiLogs, automationStats, automationEvents, webhooks, pendingInvitations }: SettingsShellProps) {
+export function SettingsShell({ 
+  company, 
+  memberships, 
+  channels, 
+  services, 
+  usage, 
+  aiLogs, 
+  automationStats, 
+  automationEvents, 
+  webhooks, 
+  pendingInvitations,
+  currentUserRole = "member",
+  auditLogs = [],
+}: SettingsShellProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -193,6 +208,8 @@ export function SettingsShell({ company, memberships, channels, services, usage,
   const [tab, setTab] = useState<TabId>(() =>
     rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "account"
   );
+
+  const isReadOnly = currentUserRole === "member";
 
   function changeTab(newTab: TabId) {
     setTab(newTab);
@@ -319,19 +336,26 @@ export function SettingsShell({ company, memberships, channels, services, usage,
         {/* Main Content Area */}
         <div className="flex-1 w-full max-w-3xl min-w-0">
           <TabPanel active={tab === "account"}>
-            <Team memberships={memberships} company={company} pendingInvitations={pendingInvitations} />
+            <Team 
+              memberships={memberships} 
+              company={company} 
+              pendingInvitations={pendingInvitations} 
+              isReadOnly={isReadOnly}
+              currentUserRole={currentUserRole}
+              auditLogs={auditLogs}
+            />
           </TabPanel>
           <TabPanel active={tab === "rules"}>
-            <Rules company={company} />
+            <Rules company={company} isReadOnly={isReadOnly} />
           </TabPanel>
           <TabPanel active={tab === "services"}>
-            <Services companyId={company?.id} services={services} businessType={(company?.persona_config as any)?.business_type} />
+            <Services companyId={company?.id} services={services} businessType={(company?.persona_config as any)?.business_type} isReadOnly={isReadOnly} />
           </TabPanel>
           <TabPanel active={tab === "brain"}>
-            <Persona company={company} services={services} onChangeTab={changeTab} planType={company?.plan_type} />
+            <Persona company={company} services={services} onChangeTab={changeTab} planType={company?.plan_type} isReadOnly={isReadOnly} />
           </TabPanel>
           <TabPanel active={tab === "channels"}>
-            <Channels company={company} channels={channels} usage={usage} />
+            <Channels company={company} channels={channels} usage={usage} isReadOnly={isReadOnly} />
           </TabPanel>
           <TabPanel active={tab === "automation"}>
             <Flows
@@ -340,6 +364,7 @@ export function SettingsShell({ company, memberships, channels, services, usage,
               automationEvents={automationEvents}
               webhooks={webhooks}
               onChangeTab={changeTab}
+              isReadOnly={isReadOnly}
             />
           </TabPanel>
           <TabPanel active={tab === "logs"}>
@@ -348,7 +373,7 @@ export function SettingsShell({ company, memberships, channels, services, usage,
             </FeatureGate>
           </TabPanel>
           <TabPanel active={tab === "billing"}>
-            <Billing company={company} usage={usage} />
+            <Billing company={company} usage={usage} isReadOnly={isReadOnly} />
           </TabPanel>
         </div>
       </div>
@@ -681,11 +706,13 @@ function Persona({
   services,
   onChangeTab,
   planType,
+  isReadOnly = false,
 }: {
   company: Company | null;
   services: Service[];
   onChangeTab: (tab: TabId) => void;
   planType?: PlanType | null;
+  isReadOnly?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
@@ -807,7 +834,13 @@ function Persona({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {/* ── A1: Identidade ─────────────────────────────────────── */}
+      {isReadOnly && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+          ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
+        </div>
+      )}
+      <fieldset disabled={isReadOnly} className="contents">
+        {/* ── A1: Identidade ─────────────────────────────────────── */}
       <Card>
         <CardHeader>
           <CardTitle>Identidade</CardTitle>
@@ -887,13 +920,13 @@ function Persona({
               dragging
                 ? "border-brand-blue-500 bg-brand-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]"
                 : "border-white/[0.08] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]",
-              uploading ? "pointer-events-none opacity-50" : "cursor-pointer"
+              uploading || isReadOnly ? "pointer-events-none opacity-50" : "cursor-pointer"
             )}
           >
             <input
               type="file"
               onChange={handleFileChange}
-              disabled={uploading}
+              disabled={uploading || isReadOnly}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               accept=".pdf,.txt,.docx"
             />
@@ -948,14 +981,16 @@ function Persona({
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteDoc(doc.source_name)}
-                      className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition"
-                      title="Excluir documento"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDoc(doc.source_name)}
+                        className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition"
+                        title="Excluir documento"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1008,6 +1043,7 @@ function Persona({
           </Button>
         </CardContent>
       </Card>
+      </fieldset>
     </form>
   );
 }
@@ -1016,10 +1052,12 @@ function Channels({
   company,
   channels,
   usage,
+  isReadOnly = false,
 }: {
   company: Company | null;
   channels: ChannelRow[];
   usage: any;
+  isReadOnly?: boolean;
 }) {
   const gcalConnected = !!company?.google_calendar_email;
   const waChannels = channels.filter((c) => c.provider === "whatsapp");
@@ -1035,6 +1073,11 @@ function Channels({
 
   return (
     <div className="flex flex-col gap-6">
+      {isReadOnly && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+          ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
+        </div>
+      )}
       {/* Resumo de Limites de Canais */}
       <div className="glass p-4 rounded-xl border border-brand-blue-500/10 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
@@ -1060,17 +1103,17 @@ function Channels({
           </h4>
           
           {waChannels.map((ch) => (
-            <WhatsAppChannelCard key={ch.id} channel={ch} onDisconnect={disconnectChannel} />
+            <WhatsAppChannelCard key={ch.id} channel={ch} onDisconnect={disconnectChannel} isReadOnly={isReadOnly} />
           ))}
 
-          {canAddMore ? (
+          {canAddMore && !isReadOnly ? (
             <NewWhatsAppChannelConnector 
               companyId={company?.id} 
               completeWhatsAppOnboarding={completeWhatsAppOnboarding} 
               saveWhatsAppChannel={saveWhatsAppChannel} 
             />
           ) : (
-            waChannels.length === 0 && (
+            waChannels.length === 0 && !isReadOnly && (
               <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center text-xs text-white/40 italic">
                 Limite de canais atingido. Faça upgrade para conectar mais números.
               </div>
@@ -1088,10 +1131,10 @@ function Channels({
           {isInstagramAllowed ? (
             <>
               {igChannels.map((ch) => (
-                <InstagramChannelCard key={ch.id} channel={ch} onDisconnect={disconnectChannel} />
+                <InstagramChannelCard key={ch.id} channel={ch} onDisconnect={disconnectChannel} isReadOnly={isReadOnly} />
               ))}
 
-              {igChannels.length === 0 && canAddMore && (
+              {igChannels.length === 0 && canAddMore && !isReadOnly && (
                 <motion.div 
                   whileHover={{ scale: 1.01 }}
                   className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03] flex items-center justify-between gap-4"
@@ -1116,7 +1159,7 @@ function Channels({
                 </motion.div>
               )}
 
-              {igChannels.length === 0 && !canAddMore && (
+              {igChannels.length === 0 && !canAddMore && !isReadOnly && (
                 <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center text-xs text-white/40 italic">
                   Você já atingiu o limite de canais do seu plano. Adicione mais canais fazendo upgrade.
                 </div>
@@ -1152,7 +1195,7 @@ function Channels({
             <Calendar size={12} className="text-brand-blue-400" />
             Google Calendar (Agenda)
           </h4>
-          <GoogleCalendarCard company={company} connected={gcalConnected} />
+          <GoogleCalendarCard company={company} connected={gcalConnected} isReadOnly={isReadOnly} />
         </div>
 
         {/* 4. CANAIS EM BREVE */}
@@ -1214,10 +1257,12 @@ function Channels({
    ========================================================================== */
 function WhatsAppChannelCard({ 
   channel, 
-  onDisconnect 
+  onDisconnect,
+  isReadOnly = false,
 }: { 
   channel: ChannelRow; 
   onDisconnect: (id: string) => Promise<any>; 
+  isReadOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -1310,18 +1355,20 @@ function WhatsAppChannelCard({
             </div>
 
             <div className="flex gap-2">
-              <Button variant="blue" size="sm" className="flex-1 font-bold" onClick={handleTest} disabled={pending}>
+              <Button variant="blue" size="sm" className="flex-1 font-bold" onClick={handleTest} disabled={pending || isReadOnly}>
                 {pending ? "Testando..." : "Testar Conexão"}
               </Button>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                className="flex-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20 font-bold"
-                onClick={handleDisconnect}
-                disabled={pending}
-              >
-                Desconectar
-              </Button>
+              {!isReadOnly && (
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="flex-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20 font-bold"
+                  onClick={handleDisconnect}
+                  disabled={pending}
+                >
+                  Desconectar
+                </Button>
+              )}
             </div>
           </motion.div>
         )}
@@ -1335,10 +1382,12 @@ function WhatsAppChannelCard({
    ========================================================================== */
 function InstagramChannelCard({ 
   channel, 
-  onDisconnect 
+  onDisconnect,
+  isReadOnly = false,
 }: { 
   channel: ChannelRow; 
   onDisconnect: (id: string) => Promise<any>; 
+  isReadOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -1412,15 +1461,17 @@ function InstagramChannelCard({
             </div>
 
             <div className="flex gap-2">
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20 font-bold"
-                onClick={handleDisconnect}
-                disabled={pending}
-              >
-                Desconectar Instagram
-              </Button>
+              {!isReadOnly && (
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20 font-bold"
+                  onClick={handleDisconnect}
+                  disabled={pending}
+                >
+                  Desconectar Instagram
+                </Button>
+              )}
             </div>
           </motion.div>
         )}
@@ -1576,10 +1627,12 @@ function NewWhatsAppChannelConnector({
    ========================================================================== */
 function GoogleCalendarCard({ 
   company, 
-  connected 
+  connected,
+  isReadOnly = false,
 }: { 
   company: Company | null; 
   connected: boolean; 
+  isReadOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -1611,13 +1664,19 @@ function GoogleCalendarCard({
             {expanded ? "Fechar" : "Gerenciar"}
           </Button>
         ) : (
-          <Button 
-            variant="primary" 
-            size="sm" 
-            onClick={() => { window.location.href = "/api/auth/google"; }}
-          >
-            Conectar
-          </Button>
+          !isReadOnly ? (
+            <Button 
+              variant="primary" 
+              size="sm" 
+              onClick={() => { window.location.href = "/api/auth/google"; }}
+            >
+              Conectar
+            </Button>
+          ) : (
+            <Badge variant="cold" className="text-[10px] px-2 py-0.5 border border-white/10 bg-white/5 text-white/50">
+              Apenas Leitura
+            </Badge>
+          )
         )}
       </div>
 
@@ -1636,15 +1695,17 @@ function GoogleCalendarCard({
               </span>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="w-full gap-1.5 font-bold"
-                onClick={() => { window.location.href = "/api/auth/google"; }}
-              >
-                <ExternalLink size={12} />
-                Reconectar / Atualizar Agenda
-              </Button>
+              {!isReadOnly && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full gap-1.5 font-bold"
+                  onClick={() => { window.location.href = "/api/auth/google"; }}
+                >
+                  <ExternalLink size={12} />
+                  Reconectar / Atualizar Agenda
+                </Button>
+              )}
             </div>
             <p className="text-[11px] text-white/40 leading-relaxed">
               Para revogar permanentemente o acesso à sua conta Google, remova a permissão da Agendra em{" "}
@@ -1671,12 +1732,14 @@ function Flows({
   automationEvents,
   webhooks,
   onChangeTab,
+  isReadOnly = false,
 }: {
   company: Company | null;
   automationStats: AutomationStats;
   automationEvents: AutomationEvent[];
   webhooks: WebhookSubscription[];
   onChangeTab: (tab: TabId) => void;
+  isReadOnly?: boolean;
 }) {
   const plan = company?.plan_type ?? "trial";
   const isBusiness = plan === "business";
@@ -1789,6 +1852,11 @@ function Flows({
 
   return (
     <div className="flex flex-col gap-5">
+      {isReadOnly && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+          ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
+        </div>
+      )}
       {/* ── Motor em Ação ─────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-brand-blue-500/20 bg-brand-blue-500/5 p-4">
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand-blue-500/10 blur-3xl pointer-events-none" />
@@ -1868,7 +1936,7 @@ function Flows({
                     variant="blue"
                     size="sm"
                     className="w-full font-bold"
-                    disabled={pending}
+                    disabled={pending || isReadOnly}
                     onClick={() => saveConfig("reminder", { reminder_advance_hours: reminderAdvance })}
                   >
                     {savedField === "reminder" ? <><Check size={14} className="mr-1.5" />Salvo</> : pending ? "Salvando…" : "Salvar configuração"}
@@ -1983,7 +2051,7 @@ function Flows({
                     variant="blue"
                     size="sm"
                     className="w-full font-bold"
-                    disabled={pending}
+                    disabled={pending || isReadOnly}
                     onClick={() => saveConfig("followup", { followup_delay_hours: followupDelay, followup_max_retries: followupRetries })}
                   >
                     {savedField === "followup" ? <><Check size={14} className="mr-1.5" />Salvo</> : pending ? "Salvando…" : "Salvar configuração"}
@@ -2091,7 +2159,7 @@ function Flows({
                     variant="blue"
                     size="sm"
                     className="w-full font-bold bg-brand-orange-500 hover:bg-brand-orange-500/90 shadow-orange-500/20"
-                    disabled={pending}
+                    disabled={pending || isReadOnly}
                     onClick={handleSaveReactivation}
                   >
                     {savedField === "reactivation" ? <><Check size={14} className="mr-1.5" />Salvo</> : pending ? "Salvando…" : "Salvar configuração"}
@@ -2199,14 +2267,16 @@ function Flows({
                               ))}
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteWebhook(wh.id)}
-                            className="ml-3 h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition shrink-0"
-                            title="Excluir webhook"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteWebhook(wh.id)}
+                              className="ml-3 h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition shrink-0"
+                              title="Excluir webhook"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2284,14 +2354,16 @@ function Flows({
                         </div>
                       </motion.div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setWebhookFormVisible(true)}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20 text-[12px] font-semibold transition"
-                      >
-                        <Plus size={14} />
-                        Adicionar endpoint
-                      </button>
+                      !isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setWebhookFormVisible(true)}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20 text-[12px] font-semibold transition"
+                        >
+                          <Plus size={14} />
+                          Adicionar endpoint
+                        </button>
+                      )
                     )}
                   </AnimatePresence>
                   
@@ -2344,7 +2416,21 @@ function Flows({
   );
 }
 
-function Team({ memberships, company, pendingInvitations }: { memberships: Member[]; company: Company | null; pendingInvitations: PendingInvitation[] }) {
+function Team({
+  memberships,
+  company,
+  pendingInvitations,
+  isReadOnly = false,
+  currentUserRole = "member",
+  auditLogs = [],
+}: {
+  memberships: Member[];
+  company: Company | null;
+  pendingInvitations: PendingInvitation[];
+  isReadOnly?: boolean;
+  currentUserRole?: string;
+  auditLogs?: any[];
+}) {
   const [companyName, setCompanyName] = useState(company?.name ?? "");
   const [savingName, startNameTransition] = useTransition();
   const [nameSaved, setNameSaved] = useState(false);
@@ -2429,6 +2515,12 @@ function Team({ memberships, company, pendingInvitations }: { memberships: Membe
 
   return (
     <div className="flex flex-col gap-5">
+      {isReadOnly && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+          ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
+        </div>
+      )}
+      <fieldset disabled={isReadOnly} className="contents">
       {/* Empresa */}
       <Card>
         <CardHeader>
@@ -2459,10 +2551,12 @@ function Team({ memberships, company, pendingInvitations }: { memberships: Membe
             <CardTitle>Time</CardTitle>
             <CardDescription>{memberships.length} {memberships.length === 1 ? "membro" : "membros"}</CardDescription>
           </div>
-          <Button variant="primary" size="sm" onClick={() => setInviteOpen(true)}>
-            <UserPlus size={14} className="mr-2" />
-            Convidar
-          </Button>
+          {!isReadOnly && (
+            <Button variant="primary" size="sm" onClick={() => setInviteOpen(true)}>
+              <UserPlus size={14} className="mr-2" />
+              Convidar
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           {memberships.map((m, i) => {
@@ -2531,36 +2625,44 @@ function Team({ memberships, company, pendingInvitations }: { memberships: Membe
                         </span>
                       </div>
                     </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      {expiresSoon && (
+                    {!isReadOnly && (
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        {expiresSoon && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-[11px] text-brand-teal-400 hover:bg-brand-teal-500/10 hover:text-brand-teal-300"
+                            onClick={() => handleResend(inv.id)}
+                            disabled={resendPending}
+                          >
+                            <RefreshCw size={12} className="mr-1" />
+                            Reenviar
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 px-2 text-[11px] text-brand-teal-400 hover:bg-brand-teal-500/10 hover:text-brand-teal-300"
-                          onClick={() => handleResend(inv.id)}
-                          disabled={resendPending}
+                          className="h-7 px-2 text-[11px] text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                          onClick={() => handleCancel(inv.id)}
+                          disabled={cancelPending}
                         >
-                          <RefreshCw size={12} className="mr-1" />
-                          Reenviar
+                          <Trash2 size={12} className="mr-1" />
+                          Cancelar
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-[11px] text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                        onClick={() => handleCancel(inv.id)}
-                        disabled={cancelPending}
-                      >
-                        <Trash2 size={12} className="mr-1" />
-                        Cancelar
-                      </Button>
-                    </div>
+                      </div>
+                    )}
                   </motion.div>
                 );
               })}
             </AnimatePresence>
           </CardContent>
         </Card>
+      )}
+
+      </fieldset>
+
+      {(currentUserRole === "admin" || currentUserRole === "owner") && (
+        <AuditLogsSection auditLogs={auditLogs} />
       )}
 
       {/* Modal de Convite */}
@@ -2650,7 +2752,191 @@ function Team({ memberships, company, pendingInvitations }: { memberships: Membe
   );
 }
 
-function Billing({ company, usage }: { company: Company | null; usage: any }) {
+const ACTION_LABELS: Record<string, { label: string; color: string }> = {
+  "persona.update": { label: "Instruções de IA Atualizadas", color: "bg-purple-500/10 text-purple-300 border-purple-500/20" },
+  "channel.connect": { label: "Canal Conectado", color: "bg-teal-500/10 text-teal-300 border-teal-500/20" },
+  "channel.disconnect": { label: "Canal Desconectado", color: "bg-red-500/10 text-red-300 border-red-500/20" },
+  "company.update": { label: "Dados da Empresa Alterados", color: "bg-blue-500/10 text-blue-300 border-blue-500/20" },
+  "automation.update": { label: "Regras de Automação Salvas", color: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" },
+  "member.invite": { label: "Convite Enviado", color: "bg-yellow-500/10 text-yellow-300 border-yellow-500/20" },
+  "member.accept_invite": { label: "Convite Aceito", color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" },
+  "member.decline_invite": { label: "Convite Recusado", color: "bg-orange-500/10 text-orange-300 border-orange-500/20" },
+  "member.cancel_invite": { label: "Convite Cancelado", color: "bg-gray-500/10 text-gray-300 border-gray-500/20" },
+  "member.resend_invite": { label: "Convite Reenviado", color: "bg-pink-500/10 text-pink-300 border-pink-500/20" },
+  "webhook.save": { label: "Webhook Configurado", color: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20" },
+  "webhook.delete": { label: "Webhook Excluído", color: "bg-red-500/10 text-red-300 border-red-500/20" },
+  "reactivation.update": { label: "Reativação de Leads Salva", color: "bg-violet-500/10 text-violet-300 border-violet-500/20" },
+  "service.create": { label: "Serviço Criado", color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" },
+  "service.update": { label: "Serviço Editado", color: "bg-blue-500/10 text-blue-300 border-blue-500/20" },
+  "service.delete": { label: "Serviço Removido", color: "bg-red-500/10 text-red-300 border-red-500/20" },
+  "service.toggle": { label: "Pausa de Serviço Alterada", color: "bg-amber-500/10 text-amber-300 border-amber-500/20" },
+};
+
+function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
+  const [search, setSearch] = useState("");
+  const [filterAction, setFilterAction] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const ITEMS_PER_PAGE = 10;
+
+  const filtered = auditLogs.filter((log) => {
+    const matchesSearch = log.actor_email?.toLowerCase().includes(search.toLowerCase()) || 
+                          log.action?.toLowerCase().includes(search.toLowerCase());
+    const matchesAction = filterAction === "all" ||
+      (filterAction === "channels" && log.action.startsWith("channel.")) ||
+      (filterAction === "members" && log.action.startsWith("member.")) ||
+      (filterAction === "services" && log.action.startsWith("service.")) ||
+      (filterAction === "ia" && (log.action === "persona.update" || log.action === "automation.update" || log.action === "reactivation.update")) ||
+      (filterAction === "webhooks" && log.action.startsWith("webhook."));
+
+    return matchesSearch && matchesAction;
+  });
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterAction]);
+
+  return (
+    <Card className="glass mt-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText size={18} className="text-brand-blue-400" />
+          Auditoria Administrativa (SOC2)
+        </CardTitle>
+        <CardDescription>
+          Registro imutável de todas as ações administrativas realizadas nesta empresa.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-2.5">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por e-mail ou ação..."
+            className="flex-1 text-xs"
+          />
+          <select
+            value={filterAction}
+            onChange={(e) => setFilterAction(e.target.value)}
+            className="rounded-xl border border-white/[0.08] bg-[#0A0A0A] px-3.5 py-2 text-xs text-white outline-none focus:border-brand-blue-500/50 sm:w-48"
+          >
+            <option value="all">Todas as ações</option>
+            <option value="channels">Canais</option>
+            <option value="members">Membros & Convites</option>
+            <option value="services">Serviços</option>
+            <option value="ia">IA & Regras</option>
+            <option value="webhooks">Webhooks</option>
+          </select>
+        </div>
+
+        {paginated.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {paginated.map((log) => {
+              const meta = ACTION_LABELS[log.action] ?? { label: log.action, color: "bg-white/5 text-white/70 border-white/10" };
+              const isExpanded = expandedId === log.id;
+              return (
+                <div key={log.id} className="rounded-xl border border-white/[0.06] bg-white/[0.01] overflow-hidden transition-all duration-200">
+                  <div 
+                    onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-white/[0.02] transition-colors gap-3 flex-wrap sm:flex-nowrap"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 flex-1">
+                      <Badge variant="neutral" className={cn("text-[9px] uppercase tracking-wider px-2 py-0.5 border font-semibold", meta.color)}>
+                        {meta.label}
+                      </Badge>
+                      <span className="text-[12px] font-medium text-white/80 truncate">{log.actor_email ?? "Integração"}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] text-white/40 whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <ChevronDown size={14} className={cn("text-white/40 transition-transform duration-200", isExpanded && "rotate-180")} />
+                    </div>
+                  </div>
+                  
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-t border-white/[0.04] bg-white/[0.01] p-3.5 flex flex-col gap-3.5"
+                      >
+                        <div className="grid grid-cols-2 gap-4 text-[10px]">
+                          <div>
+                            <span className="block text-white/30 uppercase tracking-widest font-mono">Endereço IP</span>
+                            <span className="block mt-0.5 text-white/70 font-mono">{log.ip_address ?? "Não disponível"}</span>
+                          </div>
+                          <div>
+                            <span className="block text-white/30 uppercase tracking-widest font-mono">ID do Registro</span>
+                            <span className="block mt-0.5 text-white/40 font-mono truncate">{log.id}</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="block text-white/30 uppercase tracking-widest font-mono">Dispositivo (User Agent)</span>
+                            <span className="block mt-0.5 text-white/60 font-mono truncate sm:max-w-xl" title={log.user_agent}>
+                              {log.user_agent ?? "Não disponível"}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <span className="block text-[10px] text-white/30 uppercase tracking-widest font-mono mb-1.5">Metadados da Ação (Payload)</span>
+                          <pre className="text-[10px] font-mono p-3 rounded-lg border border-white/[0.06] bg-black/40 text-brand-teal-300 overflow-x-auto max-h-48 leading-relaxed scrollbar-thin">
+                            {JSON.stringify(log.payload, null, 2)}
+                          </pre>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-3 px-1 text-xs text-white/40">
+                <span>Página {currentPage} de {totalPages} ({filtered.length} logs)</span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 px-3 font-semibold text-white/70 hover:text-white"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 px-3 font-semibold text-white/70 hover:text-white"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                  >
+                    Próximo
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-10 gap-2 text-center border border-dashed border-white/[0.06] rounded-xl bg-white/[0.01]">
+            <p className="text-[12px] text-white/40 font-semibold">Nenhuma ação administrativa encontrada</p>
+            <p className="text-[11px] text-white/20 leading-relaxed max-w-xs px-4">
+              Tente redefinir os filtros ou buscar por outro termo.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Billing({ company, usage, isReadOnly = false }: { company: Company | null; usage: any; isReadOnly?: boolean }) {
   const [loading, setLoading] = React.useState<string | null>(null);
   const [portalLoading, setPortalLoading] = React.useState(false);
   const [isAnnual, setIsAnnual] = React.useState(true);
@@ -2716,6 +3002,11 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
 
   return (
     <div className="flex flex-col gap-6 pb-12">
+      {isReadOnly && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+          ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
+        </div>
+      )}
       {/* Banner de Trial */}
       {isOnTrial && (
         <Card className={cn(
@@ -2801,12 +3092,12 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
               variant="secondary"
               size="sm"
               className="whitespace-nowrap"
-              disabled={portalLoading}
+              disabled={portalLoading || isReadOnly}
               onClick={handleManageSubscription}
             >
               {portalLoading ? <><Loader2 size={14} className="animate-spin mr-1.5" />Abrindo...</> : "Gerenciar Assinatura"}
             </Button>
-          ) : (
+          ) : !isReadOnly ? (
             <Link href="/planos">
               <Button
                 variant="secondary"
@@ -2817,6 +3108,10 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
                 Fazer Upgrade
               </Button>
             </Link>
+          ) : (
+            <Badge variant="cold" className="text-[10px] px-2.5 py-1 border border-white/10 bg-white/5 text-white/50">
+              Apenas Leitura
+            </Badge>
           )}
         </CardContent>
       </Card>
@@ -2885,7 +3180,7 @@ function Billing({ company, usage }: { company: Company | null; usage: any }) {
               <Button
                 variant={isActive ? "ghost" : p.recommended ? "blue" : "secondary"}
                 className={cn("w-full mb-6 font-bold", p.recommended && "shadow-glow-blue/20")}
-                disabled={isActive || isPastDueSamePlan || loading !== null}
+                disabled={isActive || isPastDueSamePlan || loading !== null || isReadOnly}
                 onClick={() => handleCheckout(p.priceId, p.id)}
               >
                 {isButtonLoading ? "Processando..." : isActive ? "Plano Atual" : "Assinar " + p.name}
@@ -2921,10 +3216,12 @@ function Services({
   companyId,
   services,
   businessType,
+  isReadOnly = false,
 }: {
   companyId?: string;
   services: Service[];
   businessType?: string;
+  isReadOnly?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [isAdding, setIsAdding] = useState(false);
@@ -2995,19 +3292,26 @@ function Services({
 
   return (
     <div className="flex flex-col gap-6">
+      {isReadOnly && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+          ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold">Serviços</h3>
           <p className="text-xs text-white/40">Gerencie os serviços que sua IA pode agendar.</p>
         </div>
-        <Button
-          variant="blue"
-          size="sm"
-          onClick={() => { setIsAdding(true); setEditingId(null); }}
-          disabled={isAdding}
-        >
-          <Plus size={16} className="mr-2" /> Novo Serviço
-        </Button>
+        {!isReadOnly && (
+          <Button
+            variant="blue"
+            size="sm"
+            onClick={() => { setIsAdding(true); setEditingId(null); }}
+            disabled={isAdding}
+          >
+            <Plus size={16} className="mr-2" /> Novo Serviço
+          </Button>
+        )}
       </div>
 
       <AnimatePresence>
@@ -3139,24 +3443,29 @@ function Services({
                   <Switch
                     checked={!s.is_paused}
                     onChange={(val: boolean) => handleToggleStatus(s.id, !val)}
+                    disabled={isReadOnly}
                   />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-white/40 hover:text-white"
-                  onClick={() => startEdit(s)}
-                >
-                  <Edit3 size={14} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-white/40 hover:text-red-400"
-                  onClick={() => handleDelete(s.id)}
-                >
-                  <Trash2 size={14} />
-                </Button>
+                {!isReadOnly && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white/40 hover:text-white"
+                      onClick={() => startEdit(s)}
+                    >
+                      <Edit3 size={14} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white/40 hover:text-red-400"
+                      onClick={() => handleDelete(s.id)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </>
+                )}
               </div>
             </motion.div>
           )
@@ -3166,7 +3475,7 @@ function Services({
   );
 }
 
-function Rules({ company }: { company: Company | null }) {
+function Rules({ company, isReadOnly = false }: { company: Company | null; isReadOnly?: boolean }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -3200,6 +3509,12 @@ function Rules({ company }: { company: Company | null }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {isReadOnly && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+          ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
+        </div>
+      )}
+      <fieldset disabled={isReadOnly} className="contents">
       <Card>
         <CardHeader>
           <CardTitle>Regras Operacionais</CardTitle>
@@ -3215,7 +3530,7 @@ function Rules({ company }: { company: Company | null }) {
                   IA pausa atendimento automaticamente quando score cai abaixo do limite
                 </div>
               </div>
-              <Switch checked={autoEscalate} onChange={setAutoEscalate} label="Auto-escalar" />
+              <Switch checked={autoEscalate} onChange={setAutoEscalate} label="Auto-escalar" disabled={isReadOnly} />
             </div>
             {autoEscalate && (
               <motion.div
@@ -3282,6 +3597,7 @@ function Rules({ company }: { company: Company | null }) {
           </Button>
         </CardContent>
       </Card>
+      </fieldset>
     </form>
   );
 }

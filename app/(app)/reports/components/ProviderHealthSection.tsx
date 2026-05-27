@@ -30,19 +30,20 @@ export function ProviderHealthSection({ providerStats, chainStats }: { providerS
             </div>
           </div>
         ))}
-        {/* Chain Stats */}
-        <div className="mt-6">
-          <h3 className="mb-2 text-md font-medium text-white/80">Cadeias de Integração</h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            {chainStats.map((c) => (
-              <div key={c.chain_kind} className="glass rounded-xl p-4 flex flex-col gap-2">
-                <h4 className="text-sm font-semibold text-white">
-                  {c.chain_kind === 'conv' ? 'Conversas' : c.chain_kind === 'tools' ? 'Ferramentas' : 'Background'}
-                </h4>
-                <p className="text-sm text-white/70">Quantidade: {c.count}</p>
-              </div>
-            ))}
-          </div>
+      </div>
+
+      {/* Chain Stats Section */}
+      <div className="mt-6 border-t border-white/10 pt-6">
+        <h3 className="mb-4 text-md font-medium text-white/80">Cadeias de Integração</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          {chainStats.map((c) => (
+            <div key={c.chain_kind} className="glass rounded-xl p-4 flex flex-col gap-2">
+              <h4 className="text-sm font-semibold text-white">
+                {c.chain_kind === 'conv' ? 'Conversas' : c.chain_kind === 'tools' ? 'Ferramentas' : 'Background'}
+              </h4>
+              <p className="text-sm text-white/70">Quantidade: {c.count}</p>
+            </div>
+          ))}
         </div>
       </div>
     </motion.div>

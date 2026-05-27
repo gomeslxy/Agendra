@@ -37,6 +37,17 @@ export default async function SettingsPage() {
         .limit(aiLogsLimit)
     : Promise.resolve({ data: [] as any[] });
 
+  const userRole = profile?.memberships?.[0]?.role;
+  const isOwnerOrAdmin = userRole === "owner" || userRole === "admin";
+  const auditLogsQuery = isOwnerOrAdmin
+    ? supabase
+        .from('audit_logs')
+        .select('id, actor_email, action, ip_address, user_agent, payload, created_at')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+    : Promise.resolve({ data: [] as any[] });
+
   const [
     { data: company },
     { data: memberships },
@@ -48,6 +59,7 @@ export default async function SettingsPage() {
     { data: automationEventsData },
     { data: webhooksData },
     { data: pendingInvitationsData },
+    { data: auditLogsData },
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -100,11 +112,10 @@ export default async function SettingsPage() {
       .eq("company_id", companyId)
       .eq("status", "pending")
       .order("created_at", { ascending: false }),
+    auditLogsQuery,
   ]);
 
   const services = servicesData ?? [];
-
-
 
   return (
     <Suspense fallback={<SettingsSkeleton />}>
@@ -119,6 +130,8 @@ export default async function SettingsPage() {
         automationEvents={automationEventsData ?? []}
         webhooks={webhooksData ?? []}
         pendingInvitations={pendingInvitationsData ?? []}
+        currentUserRole={userRole ?? "member"}
+        auditLogs={auditLogsData ?? []}
       />
     </Suspense>
   );

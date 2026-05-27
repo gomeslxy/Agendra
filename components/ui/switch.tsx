@@ -7,18 +7,21 @@ interface SwitchProps {
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: string;
+  disabled?: boolean;
 }
 
-export function Switch({ checked, onChange, label }: SwitchProps) {
+export function Switch({ checked, onChange, label, disabled }: SwitchProps) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      onClick={() => onChange(!checked)}
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
       className={cn(
-        "relative h-5 w-9 cursor-pointer rounded-full border transition-colors",
+        "relative h-5 w-9 rounded-full border transition-colors",
+        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
         checked
           ? "border-[#2563EB]/50 bg-gradient-to-b from-[#2563EB] to-[#1D4ED8]"
           : "border-white/10 bg-white/[0.08]",

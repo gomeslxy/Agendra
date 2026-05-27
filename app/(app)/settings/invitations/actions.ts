@@ -4,6 +4,7 @@ import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications/create";
 import { revalidatePath } from "next/cache";
+import { logAuditAction } from "@/lib/security/audit";
 
 /**
  * Accept a pending invitation. Caller must be the invited user.
@@ -100,6 +101,12 @@ export async function acceptInvitation(invitationId: string) {
     priority: "medium",
   });
 
+  await logAuditAction({
+    action: "member.accept_invite",
+    companyId: invite.company_id,
+    payload: { invitation_id: invitationId, role: invite.role }
+  });
+
   revalidatePath("/settings");
 }
 
@@ -149,6 +156,12 @@ export async function declineInvitation(invitationId: string) {
     priority: "medium",
   });
 
+  await logAuditAction({
+    action: "member.decline_invite",
+    companyId: invite.company_id,
+    payload: { invitation_id: invitationId, invited_email: invite.invited_email }
+  });
+
   revalidatePath("/settings");
 }
 
@@ -186,6 +199,12 @@ export async function cancelInvitation(invitationId: string) {
       .eq("id", invite.notification_id)
       .eq("read", false);
   }
+
+  await logAuditAction({
+    action: "member.cancel_invite",
+    companyId,
+    payload: { invitation_id: invitationId }
+  });
 
   revalidatePath("/settings");
 }
@@ -281,6 +300,12 @@ export async function resendInvitation(invitationId: string) {
       data: { company_id: companyId, invited_role: invite.role },
     });
   }
+
+  await logAuditAction({
+    action: "member.resend_invite",
+    companyId,
+    payload: { invitation_id: invitationId, invited_email: invite.invited_email, role: invite.role }
+  });
 
   revalidatePath("/settings");
 }

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { getUserProfile } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { logAuditAction } from "@/lib/security/audit"
 
 export async function getServices(companyId: string) {
   const supabase = await createClient()
@@ -21,6 +22,11 @@ export async function getServices(companyId: string) {
 export async function createService(formData: FormData) {
   const profile = await getUserProfile()
   if (!profile) throw new Error("Unauthorized")
+
+  const role = profile.memberships?.[0]?.role
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem criar serviços")
+  }
 
   // company_id comes from the authenticated session, never from client input
   const company_id = profile.memberships?.[0]?.company_id
@@ -48,12 +54,24 @@ export async function createService(formData: FormData) {
     })
 
   if (error) throw error
+
+  await logAuditAction({
+    action: "service.create",
+    companyId: company_id,
+    payload: { name, duration, price }
+  })
+
   revalidatePath("/settings")
 }
 
 export async function updateService(id: string, updates: Record<string, unknown>) {
   const profile = await getUserProfile()
   if (!profile) throw new Error("Unauthorized")
+
+  const role = profile.memberships?.[0]?.role
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem atualizar serviços")
+  }
 
   const companyId = profile.memberships?.[0]?.company_id
   if (!companyId) throw new Error("No company")
@@ -67,6 +85,13 @@ export async function updateService(id: string, updates: Record<string, unknown>
     .eq("company_id", companyId) // Prevents IDOR: ensures ownership
 
   if (error) throw error
+
+  await logAuditAction({
+    action: "service.update",
+    companyId,
+    payload: { service_id: id, updates }
+  })
+
   revalidatePath("/settings")
 }
 
@@ -74,7 +99,8 @@ export async function deleteService(id: string) {
   const profile = await getUserProfile()
   if (!profile) throw new Error("Unauthorized")
 
-  if (profile.memberships?.[0]?.role !== "admin") {
+  const role = profile.memberships?.[0]?.role
+  if (role !== "admin" && role !== "owner") {
     throw new Error("Apenas administradores podem realizar esta ação")
   }
 
@@ -91,6 +117,13 @@ export async function deleteService(id: string) {
     .eq("company_id", companyId) // Prevents IDOR
 
   if (error) throw error
+
+  await logAuditAction({
+    action: "service.delete",
+    companyId,
+    payload: { service_id: id }
+  })
+
   revalidatePath("/settings")
 }
 
@@ -98,7 +131,8 @@ export async function toggleServiceStatus(id: string, isPaused: boolean) {
   const profile = await getUserProfile()
   if (!profile) throw new Error("Unauthorized")
 
-  if (profile.memberships?.[0]?.role !== "admin") {
+  const role = profile.memberships?.[0]?.role
+  if (role !== "admin" && role !== "owner") {
     throw new Error("Apenas administradores podem pausar/retomar serviços")
   }
 
@@ -114,5 +148,12 @@ export async function toggleServiceStatus(id: string, isPaused: boolean) {
     .eq("company_id", companyId) // Prevents IDOR
 
   if (error) throw error
+
+  await logAuditAction({
+    action: "service.toggle",
+    companyId,
+    payload: { service_id: id, is_paused: isPaused }
+  })
+
   revalidatePath("/settings")
 }

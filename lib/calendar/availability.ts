@@ -67,27 +67,15 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
   }
 
   // Returns UTC offset in minutes for a given timezone at a given UTC moment.
+  // Returns UTC offset in minutes for a given timezone at a given UTC moment.
+  // 100% robust conversion using standard en-US double formatting, preventing midnight 24h bugs.
   function getOffsetMinutes(utcDate: Date, tz: string): number {
     try {
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: tz,
-        year: 'numeric', month: 'numeric', day: 'numeric',
-        hour: 'numeric', minute: 'numeric', second: 'numeric',
-        hour12: false
-      });
-      const parts = formatter.formatToParts(utcDate);
-      const getPart = (type: string) => parts.find(p => p.type === type)?.value;
-      
-      const localDate = new Date(Date.UTC(
-        Number(getPart('year')),
-        Number(getPart('month')) - 1,
-        Number(getPart('day')),
-        Number(getPart('hour')),
-        Number(getPart('minute')),
-        Number(getPart('second'))
-      ));
-      
-      return (localDate.getTime() - utcDate.getTime()) / 60000;
+      const tzString = utcDate.toLocaleString('en-US', { timeZone: tz });
+      const localDate = new Date(tzString);
+      const utcString = utcDate.toLocaleString('en-US', { timeZone: 'UTC' });
+      const utcNormalized = new Date(utcString);
+      return Math.round((localDate.getTime() - utcNormalized.getTime()) / 60000);
     } catch (e) {
       console.error('Error calculating offset:', e);
       return -180; // Default to BRT
@@ -112,6 +100,13 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
       const localMinutes = localHour * 60 + localMinute;
       const workStart = startHH * 60 + startMM;
       const workEnd = endHH * 60 + endMM;
+      
+      // Optimization: if current time is before working hours start, jump directly to work start
+      if (localMinutes < workStart) {
+        const minutesToStart = workStart - localMinutes;
+        cursor = new Date(cursor.getTime() + minutesToStart * 60000);
+        continue;
+      }
       
       const totalSlotDuration = durationMinutes + bufferMinutes;
       const slotEndLocalMinutes = localMinutes + totalSlotDuration;
