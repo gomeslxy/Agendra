@@ -191,6 +191,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           continue;
         }
 
+        // Data guard before atomic claim — avoids claiming then immediately failing
+        if (!lead?.phone || !event?.start_time) continue;
+
         try {
           // Atomic claim
           const { data: claimed } = await admin
@@ -202,8 +205,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             .maybeSingle();
 
           if (!claimed) continue;
-
-          if (!lead?.phone || !event?.start_time) throw new Error('Dados incompletos');
 
           const dateObj = new Date(event.start_time);
           const fmt = new Intl.DateTimeFormat('pt-BR', {

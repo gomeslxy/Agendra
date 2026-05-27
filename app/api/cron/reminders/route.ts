@@ -148,7 +148,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         });
 
         sent++;
-        console.log(`[cron/reminders] Sent reminder ${rem.id} → ${lead.phone} (event: ${event.title} at ${timeStr})`);
+        const maskedPhone = lead.phone.slice(0, -4).replace(/\d/g, '*') + lead.phone.slice(-4);
+        console.log(`[cron/reminders] Sent reminder ${rem.id} → ${maskedPhone} (event: ${event.title} at ${timeStr})`);
       } catch (err: any) {
         // Revert status to failed so manual recovery is possible
         await admin

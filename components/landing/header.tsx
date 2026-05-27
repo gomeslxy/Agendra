@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,9 @@ import { cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
 
 const NAV = [
-  { href: "#como-funciona", label: "Como funciona" },
-  { href: "#demo",          label: "Produto" },
-  { href: "#casos",         label: "Casos" },
+  { href: "/#como-funciona", label: "Como funciona" },
+  { href: "/#demo",          label: "Produto" },
+  { href: "/#casos",         label: "Casos" },
   { href: "/planos",        label: "Planos" },
 ];
 
@@ -38,18 +39,22 @@ function NavLink({
   className?: string;
   style?: React.CSSProperties;
 }) {
+  const pathname = usePathname();
+  const isHash = href.startsWith("#") || href.startsWith("/#");
+  const hashTarget = href.includes("#") ? href.split("#")[1] : "";
+
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>) => {
-      if (href.startsWith("#")) {
+      if (isHash && pathname === "/") {
         e.preventDefault();
-        smoothScrollTo(href.slice(1));
+        smoothScrollTo(hashTarget);
         onClick?.();
       }
     },
-    [href, onClick],
+    [isHash, pathname, hashTarget, onClick],
   );
 
-  if (href.startsWith("#")) {
+  if (isHash && pathname === "/") {
     return (
       <a href={href} onClick={handleClick} className={className} style={style}>
         {children}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import nextDynamic from "next/dynamic";
 import { Header } from "@/components/landing/header";
+import { ContatoForm } from "./contato-form";
+import { Footer } from "@/components/landing/footer";
 
 // ── Static rendering — cached at the CDN edge ──────────────────
 export const dynamic = "force-static";
@@ -19,23 +20,6 @@ export const metadata: Metadata = {
     url: "https://www.agendra.site/contato",
   },
 };
-
-// ── Lazy-loaded client islands ──────────────────────────────────
-const ContatoForm = nextDynamic(
-  () => import("./contato-form").then((m) => m.ContatoForm),
-  {
-    loading: () => (
-      <div className="mx-auto max-w-[1200px] min-h-[600px] flex items-center justify-center opacity-20">
-        <div className="h-8 w-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-      </div>
-    ),
-  }
-);
-
-const Footer = nextDynamic(
-  () => import("@/components/landing/footer").then((m) => m.Footer),
-  { loading: () => null }
-);
 
 // ── Page ────────────────────────────────────────────────────────
 export default function ContatoPage() {

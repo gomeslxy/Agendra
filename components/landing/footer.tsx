@@ -4,10 +4,10 @@ import { ArrowUpRight } from "lucide-react";
 
 const NAVIGATION = {
   produto: [
-    { name: "Como funciona", href: "#como-funciona" },
-    { name: "Recursos", href: "#recursos" },
+    { name: "Como funciona", href: "/#como-funciona" },
+    { name: "Recursos", href: "/#recursos" },
     { name: "Preços", href: "/planos" },
-    { name: "Demo", href: "#demo" },
+    { name: "Demo", href: "/#demo" },
   ],
   empresa: [
     { name: "Sobre", href: "/sobre" },

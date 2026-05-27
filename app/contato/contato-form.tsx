@@ -144,8 +144,10 @@ export function ContatoForm() {
               </div>
               <div>
                 <CardTitle className="text-base">WhatsApp</CardTitle>
-                <CardDescription className="font-medium text-white/80">
-                  +55 (11) 98994-0080
+                <CardDescription className="font-medium text-white/80 hover:text-white transition-colors">
+                  <a href="https://wa.me/5511989940080" target="_blank" rel="noopener noreferrer">
+                    +55 (11) 98994-0080
+                  </a>
                 </CardDescription>
               </div>
             </CardHeader>
@@ -176,12 +178,14 @@ export function ContatoForm() {
               Já é cliente Pro? Acesse seu dashboard para suporte prioritário
               em tempo real via chat.
             </p>
-            <Button
-              variant="ghost"
-              className="p-0 h-auto hover:bg-transparent text-brand-blue-400 group-hover:text-brand-blue-300 transition-colors"
-            >
-              Ir para Dashboard <ArrowRight size={16} className="ml-2" />
-            </Button>
+            <Link href="/login" className="inline-block">
+              <Button
+                variant="ghost"
+                className="p-0 h-auto hover:bg-transparent text-brand-blue-400 group-hover:text-brand-blue-300 transition-colors"
+              >
+                Ir para Dashboard <ArrowRight size={16} className="ml-2" />
+              </Button>
+            </Link>
           </div>
         </motion.div>
 
