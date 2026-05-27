@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -29,6 +29,7 @@ const DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 type LeadStatus = "hot" | "warm" | "cold" | "success";
 type EventSource = "agendra" | "gcal";
 type GCalSyncStatus = "synced" | "pending" | "error" | null;
+type EventStatus = "pending" | "confirmed" | "cancelled" | "rescheduled" | null;
 
 interface EventLead {
   name: string;
@@ -46,6 +47,7 @@ interface AgendaEvent {
   source: EventSource;
   gcal_sync_status: GCalSyncStatus;
   gcal_event_id: string | null;
+  status: EventStatus;
 }
 
 interface LeadOption {
@@ -107,6 +109,7 @@ export function AgendaClient({
   gcalConnected = false,
   gcalEmail,
   lastSyncedAt,
+  autoSync = false,
 }: {
   events: AgendaEvent[];
   leads: LeadOption[];
@@ -114,6 +117,8 @@ export function AgendaClient({
   gcalConnected?: boolean;
   gcalEmail?: string | null;
   lastSyncedAt?: string | null;
+  /** If true, auto-triggers GCal sync on mount (data is stale) */
+  autoSync?: boolean;
 }) {
   const router = useRouter();
   const isMobile = useIsMobile();
@@ -128,6 +133,19 @@ export function AgendaClient({
   const [isPending, startTransition] = useTransition();
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // P1 fix: auto-sync on mount when data is stale — keeps SSR fast
+  const didAutoSync = useRef(false);
+  useEffect(() => {
+    if (!autoSync || didAutoSync.current) return;
+    didAutoSync.current = true;
+    setIsSyncing(true);
+    fetch("/api/sync/gcal")
+      .then((res) => { if (!res.ok) throw new Error("Sync failed"); return router.refresh(); })
+      .catch((e) => console.error("[AgendaClient] auto-sync:", e))
+      .finally(() => setIsSyncing(false));
+  }, [autoSync, router]);
 
   // Reset form times whenever modal opens, based on selected day
   useEffect(() => {
@@ -187,22 +205,45 @@ export function AgendaClient({
     if (m > 11) { m = 0; y += 1; }
     setViewMonth(m);
     setViewYear(y);
+    // P1 fix: clamp selected day to the max days in the new month
+    // (e.g. navigating from Jan 31 to Feb → clamp to 28/29)
+    const maxDay = new Date(y, m + 1, 0).getDate();
+    setSelected((prev) => Math.min(prev, maxDay));
   };
 
   const handleCreate = (formData: FormData) => {
     setError(null);
+    // P0 timezone fix: datetime-local inputs return local time strings without timezone.
+    // Convert to UTC ISO strings here (in browser) so the server action receives UTC.
+    const startLocal = formData.get("start_time") as string | null;
+    const endLocal = formData.get("end_time") as string | null;
+    if (startLocal) formData.set("start_time", new Date(startLocal).toISOString());
+    if (endLocal) formData.set("end_time", new Date(endLocal).toISOString());
+
     startTransition(async () => {
       try {
         await createEvent(formData);
         trackEvent("event_created");
         setShowModal(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao criar agendamento");
+        const msg = e instanceof Error ? e.message : "Erro ao criar agendamento";
+        // Map internal onboarding error to user-friendly message
+        setError(
+          msg.startsWith("Onboarding not complete")
+            ? "Complete o onboarding da sua empresa antes de criar agendamentos."
+            : msg,
+        );
       }
     });
   };
 
   const handleDelete = (eventId: string) => {
+    // P2 fix: require confirmation before delete (irreversible action)
+    if (deleteConfirm !== eventId) {
+      setDeleteConfirm(eventId);
+      return;
+    }
+    setDeleteConfirm(null);
     startTransition(async () => {
       try {
         await deleteEvent(eventId);
@@ -459,14 +500,44 @@ export function AgendaClient({
                           {HEAT_LABEL[status]}
                         </Badge>
                       )}
+                      {/* Pending/rescheduled event status badge */}
+                      {e.status === "pending" && (
+                        <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                          Pendente
+                        </span>
+                      )}
+                      {e.status === "rescheduled" && (
+                        <span className="rounded-full border border-blue-400/40 bg-blue-400/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
+                          Remarcado
+                        </span>
+                      )}
                       {!isGcal && (
-                        <button
-                          onClick={() => handleDelete(e.id)}
-                          className="grid h-7 w-7 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-red-400"
-                          aria-label="Excluir"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        deleteConfirm === e.id ? (
+                          // P2 fix: confirmation state before irreversible delete
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-red-400">Excluir?</span>
+                            <button
+                              onClick={() => handleDelete(e.id)}
+                              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-400 hover:bg-red-400/10"
+                            >
+                              Sim
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm(null)}
+                              className="rounded px-1.5 py-0.5 text-[10px] text-fg-3 hover:bg-white/[0.08]"
+                            >
+                              Não
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleDelete(e.id)}
+                            className="grid h-7 w-7 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-red-400"
+                            aria-label="Excluir"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )
                       )}
                     </div>
                   </motion.div>
@@ -546,6 +617,11 @@ export function AgendaClient({
                           </option>
                         ))}
                       </select>
+                      {leads.length === 200 && (
+                        <p className="text-[10px]" style={{ color: "var(--color-fg-3)" }}>
+                          Exibindo os 200 leads mais recentes. Use a busca de leads para encontrar outros.
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

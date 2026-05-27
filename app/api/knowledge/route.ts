@@ -9,12 +9,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getUserProfile } from '@/lib/supabase/server';
-import { genAI } from '@/lib/ai/client';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 200;
 const MAX_CHUNKS = 200; // cap embedding API calls per upload
+const EMBED_TIMEOUT_MS = 8000; // 8s per chunk
 const ALLOWED_TYPES = [
   'text/plain',
   'application/pdf',
@@ -30,10 +31,36 @@ const MAGIC_BYTES: Record<string, number[][]> = {
   // text/plain: no magic bytes — validated by UTF-8 decode below
 };
 
+/**
+ * Lazy singleton — avoids throwing at module-load time when GOOGLE_AI_API_KEY
+ * might not yet be injected (e.g. in Edge cold starts or test environments).
+ */
+function getGenAI(): GoogleGenerativeAI {
+  const key = process.env.GOOGLE_AI_API_KEY;
+  if (!key) throw new Error('GOOGLE_AI_API_KEY ausente — configure a variável de ambiente.');
+  return new GoogleGenerativeAI(key);
+}
+
 function validateMagicBytes(buffer: Buffer, mimeType: string): boolean {
   const sigs = MAGIC_BYTES[mimeType];
   if (!sigs) return true; // text/plain — no binary magic check
   return sigs.some((sig) => sig.every((byte, i) => buffer[i] === byte));
+}
+
+/**
+ * Resolve MIME type robustly.
+ * Some browsers/OSes send an empty string for plain-text files.
+ * We also sniff by extension as a fallback.
+ */
+function resolveMimeType(file: File): string {
+  if (file.type && ALLOWED_TYPES.includes(file.type)) return file.type;
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'txt') return 'text/plain';
+  if (ext === 'pdf') return 'application/pdf';
+  if (ext === 'docx')
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  // Return whatever the browser says (will fail the allowlist check below)
+  return file.type || 'application/octet-stream';
 }
 
 /**
@@ -87,10 +114,21 @@ async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
   throw new Error(`Tipo de arquivo não suportado: ${mimeType}`);
 }
 
-/** Gera embedding para um chunk de texto usando text-embedding-005 (768D) */
+/**
+ * Gera embedding para um chunk de texto usando text-embedding-005 (768D).
+ * Inclui timeout de ${EMBED_TIMEOUT_MS}ms para evitar travamentos em caso de
+ * instabilidade da API do Gemini.
+ */
 async function generateEmbedding(text: string): Promise<number[]> {
+  const genAI = getGenAI();
   const embedModel = genAI.getGenerativeModel({ model: 'text-embedding-005' });
-  const result = await embedModel.embedContent(text);
+
+  const embeddingPromise = embedModel.embedContent(text);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Embedding timeout após ${EMBED_TIMEOUT_MS}ms`)), EMBED_TIMEOUT_MS)
+  );
+
+  const result = await Promise.race([embeddingPromise, timeoutPromise]);
   const values = result.embedding?.values;
   if (!values?.length) throw new Error('Embedding vazio retornado pelo modelo');
   return values;
@@ -99,6 +137,15 @@ async function generateEmbedding(text: string): Promise<number[]> {
 // ── POST /api/knowledge ─────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
+    // Fail-fast: check API key before doing any heavy work
+    if (!process.env.GOOGLE_AI_API_KEY) {
+      console.error('[Knowledge API] GOOGLE_AI_API_KEY não configurada');
+      return NextResponse.json(
+        { error: 'Serviço de embeddings não configurado. Contate o suporte.' },
+        { status: 503 }
+      );
+    }
+
     const profile = await getUserProfile();
     if (!profile) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
@@ -123,8 +170,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate declared MIME against allowlist (client-supplied header)
-    const mimeType = file.type || 'text/plain';
+    // Resolve MIME type robustly (handles empty file.type for .txt on some browsers)
+    const mimeType = resolveMimeType(file);
+
+    // Validate declared MIME against allowlist
     if (!ALLOWED_TYPES.includes(mimeType)) {
       return NextResponse.json(
         { error: 'Tipo de arquivo não permitido. Use PDF, TXT ou DOCX.' },
@@ -149,6 +198,7 @@ export async function POST(req: NextRequest) {
     try {
       text = await extractText(buffer, mimeType);
     } catch (err: any) {
+      console.error('[Knowledge API] Falha ao extrair texto:', err);
       return NextResponse.json(
         { error: `Falha ao extrair texto: ${err.message}` },
         { status: 422 }
@@ -157,7 +207,7 @@ export async function POST(req: NextRequest) {
 
     if (!text || text.trim().length < 50) {
       return NextResponse.json(
-        { error: 'Documento sem conteúdo suficiente para indexar' },
+        { error: 'Documento sem conteúdo suficiente para indexar (mínimo 50 caracteres)' },
         { status: 422 }
       );
     }
@@ -179,6 +229,7 @@ export async function POST(req: NextRequest) {
       embedding: number[];
     }> = [];
 
+    let failedChunks = 0;
     const EMBED_BATCH = 10;
     for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
       const batch = chunks.slice(i, i + EMBED_BATCH);
@@ -187,16 +238,25 @@ export async function POST(req: NextRequest) {
         if (result.status === 'fulfilled') {
           rows.push({ company_id: companyId, source_name: sourceName, content: batch[idx], embedding: result.value });
         } else {
-          console.error('[Knowledge API] Falha ao gerar embedding para chunk:', result.reason);
+          failedChunks++;
+          console.error('[Knowledge API] Falha ao gerar embedding para chunk:', result.reason?.message ?? result.reason);
         }
       });
     }
 
     if (rows.length === 0) {
+      const reason = failedChunks > 0
+        ? `Todos os ${failedChunks} chunks falharam ao gerar embeddings. Verifique a chave da API do Gemini ou tente novamente.`
+        : 'Falha ao gerar embeddings. Tente novamente.';
+      console.error('[Knowledge API] Nenhum embedding gerado —', reason);
       return NextResponse.json(
-        { error: 'Falha ao gerar embeddings. Tente novamente.' },
+        { error: reason },
         { status: 500 }
       );
+    }
+
+    if (failedChunks > 0) {
+      console.warn(`[Knowledge API] ${failedChunks}/${chunks.length} chunks falharam — continuando com ${rows.length} vetores válidos`);
     }
 
     // 4. Salvar no banco
@@ -222,6 +282,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       source_name: sourceName,
       chunks_created: rows.length,
+      chunks_failed: failedChunks,
     });
   } catch (err: any) {
     console.error('[Knowledge API] Erro inesperado:', err);
