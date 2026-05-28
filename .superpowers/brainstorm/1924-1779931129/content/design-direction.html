@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agendra — Direção Visual</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Inter", sans-serif;
+    background: #111;
+    color: #fff;
+    min-height: 100vh;
+    padding: 32px 24px 48px;
+  }
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #fff;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .page-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,0.45);
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  @media (max-width: 860px) {
+    .cards { grid-template-columns: 1fr; }
+  }
+  .card {
+    border-radius: 14px;
+    border: 2px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+    background: rgba(255,255,255,0.03);
+  }
+  .card:hover {
+    border-color: rgba(255,255,255,0.22);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+  }
+  .card.selected {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 4px rgba(59,130,246,0.18), 0 16px 40px rgba(0,0,0,0.4);
+  }
+  .preview {
+    height: 340px;
+    overflow: hidden;
+    position: relative;
+  }
+  .card-info {
+    padding: 18px 20px 20px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .card-info h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
+  }
+  .card-info p {
+    font-size: 12px;
+    color: rgba(255,255,255,0.45);
+    line-height: 1.5;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+  .check-badge {
+    display: none;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    background: #3b82f6;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    z-index: 10;
+  }
+  .card.selected .check-badge { display: flex; }
+
+  /* ─── PREVIEW A: Arc Blanc (Pure Light) ─── */
+  .preview-a {
+    background: #ffffff;
+    display: flex;
+  }
+  .pa-sidebar {
+    width: 52px;
+    background: #ffffff;
+    border-right: 1px solid #e4e4e7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .pa-logo { width: 28px; height: 6px; background: #09090b; border-radius: 2px; margin-bottom: 8px; }
+  .pa-nav-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pa-nav-icon.active { background: #f4f4f5; }
+  .pa-dot { width: 16px; height: 16px; border-radius: 4px; background: #d4d4d8; }
+  .pa-dot.active { background: #3b82f6; width: 16px; height: 3px; border-radius: 99px; margin-top: 2px; }
+  .pa-main { flex: 1; display: flex; flex-direction: column; }
+  .pa-topbar {
+    height: 40px;
+    background: #ffffff;
+    border-bottom: 1px solid #e4e4e7;
+    display: flex; align-items: center;
+    padding: 0 14px;
+    gap: 8px;
+  }
+  .pa-search {
+    flex: 1;
+    height: 26px;
+    background: #f4f4f5;
+    border-radius: 6px;
+    border: 1px solid #e4e4e7;
+  }
+  .pa-avatar { width: 26px; height: 26px; border-radius: 50%; background: #3b82f6; opacity: 0.8; flex-shrink: 0; }
+  .pa-content { flex: 1; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .pa-header-row { display: flex; align-items: center; justify-content: space-between; }
+  .pa-title-block { height: 14px; width: 80px; background: #09090b; border-radius: 3px; }
+  .pa-btn { height: 26px; width: 70px; background: #3b82f6; border-radius: 6px; }
+  .pa-filters { display: flex; gap: 6px; }
+  .pa-filter { height: 10px; width: 40px; background: #e4e4e7; border-radius: 3px; }
+  .pa-filter.active { background: #09090b; }
+  .pa-table { background: #ffffff; border: 1px solid #e4e4e7; border-radius: 8px; overflow: hidden; }
+  .pa-tr { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f4f4f5; }
+  .pa-tr:last-child { border-bottom: none; }
+  .pa-tr-head { background: #fafafa; }
+  .pa-avatar-sm { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+  .pa-line { height: 8px; border-radius: 2px; background: #e4e4e7; }
+  .pa-badge-hot { width: 32px; height: 16px; border-radius: 4px; background: #fef3c7; border: 1px solid #fde68a; }
+  .pa-badge-cold { width: 32px; height: 16px; border-radius: 4px; background: #eff6ff; border: 1px solid #bfdbfe; }
+
+  /* ─── PREVIEW B: Warm Paper ─── */
+  .preview-b {
+    background: #f9f7f4;
+    display: flex;
+  }
+  .pb-sidebar {
+    width: 180px;
+    background: #1c1917;
+    border-right: none;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 10px;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  .pb-logo { height: 7px; width: 60px; background: #fff; border-radius: 2px; margin-bottom: 16px; opacity: 0.9; }
+  .pb-nav {
+    height: 28px;
+    border-radius: 7px;
+    display: flex; align-items: center; padding: 0 10px; gap: 7px;
+  }
+  .pb-nav.active { background: rgba(255,255,255,0.08); }
+  .pb-nav-dot { width: 10px; height: 10px; border-radius: 3px; background: rgba(255,255,255,0.2); flex-shrink: 0; }
+  .pb-nav-dot.active { background: #f97316; }
+  .pb-nav-label { height: 7px; border-radius: 2px; background: rgba(255,255,255,0.15); flex: 1; }
+  .pb-nav-label.active { background: rgba(255,255,255,0.7); }
+  .pb-main { flex: 1; display: flex; flex-direction: column; }
+  .pb-topbar {
+    height: 42px;
+    background: #f9f7f4;
+    border-bottom: 1px solid rgba(0,0,0,0.07);
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 10px;
+  }
+  .pb-search { flex: 1; height: 28px; background: #fff; border-radius: 7px; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+  .pb-btn { height: 28px; width: 80px; background: #f97316; border-radius: 7px; flex-shrink: 0; }
+  .pb-content { flex: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .pb-cards-row { display: flex; gap: 8px; }
+  .pb-kpi {
+    flex: 1;
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.07);
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .pb-kpi-num { height: 14px; width: 50px; background: #1c1917; border-radius: 3px; margin-bottom: 5px; }
+  .pb-kpi-label { height: 7px; width: 60px; background: #d4cfc8; border-radius: 2px; }
+  .pb-table { background: #fff; border: 1px solid rgba(0,0,0,0.07); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .pb-tr { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .pb-tr:last-child { border-bottom: none; }
+  .pb-tr-head { background: #fdf9f6; }
+  .pb-line { height: 8px; border-radius: 2px; background: #e7e0d8; }
+  .pb-badge-hot { width: 32px; height: 16px; border-radius: 4px; background: #fff7ed; border: 1px solid #fed7aa; }
+
+  /* ─── PREVIEW C: Steel Precision ─── */
+  .preview-c {
+    background: #fafafa;
+    display: flex;
+  }
+  .pc-sidebar {
+    width: 200px;
+    background: #fafafa;
+    border-right: 1px solid #e4e4e7;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 10px;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .pc-logo { height: 7px; width: 64px; background: #09090b; border-radius: 2px; margin-bottom: 18px; }
+  .pc-section { height: 7px; width: 40px; background: #d4d4d8; border-radius: 2px; margin: 8px 8px 4px; }
+  .pc-nav {
+    height: 30px;
+    border-radius: 7px;
+    display: flex; align-items: center; padding: 0 10px; gap: 7px;
+  }
+  .pc-nav.active { background: #f4f4f5; border: 1px solid #e4e4e7; }
+  .pc-nav-dot { width: 10px; height: 10px; border-radius: 3px; background: #d4d4d8; flex-shrink: 0; }
+  .pc-nav-dot.active { background: #2563eb; }
+  .pc-nav-label { height: 7px; border-radius: 2px; background: #d4d4d8; flex: 1; }
+  .pc-nav-label.active { background: #3f3f46; }
+  .pc-main { flex: 1; display: flex; flex-direction: column; }
+  .pc-topbar {
+    height: 44px;
+    background: #fafafa;
+    border-bottom: 1px solid #e4e4e7;
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 10px;
+  }
+  .pc-search { flex: 1; height: 28px; background: #fff; border-radius: 6px; border: 1px solid #e4e4e7; }
+  .pc-btn-sec { height: 28px; width: 60px; background: #fff; border: 1px solid #e4e4e7; border-radius: 6px; flex-shrink: 0; }
+  .pc-btn-pri { height: 28px; width: 80px; background: #09090b; border-radius: 6px; flex-shrink: 0; }
+  .pc-content { flex: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .pc-page-title { height: 14px; width: 90px; background: #09090b; border-radius: 3px; }
+  .pc-page-sub { height: 8px; width: 140px; background: #d4d4d8; border-radius: 2px; margin-top: 5px; }
+  .pc-table { background: #fff; border: 1px solid #e4e4e7; border-radius: 8px; overflow: hidden; }
+  .pc-tr { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f4f4f5; }
+  .pc-tr:last-child { border-bottom: none; }
+  .pc-tr-head { background: #fafafa; border-bottom: 1px solid #e4e4e7; }
+  .pc-line { height: 8px; border-radius: 2px; background: #e4e4e7; }
+  .pc-badge-hot { width: 36px; height: 18px; border-radius: 4px; background: #fff7ed; border: 1px solid #fed7aa; }
+  .pc-badge-cold { width: 36px; height: 18px; border-radius: 4px; background: #eff6ff; border: 1px solid #bfdbfe; }
+  .pc-badge-teal { width: 36px; height: 18px; border-radius: 4px; background: #f0fdf9; border: 1px solid #99f6e4; }
+
+  .selected-bar {
+    display: none;
+    text-align: center;
+    margin-top: 28px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+  }
+  .confirm-hint {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">Qual direção visual deve guiar o novo Agendra?</div>
+<div class="page-sub">Clique em uma opção para selecionar. Depois responda no terminal.</div>
+
+<div class="cards">
+
+  <!-- OPTION A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="check-badge">✓</div>
+    <div class="preview preview-a">
+      <div class="pa-sidebar">
+        <div class="pa-logo"></div>
+        <div class="pa-nav-icon active">
+          <div style="width:12px;height:12px;border-radius:3px;background:#3b82f6;"></div>
+        </div>
+        <div class="pa-nav-icon">
+          <div style="width:12px;height:12px;border-radius:3px;background:#d4d4d8;"></div>
+        </div>
+        <div class="pa-nav-icon">
+          <div style="width:12px;height:12px;border-radius:3px;background:#d4d4d8;"></div>
+        </div>
+        <div class="pa-nav-icon">
+          <div style="width:12px;height:12px;border-radius:3px;background:#d4d4d8;"></div>
+        </div>
+        <div class="pa-nav-icon">
+          <div style="width:12px;height:12px;border-radius:3px;background:#d4d4d8;"></div>
+        </div>
+        <div style="margin-top:auto;">
+          <div style="width:32px;height:32px;border-radius:50%;background:#e4e4e7;"></div>
+        </div>
+      </div>
+      <div class="pa-main">
+        <div class="pa-topbar">
+          <div class="pa-search"></div>
+          <div style="width:26px;height:26px;border-radius:6px;background:#f4f4f5;border:1px solid #e4e4e7;flex-shrink:0;"></div>
+          <div class="pa-avatar" style="background:#3b82f6;"></div>
+        </div>
+        <div class="pa-content">
+          <div class="pa-header-row">
+            <div>
+              <div class="pa-title-block"></div>
+              <div style="height:8px;width:130px;background:#a1a1aa;border-radius:2px;margin-top:6px;"></div>
+            </div>
+            <div class="pa-btn"></div>
+          </div>
+          <div class="pa-filters">
+            <div class="pa-filter active"></div>
+            <div class="pa-filter"></div>
+            <div class="pa-filter"></div>
+            <div class="pa-filter"></div>
+          </div>
+          <div class="pa-table">
+            <div class="pa-tr pa-tr-head">
+              <div style="width:22px;height:22px;border-radius:50%;background:#e4e4e7;flex-shrink:0;"></div>
+              <div class="pa-line" style="width:70px;background:#d4d4d8;"></div>
+              <div style="flex:1;"></div>
+              <div class="pa-badge-hot"></div>
+            </div>
+            <div class="pa-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#bfdbfe;flex-shrink:0;"></div>
+              <div class="pa-line" style="width:60px;"></div>
+              <div style="flex:1;"></div>
+              <div class="pa-badge-cold"></div>
+            </div>
+            <div class="pa-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#d1fae5;flex-shrink:0;"></div>
+              <div class="pa-line" style="width:80px;"></div>
+              <div style="flex:1;"></div>
+              <div class="pa-badge-hot"></div>
+            </div>
+            <div class="pa-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#e4e4e7;flex-shrink:0;"></div>
+              <div class="pa-line" style="width:55px;"></div>
+              <div style="flex:1;"></div>
+              <div class="pa-badge-cold"></div>
+            </div>
+            <div class="pa-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#fde68a;flex-shrink:0;"></div>
+              <div class="pa-line" style="width:75px;"></div>
+              <div style="flex:1;"></div>
+              <div class="pa-badge-hot"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;background:#fff;border:1px solid #e4e4e7;border-radius:8px;padding:10px;">
+              <div style="height:8px;width:40px;background:#d4d4d8;border-radius:2px;margin-bottom:6px;"></div>
+              <div style="height:14px;width:55px;background:#09090b;border-radius:3px;"></div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid #e4e4e7;border-radius:8px;padding:10px;">
+              <div style="height:8px;width:40px;background:#d4d4d8;border-radius:2px;margin-bottom:6px;"></div>
+              <div style="height:14px;width:40px;background:#3b82f6;border-radius:3px;"></div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid #e4e4e7;border-radius:8px;padding:10px;">
+              <div style="height:8px;width:40px;background:#d4d4d8;border-radius:2px;margin-bottom:6px;"></div>
+              <div style="height:14px;width:35px;background:#14b8a6;border-radius:3px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-info">
+      <div class="tag" style="background:#eff6ff;color:#2563eb;">A — Arctic White</div>
+      <h3>Clean Light · Sidebar Icon-Only</h3>
+      <p>Fundo branco puro, sidebar compacta com ícones, tabela open sem cards. Inspirado em Vercel Dashboard e Linear. Frio, preciso, mínimo.</p>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="check-badge">✓</div>
+    <div class="preview preview-b">
+      <div class="pb-sidebar">
+        <div class="pb-logo"></div>
+        <div class="pb-nav active">
+          <div class="pb-nav-dot active"></div>
+          <div class="pb-nav-label active"></div>
+        </div>
+        <div class="pb-nav">
+          <div class="pb-nav-dot"></div>
+          <div class="pb-nav-label"></div>
+        </div>
+        <div class="pb-nav">
+          <div class="pb-nav-dot"></div>
+          <div class="pb-nav-label"></div>
+        </div>
+        <div class="pb-nav">
+          <div class="pb-nav-dot"></div>
+          <div class="pb-nav-label"></div>
+        </div>
+        <div style="margin-top:auto;">
+          <div style="border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:8px;display:flex;gap:7px;align-items:center;">
+            <div style="width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,0.15);flex-shrink:0;"></div>
+            <div>
+              <div style="height:6px;width:50px;background:rgba(255,255,255,0.5);border-radius:2px;margin-bottom:4px;"></div>
+              <div style="height:5px;width:35px;background:rgba(255,255,255,0.2);border-radius:2px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pb-main">
+        <div class="pb-topbar">
+          <div class="pb-search"></div>
+          <div class="pb-btn"></div>
+        </div>
+        <div class="pb-content">
+          <div class="pb-cards-row">
+            <div class="pb-kpi">
+              <div class="pb-kpi-num"></div>
+              <div class="pb-kpi-label"></div>
+            </div>
+            <div class="pb-kpi">
+              <div style="height:14px;width:40px;background:#f97316;border-radius:3px;margin-bottom:5px;"></div>
+              <div class="pb-kpi-label"></div>
+            </div>
+            <div class="pb-kpi">
+              <div style="height:14px;width:45px;background:#14b8a6;border-radius:3px;margin-bottom:5px;"></div>
+              <div class="pb-kpi-label"></div>
+            </div>
+          </div>
+          <div class="pb-table">
+            <div class="pb-tr pb-tr-head">
+              <div style="width:22px;height:22px;border-radius:50%;background:#e7e0d8;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pb-line" style="width:75px;"></div></div>
+              <div class="pb-badge-hot"></div>
+            </div>
+            <div class="pb-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#fed7aa;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pb-line" style="width:60px;"></div></div>
+              <div class="pb-badge-hot"></div>
+            </div>
+            <div class="pb-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#d1fae5;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pb-line" style="width:80px;"></div></div>
+              <div style="width:32px;height:16px;border-radius:4px;background:#f0fdf4;border:1px solid #bbf7d0;"></div>
+            </div>
+            <div class="pb-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#e7e0d8;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pb-line" style="width:65px;"></div></div>
+              <div style="width:32px;height:16px;border-radius:4px;background:#eff6ff;border:1px solid #bfdbfe;"></div>
+            </div>
+            <div class="pb-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#fde68a;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pb-line" style="width:70px;"></div></div>
+              <div class="pb-badge-hot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-info">
+      <div class="tag" style="background:#fff7ed;color:#c2410c;">B — Warm Paper</div>
+      <h3>Off-White · Sidebar Escura Quente</h3>
+      <p>Fundo creme (#F9F7F4), sidebar escura em marrom-carvão, laranja como acento primário. Mais humanístico e acolhedor — ideal para o público SMB. Inspirado em Stripe Dashboard e Notion.</p>
+    </div>
+  </div>
+
+  <!-- OPTION C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="check-badge">✓</div>
+    <div class="preview preview-c">
+      <div class="pc-sidebar">
+        <div class="pc-logo"></div>
+        <div class="pc-section"></div>
+        <div class="pc-nav active">
+          <div class="pc-nav-dot active"></div>
+          <div class="pc-nav-label active"></div>
+          <div style="width:16px;height:16px;border-radius:4px;background:#3b82f6;font-size:8px;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
+        </div>
+        <div class="pc-nav">
+          <div class="pc-nav-dot"></div>
+          <div class="pc-nav-label"></div>
+        </div>
+        <div class="pc-nav">
+          <div class="pc-nav-dot"></div>
+          <div class="pc-nav-label"></div>
+        </div>
+        <div class="pc-section"></div>
+        <div class="pc-nav">
+          <div class="pc-nav-dot"></div>
+          <div class="pc-nav-label"></div>
+        </div>
+        <div class="pc-nav">
+          <div class="pc-nav-dot"></div>
+          <div class="pc-nav-label"></div>
+        </div>
+        <div style="margin-top:auto;border:1px solid #e4e4e7;border-radius:10px;padding:8px;display:flex;gap:7px;align-items:center;">
+          <div style="width:24px;height:24px;border-radius:50%;background:#e4e4e7;flex-shrink:0;"></div>
+          <div>
+            <div style="height:6px;width:50px;background:#3f3f46;border-radius:2px;margin-bottom:4px;"></div>
+            <div style="height:5px;width:60px;background:#d4d4d8;border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="pc-main">
+        <div class="pc-topbar">
+          <div class="pc-search"></div>
+          <div class="pc-btn-sec"></div>
+          <div class="pc-btn-pri"></div>
+        </div>
+        <div class="pc-content">
+          <div>
+            <div class="pc-page-title"></div>
+            <div class="pc-page-sub"></div>
+          </div>
+          <div class="pc-table">
+            <div class="pc-tr pc-tr-head">
+              <div style="width:22px;height:22px;border-radius:50%;background:#e4e4e7;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pc-line" style="width:70px;background:#d4d4d8;"></div></div>
+              <div class="pc-line" style="width:50px;"></div>
+              <div class="pc-badge-hot"></div>
+            </div>
+            <div class="pc-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#bfdbfe;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pc-line" style="width:80px;"></div></div>
+              <div class="pc-line" style="width:40px;"></div>
+              <div class="pc-badge-cold"></div>
+            </div>
+            <div class="pc-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#d1fae5;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pc-line" style="width:65px;"></div></div>
+              <div class="pc-line" style="width:45px;"></div>
+              <div class="pc-badge-teal"></div>
+            </div>
+            <div class="pc-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#fde68a;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pc-line" style="width:75px;"></div></div>
+              <div class="pc-line" style="width:35px;"></div>
+              <div class="pc-badge-hot"></div>
+            </div>
+            <div class="pc-tr">
+              <div style="width:22px;height:22px;border-radius:50%;background:#e4e4e7;flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="pc-line" style="width:60px;"></div></div>
+              <div class="pc-line" style="width:55px;"></div>
+              <div class="pc-badge-cold"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;background:#fff;border:1px solid #e4e4e7;border-radius:8px;padding:10px;">
+              <div style="height:8px;width:40px;background:#d4d4d8;border-radius:2px;margin-bottom:6px;"></div>
+              <div style="height:18px;width:55px;background:#09090b;border-radius:3px;"></div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid #e4e4e7;border-radius:8px;padding:10px;">
+              <div style="height:8px;width:40px;background:#d4d4d8;border-radius:2px;margin-bottom:6px;"></div>
+              <div style="height:18px;width:40px;background:#f97316;border-radius:3px;"></div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid #e4e4e7;border-radius:8px;padding:10px;">
+              <div style="height:8px;width:40px;background:#d4d4d8;border-radius:2px;margin-bottom:6px;"></div>
+              <div style="height:18px;width:35px;background:#2563eb;border-radius:3px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-info">
+      <div class="tag" style="background:#f4f4f5;color:#3f3f46;">C — Steel Precision</div>
+      <h3>Near-White · Sidebar Expandida</h3>
+      <p>Fundo zinc-50 (#FAFAFA), sidebar full-width em branco com bordas finas, tabela densa com múltiplas colunas. Máxima legibilidade e organização. Inspirado em Linear, Raycast e GitHub.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="confirm-hint">↑ Clique para selecionar — depois responda no terminal qual escolheu e por quê</div>
+
+<script>
+function toggleSelect(el) {
+  const cards = document.querySelectorAll('.card');
+  cards.forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  const choice = el.dataset.choice;
+  if (window.recordSelection) window.recordSelection(choice, el.querySelector('h3')?.textContent || '');
+}
+</script>
+</body>
+</html>

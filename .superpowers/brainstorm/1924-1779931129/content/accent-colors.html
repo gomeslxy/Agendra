@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agendra — Sistema de Cores</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Inter", sans-serif;
+    background: #111;
+    color: #fff;
+    min-height: 100vh;
+    padding: 32px 24px 48px;
+  }
+  .page-title { font-size: 21px; font-weight: 700; letter-spacing: -0.5px; color: #fff; margin-bottom: 6px; text-align: center; }
+  .page-sub { font-size: 13px; color: rgba(255,255,255,0.4); text-align: center; margin-bottom: 36px; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1050px; margin: 0 auto; }
+  @media (max-width: 800px) { .cards { grid-template-columns: 1fr; } }
+
+  .card {
+    border-radius: 14px;
+    border: 2px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+    background: rgba(255,255,255,0.03);
+  }
+  .card:hover { border-color: rgba(255,255,255,0.22); transform: translateY(-2px); box-shadow: 0 16px 40px rgba(0,0,0,0.4); }
+  .card.selected { border-color: #3b82f6 !important; box-shadow: 0 0 0 4px rgba(59,130,246,0.18), 0 16px 40px rgba(0,0,0,0.4); }
+  .check-badge {
+    display: none; position: absolute; top: 12px; right: 12px;
+    width: 28px; height: 28px; background: #3b82f6; border-radius: 50%;
+    align-items: center; justify-content: center; font-size: 14px; z-index: 10;
+  }
+  .card.selected .check-badge { display: flex; }
+
+  .preview {
+    background: #fafafa;
+    height: 320px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Shared UI primitives */
+  .ui-row { display: flex; align-items: center; gap: 10px; }
+  .ui-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #71717a; flex-shrink: 0; width: 90px; }
+  .ui-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* Buttons */
+  .btn-pri { height: 32px; padding: 0 14px; border-radius: 7px; font-size: 12px; font-weight: 600; border: none; cursor: default; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .btn-sec { height: 32px; padding: 0 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: default; display: flex; align-items: center; gap: 5px; white-space: nowrap; background: transparent; }
+  .btn-ghost { height: 32px; padding: 0 14px; border-radius: 7px; font-size: 12px; font-weight: 600; background: transparent; cursor: default; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+  /* Nav pill (active state) */
+  .nav-item { height: 34px; padding: 0 12px; border-radius: 8px; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 7px; cursor: default; }
+  .nav-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .nav-label { font-size: 12px; }
+  .nav-inactive { color: #71717a; background: transparent; }
+
+  /* Badges */
+  .badge { height: 22px; padding: 0 8px; border-radius: 5px; font-size: 10px; font-weight: 700; display: flex; align-items: center; white-space: nowrap; }
+
+  /* Status pills */
+  .status-pill { height: 22px; padding: 0 10px; border-radius: 99px; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Input focus ring */
+  .mock-input { height: 34px; border-radius: 7px; border: 1.5px solid; padding: 0 12px; font-size: 12px; background: #fff; color: #09090b; outline: none; width: 160px; }
+
+  /* Divider */
+  .divider { height: 1px; background: #e4e4e7; margin: 2px 0; }
+
+  .card-info { padding: 16px 18px 18px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .card-info h3 { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; letter-spacing: -0.3px; }
+  .card-info p { font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.5; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; margin-bottom: 7px; }
+  .confirm-hint { text-align: center; margin-top: 14px; font-size: 12px; color: rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+
+<div class="page-title">Como deve funcionar o sistema de cores?</div>
+<div class="page-sub">Botões, nav ativa, badges, inputs — escolha qual conjunto parece mais Agendra.</div>
+
+<div class="cards">
+
+  <!-- OPTION A: Blue Dominant -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="check-badge">✓</div>
+    <div class="preview">
+      <div class="ui-row">
+        <span class="ui-label">Ações</span>
+        <div class="ui-group">
+          <button class="btn-pri" style="background:#2563eb;color:#fff;">
+            <svg width="11" height="11" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a1 1 0 011 1v6h6a1 1 0 110 2H9v6a1 1 0 11-2 0V9H1a1 1 0 110-2h6V1a1 1 0 011-1z"/></svg>
+            Novo lead
+          </button>
+          <button class="btn-sec" style="border:1.5px solid #e4e4e7;color:#3f3f46;">Exportar</button>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Nav ativa</span>
+        <div class="ui-group">
+          <div class="nav-item" style="background:#eff6ff;border:1px solid #bfdbfe;">
+            <div class="nav-dot" style="background:#2563eb;"></div>
+            <span class="nav-label" style="color:#1d4ed8;font-weight:600;">Inbox</span>
+          </div>
+          <div class="nav-item nav-inactive">
+            <div class="nav-dot" style="background:#d4d4d8;"></div>
+            <span class="nav-label">Leads</span>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Status leads</span>
+        <div class="ui-group">
+          <div class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">🔥 Quente</div>
+          <div class="badge" style="background:#fefce8;color:#854d0e;border:1px solid #fde68a;">Morno</div>
+          <div class="badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">❄ Frio</div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">IA status</span>
+        <div class="ui-group">
+          <div class="status-pill" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;">
+            <div class="status-dot" style="background:#22c55e;"></div>
+            Autônomo
+          </div>
+          <div class="status-pill" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;">
+            <div class="status-dot" style="background:#2563eb;"></div>
+            Copiloto
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Input focus</span>
+        <input class="mock-input" style="border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.12);" value="Maria Clara" readonly />
+      </div>
+      <div class="ui-row" style="margin-top:4px;">
+        <span class="ui-label">CTA primário</span>
+        <button class="btn-pri" style="background:#2563eb;color:#fff;font-size:13px;padding:0 20px;height:36px;border-radius:8px;">Assinar plano Pro</button>
+      </div>
+    </div>
+    <div class="card-info">
+      <div class="tag" style="background:#eff6ff;color:#2563eb;">A — Blue First</div>
+      <h3>Azul como único acento</h3>
+      <p>Azul governa tudo: botões, nav ativa, foco, CTA. Laranja e Teal apenas para status semântico (quente/IA). Limpo, uniforme, enterprise.</p>
+    </div>
+  </div>
+
+  <!-- OPTION B: Ink Dominant -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="check-badge">✓</div>
+    <div class="preview">
+      <div class="ui-row">
+        <span class="ui-label">Ações</span>
+        <div class="ui-group">
+          <button class="btn-pri" style="background:#09090b;color:#fff;">
+            <svg width="11" height="11" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a1 1 0 011 1v6h6a1 1 0 110 2H9v6a1 1 0 11-2 0V9H1a1 1 0 110-2h6V1a1 1 0 011-1z"/></svg>
+            Novo lead
+          </button>
+          <button class="btn-sec" style="border:1.5px solid #e4e4e7;color:#3f3f46;">Exportar</button>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Nav ativa</span>
+        <div class="ui-group">
+          <div class="nav-item" style="background:#f4f4f5;border:1px solid #e4e4e7;">
+            <div class="nav-dot" style="background:#09090b;"></div>
+            <span class="nav-label" style="color:#09090b;font-weight:600;">Inbox</span>
+          </div>
+          <div class="nav-item nav-inactive">
+            <div class="nav-dot" style="background:#d4d4d8;"></div>
+            <span class="nav-label">Leads</span>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Status leads</span>
+        <div class="ui-group">
+          <div class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">🔥 Quente</div>
+          <div class="badge" style="background:#fefce8;color:#854d0e;border:1px solid #fde68a;">Morno</div>
+          <div class="badge" style="background:#f4f4f5;color:#3f3f46;border:1px solid #e4e4e7;">❄ Frio</div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">IA status</span>
+        <div class="ui-group">
+          <div class="status-pill" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;">
+            <div class="status-dot" style="background:#22c55e;"></div>
+            Autônomo
+          </div>
+          <div class="status-pill" style="background:#f0fdfa;border:1px solid #99f6e4;color:#0f766e;">
+            <div class="status-dot" style="background:#14b8a6;"></div>
+            Copiloto
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Input focus</span>
+        <input class="mock-input" style="border-color:#09090b;box-shadow:0 0 0 3px rgba(9,9,11,0.08);" value="Maria Clara" readonly />
+      </div>
+      <div class="ui-row" style="margin-top:4px;">
+        <span class="ui-label">CTA primário</span>
+        <button class="btn-pri" style="background:#09090b;color:#fff;font-size:13px;padding:0 20px;height:36px;border-radius:8px;">Assinar plano Pro</button>
+      </div>
+    </div>
+    <div class="card-info">
+      <div class="tag" style="background:#f4f4f5;color:#3f3f46;">B — Ink First</div>
+      <h3>Preto como primário, cores para semântica</h3>
+      <p>Botões e nav em preto/zinc puro. Azul só para foco/links. Teal só para IA. Laranja/amarelo só para leads quentes. Máximo contraste, paleta muito enxuta.</p>
+    </div>
+  </div>
+
+  <!-- OPTION C: Blue + Orange Bicolor -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="check-badge">✓</div>
+    <div class="preview">
+      <div class="ui-row">
+        <span class="ui-label">Ações</span>
+        <div class="ui-group">
+          <button class="btn-pri" style="background:#f97316;color:#fff;">
+            <svg width="11" height="11" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a1 1 0 011 1v6h6a1 1 0 110 2H9v6a1 1 0 11-2 0V9H1a1 1 0 110-2h6V1a1 1 0 011-1z"/></svg>
+            Novo lead
+          </button>
+          <button class="btn-sec" style="border:1.5px solid #e4e4e7;color:#3f3f46;">Exportar</button>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Nav ativa</span>
+        <div class="ui-group">
+          <div class="nav-item" style="background:#eff6ff;border:1px solid #bfdbfe;">
+            <div class="nav-dot" style="background:#2563eb;"></div>
+            <span class="nav-label" style="color:#1d4ed8;font-weight:600;">Inbox</span>
+          </div>
+          <div class="nav-item nav-inactive">
+            <div class="nav-dot" style="background:#d4d4d8;"></div>
+            <span class="nav-label">Leads</span>
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Status leads</span>
+        <div class="ui-group">
+          <div class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">🔥 Quente</div>
+          <div class="badge" style="background:#fefce8;color:#854d0e;border:1px solid #fde68a;">Morno</div>
+          <div class="badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">❄ Frio</div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">IA status</span>
+        <div class="ui-group">
+          <div class="status-pill" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;">
+            <div class="status-dot" style="background:#22c55e;"></div>
+            Autônomo
+          </div>
+          <div class="status-pill" style="background:#f0fdfa;border:1px solid #99f6e4;color:#0f766e;">
+            <div class="status-dot" style="background:#14b8a6;"></div>
+            Copiloto
+          </div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ui-row">
+        <span class="ui-label">Input focus</span>
+        <input class="mock-input" style="border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.12);" value="Maria Clara" readonly />
+      </div>
+      <div class="ui-row" style="margin-top:4px;">
+        <span class="ui-label">CTA primário</span>
+        <button class="btn-pri" style="background:#f97316;color:#fff;font-size:13px;padding:0 20px;height:36px;border-radius:8px;">Assinar plano Pro</button>
+      </div>
+    </div>
+    <div class="card-info">
+      <div class="tag" style="background:#fff7ed;color:#c2410c;">C — Bicolor</div>
+      <h3>Azul para nav · Laranja para CTA</h3>
+      <p>Azul governa navegação e foco. Laranja para ações primárias (upgrade, enviar). Teal para IA. Atual sistema mantido, mas reequilibrado no tema claro. Mais energia e personalidade.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="confirm-hint">↑ Clique para selecionar — depois responda no terminal</div>
+
+<script>
+function toggleSelect(el) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  const choice = el.dataset.choice;
+  if (window.recordSelection) window.recordSelection(choice, el.querySelector('h3')?.textContent || '');
+}
+</script>
+</body>
+</html>
