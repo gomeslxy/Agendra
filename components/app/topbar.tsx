@@ -80,7 +80,7 @@ export function Topbar({ cta }: TopbarProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex items-center gap-3 border-b border-white/[0.08] bg-[rgba(11,18,34,0.55)] px-4 py-3 md:gap-4 md:px-6 md:py-3.5 backdrop-blur-xl"
+        className="flex items-center gap-3 border-b border-white/[0.03] bg-[rgba(11,18,34,0.15)] px-4 py-2.5 md:gap-4 md:px-6 md:py-3 backdrop-blur-md"
       >
         {/* Mobile: logo */}
         <Link href="/inbox" className="flex-shrink-0 md:hidden">
@@ -192,12 +192,12 @@ export function Topbar({ cta }: TopbarProps) {
                         <span className="text-white/40">Trial em progresso</span>
                         <span className="text-brand-blue-400">{remaining} dias restantes</span>
                       </div>
-                      <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
+                      <div className="h-[1px] w-full overflow-hidden rounded-full bg-white/5">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${trialProgress}%` }}
                           transition={{ duration: 0.8 }}
-                          className="h-full bg-gradient-to-r from-brand-blue-600 to-brand-teal-500"
+                          className="h-full bg-white/20"
                         />
                       </div>
                     </div>

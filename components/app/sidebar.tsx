@@ -59,8 +59,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
       <Link href="/inbox" className="flex items-center gap-2 px-2 py-1.5 shrink-0 select-none">
         <Image src="/assets/agendra-logo.svg" alt="Agendra" width={96} height={24} priority />
         <span className="relative flex h-1.5 w-1.5" title="AI ACTIVE">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-teal-400 opacity-75" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-teal-500" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-teal-500/60" />
         </span>
       </Link>
 
@@ -110,14 +109,13 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
       </nav>
 
       {/* User card */}
-      <div className="mt-auto rounded-xl border border-white/[0.04] bg-white/[0.01] p-3 transition-all duration-200 hover:bg-white/[0.03] hover:border-white/[0.08] relative overflow-hidden group/user z-10 shrink-0">
-        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#2563EB]/10 to-transparent transition-opacity duration-300 group-hover/user:via-[#2563EB]/30 pointer-events-none" />
+      <div className="mt-auto rounded-xl border border-white/[0.03] bg-white/[0.005] p-3 transition-all duration-200 hover:bg-white/[0.01] hover:border-white/[0.05] relative overflow-hidden group/user z-10 shrink-0">
         {!mounted || loading ? (
           <div className="h-16 animate-pulse rounded-lg bg-white/[0.04]" />
         ) : (
           <>
-            <div className="mb-2.5 flex items-center gap-2.5">
-              <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#3B82F6] to-[#14B8A6] text-xs font-bold text-white">
+            <div className="mb-2 flex items-center gap-2.5">
+              <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-white/[0.06] border border-white/[0.08] text-xs font-bold text-white">
                 {initials}
               </div>
               <div className="min-w-0">
@@ -126,28 +124,22 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                   className="truncate font-mono text-[10px]"
                   style={{ color: "var(--color-fg-3)" }}
                 >
-                  {companyName}
-                </div>
-                <div
-                  className="font-mono text-[10px]"
-                  style={{ color: "var(--color-fg-3)" }}
-                >
-                  {displayPlan}
+                  {companyName} · {displayPlan}
                 </div>
               </div>
             </div>
             {(planType === "trial" || planType === "free") && (
-              <div className="mb-3 space-y-1 px-0.5">
-                <div className="flex items-center justify-between text-[10px] font-medium text-white/40">
+              <div className="mb-2.5 space-y-1 px-0.5">
+                <div className="flex items-center justify-between text-[9px] font-medium text-white/30">
                   <span>Trial ativo</span>
-                  <span className="font-mono text-[9px] text-brand-blue-400">
+                  <span className="font-mono text-[9px] text-white/40">
                     {(() => {
                       const { remaining } = calculateTrialStatus(profile?.companies?.created_at);
                       return `${remaining}d restantes`;
                     })()}
                   </span>
                 </div>
-                <div className="h-[2px] w-full overflow-hidden rounded-full bg-white/5">
+                <div className="h-[1px] w-full overflow-hidden rounded-full bg-white/5">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ 
@@ -157,7 +149,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                       })()
                     }}
                     transition={{ duration: 1 }}
-                    className="h-full bg-brand-blue-500"
+                    className="h-full bg-white/20"
                   />
                 </div>
               </div>
@@ -169,9 +161,9 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="w-full justify-center bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white border-white/[0.08] text-[11px] h-7 rounded-lg transition-all duration-200"
+                    className="w-full justify-center bg-white/[0.03] text-white/50 hover:bg-white/[0.06] hover:text-white border-white/[0.04] text-[10px] h-6.5 rounded-lg transition-all duration-200"
                   >
-                    <IconZap size={11} />
+                    <IconZap size={10} />
                     {planType === "trial" ? "Assinar" : "Upgrade"}
                   </Button>
                 </Link>
@@ -179,12 +171,12 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="px-2 h-7 rounded-lg hover:bg-white/[0.04]"
+                className="px-2 h-6.5 rounded-lg hover:bg-white/[0.03]"
                 aria-label="Sair"
                 onClick={signOut}
                 title="Sair"
               >
-                <IconLogout size={13} style={{ color: "var(--color-fg-3)" }} />
+                <IconLogout size={12} style={{ color: "var(--color-fg-3)" }} />
               </Button>
             </div>
           </>

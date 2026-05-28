@@ -339,8 +339,8 @@ export function SettingsShell({
                       className={cn(
                         "group relative flex items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-bold tracking-tight transition-all duration-150 outline-none cursor-pointer text-left w-full",
                         active 
-                          ? "text-white bg-white/[0.04] border border-white/[0.06]" 
-                          : "text-white/40 hover:text-white/70 hover:bg-white/[0.02]"
+                          ? "text-white bg-white/[0.03] border border-white/[0.04]" 
+                          : "text-white/30 hover:text-white/60 hover:bg-white/[0.01]"
                       )}
                     >
                       <t.icon size={15} className={cn(
@@ -449,8 +449,7 @@ function FeatureGate({
       
       {/* Overlay */}
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-black/40 bg-gradient-to-t from-[rgb(11,18,34)] to-transparent">
-        <div className="glass p-6 sm:p-8 rounded-2xl border border-brand-blue-500/20 shadow-2xl max-w-md w-full relative overflow-hidden">
-          <div className="absolute inset-0 bg-brand-blue-500/10 pointer-events-none" />
+        <div className="border border-white/[0.05] bg-[#0B1222] p-6 sm:p-8 rounded-xl max-w-md w-full relative overflow-hidden shadow-2xl">
           
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-blue-500/20 text-brand-blue-400 mb-4 ring-1 ring-brand-blue-500/30">
             <Zap size={24} className="animate-pulse" />
@@ -1104,7 +1103,7 @@ function Channels({
         </div>
       )}
       {/* Resumo de Limites de Canais */}
-      <div className="glass p-4 rounded-xl border border-brand-blue-500/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
             <Zap size={15} className="text-brand-blue-400" />
@@ -1205,7 +1204,7 @@ function Channels({
                 <Button variant="secondary" size="sm">Conectar</Button>
               </div>
               <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-center p-4">
-                <div className="glass px-4 py-3 rounded-xl border border-pink-500/20 text-pink-300 text-xs font-semibold flex items-center gap-2 shadow-lg shadow-pink-500/5">
+                <div className="border border-pink-500/10 bg-[#0B1222] px-4 py-3 rounded-xl text-pink-300 text-xs font-semibold flex items-center gap-2 shadow-lg shadow-pink-500/5">
                   <Zap size={14} className="animate-pulse" />
                   Conexão Instagram DMs é exclusiva do Plano PRO
                 </div>
@@ -2687,9 +2686,8 @@ function Team({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-2xl border border-brand-blue-500/20 p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
+              className="border border-white/[0.06] bg-[#0B1222] rounded-xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
             >
-              <div className="absolute inset-0 bg-brand-blue-500/10 pointer-events-none" />
               <div className="relative z-10 flex flex-col gap-5">
                 <div>
                   <h3 className="text-lg font-bold text-white">Convidar membro do time</h3>
@@ -2808,7 +2806,7 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
   }, [search, filterAction]);
 
   return (
-    <Card className="glass mt-2">
+    <Card className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl mt-2">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText size={18} className="text-brand-blue-400" />
@@ -3327,7 +3325,7 @@ function Services({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="glass p-5 rounded-2xl border border-white/10"
+            className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] p-5 rounded-xl"
           >
             <form onSubmit={handleAdd} className="grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -3367,7 +3365,7 @@ function Services({
 
       <div className="grid gap-3">
         {services.length === 0 && !isAdding && (
-          <div className="text-center py-12 glass rounded-2xl border border-dashed border-white/10">
+          <div className="text-center py-12 border border-dashed border-white/[0.06] bg-white/[0.005] rounded-xl">
             <p className="text-sm text-white/30">Nenhum serviço cadastrado ainda.</p>
           </div>
         )}
@@ -3378,7 +3376,7 @@ function Services({
               layout
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass p-4 rounded-xl border border-brand-blue-500/20"
+              className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] p-4 rounded-xl"
             >
               <div className="grid gap-3 sm:grid-cols-2 mb-3">
                 <Field label="Nome do Serviço">
@@ -3419,7 +3417,7 @@ function Services({
               layout
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="glass flex items-center justify-between p-4 rounded-xl border border-white/5 hover:border-white/10 transition-all group"
+              className="border border-white/[0.03] bg-white/[0.005] flex items-center justify-between p-4 rounded-xl hover:border-white/[0.06] hover:bg-white/[0.01] transition-all group"
             >
               <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400">
@@ -3734,17 +3732,12 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
                   <div
                     key={log.id}
                     className={cn(
-                      "glass p-4 rounded-xl border border-white/[0.06] bg-white/[0.01] transition-all relative overflow-hidden group/log shadow-lg",
+                      "p-4 rounded-xl border border-white/[0.03] bg-white/[0.005] transition-all relative overflow-hidden group/log shadow-md",
                       isPulsing
-                        ? "border-brand-teal-400/60 bg-brand-teal-500/[0.04] shadow-[0_0_24px_rgba(45,212,191,0.18)]"
-                        : "hover:border-white/[0.12] hover:bg-white/[0.03]"
+                        ? "border-brand-teal-400/40 bg-brand-teal-500/[0.02]"
+                        : "hover:border-white/[0.06] hover:bg-white/[0.01]"
                     )}
                   >
-                    {/* Glowing highlight strip */}
-                    <div className={cn(
-                      "absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover/log:opacity-100 opacity-60 pointer-events-none",
-                      log.urgency_detected ? "via-brand-orange-500/25" : isPositive ? "via-brand-teal-500/25" : "via-brand-blue-500/25"
-                    )} />
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <div className={cn(

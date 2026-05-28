@@ -125,7 +125,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
         </div>
       </header>
 
-      <div className="mb-6 flex gap-4 border-b border-white/[0.04] pb-1 select-none">
+      <div className="mb-6 flex gap-4 border-b border-white/[0.03] pb-1 select-none">
         {FILTERS.map((f) => {
           const count = f.id === "all" ? leads.length : (statusCounts[f.id] ?? 0);
           const active = f.id === filter;
@@ -134,7 +134,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               key={f.id}
               onClick={() => setFilter(f.id)}
               className={cn(
-                "relative pb-2 text-xs font-bold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1.5 cursor-pointer",
+                "relative pb-2 text-[11px] font-bold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1.5 cursor-pointer",
                 active
                   ? "text-brand-blue-400"
                   : "text-white/30 hover:text-white/60"
@@ -142,13 +142,13 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
             >
               <span>{f.label}</span>
               <span className={cn(
-                "font-mono text-[9px] px-1 py-0.5 rounded bg-white/[0.04] text-white/40",
-                active && "text-brand-blue-400 bg-[#2563EB]/10 border border-[#2563EB]/25"
+                "font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-white/40",
+                active && "text-white bg-white/[0.08]"
               )}>{count}</span>
               {active && (
                 <motion.div
                   layoutId="active-leads-filter"
-                  className="absolute bottom-0 inset-x-0 h-[1.5px] bg-brand-blue-400"
+                  className="absolute bottom-0 inset-x-0 h-[1px] bg-brand-blue-400"
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
@@ -204,8 +204,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                     <td className="px-4 py-3.5 text-[13px]">
                       <div className="flex items-center gap-2.5">
                         <div
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
-                          style={{ background: HEAT_GRADIENT[l.status] ?? HEAT_GRADIENT.cold }}
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[10px] font-bold text-white/80"
                         >
                           {initials(l.name)}
                         </div>
@@ -439,12 +438,11 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 380, damping: 38 }}
-              className="glass glass-strong fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col !rounded-none !border-y-0 !border-r-0 border-l border-white/[0.08] bg-[rgba(11,18,34,0.65)] shadow-2xl"
+              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-white/[0.04] bg-[#0B1222] shadow-2xl"
             >
-              <div className="flex items-center gap-3 border-b border-white/[0.08] p-5">
+              <div className="flex items-center gap-3 border-b border-white/[0.04] p-5">
                 <div
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
-                  style={{ background: HEAT_GRADIENT[selectedLead.status] ?? HEAT_GRADIENT.cold }}
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[0.06] border border-white/[0.08] text-xs font-bold text-white/80"
                 >
                   {initials(selectedLead.name)}
                 </div>
@@ -464,8 +462,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
 
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
                 {/* Heat */}
-                <div className="glass rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 shadow-lg relative overflow-hidden">
-                  <div className="absolute top-0 inset-x-4 h-[1px] bg-gradient-to-r from-transparent via-[#14B8A6]/20 to-transparent" />
+                <div className="border border-white/[0.03] bg-white/[0.005] rounded-xl p-4">
                   <div className="eyebrow mb-3" style={{ color: "var(--color-brand-teal-300)" }}>
                     QUALIFICAÇÃO · IA
                   </div>
@@ -483,7 +480,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                 </div>
 
                 {/* Contato */}
-                <div className="glass rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 shadow-lg">
+                <div className="border border-white/[0.03] bg-white/[0.005] rounded-xl p-4">
                   <div className="eyebrow mb-3">CONTATO</div>
                   <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2.5 text-[13px]">
@@ -514,7 +511,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
 
                 {/* Última mensagem */}
                 {selectedLead.last_message && (
-                  <div className="glass rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 shadow-lg">
+                  <div className="border border-white/[0.03] bg-white/[0.005] rounded-xl p-4">
                     <div className="eyebrow mb-3">ÚLTIMA MENSAGEM</div>
                     <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-fg-2)" }}>
                       "{selectedLead.last_message.content}"

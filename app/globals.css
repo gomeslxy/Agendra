@@ -128,17 +128,12 @@
 @layer components {
   .glass {
     position: relative;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04)),
-      radial-gradient(120% 80% at 0% 0%, rgba(37,99,235,0.10), transparent 60%);
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 1.25rem;
-    box-shadow:
-      0 12px 28px rgba(2, 6, 23, 0.45),
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+    background: rgba(15, 23, 42, 0.3);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
     overflow: hidden;
   }
   .glass::before {
@@ -146,45 +141,29 @@
     position: absolute; inset: 0;
     border-radius: inherit;
     pointer-events: none;
-    background: linear-gradient(180deg,
-      rgba(255,255,255,0.28), transparent 18%,
-      transparent 82%, rgba(255,255,255,0.04));
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent 12%);
     mix-blend-mode: screen;
-    opacity: 0.7;
+    opacity: 0.5;
   }
   .glass::after {
-    content: "";
-    position: absolute; inset: -40%;
-    background: conic-gradient(from 210deg at 50% 50%,
-      transparent 0%, rgba(255,255,255,0.02) 18%, transparent 36%);
-    pointer-events: none;
-    mix-blend-mode: screen;
-    opacity: 0.3;
+    display: none;
   }
   .glass-strong {
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
-    backdrop-filter: blur(32px) saturate(150%);
-    -webkit-backdrop-filter: blur(32px) saturate(150%);
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .bg-aurora {
     background:
-      radial-gradient(60% 40% at 80% 0%, rgba(37,99,235,0.06), transparent 70%),
-      radial-gradient(45% 30% at 10% 30%, rgba(20,184,166,0.04), transparent 70%),
-      radial-gradient(55% 35% at 60% 100%, rgba(249,115,22,0.03), transparent 70%),
+      radial-gradient(50% 30% at 85% 0%, rgba(37,99,235,0.02), transparent 70%),
+      radial-gradient(40% 25% at 15% 25%, rgba(20,184,166,0.015), transparent 70%),
       var(--color-ink-950);
     position: relative;
   }
   .bg-aurora::after {
-    content: "";
-    position: absolute; inset: 0;
-    background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
-    background-size: 3px 3px;
-    pointer-events: none;
-    mix-blend-mode: overlay;
-    opacity: 0.4;
-    will-change: opacity;
+    display: none;
   }
   /* Disable noise texture on mobile to reduce paint cost */
   @media (max-width: 767px) {
@@ -192,10 +171,7 @@
   }
 
   .grad-text {
-    background: linear-gradient(90deg, var(--color-brand-blue-400), var(--color-brand-teal-400));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--color-fg-1);
   }
 
   .eyebrow {

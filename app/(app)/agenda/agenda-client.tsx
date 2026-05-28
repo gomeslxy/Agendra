@@ -357,9 +357,7 @@ export function AgendaClient({
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         {/* Calendar grid */}
-        <div className="glass rounded-2xl border border-white/[0.08] bg-white/[0.02] p-3 sm:p-5 shadow-2xl relative overflow-hidden">
-          {/* DNA accent top hairline */}
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#2563EB]/25 to-transparent" />
+        <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-3 sm:p-5 relative overflow-hidden">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex-1 text-base font-semibold sm:text-lg">
               {MONTHS[viewMonth]} {viewYear}
@@ -428,8 +426,7 @@ export function AgendaClient({
                           key={j}
                           className="h-1.5 w-1.5 rounded-full shrink-0"
                           style={{
-                            backgroundColor: color,
-                            boxShadow: `0 0 4px ${color}`
+                            backgroundColor: color
                           }}
                           title={e.title}
                         />
@@ -443,9 +440,7 @@ export function AgendaClient({
         </div>
 
         {/* Day events panel */}
-        <div className="glass rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5 shadow-2xl relative overflow-hidden">
-          {/* DNA accent top hairline */}
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#14B8A6]/25 to-transparent" />
+        <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-4 sm:p-5 relative overflow-hidden">
           <div className="eyebrow mb-3">Dia {selected} · {MONTHS[viewMonth]}</div>
           <div className="flex flex-col gap-2.5 sm:max-h-[calc(100vh-260px)] sm:overflow-y-auto">
             {dayEvents.length === 0 ? (
@@ -582,7 +577,7 @@ export function AgendaClient({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 16 }}
                 transition={{ duration: 0.18 }}
-                className="glass glass-strong w-full max-w-md border border-white/[0.12] bg-[rgba(11,18,34,0.75)] p-6 shadow-2xl flex flex-col rounded-2xl max-h-[85vh] relative overflow-hidden"
+                className="w-full max-w-md border border-white/[0.06] bg-[#0B1222] p-6 shadow-2xl flex flex-col rounded-xl max-h-[85vh] relative overflow-hidden"
               >
                 <div className="mb-5 flex shrink-0 items-center justify-between">
                   <h2 className="text-lg font-semibold">Novo agendamento</h2>

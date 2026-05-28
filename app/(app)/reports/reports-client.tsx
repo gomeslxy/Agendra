@@ -371,7 +371,7 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="glass mb-4 rounded-2xl p-5"
+      className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 mb-4"
     >
       <div className="mb-4 flex items-center justify-between">
         <div>
@@ -508,7 +508,7 @@ function SalesCard({ initial, companyId }: { initial: RecentTransaction[]; compa
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="glass mb-4 rounded-2xl p-5"
+      className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 mb-4"
     >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -728,7 +728,7 @@ export function ReportsClient({
       {/* ── Insights Top Bar ── */}
       <div className="mb-6 grid gap-3 lg:grid-cols-3">
         {topChannel && (
-          <div className="glass rounded-xl px-4 py-3 flex items-center gap-3">
+          <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-lg px-4 py-3 flex items-center gap-3">
             <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-500/10 text-blue-400">
               <TrendingUp size={16} />
             </div>
@@ -738,7 +738,7 @@ export function ReportsClient({
             </div>
           </div>
         )}
-        <div className="glass rounded-xl px-4 py-3 flex items-center gap-3">
+        <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-lg px-4 py-3 flex items-center gap-3">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-teal-500/10 text-teal-400">
             <Zap size={16} />
           </div>
@@ -747,7 +747,7 @@ export function ReportsClient({
             <p className="text-sm font-semibold">{hotLeads} leads quentes identificados</p>
           </div>
         </div>
-        <div className="glass rounded-xl px-4 py-3 flex items-center gap-3">
+        <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-lg px-4 py-3 flex items-center gap-3">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-500/10 text-amber-400">
             <CalendarCheck size={16} />
           </div>
@@ -797,7 +797,7 @@ export function ReportsClient({
         <motion.div
           variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
           whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 26 } }}
-          className="glass rounded-2xl p-5 sm:col-span-2 xl:col-span-1"
+          className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 sm:col-span-2 xl:col-span-1"
         >
           <div className="flex items-start justify-between">
             <span className="font-mono text-[10px] tracking-[0.16em] text-white/40">RECEITA GERADA</span>
@@ -831,7 +831,7 @@ export function ReportsClient({
         <motion.div
           variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
           whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 26 } }}
-          className="glass rounded-2xl p-5 sm:col-span-2 xl:col-span-1"
+          className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 sm:col-span-2 xl:col-span-1"
         >
           <div className="flex items-start justify-between">
             <span className="font-mono text-[10px] tracking-[0.16em] text-white/40">TICKET MÉDIO</span>
@@ -853,7 +853,7 @@ export function ReportsClient({
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="glass rounded-2xl p-5 flex flex-col"
+          className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 flex flex-col"
         >
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -881,7 +881,7 @@ export function ReportsClient({
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="glass rounded-2xl p-5"
+          className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5"
         >
           <h3 className="mb-1 text-sm font-semibold">Funil Histórico</h3>
           <p className="mb-4 text-xs" style={{ color: "var(--color-fg-3)" }}>
@@ -901,7 +901,7 @@ export function ReportsClient({
       <motion.div
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="glass mb-4 rounded-2xl p-5"
+        className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 mb-4"
       >
         <h3 className="mb-1 text-sm font-semibold">Densidade de Chegada de Leads</h3>
         <p className="mb-4 text-xs" style={{ color: "var(--color-fg-3)" }}>

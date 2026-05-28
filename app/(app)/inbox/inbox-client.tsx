@@ -74,8 +74,8 @@ function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChan
         onClick={(e) => { e.stopPropagation(); setToneOpen(!toneOpen); }}
         disabled={tonePending}
         className={cn(
-          "flex items-center justify-between gap-1.5 rounded-xl border border-white/[0.05] bg-white/[0.01] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-white/[0.04] hover:border-white/[0.08] disabled:opacity-50 cursor-pointer",
-          toneOpen && "border-[#2563EB]/25 bg-white/[0.04]",
+          "flex items-center justify-between gap-1.5 rounded-lg border border-white/[0.04] bg-white/[0.01] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-white/[0.03] disabled:opacity-50 cursor-pointer",
+          toneOpen && "bg-white/[0.04]",
           compact ? "h-7.5 px-2" : "w-full"
         )}
       >
@@ -149,8 +149,8 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
         onClick={(e) => { e.stopPropagation(); setControlOpen(!controlOpen); }}
         disabled={controlPending}
         className={cn(
-          "flex items-center justify-between gap-1.5 rounded-xl border border-white/[0.05] bg-white/[0.01] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-white/[0.04] hover:border-white/[0.08] disabled:opacity-50 cursor-pointer",
-          controlOpen && "border-[#2563EB]/25 bg-white/[0.04]",
+          "flex items-center justify-between gap-1.5 rounded-lg border border-white/[0.04] bg-white/[0.01] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-white/[0.03] disabled:opacity-50 cursor-pointer",
+          controlOpen && "bg-white/[0.04]",
           compact ? "h-7.5 px-2" : "w-full"
         )}
       >
@@ -242,8 +242,7 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
         />
       )}
       <div
-        className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full text-xs font-black text-white shadow-lg"
-        style={{ background: HEAT_GRADIENT[l.status] ?? HEAT_GRADIENT.cold }}
+        className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[10px] font-bold text-white/80"
       >
         {initials(l.name)}
         <div className={cn(
@@ -1331,8 +1330,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           >
             <div className="flex flex-col items-center text-center gap-3.5 pb-4 border-b border-white/[0.04]">
               <div
-                className="grid h-16 w-16 place-items-center rounded-2xl text-xl font-black text-white shadow-lg"
-                style={{ background: HEAT_GRADIENT[selected.status] ?? HEAT_GRADIENT.cold }}
+                className="grid h-16 w-16 place-items-center rounded-2xl bg-white/[0.06] border border-white/[0.08] text-base font-bold text-white/80"
               >
                 {initials(selected.name)}
               </div>
@@ -1406,15 +1404,15 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
       hour: "2-digit", minute: "2-digit",
     });
     return (
-      <div className="rounded-2xl border border-teal-500/15 bg-teal-500/5 p-4 relative overflow-hidden">
+      <div className="rounded-xl border border-white/[0.03] bg-white/[0.005] p-4">
         <div className="flex flex-col gap-2">
-          <div className="h-7 w-7 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-400">
+          <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-teal-400">
             <CalendarCheck size={14} />
           </div>
           <div>
-            <div className="text-[11px] font-bold text-teal-300">Agendamento Confirmado</div>
+            <div className="text-[11px] font-bold text-white/40">Agendamento Confirmado</div>
             <div className="text-[12px] font-semibold text-white mt-0.5">{next.title}</div>
-            <div className="text-[10px] text-teal-400/80 mt-0.5 capitalize">{formatted}</div>
+            <div className="text-[10px] text-white/30 mt-0.5 capitalize">{formatted}</div>
           </div>
         </div>
       </div>
@@ -1423,14 +1421,14 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
 
   if (lead.status === "success") {
     return (
-      <div className="rounded-2xl border border-brand-teal-500/10 bg-brand-teal-500/[0.02] p-4">
+      <div className="rounded-xl border border-white/[0.03] bg-white/[0.005] p-4">
         <div className="flex flex-col gap-2">
-          <div className="h-7 w-7 rounded-lg bg-brand-teal-500/10 flex items-center justify-center text-brand-teal-400">
+          <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-teal-400">
             <CalendarCheck size={14} />
           </div>
           <div>
-            <div className="text-[11px] font-bold text-white">Convertido</div>
-            <div className="text-[10px] text-brand-teal-400/70 mt-0.5">Agendamento concluído</div>
+            <div className="text-[11px] font-bold text-white/40">Convertido</div>
+            <div className="text-[10px] text-white/30 mt-0.5">Agendamento concluído</div>
           </div>
         </div>
       </div>
@@ -1438,9 +1436,9 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.03] bg-white/[0.005] p-4">
+    <div className="rounded-xl border border-white/[0.03] bg-white/[0.005] p-4">
       <div className="flex flex-col gap-2">
-        <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-white/30">
+        <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-white/20">
           <CalendarCheck size={14} />
         </div>
         <div>
