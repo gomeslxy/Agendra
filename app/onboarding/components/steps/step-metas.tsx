@@ -27,7 +27,7 @@ export function StepMetas({ data, onChange }: StepProps) {
     <div className="flex flex-col gap-5">
       {/* Equipe */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Tamanho da equipe comercial
         </label>
         <div className="grid grid-cols-4 gap-2">
@@ -38,8 +38,8 @@ export function StepMetas({ data, onChange }: StepProps) {
               onClick={() => onChange({ team_size: value })}
               className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
                 data.team_size === value
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/50 hover:border-white/[0.12] hover:text-white/80"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               {label}
@@ -50,7 +50,7 @@ export function StepMetas({ data, onChange }: StepProps) {
 
       {/* Métrica */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Sua principal métrica de sucesso
         </label>
         <div className="flex flex-col gap-1.5">
@@ -61,16 +61,16 @@ export function StepMetas({ data, onChange }: StepProps) {
               onClick={() => onChange({ primary_metric: value })}
               className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
                 data.primary_metric === value
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/50 hover:border-white/[0.12] hover:text-white/80"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               <div>
-                <p className="text-sm font-medium">{label}</p>
-                <p className="text-xs opacity-50">{desc}</p>
+                <p className="text-sm font-semibold">{label}</p>
+                <p className="text-xs opacity-75">{desc}</p>
               </div>
               {data.primary_metric === value && (
-                <span className="ml-auto text-violet-400 text-sm">✓</span>
+                <span className="ml-auto text-[#2563EB] font-bold text-sm">✓</span>
               )}
             </button>
           ))}

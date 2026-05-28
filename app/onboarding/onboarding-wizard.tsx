@@ -84,9 +84,9 @@ export function OnboardingWizard({ initialStep, initialData }: OnboardingWizardP
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
-      <div className="w-full max-w-lg bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+      <div className="w-full max-w-lg bg-white border border-[#E4E4E7] rounded-3xl p-8 shadow-sm">
         {/* Logo */}
-        <div className="text-2xl font-bold text-white mb-8 text-center">Agendra</div>
+        <div className="text-2xl font-bold text-[#09090B] mb-8 text-center">Agendra</div>
 
         {/* Progress bar */}
         <div className="mb-6">
@@ -94,8 +94,8 @@ export function OnboardingWizard({ initialStep, initialData }: OnboardingWizardP
         </div>
 
         {/* Step header */}
-        <h1 className="text-2xl font-semibold text-white mb-1">{STEP_TITLES[step]}</h1>
-        <p className="text-white/50 text-sm mb-6">
+        <h1 className="text-2xl font-semibold text-[#09090B] mb-1">{STEP_TITLES[step]}</h1>
+        <p className="text-[#71717A] text-sm mb-6">
           Passo {step + 1} de {ONBOARDING_TOTAL_STEPS}
         </p>
 
@@ -131,7 +131,7 @@ export function OnboardingWizard({ initialStep, initialData }: OnboardingWizardP
 
         {/* Error display */}
         {error && (
-          <p className="mt-4 text-red-400 text-sm text-center">{error}</p>
+          <p className="mt-4 text-[#DC2626] text-sm text-center">{error}</p>
         )}
       </div>
     </div>

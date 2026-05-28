@@ -192,24 +192,38 @@ export function Topbar({ cta }: TopbarProps) {
                   )}
 
                   {/* Actions */}
-                  <div className="flex gap-3">
-                    <Link href="/planos" className="flex-1" onClick={() => setShowProfile(false)}>
-                      <Button variant="orange" size="sm" className="w-full justify-center text-[11px] h-9 rounded-xl">
-                        <Zap size={13} />
-                        Upgrade
-                      </Button>
-                    </Link>
+                  <div className="flex flex-col gap-3">
+                    {planType !== "business" && (
+                      <Link href="/planos" className="w-full" onClick={() => setShowProfile(false)}>
+                        <Button
+                          variant="orange"
+                          size="sm"
+                          className="w-full justify-center text-[11px] h-10 rounded-xl"
+                          id="mobile-profile-upgrade-btn"
+                        >
+                          <Zap size={13} />
+                          Upgrade para Pro
+                        </Button>
+                      </Link>
+                    )}
+                    <div className="h-px bg-[#E4E4E7]" />
                     <Button
-                      variant="secondary"
+                      variant="ghost"
                       size="sm"
-                      className="flex-1 text-[11px] h-9 rounded-xl"
+                      className="w-full justify-center gap-2 text-[12px] font-semibold h-10 rounded-xl
+                        text-[#DC2626] hover:text-[#B91C1C]
+                        bg-[#FEF2F2] border border-[#FECACA]
+                        hover:bg-[#FEE2E2] hover:border-[#FCA5A5]
+                        transition-all duration-150"
+                      id="mobile-profile-logout-btn"
+                      aria-label="Sair da conta"
                       onClick={async () => {
                         setShowProfile(false);
                         await signOut();
                       }}
                     >
-                      <LogOut size={13} />
-                      Sair
+                      <LogOut size={15} />
+                      Sair da conta
                     </Button>
                   </div>
                 </>

@@ -3,14 +3,12 @@ import { ArrowLeft, Construction } from "lucide-react";
 
 export function ComingSoon({ title }: { title: string }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-ink-950 px-6 text-center">
-      <div className="absolute inset-0 -z-10 bg-aurora opacity-30" />
-      
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.03] border border-white/[0.08] mb-8">
-        <Construction className="h-8 w-8 text-brand-orange-400" />
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-6 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border border-[#E4E4E7] mb-8 shadow-sm">
+        <Construction className="h-8 w-8 text-brand-orange-500" />
       </div>
       
-      <h1 className="mb-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+      <h1 className="mb-4 text-3xl font-bold tracking-tight text-[#09090B] sm:text-4xl">
         {title}
       </h1>
       
@@ -21,7 +19,7 @@ export function ComingSoon({ title }: { title: string }) {
       
       <Link 
         href="/"
-        className="group flex items-center gap-2 rounded-full bg-white/[0.05] border border-white/[0.1] px-6 py-3 text-sm font-medium text-white transition-all hover:bg-white/[0.1]"
+        className="group flex items-center gap-2 rounded-full bg-[#09090B] border border-[#09090B] px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-[#27272a] shadow-sm"
       >
         <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
         Voltar para a Home

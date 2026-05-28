@@ -10,7 +10,7 @@ const AUTH_PREFIXES = ["/login", "/signup", "/verify", "/recuperar-senha", "/nov
 /** Public marketing routes — no auth check needed, ever */
 const PUBLIC_PREFIXES = ["/contato", "/planos", "/sobre", "/termos", "/privacidade"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Fast path: public marketing routes — skip Supabase round-trip entirely
@@ -81,8 +81,21 @@ export async function middleware(request: NextRequest) {
     if (pathname === "/" && user) {
       return NextResponse.redirect(new URL("/inbox", request.url));
     }
-  } catch (e) {
-    // Fail safe for local development without Supabase config
+  } catch (e: any) {
+    // Stale/revoked session — clear sb-* cookies so each request doesn't repeat this error
+    if (e?.code === "refresh_token_not_found") {
+      const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+      const res = isProtected
+        ? NextResponse.redirect(
+            new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url)
+          )
+        : NextResponse.next({ request: { headers: request.headers } });
+      request.cookies
+        .getAll()
+        .filter((c) => c.name.startsWith("sb-"))
+        .forEach((c) => res.cookies.delete(c.name));
+      return res;
+    }
     return response;
   }
 

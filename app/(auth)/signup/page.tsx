@@ -100,7 +100,7 @@ export default function SignupPage() {
           <div className="mb-6">
             <Link
               href="/"
-              className="inline-flex items-center gap-2 text-xs font-medium transition-colors hover:text-white"
+              className="inline-flex items-center gap-2 text-xs font-medium transition-colors hover:text-[#09090B]"
               style={{ color: "var(--color-fg-3)" }}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -176,8 +176,7 @@ export default function SignupPage() {
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl border border-[#F43F5E]/30 bg-[#F43F5E]/10 px-4 py-3 text-sm"
-                style={{ color: "#FB7185" }}
+                className="rounded-xl border border-[#FECACA] bg-[#FFF1F2] px-4 py-3 text-sm text-[#DC2626]"
                 role="alert"
               >
                 {error}
@@ -228,7 +227,7 @@ export default function SignupPage() {
               <button
                 type="button"
                 onClick={() => setLegalModal("termos")}
-                className="text-brand-blue-300 hover:underline"
+                className="text-brand-blue-600 hover:underline"
               >
                 Termos
               </button>{" "}
@@ -236,7 +235,7 @@ export default function SignupPage() {
               <button
                 type="button"
                 onClick={() => setLegalModal("privacidade")}
-                className="text-brand-blue-300 hover:underline"
+                className="text-brand-blue-600 hover:underline"
               >
                 Privacidade (LGPD)
               </button>
@@ -265,7 +264,7 @@ export default function SignupPage() {
             style={{ color: "var(--color-fg-3)" }}
           >
             Já tem conta?{" "}
-            <Link href="/login" className="text-brand-blue-300 hover:underline">
+            <Link href="/login" className="text-brand-blue-600 hover:underline">
               Entrar
             </Link>
           </div>
@@ -301,9 +300,9 @@ function Divider({ children }: { children: React.ReactNode }) {
       className="flex items-center gap-3 font-mono text-xs"
       style={{ color: "var(--color-fg-3)" }}
     >
-      <span className="h-px flex-1 bg-white/[0.08]" />
+      <span className="h-px flex-1 bg-[#E4E4E7]" />
       {children}
-      <span className="h-px flex-1 bg-white/[0.08]" />
+      <span className="h-px flex-1 bg-[#E4E4E7]" />
     </div>
   );
 }

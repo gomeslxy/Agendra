@@ -33,7 +33,7 @@ export function StepEmpresa({ data, onChange }: StepProps) {
     <div className="flex flex-col gap-5">
       {/* Nome */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Nome da empresa
         </label>
         <input
@@ -41,19 +41,19 @@ export function StepEmpresa({ data, onChange }: StepProps) {
           placeholder="Ex: Studio Bella"
           value={data.company_name ?? ""}
           onChange={(e) => onChange({ company_name: e.target.value })}
-          className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/20 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+          className="w-full rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-sm text-[#09090B] placeholder:text-[#A1A1AA] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
         />
       </div>
 
       {/* Nicho */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Segmento / Nicho
         </label>
         <select
           value={data.niche ?? ""}
           onChange={(e) => onChange({ niche: e.target.value })}
-          className="w-full rounded-xl border border-white/[0.08] bg-[rgb(11,18,34)] px-4 py-3 text-sm text-white outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+          className="w-full rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-sm text-[#09090B] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
         >
           <option value="" disabled>Selecione...</option>
           {NICHES.map((n) => (
@@ -64,7 +64,7 @@ export function StepEmpresa({ data, onChange }: StepProps) {
 
       {/* Porte */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Porte da operação
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -75,8 +75,8 @@ export function StepEmpresa({ data, onChange }: StepProps) {
               onClick={() => onChange({ size: value })}
               className={`flex flex-col rounded-xl border p-3 text-left transition ${
                 data.size === value
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/50 hover:border-white/[0.12] hover:text-white/80"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               <span className="text-sm font-semibold">{label}</span>

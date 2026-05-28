@@ -28,7 +28,7 @@ export function StepCanais({ data, onChange }: StepProps) {
     <div className="flex flex-col gap-5">
       {/* Canais */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Canais onde seus leads chegam
         </label>
         <div className="flex flex-col gap-1.5">
@@ -39,8 +39,8 @@ export function StepCanais({ data, onChange }: StepProps) {
               onClick={() => toggleChannel(value)}
               className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
                 selected.includes(value)
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/50 hover:border-white/[0.12] hover:text-white/80"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               <span className="text-lg">{emoji}</span>
@@ -55,7 +55,7 @@ export function StepCanais({ data, onChange }: StepProps) {
 
       {/* CRM */}
       <div className="flex flex-col gap-3">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Usa algum CRM hoje?
         </label>
         <div className="flex gap-2">
@@ -69,8 +69,8 @@ export function StepCanais({ data, onChange }: StepProps) {
               onClick={() => onChange({ uses_crm: value, crm_name: value ? data.crm_name : undefined })}
               className={`flex-1 rounded-xl border py-2.5 text-sm font-medium transition ${
                 data.uses_crm === value
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/50 hover:border-white/[0.12] hover:text-white/80"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               {label}
@@ -84,7 +84,7 @@ export function StepCanais({ data, onChange }: StepProps) {
             placeholder="Qual CRM? (ex: RD Station, HubSpot)"
             value={data.crm_name ?? ""}
             onChange={(e) => onChange({ crm_name: e.target.value })}
-            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/20 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+            className="w-full rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-sm text-[#09090B] placeholder:text-[#A1A1AA] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
           />
         )}
       </div>

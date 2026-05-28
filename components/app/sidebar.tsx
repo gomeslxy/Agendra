@@ -152,9 +152,9 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
               </div>
             )}
 
-            <div className="flex gap-1.5">
+            <div className="flex flex-col gap-1.5">
               {planType !== "business" && (
-                <Link href="/planos" className="flex-1">
+                <Link href="/planos">
                   <Button
                     variant="orange"
                     size="sm"
@@ -168,12 +168,17 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="px-2 h-7 rounded-lg hover:bg-[#F4F4F5]"
-                aria-label="Sair"
+                className="w-full justify-start gap-2 px-2.5 h-8 rounded-lg text-[11px] font-semibold
+                  text-[#DC2626] hover:text-[#B91C1C]
+                  bg-[#FEF2F2] border border-[#FECACA]
+                  hover:bg-[#FEE2E2] hover:border-[#FCA5A5]
+                  transition-all duration-150"
                 onClick={signOut}
-                title="Sair"
+                id="sidebar-logout-btn"
+                aria-label="Sair da conta"
               >
-                <IconLogout size={12} className="text-[#A1A1AA]" />
+                <IconLogout size={14} />
+                Sair da conta
               </Button>
             </div>
           </>

@@ -74,7 +74,7 @@ export function StepIA({ data, onChange }: StepProps) {
     <div className="flex flex-col gap-5">
       {/* Nome da IA */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Nome da sua IA
         </label>
         <input
@@ -82,13 +82,13 @@ export function StepIA({ data, onChange }: StepProps) {
           placeholder="Ex: Sofia, Ana, Max..."
           value={data.ai_name ?? ""}
           onChange={(e) => onChange({ ai_name: e.target.value })}
-          className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/20 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+          className="w-full rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-sm text-[#09090B] placeholder:text-[#A1A1AA] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
         />
       </div>
 
       {/* Tom */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Tom de comunicação
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -99,12 +99,12 @@ export function StepIA({ data, onChange }: StepProps) {
               onClick={() => onChange({ ai_tone: value })}
               className={`flex flex-col rounded-xl border p-3 text-left transition ${
                 data.ai_tone === value
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/50 hover:border-white/[0.12] hover:text-white/80"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               <span className="text-sm font-semibold">{label}</span>
-              <span className="mt-0.5 text-xs opacity-50 leading-snug">{example}</span>
+              <span className="mt-0.5 text-xs opacity-75 leading-snug">{example}</span>
             </button>
           ))}
         </div>
@@ -112,13 +112,13 @@ export function StepIA({ data, onChange }: StepProps) {
 
       {/* Fuso horário */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Fuso horário
         </label>
         <select
           value={data.timezone ?? "America/Sao_Paulo"}
           onChange={(e) => onChange({ timezone: e.target.value })}
-          className="w-full rounded-xl border border-white/[0.08] bg-[rgb(11,18,34)] px-4 py-3 text-sm text-white outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+          className="w-full rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-sm text-[#09090B] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
         >
           {TIMEZONES.map(({ value, label }) => (
             <option key={value} value={value}>{label}</option>
@@ -128,7 +128,7 @@ export function StepIA({ data, onChange }: StepProps) {
 
       {/* Horário de funcionamento */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Dias de atendimento
         </label>
         <div className="flex gap-1.5 flex-wrap">
@@ -139,8 +139,8 @@ export function StepIA({ data, onChange }: StepProps) {
               onClick={() => toggleDay(key)}
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                 activeDays.includes(key)
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/40 hover:text-white/70"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               {label}
@@ -150,22 +150,22 @@ export function StepIA({ data, onChange }: StepProps) {
 
         <div className="flex items-center gap-3 mt-1">
           <div className="flex flex-col gap-1 flex-1">
-            <label className="text-xs text-white/40">Início</label>
+            <label className="text-xs text-[#71717A]">Início</label>
             <input
               type="time"
               value={firstEntry[0]}
               onChange={(e) => setTime(0, e.target.value)}
-              className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+              className="rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-sm text-[#09090B] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
             />
           </div>
-          <span className="text-white/30 mt-5">–</span>
+          <span className="text-[#A1A1AA] mt-5">–</span>
           <div className="flex flex-col gap-1 flex-1">
-            <label className="text-xs text-white/40">Fim</label>
+            <label className="text-xs text-[#71717A]">Fim</label>
             <input
               type="time"
               value={firstEntry[1]}
               onChange={(e) => setTime(1, e.target.value)}
-              className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+              className="rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-sm text-[#09090B] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
             />
           </div>
         </div>

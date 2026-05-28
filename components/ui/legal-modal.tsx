@@ -42,17 +42,17 @@ export function LegalModal({ open, onClose, title, children }: LegalModalProps) 
       <div
         className={cn(
           "relative z-10 flex max-h-[85vh] w-full flex-col overflow-hidden",
-          "sm:max-w-2xl sm:rounded-2xl",
+          "sm:max-w-2xl sm:rounded-2xl sm:shadow-xl",
           "rounded-t-2xl",
-          "bg-[#0f1117] border border-white/[0.08]",
+          "bg-white border border-[#E4E4E7]",
         )}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] px-6 py-4">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
+        <div className="flex shrink-0 items-center justify-between border-b border-[#E4E4E7] px-6 py-4">
+          <h2 className="text-base font-semibold text-[#09090B]">{title}</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white"
+            className="rounded-lg p-1 text-[#71717A] transition-colors hover:bg-[#F4F4F5] hover:text-[#09090B]"
             aria-label="Fechar"
           >
             <X size={18} />
@@ -60,7 +60,7 @@ export function LegalModal({ open, onClose, title, children }: LegalModalProps) 
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto px-6 py-5 text-sm leading-relaxed text-white/70">
+        <div className="overflow-y-auto px-6 py-5 text-sm leading-relaxed text-[#3F3F46]">
           {children}
         </div>
       </div>

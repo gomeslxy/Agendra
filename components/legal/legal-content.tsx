@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mb-7">
-      <h2 className="mb-2 text-sm font-semibold text-white/90">{title}</h2>
-      <div className="space-y-2 text-white/65 [&_ul]:ml-4 [&_ul]:list-disc [&_ul]:space-y-1">
+      <h2 className="mb-2 text-sm font-semibold text-[#09090B]">{title}</h2>
+      <div className="space-y-2 text-[#3F3F46] [&_ul]:ml-4 [&_ul]:list-disc [&_ul]:space-y-1">
         {children}
       </div>
     </section>
@@ -18,7 +18,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function TermosContent() {
   return (
     <div>
-      <p className="mb-6 text-xs text-white/40">
+      <p className="mb-6 text-xs text-[#71717A]">
         Última atualização: 8 de maio de 2026
       </p>
 
@@ -54,7 +54,7 @@ export function TermosContent() {
           <li>Toda atividade realizada sob sua conta é de sua responsabilidade.</li>
           <li>
             Notifique-nos imediatamente em caso de acesso não autorizado:{" "}
-            <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+            <a href="mailto:la181009@gmail.com" className="text-[#2563EB] hover:underline">
               la181009@gmail.com
             </a>
             .
@@ -153,21 +153,21 @@ export function TermosContent() {
 export function PrivacidadeContent() {
   return (
     <div>
-      <p className="mb-1 text-xs text-white/40">
+      <p className="mb-1 text-xs text-[#71717A]">
         Última atualização: 8 de maio de 2026
       </p>
-      <p className="mb-6 text-xs font-medium text-blue-400">
+      <p className="mb-6 text-xs font-medium text-[#2563EB]">
         Em conformidade com a LGPD — Lei nº 13.709/2018
       </p>
 
       <Section title="1. Controlador dos Dados">
         <p>
-          <strong className="text-white/80">Agendra Tecnologia Ltda.</strong> é a
+          <strong className="text-[#09090B] font-semibold">Agendra Tecnologia Ltda.</strong> é a
           controladora dos dados pessoais tratados nesta plataforma.
         </p>
         <p>
           DPO (Encarregado de Proteção de Dados):{" "}
-          <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+          <a href="mailto:la181009@gmail.com" className="text-[#2563EB] hover:underline">
             la181009@gmail.com
           </a>
         </p>
@@ -176,27 +176,27 @@ export function PrivacidadeContent() {
       <Section title="2. Dados Coletados e Finalidades">
         <ul>
           <li>
-            <strong className="text-white/80">Nome e e-mail</strong> — criação e
+            <strong className="text-[#09090B] font-semibold">Nome e e-mail</strong> — criação e
             gerenciamento de conta (base legal: execução de contrato, art. 7º, V).
           </li>
           <li>
-            <strong className="text-white/80">Senha (hash bcrypt)</strong> —
+            <strong className="text-[#09090B] font-semibold">Senha (hash bcrypt)</strong> —
             autenticação segura (execução de contrato).
           </li>
           <li>
-            <strong className="text-white/80">Nome da empresa</strong> —
+            <strong className="text-[#09090B] font-semibold">Nome da empresa</strong> —
             personalização do Serviço (execução de contrato).
           </li>
           <li>
-            <strong className="text-white/80">Dados de uso e logs</strong> —
+            <strong className="text-[#09090B] font-semibold">Dados de uso e logs</strong> —
             segurança e melhorias (legítimo interesse, art. 7º, IX).
           </li>
           <li>
-            <strong className="text-white/80">Dados de cobrança</strong> —
+            <strong className="text-[#09090B] font-semibold">Dados de cobrança</strong> —
             processamento de pagamentos (execução de contrato).
           </li>
           <li>
-            <strong className="text-white/80">Cookies de sessão</strong> — manter
+            <strong className="text-[#09090B] font-semibold">Cookies de sessão</strong> — manter
             sessão autenticada (legítimo interesse).
           </li>
         </ul>
@@ -204,24 +204,24 @@ export function PrivacidadeContent() {
 
       <Section title="3. Compartilhamento">
         <p>
-          Seus dados <strong className="text-white/80">não são vendidos</strong>.
+          Seus dados <strong className="text-[#09090B] font-semibold">não são vendidos</strong>.
           Compartilhamos apenas com:
         </p>
         <ul>
           <li>
-            <strong className="text-white/80">Supabase Inc.</strong> — banco de dados
+            <strong className="text-[#09090B] font-semibold">Supabase Inc.</strong> — banco de dados
             e autenticação (AWS, us-east-1).
           </li>
           <li>
-            <strong className="text-white/80">Stripe Inc.</strong> — processamento de
+            <strong className="text-[#09090B] font-semibold">Stripe Inc.</strong> — processamento de
             pagamentos (PCI-DSS Level 1).
           </li>
           <li>
-            <strong className="text-white/80">Vercel Inc.</strong> — hospedagem da
+            <strong className="text-[#09090B] font-semibold">Vercel Inc.</strong> — hospedagem da
             aplicação.
           </li>
           <li>
-            <strong className="text-white/80">Autoridades</strong> — quando exigido
+            <strong className="text-[#09090B] font-semibold">Autoridades</strong> — quando exigido
             por lei ou ordem judicial.
           </li>
         </ul>
@@ -237,19 +237,19 @@ export function PrivacidadeContent() {
       <Section title="5. Retenção">
         <ul>
           <li>
-            <strong className="text-white/80">Conta ativa:</strong> pelo tempo
+            <strong className="text-[#09090B] font-semibold">Conta ativa:</strong> pelo tempo
             necessário à prestação do Serviço.
           </li>
           <li>
-            <strong className="text-white/80">Após cancelamento:</strong> 30 dias,
+            <strong className="text-[#09090B] font-semibold">Após cancelamento:</strong> 30 dias,
             então exclusão definitiva dos dados operacionais.
           </li>
           <li>
-            <strong className="text-white/80">Dados fiscais:</strong> 5 anos
+            <strong className="text-[#09090B] font-semibold">Dados fiscais:</strong> 5 anos
             (obrigação legal).
           </li>
           <li>
-            <strong className="text-white/80">Logs de segurança:</strong> 12 meses.
+            <strong className="text-[#09090B] font-semibold">Logs de segurança:</strong> 12 meses.
           </li>
         </ul>
       </Section>
@@ -257,30 +257,30 @@ export function PrivacidadeContent() {
       <Section title="6. Seus Direitos (art. 18 LGPD)">
         <ul>
           <li>
-            <strong className="text-white/80">Acesso</strong> — saber quais dados
+            <strong className="text-[#09090B] font-semibold">Acesso</strong> — saber quais dados
             temos.
           </li>
           <li>
-            <strong className="text-white/80">Correção</strong> — de dados
+            <strong className="text-[#09090B] font-semibold">Correção</strong> — de dados
             incompletos ou inexatos.
           </li>
           <li>
-            <strong className="text-white/80">Eliminação</strong> — de dados tratados
+            <strong className="text-[#09090B] font-semibold">Eliminação</strong> — de dados tratados
             com consentimento.
           </li>
           <li>
-            <strong className="text-white/80">Portabilidade</strong> — em formato
+            <strong className="text-[#09090B] font-semibold">Portabilidade</strong> — em formato
             estruturado.
           </li>
           <li>
-            <strong className="text-white/80">Oposição</strong> — ao tratamento com
+            <strong className="text-[#09090B] font-semibold">Oposição</strong> — ao tratamento com
             base em legítimo interesse.
           </li>
           <li>
-            <strong className="text-white/80">Reclamação à ANPD</strong> —{" "}
+            <strong className="text-[#09090B] font-semibold">Reclamação à ANPD</strong> —{" "}
             <a
               href="https://www.gov.br/anpd"
-              className="text-blue-400 hover:underline"
+              className="text-[#2563EB] hover:underline"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -291,7 +291,7 @@ export function PrivacidadeContent() {
         </ul>
         <p>
           Solicite via{" "}
-          <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+          <a href="mailto:la181009@gmail.com" className="text-[#2563EB] hover:underline">
             la181009@gmail.com
           </a>
           . Respondemos em até 15 dias úteis.
@@ -323,8 +323,8 @@ export function PrivacidadeContent() {
 
       <Section title="10. Contato">
         <p>
-          <strong className="text-white/80">DPO:</strong>{" "}
-          <a href="mailto:la181009@gmail.com" className="text-blue-400 hover:underline">
+          <strong className="text-[#09090B] font-semibold">DPO:</strong>{" "}
+          <a href="mailto:la181009@gmail.com" className="text-[#2563EB] hover:underline">
             la181009@gmail.com
           </a>{" "}
           — resposta em até 15 dias úteis.

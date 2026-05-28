@@ -71,10 +71,10 @@ function StepCard({ step }: { step: Step }) {
       <div
         className={cn(
           "relative flex flex-col gap-4 overflow-hidden rounded-2xl border p-6 transition-all duration-300",
-          "border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.02]",
-          "hover:border-white/[0.14] hover:shadow-[0_16px_40px_rgba(0,0,0,0.4)]",
+          "border-[#E4E4E7] bg-white",
+          "hover:border-[#D4D4D8] hover:shadow-md",
         )}
-        style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.32)" }}
+        style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}
       >
         {/* Subtle accent top-left glow on hover */}
         <div
@@ -108,7 +108,7 @@ function StepCard({ step }: { step: Step }) {
 
         {/* Text */}
         <div>
-          <div className="mb-1 text-[15px] font-semibold leading-snug text-white">
+          <div className="mb-1 text-[15px] font-semibold leading-snug text-[#09090B]">
             {step.title}
           </div>
           <div

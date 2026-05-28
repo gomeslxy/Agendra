@@ -107,8 +107,8 @@ export function Header({ isLoggedIn = false }: HeaderProps = {}) {
       className={cn(
         "fixed inset-x-0 top-0 z-50 border-b backdrop-blur-xl backdrop-saturate-150 transition-colors duration-300",
         scrolled
-          ? "border-white/[0.14] bg-[rgba(11,18,34,0.78)]"
-          : "border-white/[0.08] bg-[rgba(11,18,34,0.55)]",
+          ? "border-[#E4E4E7] bg-white/80"
+          : "border-zinc-200/50 bg-white/50",
       )}
     >
       <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 px-6 py-3.5">
@@ -128,7 +128,7 @@ export function Header({ isLoggedIn = false }: HeaderProps = {}) {
             <NavLink
               key={n.href}
               href={n.href}
-              className="text-sm font-medium transition-colors hover:text-white"
+              className="text-sm font-medium transition-colors hover:text-[#2563EB]"
               style={{ color: "var(--color-fg-2)" } as React.CSSProperties}
             >
               {n.label}
@@ -156,7 +156,7 @@ export function Header({ isLoggedIn = false }: HeaderProps = {}) {
         <button
           aria-label={open ? "Fechar menu" : "Abrir menu"}
           onClick={() => setOpen((v) => !v)}
-          className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white md:hidden"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-[#E4E4E7] bg-white text-[#09090B] hover:bg-[#F4F4F5] transition-colors md:hidden"
         >
           {open ? <X size={18} /> : <Menu size={18} />}
         </button>
@@ -169,7 +169,7 @@ export function Header({ isLoggedIn = false }: HeaderProps = {}) {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden border-t border-white/[0.08] md:hidden"
+            className="overflow-hidden border-t border-[#E4E4E7] bg-white md:hidden"
           >
             <div className="flex flex-col gap-1 px-6 py-4">
               {NAV.map((n) => (
@@ -177,7 +177,7 @@ export function Header({ isLoggedIn = false }: HeaderProps = {}) {
                   key={n.href}
                   href={n.href}
                   onClick={() => setOpen(false)}
-                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-white/80 transition-colors hover:bg-white/[0.04]"
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-[#3F3F46] transition-colors hover:bg-[#F4F4F5]"
                 >
                   {n.label}
                 </NavLink>

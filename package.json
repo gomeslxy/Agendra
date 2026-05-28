@@ -2,6 +2,11 @@
   "name": "agendra",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.1.3",
+  "engines": {
+    "node": ">=22.0.0 <25.0.0",
+    "pnpm": ">=11.0.0"
+  },
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
@@ -14,21 +19,21 @@
     "lhci": "lhci autorun"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.95.1",
+    "@anthropic-ai/sdk": "0.95.1",
     "@google/generative-ai": "^0.24.1",
     "@next/third-parties": "^16.2.6",
     "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.46.0",
+    "@supabase/supabase-js": "2.105.3",
     "@types/pdf-parse": "^1.1.5",
     "@vercel/speed-insights": "^2.0.0",
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
-    "framer-motion": "^12.0.0",
+    "framer-motion": "12.38.0",
     "lucide-react": "^0.460.0",
     "mammoth": "^1.12.0",
     "next": "^16.2.6",
     "nodemailer": "^8.0.7",
-    "openai": "^6.38.0",
+    "openai": "6.38.0",
     "pdf-parse": "^2.4.5",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -36,13 +41,13 @@
     "recharts": "^3.8.1",
     "resend": "^6.12.3",
     "sonner": "^2.0.7",
-    "stripe": "^22.1.1",
+    "stripe": "22.1.1",
     "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@lhci/cli": "^0.14.0",
     "@tailwindcss/postcss": "^4.0.0",
-    "@types/dotenv": "^8.2.3",
     "@types/node": "^22.10.1",
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^19.0.1",

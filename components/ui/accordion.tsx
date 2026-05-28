@@ -20,7 +20,7 @@ export const Accordion = ({ children, className, type = "single", collapsible = 
 
 export const AccordionItem = ({ children, className, value }: any) => {
   return (
-    <div className={cn("border-b border-white/10", className)}>
+    <div className={cn("border-b border-[#E4E4E7]", className)}>
       {React.Children.map(children, (child) =>
         React.isValidElement(child) ? React.cloneElement(child as any, { value }) : child
       )}

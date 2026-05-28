@@ -23,7 +23,7 @@ const NAVIGATION = {
 
 export function Footer() {
   return (
-    <footer id="footer" className="relative mt-20 overflow-hidden border-t border-white/[0.08] bg-ink-950/50 pt-20 pb-10">
+    <footer id="footer" className="relative mt-20 overflow-hidden border-t border-[#E4E4E7] bg-[#FAFAFA] pt-20 pb-10">
       {/* Decorative aurora background blur */}
       <div className="absolute -bottom-20 left-1/2 -z-10 h-[400px] w-[600px] -translate-x-1/2 rounded-[100%] bg-brand-blue-600/10 blur-[120px]" />
       
@@ -49,7 +49,7 @@ export function Footer() {
             
             {/* System Status */}
             <div className="mt-8 flex items-center gap-2">
-              <div className="flex h-6 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
+              <div className="flex h-6 items-center gap-1.5 rounded-full bg-[#F0FDF4] px-2.5 py-1 text-[11px] font-medium text-[#166534] border border-[#BBF7D0]">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
@@ -66,7 +66,7 @@ export function Footer() {
               <ul className="space-y-4">
                 {NAVIGATION.produto.map((item) => (
                   <li key={item.name}>
-                    <Link href={item.href} className="group flex items-center text-sm text-fg-3 transition-colors hover:text-white">
+                    <Link href={item.href} className="group flex items-center text-sm text-fg-3 transition-colors hover:text-[#2563EB]">
                       {item.name}
                       <ArrowUpRight className="ml-1 h-3 w-3 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
                     </Link>
@@ -79,7 +79,7 @@ export function Footer() {
               <ul className="space-y-4">
                 {NAVIGATION.empresa.map((item) => (
                   <li key={item.name}>
-                    <Link href={item.href} className="text-sm text-fg-3 transition-colors hover:text-white">
+                    <Link href={item.href} className="text-sm text-fg-3 transition-colors hover:text-[#2563EB]">
                       {item.name}
                     </Link>
                   </li>
@@ -91,7 +91,7 @@ export function Footer() {
               <ul className="space-y-4">
                 {NAVIGATION.legal.map((item) => (
                   <li key={item.name}>
-                    <Link href={item.href} className="text-sm text-fg-3 transition-colors hover:text-white">
+                    <Link href={item.href} className="text-sm text-fg-3 transition-colors hover:text-[#2563EB]">
                       {item.name}
                     </Link>
                   </li>
@@ -102,15 +102,15 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-20 flex flex-col items-center justify-between gap-6 border-t border-white/[0.06] pt-10 sm:flex-row">
+        <div className="mt-20 flex flex-col items-center justify-between gap-6 border-t border-[#E4E4E7] pt-10 sm:flex-row">
           <p className="text-xs text-fg-3">
             © 2026 Agendra Technologies. Todos os direitos reservados.
           </p>
           
           <div className="flex items-center gap-4">
-            <Link href="/privacidade" className="text-xs text-fg-3 hover:text-white transition-colors">Privacidade</Link>
-            <div className="h-3 w-[1px] bg-white/[0.08]" />
-            <Link href="/termos" className="text-xs text-fg-3 hover:text-white transition-colors">Termos</Link>
+            <Link href="/privacidade" className="text-xs text-fg-3 hover:text-[#2563EB] transition-colors">Privacidade</Link>
+            <div className="h-3 w-[1px] bg-[#E4E4E7]" />
+            <Link href="/termos" className="text-xs text-fg-3 hover:text-[#2563EB] transition-colors">Termos</Link>
           </div>
         </div>
       </div>

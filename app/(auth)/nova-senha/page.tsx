@@ -80,7 +80,7 @@ function NovaSenhaContent() {
           </h1>
           <p className="mb-7 mt-1 text-center text-sm" style={{ color: "var(--color-fg-2)" }}>
             Digite o código enviado para{" "}
-            <span className="font-medium text-white">{email}</span>{" "}
+            <span className="font-medium text-[#09090B]">{email}</span>{" "}
             e defina sua nova senha.
           </p>
 
@@ -143,8 +143,7 @@ function NovaSenhaContent() {
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl border border-[#F43F5E]/30 bg-[#F43F5E]/10 px-4 py-3 text-sm"
-                style={{ color: "#FB7185" }}
+                className="rounded-xl border border-[#FECACA] bg-[#FFF1F2] px-4 py-3 text-sm text-[#DC2626]"
                 role="alert"
               >
                 {error}
@@ -157,7 +156,7 @@ function NovaSenhaContent() {
           </form>
 
           <div className="mt-5 text-center text-sm" style={{ color: "var(--color-fg-3)" }}>
-            <Link href="/login" className="text-brand-blue-300 hover:underline">Voltar ao login</Link>
+            <Link href="/login" className="text-brand-blue-600 hover:underline">Voltar ao login</Link>
           </div>
         </Glass>
       </motion.div>

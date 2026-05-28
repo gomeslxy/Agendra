@@ -40,9 +40,8 @@ export function BentoCard({ title, description, icon, className, index = 0 }: Be
       animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
       className={cn(
-        "group relative overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02] p-8",
-        "after:absolute after:inset-0 after:rounded-[inherit] after:border after:border-white/10 after:content-['']",
-        "shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] backdrop-blur-md transition-all duration-300",
+        "group relative overflow-hidden rounded-3xl border border-[#E4E4E7] bg-white p-8",
+        "shadow-sm transition-all duration-300 hover:shadow-md hover:border-[#D4D4D8]",
         className
       )}
     >
@@ -50,14 +49,14 @@ export function BentoCard({ title, description, icon, className, index = 0 }: Be
       <div
         className="pointer-events-none absolute -inset-px opacity-0 transition duration-300 group-hover:opacity-100"
         style={{
-          background: "radial-gradient(600px circle at var(--bento-x, 50%) var(--bento-y, 50%), rgba(59,130,246,0.10), transparent 40%)",
+          background: "radial-gradient(600px circle at var(--bento-x, 50%) var(--bento-y, 50%), rgba(37,99,235,0.05), transparent 40%)",
         }}
       />
       <div className="relative z-10">
-        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-brand-blue-400 transition-colors group-hover:border-brand-blue-400/50 group-hover:bg-brand-blue-400/10">
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[#E4E4E7] bg-[#F4F4F5] text-brand-blue-600 transition-colors group-hover:border-brand-blue-500/50 group-hover:bg-[#EFF6FF]">
           {icon}
         </div>
-        <h3 className="mb-2 text-xl font-bold tracking-tight text-white">{title}</h3>
+        <h3 className="mb-2 text-xl font-bold tracking-tight text-[#09090B]">{title}</h3>
         <p className="text-sm leading-relaxed text-fg-2">{description}</p>
       </div>
 

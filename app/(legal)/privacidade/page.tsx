@@ -13,15 +13,15 @@ export const metadata: Metadata = {
 
 export default function PrivacidadePage() {
   return (
-    <main className="min-h-screen bg-[#0a0c10] px-6 py-16">
+    <main className="min-h-screen bg-[#FAFAFA] px-6 py-16">
       <div className="mx-auto max-w-2xl">
         <Link
           href="/signup"
-          className="mb-8 inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70"
+          className="mb-8 inline-flex items-center gap-1.5 text-xs text-[#71717A] hover:text-[#3F3F46]"
         >
           ← Voltar ao cadastro
         </Link>
-        <h1 className="mb-8 text-2xl font-bold text-white">
+        <h1 className="mb-8 text-2xl font-bold text-[#09090B]">
           Política de Privacidade
         </h1>
         <PrivacidadeContent />

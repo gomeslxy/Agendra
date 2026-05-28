@@ -52,7 +52,7 @@ export function HeroButtons() {
       </Link>
       <Button
         variant="secondary"
-        className="px-6 rounded-full border-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10"
+        className="px-6 rounded-full border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#3F3F46] hover:text-[#09090B]"
         onClick={handleDemoClick}
       >
         <Play size={14} className="mr-2" />

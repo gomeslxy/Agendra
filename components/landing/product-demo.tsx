@@ -76,13 +76,13 @@ function TypingDots({ align }: { align: "left" | "right" }) {
           "flex items-center gap-1 rounded-2xl px-3.5 py-2.5",
           align === "right"
             ? "bg-gradient-to-br from-[#2563EB] to-[#1D4ED8]"
-            : "bg-white/[0.07] border border-white/[0.08]",
+            : "bg-[#F4F4F5] border border-[#E4E4E7]",
         )}
       >
         {[0, 0.18, 0.36].map((d, i) => (
           <motion.span
             key={i}
-            className="block h-1.5 w-1.5 rounded-full bg-white/70"
+            className={cn("block h-1.5 w-1.5 rounded-full", align === "right" ? "bg-white/70" : "bg-[#71717A]")}
             animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 1, repeat: Infinity, delay: d, ease: "easeInOut" }}
           />
@@ -106,7 +106,7 @@ function Bubble({ who, text }: { who: "lead" | "ai"; text: string }) {
           "max-w-[78%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-[1.5]",
           isAi
             ? "rounded-br-sm bg-gradient-to-br from-[#2563EB] to-[#1D4ED8] text-white shadow-[0_4px_16px_rgba(37,99,235,0.35)]"
-            : "rounded-bl-sm border border-white/[0.08] bg-white/[0.07] text-white/90",
+            : "rounded-bl-sm border border-[#E4E4E7] bg-[#F4F4F5] text-[#09090B]",
         )}
       >
         {text}
@@ -183,23 +183,23 @@ function ChatPanel() {
   return (
     <div
       ref={sectionRef}
-      className="flex h-full flex-col overflow-hidden rounded-[20px] border border-white/[0.10] bg-gradient-to-b from-[rgba(255,255,255,0.06)] to-[rgba(255,255,255,0.03)] shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+      className="flex h-full flex-col overflow-hidden rounded-[20px] border border-[#E4E4E7] bg-white shadow-sm"
     >
       {/* Header do chat */}
-      <div className="flex items-center gap-3 border-b border-white/[0.07] px-4 py-3.5">
+      <div className="flex items-center gap-3 border-b border-[#E4E4E7] px-4 py-3.5">
         <div className="relative">
           <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#14B8A6]" />
-          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0B1222] bg-emerald-400" />
+          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold leading-none text-white">Carla Ribeiro</div>
+          <div className="text-[13px] font-semibold leading-none text-[#09090B]">Carla Ribeiro</div>
           <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-fg-3)" }}>
             WhatsApp · ativa agora
           </div>
         </div>
-        <div className="flex items-center gap-1.5 rounded-full border border-[#F97316]/30 bg-[#F97316]/10 px-2.5 py-1">
+        <div className="flex items-center gap-1.5 rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1">
           <Flame size={10} className="text-[#F97316]" />
-          <span className="text-[11px] font-semibold text-[#FB923C]">Quente</span>
+          <span className="text-[11px] font-semibold text-[#C2410C]">Quente</span>
         </div>
       </div>
 
@@ -233,23 +233,23 @@ function ChatPanel() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            className="mx-4 mb-4 flex items-center gap-3 rounded-xl border border-[#14B8A6]/25 bg-gradient-to-r from-[rgba(20,184,166,0.12)] to-[rgba(20,184,166,0.06)] px-3.5 py-3"
+            className="mx-4 mb-4 flex items-center gap-3 rounded-xl border border-[#99F6E4] bg-[#F0FDFA] px-3.5 py-3"
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#14B8A6]/20">
-              <CalendarCheck size={16} className="text-[#5EEAD4]" />
+              <CalendarCheck size={16} className="text-[#0D9488]" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-semibold text-[#5EEAD4]">Agendado automaticamente</div>
+              <div className="text-[12px] font-semibold text-[#0D9488]">Agendado automaticamente</div>
               <div className="mt-0.5 text-[11px]" style={{ color: "var(--color-fg-3)" }}>
                 Quinta, 14:00 · Dra. Maria · Sala 02
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCheck size={14} className="flex-shrink-0 text-[#5EEAD4]" />
+              <CheckCheck size={14} className="flex-shrink-0 text-[#0D9488]" />
               <button
                 onClick={handleReplay}
                 aria-label="Reiniciar demo"
-                className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/40 transition-colors hover:bg-white/[0.12] hover:text-white/80"
+                className="flex h-6 w-6 items-center justify-center rounded-full border border-[#E4E4E7] bg-white text-[#71717A] transition-colors hover:bg-[#F4F4F5] hover:text-[#09090B] shadow-sm"
               >
                 <RefreshCw size={11} />
               </button>
@@ -266,9 +266,9 @@ function SidePanel() {
   return (
     <div className="flex flex-col gap-4">
       {/* Classificação */}
-      <div className="rounded-[20px] border border-white/[0.10] bg-gradient-to-b from-[rgba(255,255,255,0.06)] to-[rgba(255,255,255,0.03)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+      <div className="rounded-[20px] border border-[#E4E4E7] bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
-          <Thermometer size={14} className="text-brand-teal-400" />
+          <Thermometer size={14} className="text-brand-teal-500" />
           <span className="eyebrow text-[10px]">Classificação de Leads</span>
         </div>
         <div className="flex flex-col gap-3">
@@ -280,13 +280,13 @@ function SidePanel() {
                     className="h-2 w-2 rounded-full"
                     style={{ background: h.color, boxShadow: `0 0 6px ${h.color}` }}
                   />
-                  <span className="text-[12px] font-medium text-white/80">{h.label}</span>
+                  <span className="text-[12px] font-medium text-[#3F3F46]">{h.label}</span>
                 </div>
                 <span className="font-mono text-[12px] font-semibold" style={{ color: h.color }}>
                   {h.n}
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="h-1.5 overflow-hidden rounded-full bg-[#F4F4F5]">
                 <motion.div
                   className="h-full rounded-full"
                   style={{ background: `linear-gradient(90deg, ${h.color}, ${h.color}cc)` }}
@@ -302,9 +302,9 @@ function SidePanel() {
       </div>
 
       {/* Agenda hoje */}
-      <div className="rounded-[20px] border border-white/[0.10] bg-gradient-to-b from-[rgba(255,255,255,0.06)] to-[rgba(255,255,255,0.03)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+      <div className="rounded-[20px] border border-[#E4E4E7] bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
-          <Clock size={14} className="text-brand-blue-400" />
+          <Clock size={14} className="text-brand-blue-500" />
           <span className="eyebrow text-[10px]">Agenda · Hoje</span>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -316,15 +316,15 @@ function SidePanel() {
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors",
                   slot.active
-                    ? "border border-[#F97316]/25 bg-[#F97316]/08"
-                    : "border border-transparent hover:bg-white/[0.03]",
+                    ? "border border-[#F97316]/25 bg-[#FFF7ED] border-[#FED7AA]"
+                    : "border border-transparent hover:bg-[#F4F4F5]",
                 )}
               >
                 <span className="w-10 flex-shrink-0 font-mono text-[11px]" style={{ color: "var(--color-fg-3)" }}>
                   {slot.t}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] font-semibold text-white/90">{slot.name}</div>
+                  <div className="truncate text-[12px] font-semibold text-[#09090B]">{slot.name}</div>
                   <div className="text-[11px]" style={{ color: "var(--color-fg-3)" }}>{slot.label}</div>
                 </div>
                 <div
@@ -340,12 +340,12 @@ function SidePanel() {
       </div>
 
       {/* Stat highlight */}
-      <div className="flex items-center gap-3 rounded-[20px] border border-[#14B8A6]/20 bg-gradient-to-r from-[rgba(20,184,166,0.08)] to-[rgba(37,99,235,0.06)] p-4">
+      <div className="flex items-center gap-3 rounded-[20px] border border-[#99F6E4] bg-gradient-to-r from-[#F0FDFA] to-[#EFF6FF] p-4 shadow-sm">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#14B8A6]/15">
-          <Zap size={16} className="text-[#5EEAD4]" />
+          <Zap size={16} className="text-[#14B8A6]" />
         </div>
         <div>
-          <div className="text-[13px] font-bold text-white">4s resposta média</div>
+          <div className="text-[13px] font-bold text-[#09090B]">4s resposta média</div>
           <div className="text-[11px]" style={{ color: "var(--color-fg-3)" }}>
             Agendra nunca dorme, nunca demora
           </div>

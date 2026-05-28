@@ -27,7 +27,7 @@ export function StepObjetivo({ data, onChange }: StepProps) {
     <div className="flex flex-col gap-5">
       {/* Objetivo */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Objetivo principal
         </label>
         <div className="flex flex-col gap-1.5">
@@ -38,8 +38,8 @@ export function StepObjetivo({ data, onChange }: StepProps) {
               onClick={() => onChange({ goal: value })}
               className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
                 data.goal === value
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/50 hover:border-white/[0.12] hover:text-white/80"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               <span className="text-lg">{emoji}</span>
@@ -51,7 +51,7 @@ export function StepObjetivo({ data, onChange }: StepProps) {
 
       {/* Maturidade */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-white/60 uppercase tracking-widest">
+        <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
           Maturidade comercial
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -62,8 +62,8 @@ export function StepObjetivo({ data, onChange }: StepProps) {
               onClick={() => onChange({ maturity: value })}
               className={`flex flex-col rounded-xl border p-3 text-left transition ${
                 data.maturity === value
-                  ? "border-violet-500/60 bg-violet-500/10 text-white"
-                  : "border-white/[0.06] bg-white/[0.02] text-white/50 hover:border-white/[0.12] hover:text-white/80"
+                  ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+                  : "border-[#E4E4E7] bg-white text-[#71717A] hover:border-[#D4D4D8] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
               }`}
             >
               <span className="text-sm font-semibold">{label}</span>

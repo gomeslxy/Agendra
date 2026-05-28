@@ -13,7 +13,7 @@ const STATS = [
   { v: "3.2", s: "×", l: "MAIS AGENDAMENTOS", color: "var(--color-brand-orange-400)" },
   { v: "4",   s: "s", l: "RESPOSTA MÉDIA",    color: "var(--color-brand-teal-300)" },
   { v: "38",  s: "%", l: "CONVERSÃO FINAL",   color: "var(--color-brand-blue-400)" },
-  { v: "24/7", s: "", l: "DISPONIBILIDADE",   color: "#fff" },
+  { v: "24/7", s: "", l: "DISPONIBILIDADE",   color: "var(--color-fg-1)" },
 ];
 
 const TESTIMONIALS = [
@@ -101,7 +101,7 @@ export function Proof() {
                     &ldquo;{t.quote}&rdquo;
                   </p>
                   <div>
-                    <div className="text-[13px] font-semibold text-white">{t.name}</div>
+                    <div className="text-[13px] font-semibold text-[#09090B]">{t.name}</div>
                     <div className="text-[12px]" style={{ color: "var(--color-fg-3)" }}>{t.role}</div>
                   </div>
                 </Glass>
@@ -112,13 +112,13 @@ export function Proof() {
 
         {/* Integration logos */}
         <FadeUp delay={0.4}>
-          <div className="mt-20 border-t border-white/5 pt-12 text-center">
+          <div className="mt-20 border-t border-[#E4E4E7] pt-12 text-center">
             <p className="mb-8 text-xs font-medium tracking-[0.2em] text-fg-3 uppercase">
               Integrado com as ferramentas que você já usa
             </p>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-bg to-transparent pointer-events-none" />
-              <div className="absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-bg to-transparent pointer-events-none" />
+              <div className="absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-[#FAFAFA] to-transparent pointer-events-none" />
+              <div className="absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-[#FAFAFA] to-transparent pointer-events-none" />
 
               <InfiniteSlider gap={80} duration={30}>
                 {LOGOS.map((logo) => (
@@ -130,7 +130,7 @@ export function Proof() {
                       height={28}
                       className="h-7 w-auto"
                     />
-                    <span className="text-sm font-semibold tracking-tight text-white">{logo.name}</span>
+                    <span className="text-sm font-semibold tracking-tight text-[#3F3F46]">{logo.name}</span>
                   </div>
                 ))}
               </InfiniteSlider>

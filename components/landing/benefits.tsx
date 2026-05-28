@@ -58,7 +58,7 @@ export function Benefits() {
           <div className="eyebrow mb-3">BENEFÍCIOS</div>
           <h2 className="mb-12 max-w-[720px] text-balance text-[clamp(28px,3vw,40px)] font-bold leading-tight tracking-[-0.02em]">
             Trabalho de equipe inteira, <br />
-            <span className="text-brand-blue-400">sem contratar ninguém.</span>
+            <span className="text-[#2563EB]">sem contratar ninguém.</span>
           </h2>
         </FadeUp>
 

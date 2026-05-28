@@ -182,7 +182,7 @@ export default function PlanosPage() {
     : 0;
 
   return (
-    <div className="bg-[#0b1222] min-h-screen flex flex-col text-white selection:bg-brand-blue/30 relative">
+    <div className="bg-[#FAFAFA] min-h-screen flex flex-col text-[#09090B] selection:bg-[#2563EB]/10 relative">
       <Header isLoggedIn={isLoggedIn} />
 
       {/* ── Celebração Premium ── */}
@@ -202,21 +202,21 @@ export default function PlanosPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-xl"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="flex flex-col items-center gap-4 text-center"
+              className="flex flex-col items-center gap-4 text-center bg-white border border-[#E4E4E7] p-8 rounded-3xl shadow-xl max-w-sm mx-4"
             >
               <div className="relative">
-                <div className="h-16 w-16 rounded-full border-2 border-brand-blue-500/30 border-t-brand-blue-400 animate-spin" />
+                <div className="h-16 w-16 rounded-full border-2 border-[#2563EB]/20 border-t-[#2563EB] animate-spin" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-brand-blue-400" />
+                  <Zap className="w-6 h-6 text-[#2563EB]" />
                 </div>
               </div>
-              <p className="text-sm font-semibold text-white/70">Ativando seu plano...</p>
-              <p className="text-xs text-white/30">Sincronizando com o Stripe</p>
+              <p className="text-sm font-semibold text-[#09090B]">Ativando seu plano...</p>
+              <p className="text-xs text-[#71717A]">Sincronizando com o Stripe</p>
             </motion.div>
           </motion.div>
         )}
@@ -229,22 +229,19 @@ export default function PlanosPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0A0A0A]/90 backdrop-blur-xl px-5 py-3 shadow-2xl"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 rounded-2xl border border-[#E4E4E7] bg-white px-5 py-3 shadow-xl"
           >
-            <X className="w-4 h-4 text-white/40" />
-            <span className="text-sm text-white/70">Checkout cancelado. Nenhuma cobrança foi feita.</span>
-            <button onClick={() => setShowCancelNotice(false)} className="text-white/30 hover:text-white/60 transition-colors">
+            <X className="w-4 h-4 text-[#71717A]" />
+            <span className="text-sm text-[#3F3F46]">Checkout cancelado. Nenhuma cobrança foi feita.</span>
+            <button onClick={() => setShowCancelNotice(false)} className="text-[#71717A] hover:text-[#09090B] transition-colors">
               <X size={14} />
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <main className="flex-1 pt-28 pb-24 px-4 sm:px-6 md:px-12 relative overflow-hidden z-10">
-        <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" />
-        <GridBeam className="absolute inset-0 pointer-events-none opacity-40" />
-
-        <div className="max-w-6xl mx-auto relative z-10">
+      <main className="flex-1 pt-28 pb-24 px-4 sm:px-6 md:px-12 relative overflow-hidden">
+        <div className="max-w-6xl mx-auto relative">
 
           {/* ── Trial Banner: apenas para usuários logados e não assinantes ── */}
           <AnimatePresence>
@@ -253,21 +250,21 @@ export default function PlanosPage() {
               <motion.div
                 initial={{ opacity: 0, y: -16 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-10 rounded-2xl border border-brand-orange-500/30 bg-brand-orange-500/5 p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left"
+                className="mb-10 rounded-2xl border border-[#F97316]/30 bg-[#FFF7ED] p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-orange-500/20">
-                  <Clock className="w-5 h-5 text-brand-orange-400" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFF7ED] border border-[#FDBA74]">
+                  <Clock className="w-5 h-5 text-[#F97316]" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-brand-orange-300">Sua assinatura será encerrada em breve</h4>
-                  <p className="text-xs text-brand-orange-300/70 mt-0.5">
+                  <h4 className="text-sm font-semibold text-[#C2410C]">Sua assinatura será encerrada em breve</h4>
+                  <p className="text-xs text-[#EA580C] mt-0.5">
                     Seu plano <strong>{currentPlan?.toUpperCase()}</strong> expira em <strong>{new Date(periodEnd).toLocaleDateString()}</strong>. Você voltará ao plano Trial após esta data.
                   </p>
                 </div>
                 <Button 
                   variant="secondary" 
                   size="sm" 
-                  className="border-brand-orange-500/30 text-brand-orange-400 hover:bg-brand-orange-500/10"
+                  className="border-[#F97316]/30 text-[#EA580C] bg-white hover:bg-[#FFF7ED] transition-all"
                   onClick={() => window.location.href = "/settings?tab=billing"}
                 >
                   Gerenciar
@@ -284,28 +281,28 @@ export default function PlanosPage() {
                 className={cn(
                   "mb-10 rounded-2xl border p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4",
                   trialDaysRemaining <= 2
-                    ? "bg-red-500/10 border-red-500/30"
+                    ? "bg-[#FEF2F2] border-[#FCA5A5] text-[#991B1B]"
                     : trialDaysRemaining <= 4
-                    ? "bg-amber-400/10 border-amber-400/30"
-                    : "bg-brand-blue/10 border-brand-blue/30"
+                    ? "bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]"
+                    : "bg-[#EFF6FF] border-[#BFDBFE] text-[#1E40AF]"
                 )}
               >
                 <div className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                  trialDaysRemaining <= 2 ? "bg-red-500/20" : "bg-brand-blue/20"
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
+                  trialDaysRemaining <= 2 ? "bg-[#FEE2E2] border-[#FCA5A5]" : "bg-[#DBEAFE] border-[#BFDBFE]"
                 )}>
-                  <Clock className={cn("w-5 h-5", trialDaysRemaining <= 2 ? "text-red-400" : "text-brand-blue-300")} />
+                  <Clock className={cn("w-5 h-5", trialDaysRemaining <= 2 ? "text-[#DC2626]" : "text-[#2563EB]")} />
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm sm:text-base text-white">
+                  <p className="font-semibold text-sm sm:text-base text-[#09090B]">
                     {trialDaysRemaining === 0
                       ? "⚠️ Seu período de teste encerrou."
                       : trialDaysRemaining === 1
                       ? "⚡ Último dia de teste!"
                       : `Você está no período de teste — ${trialDaysRemaining} dias restantes`}
                   </p>
-                  <p className="text-xs sm:text-sm text-white/50 mt-0.5">
+                  <p className="text-xs sm:text-sm text-[#71717A] mt-0.5">
                     Teste iniciado há {trialElapsed} dia{trialElapsed !== 1 ? "s" : ""}. 
                     {trialDaysRemaining === 0
                       ? " Assine agora para continuar usando a Agendra."
@@ -315,15 +312,15 @@ export default function PlanosPage() {
 
                 {/* Progress bar */}
                 <div className="w-full sm:w-40 shrink-0">
-                  <div className="flex justify-between text-[10px] text-white/40 mb-1.5">
+                  <div className="flex justify-between text-[10px] text-[#71717A] mb-1.5">
                     <span>Dia {7 - (trialDaysRemaining ?? 0)}</span>
                     <span>7 dias</span>
                   </div>
-                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-1.5 w-full bg-[#E4E4E7] rounded-full overflow-hidden">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-1000",
-                        trialDaysRemaining !== null && trialDaysRemaining <= 2 ? "bg-red-400" : "bg-brand-blue-500"
+                        trialDaysRemaining !== null && trialDaysRemaining <= 2 ? "bg-[#DC2626]" : "bg-[#2563EB]"
                       )}
                       style={{ width: `${calculateTrialProgress(7 - (trialDaysRemaining ?? 0))}%` }}
                     />
@@ -340,21 +337,21 @@ export default function PlanosPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.04] px-3 py-1.5 backdrop-blur mb-5">
-                <span className="h-1.5 w-1.5 rounded-full bg-brand-blue shadow-[0_0_10px_#3b82f6] animate-pulse" />
-                <span className="text-[10px] sm:text-[11px] font-medium uppercase tracking-widest text-white/60">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#E4E4E7] bg-white px-3 py-1.5 shadow-sm mb-5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB] animate-pulse" />
+                <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-widest text-[#71717A]">
                   PREÇOS SIMPLES E TRANSPARENTES
                 </span>
               </div>
 
-              <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-4 text-balance">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-4 text-balance text-[#09090B]">
                 Planos para escalar o seu{" "}
                 <br className="hidden md:block" />
-                <span className="bg-gradient-to-r from-[#3b82f6] to-teal-400 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-[#2563EB] to-[#14B8A6] bg-clip-text text-transparent">
                   atendimento
                 </span>
               </h1>
-              <p className="text-base sm:text-lg md:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed">
+              <p className="text-base sm:text-lg md:text-xl text-[#71717A] max-w-2xl mx-auto leading-relaxed">
                 Sem taxas ocultas, sem fidelidade. Cancele quando quiser.
               </p>
             </motion.div>
@@ -364,13 +361,13 @@ export default function PlanosPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4, delay: 0.1 }}
-              className="inline-flex items-center bg-white/[0.03] backdrop-blur-md border border-white/[0.08] p-1.5 rounded-2xl mx-auto"
+              className="inline-flex items-center bg-[#F4F4F5] border border-[#E4E4E7] p-1 rounded-2xl mx-auto flex"
             >
               <button
                 onClick={() => setIsAnnual(false)}
                 className={cn(
                   "px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300",
-                  !isAnnual ? "bg-white/[0.08] text-white border border-white/[0.1]" : "text-white/40 hover:text-white"
+                  !isAnnual ? "bg-white text-[#09090B] shadow-sm border border-[#E4E4E7]" : "text-[#71717A] hover:text-[#09090B]"
                 )}
               >
                 Mensal
@@ -379,11 +376,11 @@ export default function PlanosPage() {
                 onClick={() => setIsAnnual(true)}
                 className={cn(
                   "relative px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300",
-                  isAnnual ? "bg-brand-blue/20 text-[#93c5fd] border border-brand-blue/30" : "text-white/40 hover:text-white"
+                  isAnnual ? "bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] font-semibold" : "text-[#71717A] hover:text-[#09090B]"
                 )}
               >
                 Anual
-                <span className="absolute -top-3 -right-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-white/20 whitespace-nowrap shadow-lg">
+                <span className="absolute -top-3 -right-2 bg-[#10B981] text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-[#CEEAD6] shadow-sm whitespace-nowrap">
                   -25%
                 </span>
               </button>
@@ -403,22 +400,16 @@ export default function PlanosPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.55, delay: i * 0.12 + 0.2, ease: [0.22, 1, 0.36, 1] }}
                   className={cn(
-                    "relative rounded-2xl sm:rounded-3xl border flex flex-col transition-all duration-500 group overflow-hidden",
+                    "relative rounded-2xl sm:rounded-3xl border flex flex-col transition-all duration-500 group overflow-hidden bg-white",
                     plan.recommended
-                      ? "border-[#3b82f6]/40 bg-gradient-to-b from-[#3b82f6]/[0.07] to-transparent shadow-[0_0_50px_rgba(59,130,246,0.12)] md:-translate-y-4"
-                      : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.14]",
-                    isPlanActive && "border-emerald-400/40 bg-gradient-to-b from-emerald-400/[0.05] to-transparent"
+                      ? "border-[#2563EB] shadow-[0_10px_30px_rgba(37,99,235,0.06)] md:-translate-y-4"
+                      : "border-[#E4E4E7] hover:border-[#D4D4D8] shadow-sm hover:shadow-md transition-all duration-300",
+                    isPlanActive && "border-[#10B981] shadow-[0_10px_30px_rgba(16,185,129,0.06)]"
                   )}
                 >
-                  {/* Hover glow */}
-                  <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-white/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                  {plan.recommended && !isPlanActive && (
-                    <div className="absolute -top-px left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#3b82f6]/60 to-transparent" />
-                  )}
                   {plan.recommended && !isPlanActive && (
                     <div className="flex justify-center pt-3">
-                      <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-[#3b82f6] to-teal-500 text-white text-[10px] font-bold px-3 py-1 rounded-full border border-white/20 shadow-lg">
+                      <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-[#2563EB] to-[#14B8A6] text-white text-[10px] font-bold px-3 py-1 rounded-full border border-[#CEEAD6] shadow-sm">
                         <Sparkles className="w-3 h-3" />
                         MAIS ESCOLHIDO
                       </span>
@@ -426,7 +417,7 @@ export default function PlanosPage() {
                   )}
                   {isPlanActive && (
                     <div className="flex justify-center pt-3">
-                      <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full border border-emerald-400/30">
+                      <span className="inline-flex items-center gap-1.5 bg-[#E6F4EA] text-[#137333] text-[10px] font-bold px-3 py-1 rounded-full border border-[#CEEAD6]">
                         ✓ SEU PLANO ATUAL
                       </span>
                     </div>
@@ -435,20 +426,20 @@ export default function PlanosPage() {
                   <div className={cn("p-6 sm:p-8 flex flex-col flex-1 relative z-10", (plan.recommended || isPlanActive) && "pt-4")}>
                     {/* Plan info */}
                     <div className="mb-6">
-                      <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">{plan.name}</h3>
-                      <p className="text-sm text-white/45 leading-relaxed min-h-[40px]">{plan.desc}</p>
+                      <h3 className="text-lg sm:text-xl font-semibold text-[#09090B] mb-2">{plan.name}</h3>
+                      <p className="text-sm text-[#71717A] leading-relaxed min-h-[40px]">{plan.desc}</p>
 
                       <div className="mt-5 flex items-baseline gap-2">
-                        <span className="text-sm font-medium text-white/30">R$</span>
-                        <span className="text-4xl sm:text-5xl font-bold tracking-tight text-white">
+                        <span className="text-sm font-medium text-[#71717A]">R$</span>
+                        <span className="text-4xl sm:text-5xl font-bold tracking-tight text-[#09090B]">
                           {isAnnual ? plan.annual : plan.monthly}
                         </span>
-                        <span className="text-sm text-white/30">/mês</span>
+                        <span className="text-sm text-[#71717A]">/mês</span>
                       </div>
 
                       <div className="mt-2.5 h-6">
                         {isAnnual && (
-                          <span className="text-[11px] font-medium text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20 inline-flex items-center">
+                          <span className="text-[11px] font-medium text-[#10B981] bg-[#E6F4EA] px-2.5 py-1 rounded-md border border-[#CEEAD6] inline-flex items-center">
                             Faturado R$ {plan.annual * 12}/ano
                           </span>
                         )}
@@ -458,7 +449,7 @@ export default function PlanosPage() {
                     {/* CTA Button */}
                     <div className="mb-7">
                       {authLoading ? (
-                        <div className="h-12 rounded-xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+                        <div className="h-12 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] animate-pulse" />
                       ) : isLoggedIn ? (
                         <button
                           disabled={(isPlanActive && !isCanceling) || isButtonLoading || loadingPlan !== null}
@@ -466,10 +457,10 @@ export default function PlanosPage() {
                           className={cn(
                             "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2",
                             isPlanActive && !isCanceling
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-400/20 cursor-default"
+                              ? "bg-[#E6F4EA] text-[#137333] border border-[#CEEAD6] cursor-default"
                               : plan.recommended
-                              ? "bg-white text-[#0b1222] hover:bg-white/90 shadow-[0_0_25px_rgba(255,255,255,0.15)] hover:shadow-[0_0_35px_rgba(255,255,255,0.25)] active:scale-[0.98]"
-                              : "bg-white/[0.05] border border-white/[0.1] text-white hover:bg-white/[0.1] active:scale-[0.98]",
+                              ? "bg-[#2563EB] text-white hover:bg-[#1D4ED8] shadow-[0_4px_14px_rgba(37,99,235,0.3)] active:scale-[0.98]"
+                              : "bg-white border border-[#E4E4E7] text-[#09090B] hover:bg-[#F4F4F5] active:scale-[0.98]",
                             (isButtonLoading || (loadingPlan !== null && loadingPlan !== plan.id)) && "opacity-60 cursor-not-allowed"
                           )}
                         >
@@ -487,8 +478,8 @@ export default function PlanosPage() {
                           className={cn(
                             "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2",
                             plan.recommended
-                              ? "bg-white text-[#0b1222] hover:bg-white/90 shadow-[0_0_25px_rgba(255,255,255,0.15)] hover:shadow-[0_0_35px_rgba(255,255,255,0.25)]"
-                              : "bg-white/[0.05] border border-white/[0.1] text-white hover:bg-white/[0.1]"
+                              ? "bg-[#2563EB] text-white hover:bg-[#1D4ED8] shadow-[0_4px_14px_rgba(37,99,235,0.3)]"
+                              : "bg-white border border-[#E4E4E7] text-[#09090B] hover:bg-[#F4F4F5]"
                           )}
                         >
                           Começar grátis <ArrowRight className="w-4 h-4" />
@@ -497,22 +488,22 @@ export default function PlanosPage() {
                     </div>
 
                     {/* Divider */}
-                    <div className="h-px bg-white/[0.06] mb-6" />
+                    <div className="h-px bg-[#E4E4E7] mb-6" />
 
                     {/* Feature list */}
                     <ul className="space-y-3.5 flex-1">
                       <li className="flex items-center gap-3">
-                        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-white/[0.08] border border-white/[0.1] flex items-center justify-center">
-                          <Zap className="w-3 h-3 text-[#93c5fd]" />
+                        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center">
+                          <Zap className="w-3 h-3 text-[#2563EB]" />
                         </div>
-                        <span className="font-semibold text-sm text-white">{plan.leads}</span>
+                        <span className="font-semibold text-sm text-[#09090B]">{plan.leads}</span>
                       </li>
                       {plan.features.map((feature, idx) => (
                         <li key={idx} className="flex items-start gap-3">
-                          <div className="flex-shrink-0 w-5 h-5 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mt-0.5">
-                            <Check className="w-3 h-3 text-white/60" />
+                          <div className="flex-shrink-0 w-5 h-5 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center mt-0.5">
+                            <Check className="w-3 h-3 text-[#71717A]" />
                           </div>
-                          <span className="text-[13px] text-white/60 leading-relaxed">{feature}</span>
+                          <span className="text-[13px] text-[#3F3F46] leading-relaxed">{feature}</span>
                         </li>
                       ))}
                     </ul>
@@ -530,11 +521,11 @@ export default function PlanosPage() {
             className="text-center mt-12 space-y-2"
           >
             {!isLoggedIn && (
-              <p className="text-sm text-white/40">
-                Todos os planos incluem <span className="text-white/70 font-medium">7 dias grátis</span> para testar. Sem cartão de crédito.
+              <p className="text-sm text-[#71717A]">
+                Todos os planos incluem <span className="text-[#09090B] font-semibold">7 dias grátis</span> para testar. Sem cartão de crédito.
               </p>
             )}
-            <p className="text-xs text-white/25">
+            <p className="text-xs text-[#A1A1AA]">
               Cobranças processadas com segurança via Stripe. Cancele a qualquer momento.
             </p>
           </motion.div>
@@ -576,7 +567,7 @@ function SubscriptionCelebration({ planName, onDismiss }: { planName: string; on
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="absolute inset-0 bg-black/70 backdrop-blur-xl"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onDismiss}
       />
 
@@ -607,16 +598,16 @@ function SubscriptionCelebration({ planName, onDismiss }: { planName: string; on
         />
       ))}
 
-      {/* Glass Card */}
+      {/* Celebration Card */}
       <motion.div
         initial={{ scale: 0.7, opacity: 0, y: 30 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0, y: 10 }}
         transition={{ delay: 0.15, type: 'spring', stiffness: 300, damping: 25 }}
-        className="relative z-10 max-w-md w-full mx-4 rounded-3xl border border-white/20 bg-white/[0.06] backdrop-blur-2xl p-8 sm:p-10 text-center shadow-[0_0_80px_rgba(59,130,246,0.12)]"
+        className="relative z-10 max-w-md w-full mx-4 rounded-3xl border border-[#E4E4E7] bg-white p-8 sm:p-10 text-center shadow-xl"
       >
         {/* Glow ring */}
-        <div className="absolute -inset-px rounded-3xl bg-gradient-to-b from-emerald-500/20 via-transparent to-brand-blue-500/10 pointer-events-none" />
+        <div className="absolute -inset-px rounded-3xl bg-gradient-to-b from-[#10B981]/15 via-transparent to-[#2563EB]/5 pointer-events-none" />
 
         {/* Animated Check */}
         <motion.div
@@ -625,8 +616,8 @@ function SubscriptionCelebration({ planName, onDismiss }: { planName: string; on
           transition={{ delay: 0.35, type: 'spring', stiffness: 400, damping: 12 }}
           className="relative mx-auto mb-7 h-24 w-24"
         >
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500 to-teal-400 blur-xl opacity-50 animate-pulse" />
-          <div className="relative h-full w-full rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.4)]">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#10B981] to-[#2DD4BF] blur-xl opacity-30 animate-pulse" />
+          <div className="relative h-full w-full rounded-full bg-gradient-to-br from-[#10B981] to-[#14B8A6] flex items-center justify-center shadow-md">
             <motion.div
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ pathLength: 1, opacity: 1 }}
@@ -641,7 +632,7 @@ function SubscriptionCelebration({ planName, onDismiss }: { planName: string; on
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="text-2xl sm:text-3xl font-bold text-white mb-3"
+          className="text-2xl sm:text-3xl font-bold text-[#09090B] mb-3"
         >
           Assinatura Ativada! 🎉
         </motion.h2>
@@ -650,10 +641,10 @@ function SubscriptionCelebration({ planName, onDismiss }: { planName: string; on
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="text-sm sm:text-base text-white/50 mb-2 leading-relaxed"
+          className="text-sm sm:text-base text-[#71717A] mb-2 leading-relaxed"
         >
           O plano{' '}
-          <span className="font-bold text-brand-blue-400">{planName}</span>{' '}
+          <span className="font-bold text-[#2563EB]">{planName}</span>{' '}
           está ativo. Você agora tem acesso completo à Agendra.
         </motion.p>
 
@@ -661,7 +652,7 @@ function SubscriptionCelebration({ planName, onDismiss }: { planName: string; on
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
-          className="text-xs text-white/25 mb-8"
+          className="text-xs text-[#A1A1AA] mb-8"
         >
           Seus limites e funcionalidades foram atualizados automaticamente.
         </motion.p>
@@ -674,13 +665,13 @@ function SubscriptionCelebration({ planName, onDismiss }: { planName: string; on
         >
           <a
             href="/inbox"
-            className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-gradient-to-r from-brand-blue-600 to-brand-blue-500 text-white font-semibold text-sm hover:brightness-110 transition-all shadow-[0_0_25px_rgba(59,130,246,0.3)] hover:shadow-[0_0_35px_rgba(59,130,246,0.5)] active:scale-[0.98]"
+            className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-[#2563EB] text-white font-semibold text-sm hover:bg-[#1D4ED8] transition-all shadow-[0_4px_14px_rgba(37,99,235,0.3)] active:scale-[0.98]"
           >
             Ir para o Dashboard <ArrowRight className="w-4 h-4" />
           </a>
           <button
             onClick={onDismiss}
-            className="flex-1 h-12 rounded-xl border border-white/10 bg-white/[0.04] text-white/60 font-medium text-sm hover:bg-white/[0.08] hover:text-white/80 transition-all active:scale-[0.98]"
+            className="flex-1 h-12 rounded-xl border border-[#E4E4E7] bg-white text-[#71717A] font-medium text-sm hover:bg-[#F4F4F5] hover:text-[#3F3F46] transition-all active:scale-[0.98]"
           >
             Continuar aqui
           </button>

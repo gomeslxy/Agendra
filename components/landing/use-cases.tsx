@@ -39,9 +39,9 @@ export function UseCases() {
           {CASES.map((c, i) => (
             <FadeUp key={c.t} delay={i * 0.06}>
               <div className="glass group flex h-full min-h-[160px] flex-col justify-between p-6 transition-transform duration-200 hover:-translate-y-1">
-                <c.Icon size={22} className="text-brand-teal-300" />
+                <c.Icon size={22} className="text-[#14B8A6]" />
                 <div>
-                  <h3 className="mt-3 text-xl font-semibold">{c.t}</h3>
+                  <h3 className="mt-3 text-[#09090B] text-xl font-semibold">{c.t}</h3>
                   <div className="text-sm" style={{ color: "var(--color-fg-2)" }}>{c.d}</div>
                 </div>
               </div>
