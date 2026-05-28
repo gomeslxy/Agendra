@@ -54,12 +54,12 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
   return (
     <aside
       key="sidebar"
-      className="hidden h-screen flex-col gap-4 border-r border-white/[0.06] bg-[#0f1015] p-4 md:flex z-20"
+      className="hidden h-screen flex-col gap-4 border-r border-[#E4E4E7] bg-white p-4 md:flex z-20"
     >
       <Link href="/inbox" className="flex items-center gap-2 px-2 py-1.5 shrink-0 select-none">
         <Image src="/assets/agendra-logo.svg" alt="Agendra" width={96} height={24} priority />
         <span className="relative flex h-1.5 w-1.5" title="AI ACTIVE">
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-teal-500/60" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#14B8A6] animate-pulse" />
         </span>
       </Link>
 
@@ -68,8 +68,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
           n.kind === "section" ? (
             <div
               key={`s-${idx}`}
-              className="mt-2 px-2.5 pt-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.16em]"
-              style={{ color: "var(--color-fg-3)" }}
+              className="mt-2 px-2.5 pt-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#A1A1AA]"
             >
               {n.label}
             </div>
@@ -83,14 +82,15 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                   onClick={() => trackEvent("nav_click", { target: n.id })}
                   className={cn(
                     "relative flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-[13px] font-medium transition-colors duration-150",
-                    active ? "text-white" : "border border-transparent hover:bg-white/[0.04] hover:text-white",
+                    active
+                      ? "text-[#1D4ED8] font-semibold"
+                      : "text-[#71717A] border border-transparent hover:bg-[#F4F4F5] hover:text-[#3F3F46]",
                   )}
-                  style={active ? undefined : { color: "var(--color-fg-2)" }}
                 >
                   {active && (
                     <motion.span
                       layoutId="nav-pill"
-                      className="absolute inset-0 rounded-xl border border-[#2563EB]/30 bg-[#2563EB]/14"
+                      className="absolute inset-0 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF]"
                       transition={{ type: "spring", stiffness: 400, damping: 36 }}
                     />
                   )}
@@ -109,47 +109,44 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
       </nav>
 
       {/* User card */}
-      <div className="mt-auto rounded-xl border border-white/[0.03] bg-white/[0.005] p-3 transition-all duration-200 hover:bg-white/[0.01] hover:border-white/[0.05] relative overflow-hidden group/user z-10 shrink-0">
+      <div className="mt-auto rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3 transition-all duration-200 hover:bg-[#F4F4F5] relative overflow-hidden group/user z-10 shrink-0">
         {!mounted || loading ? (
-          <div className="h-16 animate-pulse rounded-lg bg-white/[0.04]" />
+          <div className="h-16 animate-pulse rounded-lg bg-[#F4F4F5]" />
         ) : (
           <>
             <div className="mb-2 flex items-center gap-2.5">
-              <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-white/[0.06] border border-white/[0.08] text-xs font-bold text-white">
+              <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[#EFF6FF] border border-[#BFDBFE] text-xs font-bold text-[#2563EB]">
                 {initials}
               </div>
               <div className="min-w-0">
-                <div className="truncate text-xs font-semibold">{displayName}</div>
-                <div
-                  className="truncate font-mono text-[10px]"
-                  style={{ color: "var(--color-fg-3)" }}
-                >
+                <div className="truncate text-xs font-semibold text-[#09090B]">{displayName}</div>
+                <div className="truncate font-mono text-[10px] text-[#71717A]">
                   {companyName} · {displayPlan}
                 </div>
               </div>
             </div>
             {(planType === "trial" || planType === "free") && (
               <div className="mb-2.5 space-y-1 px-0.5">
-                <div className="flex items-center justify-between text-[9px] font-medium text-white/30">
-                  <span>Trial ativo</span>
-                  <span className="font-mono text-[9px] text-white/40">
+                <div className="flex items-center justify-between text-[9px] font-medium">
+                  <span className="text-[#A1A1AA]">Trial ativo</span>
+                  <span className="font-mono text-[9px] text-[#71717A]">
                     {(() => {
                       const { remaining } = calculateTrialStatus(profile?.companies?.created_at);
                       return `${remaining}d restantes`;
                     })()}
                   </span>
                 </div>
-                <div className="h-[1px] w-full overflow-hidden rounded-full bg-white/5">
+                <div className="h-[2px] w-full overflow-hidden rounded-full bg-[#E4E4E7]">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ 
+                    animate={{
                       width: (() => {
                         const { elapsed } = calculateTrialStatus(profile?.companies?.created_at);
                         return `${calculateTrialProgress(elapsed)}%`;
                       })()
                     }}
                     transition={{ duration: 1 }}
-                    className="h-full bg-white/20"
+                    className="h-full bg-[#2563EB]"
                   />
                 </div>
               </div>
@@ -159,9 +156,9 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
               {planType !== "business" && (
                 <Link href="/planos" className="flex-1">
                   <Button
-                    variant="secondary"
+                    variant="orange"
                     size="sm"
-                    className="w-full justify-center bg-white/[0.03] text-white/50 hover:bg-white/[0.06] hover:text-white border-white/[0.04] text-[10px] h-6.5 rounded-lg transition-all duration-200"
+                    className="w-full justify-center text-[10px] h-7 rounded-lg"
                   >
                     <IconZap size={10} />
                     {planType === "trial" ? "Assinar" : "Upgrade"}
@@ -171,12 +168,12 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="px-2 h-6.5 rounded-lg hover:bg-white/[0.03]"
+                className="px-2 h-7 rounded-lg hover:bg-[#F4F4F5]"
                 aria-label="Sair"
                 onClick={signOut}
                 title="Sair"
               >
-                <IconLogout size={12} style={{ color: "var(--color-fg-3)" }} />
+                <IconLogout size={12} className="text-[#A1A1AA]" />
               </Button>
             </div>
           </>
