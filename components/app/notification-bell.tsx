@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -38,18 +38,18 @@ const PRIORITY_DOT: Record<string, string> = {
 const PRIORITY_BG: Record<string, string> = {
   critical: "bg-red-500/10 border-red-500/20",
   high: "bg-orange-500/8 border-orange-500/15",
-  medium: "bg-white/[0.04] border-white/[0.08]",
-  low: "bg-white/[0.02] border-white/[0.05]",
+  medium: "bg-[#F4F4F5] border-white/[0.08]",
+  low: "bg-[#F4F4F5] border-white/[0.05]",
 };
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   invite: <UserPlus size={14} className="text-brand-blue-400" />,
   member_joined: <Users size={14} className="text-brand-teal-400" />,
-  member_left: <Users size={14} className="text-white/40" />,
+  member_left: <Users size={14} className="text-[#71717A]" />,
   channel_error: <AlertTriangle size={14} className="text-red-400" />,
   payment_failed: <CreditCard size={14} className="text-red-400" />,
   lead_hot: <Zap size={14} className="text-orange-400" />,
-  system: <Info size={14} className="text-white/50" />,
+  system: <Info size={14} className="text-[#71717A]" />,
 };
 
 interface NotificationCardProps {
@@ -109,26 +109,26 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
         "rounded-xl border p-3 transition-colors",
         PRIORITY_BG[notification.priority],
         !notification.read && "ring-1 ring-brand-blue-500/20",
-        !isInvite && notification.action_url && "cursor-pointer hover:bg-white/[0.06]"
+        !isInvite && notification.action_url && "cursor-pointer hover:bg-[#F4F4F5]"
       )}
       onClick={!isInvite ? handleClick : undefined}
     >
       <div className="flex items-start gap-2.5">
         <div className="relative mt-0.5 flex-shrink-0">
           <span className={cn("absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full", PRIORITY_DOT[notification.priority] || "bg-white/30")} />
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.06]">
-            {TYPE_ICON[notification.type] || <Bell size={14} className="text-white/40" />}
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#F4F4F5]">
+            {TYPE_ICON[notification.type] || <Bell size={14} className="text-[#71717A]" />}
           </div>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-1">
-            <p className={cn("text-[13px] font-semibold leading-tight", notification.read ? "text-white/70" : "text-white")}>
+            <p className={cn("text-[13px] font-semibold leading-tight", notification.read ? "text-[#3F3F46]" : "text-[#09090B]")}>
               {notification.title}
             </p>
-            <span className="flex-shrink-0 text-[10px] text-white/40">{timeAgo(notification.created_at)}</span>
+            <span className="flex-shrink-0 text-[10px] text-[#71717A]">{timeAgo(notification.created_at)}</span>
           </div>
-          <p className={cn("mt-1 text-[12px] leading-relaxed", notification.read ? "text-white/50" : "text-white/80")}>
+          <p className={cn("mt-1 text-[12px] leading-relaxed", notification.read ? "text-[#71717A]" : "text-[#09090B]")}>
             {notification.body}
           </p>
 
@@ -149,7 +149,7 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
               <button
                 onClick={handleDecline}
                 disabled={accepting || declining}
-                className="flex items-center gap-1 rounded-lg bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/50 transition-colors hover:bg-white/[0.10] hover:text-white/70 disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg bg-[#F4F4F5] px-3 py-1.5 text-[11px] font-semibold text-[#71717A] transition-colors hover:bg-[#F4F4F5] hover:text-[#3F3F46] disabled:opacity-50"
               >
                 {declining ? (
                   <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-transparent" />
@@ -256,8 +256,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
         className={cn(
           "relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500",
           open 
-            ? "bg-white/15 text-white shadow-inner" 
-            : "text-white/70 hover:bg-white/10 hover:text-white"
+            ? "bg-white/15 text-[#09090B] shadow-inner" 
+            : "text-[#3F3F46] hover:bg-[#F4F4F5] hover:text-[#09090B]"
         )}
       >
         <Bell size={18} className={cn("transition-transform", open && "scale-105")} />
@@ -269,7 +269,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.5, opacity: 0 }}
               transition={{ type: "spring", stiffness: 500, damping: 25 }}
-              className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border border-[rgba(11,18,34,0.9)] bg-red-500 px-1 text-[9px] font-bold text-white shadow-sm"
+              className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border border-[rgba(11,18,34,0.9)] bg-red-500 px-1 text-[9px] font-bold text-[#09090B] shadow-sm"
             >
               {displayCount}
             </motion.span>
@@ -288,9 +288,9 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             className="absolute right-0 sm:-right-4 top-full z-[100] mt-3 w-[340px] origin-top-right overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/60 backdrop-blur-3xl ring-1 ring-white/5"
             style={{ backgroundColor: "rgba(11,18,34,0.98)" }}
           >
-            <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-3">
+            <div className="flex items-center justify-between border-b border-white/10 bg-[#F4F4F5] px-4 py-3">
               <div className="flex items-center gap-2">
-                <span className="text-[14px] font-semibold text-white tracking-tight">Notificações</span>
+                <span className="text-[14px] font-semibold text-[#09090B] tracking-tight">Notificações</span>
                 {unreadCount > 0 && (
                   <span className="rounded-full bg-brand-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-brand-blue-400">
                     {unreadCount} nova{unreadCount !== 1 ? "s" : ""}
@@ -301,7 +301,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                 <button
                   onClick={handleMarkAll}
                   disabled={markingAll}
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-white/50 transition-colors hover:bg-white/5 hover:text-white/90 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[#71717A] transition-colors hover:bg-[#FAFAFA] hover:text-[#09090B] disabled:opacity-50"
                 >
                   <CheckCheck size={14} />
                   Marcar lidas
@@ -313,17 +313,17 @@ export function NotificationBell({ userId }: NotificationBellProps) {
               {!loaded ? (
                 <div className="space-y-2 p-3">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-[72px] animate-pulse rounded-xl bg-white/5" />
+                    <div key={i} className="h-[72px] animate-pulse rounded-xl bg-[#FAFAFA]" />
                   ))}
                 </div>
               ) : notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5">
-                    <Bell size={24} className="text-white/20" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FAFAFA]">
+                    <Bell size={24} className="text-[#D4D4D8]" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[13px] font-medium text-white/60">Tudo limpo por aqui</p>
-                    <p className="text-[11px] text-white/30">Nenhuma notificação no momento</p>
+                    <p className="text-[13px] font-medium text-[#3F3F46]">Tudo limpo por aqui</p>
+                    <p className="text-[11px] text-[#A1A1AA]">Nenhuma notificação no momento</p>
                   </div>
                 </div>
               ) : (
@@ -343,8 +343,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             </div>
 
             {notifications.length > 0 && (
-              <div className="border-t border-white/5 bg-white/[0.01] px-4 py-2.5">
-                <p className="text-center text-[11px] font-medium text-white/30">
+              <div className="border-t border-white/5 bg-[#F4F4F5] px-4 py-2.5">
+                <p className="text-center text-[11px] font-medium text-[#A1A1AA]">
                   Mostrando as últimas {notifications.length} notificações
                 </p>
               </div>

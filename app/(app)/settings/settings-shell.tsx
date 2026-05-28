@@ -2260,8 +2260,8 @@ function Flows({
                       {webhooks.map(wh => (
                         <div key={wh.id} className="flex items-center justify-between p-3 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA]">
                           <div className="min-w-0 flex-1">
-                            <p className="text-[12px] font-semibold text-white/90 truncate">{wh.label ?? wh.url}</p>
-                            <p className="text-[10px] text-white/35 truncate">{wh.url}</p>
+                            <p className="text-[12px] font-semibold text-[#09090B] truncate">{wh.label ?? wh.url}</p>
+                            <p className="text-[10px] text-[#A1A1AA] truncate">{wh.url}</p>
                             <div className="flex gap-1 mt-1 flex-wrap">
                               {wh.event_types.map(ev => (
                                 <span key={ev} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-brand-teal-500/10 text-brand-teal-300 border border-brand-teal-500/20">
@@ -2398,7 +2398,7 @@ function Flows({
                 <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#FAFAFA] transition-colors">
                   <Icon size={13} className={cn("shrink-0", color)} />
                   <span className="flex-1 text-[12px] text-[#3F3F46] truncate">{ev.detail ?? ev.type}</span>
-                  <span className="text-[10px] text-white/25 shrink-0 tabular-nums">{formatTimeAgo(ev.created_at)}</span>
+                  <span className="text-[10px] text-[#D4D4D8] shrink-0 tabular-nums">{formatTimeAgo(ev.created_at)}</span>
                 </div>
               );
             })}
@@ -2408,7 +2408,7 @@ function Flows({
 
       {automationEvents.length === 0 && (
         <div className="flex flex-col items-center justify-center py-8 gap-2 text-center rounded-xl border border-dashed border-[#E4E4E7]">
-          <Zap size={20} className="text-white/15" />
+          <Zap size={20} className="text-[#D4D4D8]" />
           <p className="text-[12px] text-[#A1A1AA] font-medium">Nenhuma automação executada ainda</p>
           <p className="text-[11px] text-[#D4D4D8] max-w-xs leading-relaxed">
             O feed de atividade aparece aqui após os primeiros agendamentos e follow-ups.
@@ -3074,7 +3074,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
         <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1 w-full">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-[13px] font-semibold text-white/90">Consumo de Leads ({currentPlan.toUpperCase()})</span>
+              <span className="text-[13px] font-semibold text-[#09090B]">Consumo de Leads ({currentPlan.toUpperCase()})</span>
               <span className="text-xs font-mono text-[#3F3F46]">{leadsUsed} / {leadsMax}</span>
             </div>
             <div className="h-2 w-full bg-[#FAFAFA] rounded-full overflow-hidden">
@@ -3714,7 +3714,7 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
                 <Zap size={22} className="text-[#D4D4D8]" />
               </div>
               <p className="text-sm font-medium text-[#71717A]">Nenhuma decisão registrada ainda</p>
-              <p className="text-[12px] text-white/25 max-w-xs leading-relaxed">
+              <p className="text-[12px] text-[#D4D4D8] max-w-xs leading-relaxed">
                 Os logs aparecem em interações relevantes: primeira mensagem, agendamento, cancelamento, mudança de status e a cada {isBusiness ? "5" : "10"} respostas da IA.
               </p>
             </div>
