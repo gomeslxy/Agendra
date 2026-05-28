@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useTransition } from "react";
 import React from "react";
@@ -35,7 +35,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ShinyButton } from "@/components/ui/shiny-button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -300,13 +299,13 @@ export function SettingsShell({
                 className={cn(
                   "group relative flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-bold tracking-tight transition-all duration-300 outline-none cursor-pointer shrink-0",
                   active 
-                    ? "text-white" 
-                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
+                    ? "text-[#09090B]" 
+                    : "text-[#71717A] hover:text-[#3F3F46] hover:bg-[#F4F4F5]"
                 )}
               >
                 <t.icon size={16} className={cn(
                   "transition-transform duration-300 group-hover:scale-110",
-                  active ? "text-brand-blue-400" : "text-white/20 group-hover:text-white/40"
+                  active ? "text-brand-blue-400" : "text-[#D4D4D8] group-hover:text-[#71717A]"
                 )} />
                 <span className="relative z-10">{t.label}</span>
                 {active && (
@@ -327,7 +326,7 @@ export function SettingsShell({
             const catTabs = TABS.filter((t) => t.category === cat);
             return (
               <div key={cat} className="flex flex-col gap-1">
-                <span className="px-4 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-white/20 mb-1">
+                <span className="px-4 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#D4D4D8] mb-1">
                   {cat}
                 </span>
                 {catTabs.map((t) => {
@@ -339,13 +338,13 @@ export function SettingsShell({
                       className={cn(
                         "group relative flex items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-bold tracking-tight transition-all duration-150 outline-none cursor-pointer text-left w-full",
                         active 
-                          ? "text-white bg-white/[0.03] border border-white/[0.04]" 
-                          : "text-white/30 hover:text-white/60 hover:bg-white/[0.01]"
+                          ? "text-[#09090B] bg-[#F4F4F5] border border-[#E4E4E7]" 
+                          : "text-[#A1A1AA] hover:text-[#3F3F46] hover:bg-white"
                       )}
                     >
                       <t.icon size={15} className={cn(
                         "transition-transform duration-150 group-hover:scale-105",
-                        active ? "text-brand-blue-400" : "text-white/20 group-hover:text-white/40"
+                        active ? "text-brand-blue-400" : "text-[#D4D4D8] group-hover:text-[#71717A]"
                       )} />
                       <span className="relative z-10 flex-1">{t.label}</span>
                     </button>
@@ -441,7 +440,7 @@ function FeatureGate({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/10">
+    <div className="relative overflow-hidden rounded-2xl border border-[#E4E4E7]">
       {/* Blurred Content */}
       <div className="opacity-30 blur-[6px] pointer-events-none select-none">
         {children}
@@ -449,14 +448,14 @@ function FeatureGate({
       
       {/* Overlay */}
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-black/40 bg-gradient-to-t from-[rgb(11,18,34)] to-transparent">
-        <div className="border border-white/[0.05] bg-[#0B1222] p-6 sm:p-8 rounded-xl max-w-md w-full relative overflow-hidden shadow-2xl">
+        <div className="border border-[#E4E4E7] bg-white p-6 sm:p-8 rounded-xl max-w-md w-full relative overflow-hidden shadow-2xl">
           
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-blue-500/20 text-brand-blue-400 mb-4 ring-1 ring-brand-blue-500/30">
             <Zap size={24} className="animate-pulse" />
           </div>
           
-          <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
-          <p className="text-sm text-white/70 mb-6 leading-relaxed">
+          <h3 className="text-xl font-bold text-[#09090B] mb-2">{title}</h3>
+          <p className="text-sm text-[#3F3F46] mb-6 leading-relaxed">
             {desc} Recurso exclusivo para o plano {requiredPlan === "pro" ? "Pro ou superior" : "Business"}.
           </p>
           
@@ -499,7 +498,7 @@ function ToneSelect({ defaultValue }: { defaultValue: string }) {
   return (
     <div className="flex flex-col gap-3">
       <input type="hidden" name="ai_tone" value={selected} />
-      <div className="grid grid-cols-3 gap-2 p-1 bg-white/[0.04] rounded-xl border border-white/[0.08]">
+      <div className="grid grid-cols-3 gap-2 p-1 bg-[#F4F4F5] rounded-xl border border-[#E4E4E7]">
         {options.map((o) => (
           <button
             key={o.value}
@@ -507,7 +506,7 @@ function ToneSelect({ defaultValue }: { defaultValue: string }) {
             onClick={() => setSelected(o.value)}
             className={cn(
               "relative px-3 py-2 text-xs font-bold transition-all rounded-lg z-10",
-              selected === o.value ? "text-white" : "text-white/40 hover:text-white/70"
+              selected === o.value ? "text-[#09090B]" : "text-[#71717A] hover:text-[#3F3F46]"
             )}
           >
             {o.label}
@@ -598,8 +597,8 @@ function WorkingHoursEditor({
             className={cn(
               "rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
               activeDays.includes(key)
-                ? "border-brand-blue-500/50 bg-brand-blue-500/10 text-white"
-                : "border-white/[0.06] bg-white/[0.02] text-white/40 hover:text-white/70"
+                ? "border-brand-blue-500/50 bg-brand-blue-500/10 text-[#09090B]"
+                : "border-[#E4E4E7] bg-[#FAFAFA] text-[#71717A] hover:text-[#3F3F46]"
             )}
           >
             {label}
@@ -612,19 +611,19 @@ function WorkingHoursEditor({
             const [start, end] = value[key] ?? ["09:00", "18:00"];
             return (
               <div key={key} className="flex items-center gap-2">
-                <span className="text-[11px] w-8 shrink-0 text-white/50 font-medium">{label}</span>
+                <span className="text-[11px] w-8 shrink-0 text-[#71717A] font-medium">{label}</span>
                 <input
                   type="time"
                   value={start}
                   onChange={(e) => setDayTime(key, 0, e.target.value)}
-                  className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-white outline-none focus:border-brand-blue-500/50"
+                  className="flex-1 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-2 py-1.5 text-xs text-[#09090B] outline-none focus:border-[#2563EB]"
                 />
-                <span className="text-white/30 text-xs">–</span>
+                <span className="text-[#A1A1AA] text-xs">–</span>
                 <input
                   type="time"
                   value={end}
                   onChange={(e) => setDayTime(key, 1, e.target.value)}
-                  className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-white outline-none focus:border-brand-blue-500/50"
+                  className="flex-1 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-2 py-1.5 text-xs text-[#09090B] outline-none focus:border-[#2563EB]"
                 />
               </div>
             );
@@ -708,7 +707,7 @@ function ServicesInput({ defaultValue, businessType }: { defaultValue: string; b
         value={raw}
         onChange={(e) => setRaw(e.target.value)}
         placeholder={placeholders.multipleServices}
-        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-brand-blue-500/50 focus:bg-white/[0.06]"
+        className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#D4D4D8] focus:border-[#2563EB] focus:bg-[#F4F4F5]"
       />
       {raw && (
         <div className="flex flex-wrap gap-1 mt-1">
@@ -883,11 +882,11 @@ function Persona({
                 type="checkbox"
                 name="tts_enabled"
                 defaultChecked={pc.tts_enabled === true}
-                className="size-4 rounded border-white/20 bg-white/5"
+                className="size-4 rounded border-[#D4D4D8] bg-[#FAFAFA]"
               />
               <span className="text-sm">
                 Responder por áudio quando o cliente mandar áudio
-                <span className="ml-2 text-xs text-white/50">(Pro+)</span>
+                <span className="ml-2 text-xs text-[#71717A]">(Pro+)</span>
               </span>
             </label>
           </Field>
@@ -900,7 +899,7 @@ function Persona({
           <Field label="Serviços oferecidos">
             <div className="flex flex-col gap-2 rounded-xl border border-brand-blue-500/10 bg-brand-blue-500/5 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-white/60">Gerenciado na aba "Serviços"</span>
+                <span className="text-[11px] text-[#3F3F46]">Gerenciado na aba "Serviços"</span>
                 <button 
                   type="button"
                   onClick={() => onChangeTab("services")}
@@ -917,7 +916,7 @@ function Persona({
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-[10px] text-white/20 italic">Nenhum serviço configurado.</span>
+                  <span className="text-[10px] text-[#D4D4D8] italic">Nenhum serviço configurado.</span>
                 )}
               </div>
             </div>
@@ -941,7 +940,7 @@ function Persona({
               "group relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl transition-all duration-300",
               dragging
                 ? "border-brand-blue-500 bg-brand-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]"
-                : "border-white/[0.08] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]",
+                : "border-[#E4E4E7] bg-[#FAFAFA] hover:border-[#D4D4D8] hover:bg-[#F4F4F5]",
               uploading || isReadOnly ? "pointer-events-none opacity-50" : "cursor-pointer"
             )}
           >
@@ -952,24 +951,24 @@ function Persona({
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               accept=".pdf,.txt,.docx"
             />
-            <div className="h-14 w-14 rounded-full bg-white/[0.05] flex items-center justify-center text-white/30 mb-4 ring-4 ring-white/[0.03] group-hover:scale-110 transition-transform duration-300">
+            <div className="h-14 w-14 rounded-full bg-[#F4F4F5] flex items-center justify-center text-[#A1A1AA] mb-4 ring-4 ring-[#E4E4E7] group-hover:scale-110 transition-transform duration-300">
               {uploading ? (
                 <Loader2 size={24} className="animate-spin text-brand-blue-400" />
               ) : (
-                <UploadCloud size={24} className="text-white/60" />
+                <UploadCloud size={24} className="text-[#3F3F46]" />
               )}
             </div>
             {uploading ? (
               <div className="flex flex-col items-center text-center">
-                <p className="text-sm font-bold text-white mb-1">Indexando arquivo...</p>
+                <p className="text-sm font-bold text-[#09090B] mb-1">Indexando arquivo...</p>
                 <p className="text-xs text-brand-blue-300/80 animate-pulse">{uploadStatus}</p>
               </div>
             ) : (
               <div className="flex flex-col items-center text-center">
-                <p className="text-sm font-bold text-white/70 mb-1">
+                <p className="text-sm font-bold text-[#3F3F46] mb-1">
                   Arrastar & soltar ou clique para escolher
                 </p>
-                <p className="text-xs text-white/40">
+                <p className="text-xs text-[#71717A]">
                   Suporta PDF, TXT ou DOCX até 5 MB
                 </p>
               </div>
@@ -977,28 +976,28 @@ function Persona({
           </div>
 
           <div className="flex flex-col gap-3 mt-2">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40">Documentos Processados</h4>
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#71717A]">Documentos Processados</h4>
             
             {loadingDocs ? (
               <div className="flex items-center justify-center py-6">
-                <Loader2 size={20} className="animate-spin text-white/30" />
+                <Loader2 size={20} className="animate-spin text-[#A1A1AA]" />
               </div>
             ) : documents.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {documents.map((doc) => (
                   <div
                     key={doc.source_name}
-                    className="flex items-center justify-between p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition duration-200"
+                    className="flex items-center justify-between p-3 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] hover:bg-[#F4F4F5] transition duration-200"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-9 w-9 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400 shrink-0">
                         <FileText size={18} />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white/95 truncate max-w-[280px] sm:max-w-[400px]">
+                        <p className="text-sm font-semibold text-[#09090B] truncate max-w-[280px] sm:max-w-[400px]">
                           {doc.source_name}
                         </p>
-                        <p className="text-[11px] text-white/40 mt-0.5">
+                        <p className="text-[11px] text-[#71717A] mt-0.5">
                           {doc.chunks} blocos indexados • {new Date(doc.created_at).toLocaleDateString("pt-BR")}
                         </p>
                       </div>
@@ -1007,7 +1006,7 @@ function Persona({
                       <button
                         type="button"
                         onClick={() => handleDeleteDoc(doc.source_name)}
-                        className="h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition"
+                        className="h-8 w-8 rounded-lg flex items-center justify-center text-[#A1A1AA] hover:text-red-400 hover:bg-red-500/10 transition"
                         title="Excluir documento"
                       >
                         <Trash2 size={16} />
@@ -1017,9 +1016,9 @@ function Persona({
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center border border-dashed border-white/[0.06] rounded-xl bg-white/[0.01]">
-                <p className="text-[12px] text-white/40 font-semibold">Nenhum documento processado ainda</p>
-                <p className="text-[11px] text-white/20 leading-relaxed max-w-xs px-4">
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center border border-dashed border-[#E4E4E7] rounded-xl bg-white">
+                <p className="text-[12px] text-[#71717A] font-semibold">Nenhum documento processado ainda</p>
+                <p className="text-[11px] text-[#D4D4D8] leading-relaxed max-w-xs px-4">
                   Envie FAQs, tabelas de preços ou materiais de treinamento para calibrar a IA.
                 </p>
               </div>
@@ -1043,7 +1042,7 @@ function Persona({
               placeholder={"Ex.: Sempre mencionar que a consulta inicial é gratuita.\nNunca citar concorrentes pelo nome.\nSe cliente perguntar sobre preço antes de agendar, dizer que depende da avaliação."}
               rows={4}
               maxLength={800}
-              className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none resize-none transition placeholder:text-white/20 focus:border-brand-blue-500/50 focus:bg-white/[0.06]"
+              className="w-full rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none resize-none transition placeholder:text-[#D4D4D8] focus:border-[#2563EB] focus:bg-[#F4F4F5]"
             />
             <p className="text-[10px] mt-1" style={{ color: "var(--color-fg-3)" }}>
               Essas instruções são injetadas diretamente no contexto da IA. Máx. 800 caracteres.
@@ -1060,11 +1059,9 @@ function Persona({
             </p>
           </Field>
           {error && <p className="mb-4 text-xs text-red-400 font-medium">{error}</p>}
-           <ShinyButton type="submit" className="shiny-cta w-full bg-[#F97316] hover:bg-[#EA580C] !py-2.5 font-bold h-11 shadow-glow-orange/30 shrink-0" disabled={pending}>
-            <span className="flex items-center justify-center gap-1.5 font-bold text-sm">
+          <Button type="submit" variant="orange" size="sm" className="w-full justify-center h-11" disabled={pending}>
               {saved ? <><Check size={14} className="mr-1.5" /> Salvo ✓</> : pending ? "Salvando…" : "Salvar configurações"}
-            </span>
-          </ShinyButton>
+            </Button>
         </CardContent>
       </Card>
       </fieldset>
@@ -1103,13 +1100,13 @@ function Channels({
         </div>
       )}
       {/* Resumo de Limites de Canais */}
-      <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="border border-[#E4E4E7] bg-white p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+          <h3 className="text-sm font-bold text-[#09090B] flex items-center gap-1.5">
             <Zap size={15} className="text-brand-blue-400" />
             Canais da Empresa ({totalActiveChannels}/{maxChannels})
           </h3>
-          <p className="text-[11px] text-white/50 mt-1">
+          <p className="text-[11px] text-[#71717A] mt-1">
             Seu plano {planType.toUpperCase()} permite até {maxChannels} conexões simultâneas de canais autorizados.
           </p>
         </div>
@@ -1121,7 +1118,7 @@ function Channels({
       <div className="flex flex-col gap-4">
         {/* 1. SEÇÃO WHATSAPP */}
         <div className="flex flex-col gap-2.5">
-          <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/40 flex items-center gap-1.5 pl-1">
+          <h4 className="text-[10px] uppercase font-bold tracking-wider text-[#71717A] flex items-center gap-1.5 pl-1">
             <MessageCircle size={12} className="text-brand-teal-400" />
             WhatsApp Business Cloud API
           </h4>
@@ -1138,7 +1135,7 @@ function Channels({
             />
           ) : (
             waChannels.length === 0 && !isReadOnly && (
-              <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center text-xs text-white/40 italic">
+              <div className="p-4 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] text-center text-xs text-[#71717A] italic">
                 Limite de canais atingido. Faça upgrade para conectar mais números.
               </div>
             )
@@ -1147,7 +1144,7 @@ function Channels({
 
         {/* 2. SEÇÃO INSTAGRAM */}
         <div className="flex flex-col gap-2.5">
-          <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/40 flex items-center gap-1.5 pl-1">
+          <h4 className="text-[10px] uppercase font-bold tracking-wider text-[#71717A] flex items-center gap-1.5 pl-1">
             <Instagram size={12} className="text-pink-400" />
             Instagram Direct
           </h4>
@@ -1161,7 +1158,7 @@ function Channels({
               {igChannels.length === 0 && canAddMore && !isReadOnly && (
                 <motion.div 
                   whileHover={{ scale: 1.01 }}
-                  className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.03] flex items-center justify-between gap-4"
+                  className="p-4 rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] flex items-center justify-between gap-4"
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center">
@@ -1169,7 +1166,7 @@ function Channels({
                     </div>
                     <div>
                       <div className="text-[13px] font-semibold">Conectar conta Instagram</div>
-                      <div className="text-[10px] text-white/40 mt-0.5">Atenda DMs e Stories automaticamente com IA</div>
+                      <div className="text-[10px] text-[#71717A] mt-0.5">Atenda DMs e Stories automaticamente com IA</div>
                     </div>
                   </div>
                   <Button 
@@ -1184,13 +1181,13 @@ function Channels({
               )}
 
               {igChannels.length === 0 && !canAddMore && !isReadOnly && (
-                <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] text-center text-xs text-white/40 italic">
+                <div className="p-4 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] text-center text-xs text-[#71717A] italic">
                   Você já atingiu o limite de canais do seu plano. Adicione mais canais fazendo upgrade.
                 </div>
               )}
             </>
           ) : (
-            <div className="relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.01]">
+            <div className="relative overflow-hidden rounded-xl border border-[#E4E4E7] bg-white">
               <div className="p-4 flex items-center justify-between gap-4 blur-[2px] opacity-40 pointer-events-none select-none">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center">
@@ -1198,13 +1195,13 @@ function Channels({
                   </div>
                   <div>
                     <div className="text-[13px] font-semibold">Instagram DMs & Stories</div>
-                    <div className="text-[10px] text-white/40 mt-0.5">Responda a DMs e reações com IA</div>
+                    <div className="text-[10px] text-[#71717A] mt-0.5">Responda a DMs e reações com IA</div>
                   </div>
                 </div>
                 <Button variant="secondary" size="sm">Conectar</Button>
               </div>
               <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-center p-4">
-                <div className="border border-pink-500/10 bg-[#0B1222] px-4 py-3 rounded-xl text-pink-300 text-xs font-semibold flex items-center gap-2 shadow-lg shadow-pink-500/5">
+                <div className="border border-[#FCE7F3] bg-white px-4 py-3 rounded-xl text-[#DB2777] text-xs font-semibold flex items-center gap-2 shadow-lg shadow-pink-100">
                   <Zap size={14} className="animate-pulse" />
                   Conexão Instagram DMs é exclusiva do Plano PRO
                 </div>
@@ -1215,7 +1212,7 @@ function Channels({
 
         {/* 3. SEÇÃO GOOGLE CALENDAR */}
         <div className="flex flex-col gap-2.5">
-          <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/40 flex items-center gap-1.5 pl-1">
+          <h4 className="text-[10px] uppercase font-bold tracking-wider text-[#71717A] flex items-center gap-1.5 pl-1">
             <Calendar size={12} className="text-brand-blue-400" />
             Google Calendar (Agenda)
           </h4>
@@ -1224,30 +1221,30 @@ function Channels({
 
         {/* 4. CANAIS EM BREVE */}
         <div className="flex flex-col gap-2.5">
-          <h4 className="text-[10px] uppercase font-bold tracking-wider text-white/20 flex items-center gap-1.5 pl-1">
-            <Globe size={12} className="text-white/20" />
+          <h4 className="text-[10px] uppercase font-bold tracking-wider text-[#D4D4D8] flex items-center gap-1.5 pl-1">
+            <Globe size={12} className="text-[#D4D4D8]" />
             Canais de Mensageria (Em Breve)
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl border border-white/[0.03] bg-white/[0.01] flex items-center gap-3 opacity-40">
-              <Slack size={18} className="text-white/40" />
+            <div className="p-3.5 rounded-xl border border-[#E4E4E7] bg-white flex items-center gap-3 opacity-40">
+              <Slack size={18} className="text-[#71717A]" />
               <div>
                 <div className="text-xs font-semibold">Telegram Bots</div>
-                <div className="text-[9px] text-white/40 mt-0.5">Em breve</div>
+                <div className="text-[9px] text-[#71717A] mt-0.5">Em breve</div>
               </div>
             </div>
-            <div className="p-3.5 rounded-xl border border-white/[0.03] bg-white/[0.01] flex items-center gap-3 opacity-40">
-              <Facebook size={18} className="text-white/40" />
+            <div className="p-3.5 rounded-xl border border-[#E4E4E7] bg-white flex items-center gap-3 opacity-40">
+              <Facebook size={18} className="text-[#71717A]" />
               <div>
                 <div className="text-xs font-semibold">Messenger</div>
-                <div className="text-[9px] text-white/40 mt-0.5">Em breve</div>
+                <div className="text-[9px] text-[#71717A] mt-0.5">Em breve</div>
               </div>
             </div>
-            <div className="p-3.5 rounded-xl border border-white/[0.03] bg-white/[0.01] flex items-center gap-3 opacity-40">
-              <Globe size={18} className="text-white/40" />
+            <div className="p-3.5 rounded-xl border border-[#E4E4E7] bg-white flex items-center gap-3 opacity-40">
+              <Globe size={18} className="text-[#71717A]" />
               <div>
                 <div className="text-xs font-semibold">Web Chat Widget</div>
-                <div className="text-[9px] text-white/40 mt-0.5">Em breve</div>
+                <div className="text-[9px] text-[#71717A] mt-0.5">Em breve</div>
               </div>
             </div>
           </div>
@@ -1312,7 +1309,7 @@ function WhatsAppChannelCard({
   const isError = channel.status === "error";
 
   return (
-    <motion.div layout className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+    <motion.div layout className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] backdrop-blur-sm">
       <div className="flex items-center gap-3 p-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-500/10 text-teal-400">
           <MessageCircle size={20} />
@@ -1332,7 +1329,7 @@ function WhatsAppChannelCard({
               </span>
             )}
           </div>
-          <div className="mt-0.5 font-mono text-[10px] text-white/40 truncate">
+          <div className="mt-0.5 font-mono text-[10px] text-[#71717A] truncate">
             ID: {channel.provider_id}
           </div>
         </div>
@@ -1347,7 +1344,7 @@ function WhatsAppChannelCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-3"
+            className="border-t border-[#E4E4E7] bg-[#FAFAFA] p-4 flex flex-col gap-3"
           >
             {channel.last_error && (
               <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
@@ -1356,7 +1353,7 @@ function WhatsAppChannelCard({
               </div>
             )}
 
-            <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] p-3 text-[11px] text-white/50 leading-relaxed">
+            <div className="rounded-lg bg-[#FAFAFA] border border-[#E4E4E7] p-3 text-[11px] text-[#71717A] leading-relaxed">
               Este canal está associado ao número do WhatsApp Cloud API cadastrado. A IA da Agendra monitora e responde às mensagens que chegam.
             </div>
 
@@ -1418,7 +1415,7 @@ function InstagramChannelCard({
   const isError = channel.status === "error";
 
   return (
-    <motion.div layout className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+    <motion.div layout className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] backdrop-blur-sm">
       <div className="flex items-center gap-3 p-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-pink-500/10 text-pink-400">
           <Instagram size={20} />
@@ -1432,13 +1429,13 @@ function InstagramChannelCard({
                 Erro na conexão
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-pink-300">
+              <span className="flex items-center gap-1.5 text-[#DB2777]">
                 <span className="flex h-1.5 w-1.5 rounded-full bg-pink-500 animate-pulse" />
                 Ativo
               </span>
             )}
           </div>
-          <div className="mt-0.5 font-mono text-[10px] text-white/40 truncate">
+          <div className="mt-0.5 font-mono text-[10px] text-[#71717A] truncate">
             IG Account ID: {channel.provider_id}
           </div>
         </div>
@@ -1453,7 +1450,7 @@ function InstagramChannelCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-3"
+            className="border-t border-[#E4E4E7] bg-[#FAFAFA] p-4 flex flex-col gap-3"
           >
             {channel.last_error && (
               <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
@@ -1462,7 +1459,7 @@ function InstagramChannelCard({
               </div>
             )}
 
-            <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] p-3 text-[11px] text-white/50 leading-relaxed">
+            <div className="rounded-lg bg-[#FAFAFA] border border-[#E4E4E7] p-3 text-[11px] text-[#71717A] leading-relaxed">
               O Instagram Direct está conectado e monitorando DMs recebidas. O atendimento automático está ativo de acordo com a aba Automação.
             </div>
 
@@ -1554,15 +1551,15 @@ function NewWhatsAppChannelConnector({
   }
 
   return (
-    <motion.div layout className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+    <motion.div layout className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] backdrop-blur-sm">
       <div className="flex items-center justify-between gap-4 p-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-white/[0.05] text-white/50 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-[#F4F4F5] text-[#71717A] flex items-center justify-center">
             <MessageCircle size={20} />
           </div>
           <div>
-            <div className="text-[13px] font-semibold text-white/80">Conectar Novo WhatsApp</div>
-            <div className="text-[10px] text-white/40 mt-0.5">Adicione uma linha do WhatsApp Business</div>
+            <div className="text-[13px] font-semibold text-[#09090B]">Conectar Novo WhatsApp</div>
+            <div className="text-[10px] text-[#71717A] mt-0.5">Adicione uma linha do WhatsApp Business</div>
           </div>
         </div>
         <Button variant="secondary" size="sm" onClick={() => setExpanded(!expanded)}>
@@ -1576,42 +1573,42 @@ function NewWhatsAppChannelConnector({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-4"
+            className="border-t border-[#E4E4E7] bg-[#FAFAFA] p-4 flex flex-col gap-4"
           >
             <div className="flex flex-col gap-3">
-              <p className="text-[11px] font-bold text-white/70">Conexão Automática via Facebook (Recomendado)</p>
+              <p className="text-[11px] font-bold text-[#3F3F46]">Conexão Automática via Facebook (Recomendado)</p>
               <button
                 onClick={handleMetaLogin}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white text-[13px] font-semibold transition-all shadow-lg shadow-[#1877F2]/20 group"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-[#09090B] text-[13px] font-semibold transition-all shadow-lg shadow-[#1877F2]/20 group"
               >
                 <Facebook size={16} fill="currentColor" />
                 Conectar com Meta
               </button>
-              <p className="text-[10px] text-white/40 text-center">
+              <p className="text-[10px] text-[#71717A] text-center">
                 Método oficial e homologado. Configuração em 1 minuto.
               </p>
             </div>
 
             <div className="relative flex items-center py-1">
-              <div className="flex-grow border-t border-white/5"></div>
-              <span className="flex-shrink mx-3 text-[9px] uppercase tracking-widest text-white/20 font-bold">Ou manual</span>
-              <div className="flex-grow border-t border-white/5"></div>
+              <div className="flex-grow border-t border-[#F4F4F5]"></div>
+              <span className="flex-shrink mx-3 text-[9px] uppercase tracking-widest text-[#D4D4D8] font-bold">Ou manual</span>
+              <div className="flex-grow border-t border-[#F4F4F5]"></div>
             </div>
 
             <form onSubmit={handleConnect} className="flex flex-col gap-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Phone Number ID</label>
+                  <label className="text-[10px] uppercase tracking-wider text-[#71717A] font-bold">Phone Number ID</label>
                   <Input name="phone_number_id" placeholder="Ex: 1092837465..." className="h-9 text-xs" required />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Nome do Canal</label>
+                  <label className="text-[10px] uppercase tracking-wider text-[#71717A] font-bold">Nome do Canal</label>
                   <Input name="name" placeholder="Ex: WhatsApp Vendas" className="h-9 text-xs" />
                 </div>
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase tracking-wider text-white/40 font-bold">Access Token (Permanente)</label>
+                <label className="text-[10px] uppercase tracking-wider text-[#71717A] font-bold">Access Token (Permanente)</label>
                 <Input name="access_token" type="password" placeholder="EAAW..." className="h-9 text-xs" required />
               </div>
 
@@ -1643,7 +1640,7 @@ function GoogleCalendarCard({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <motion.div layout className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+    <motion.div layout className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] backdrop-blur-sm">
       <div className="flex items-center gap-3 p-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-400">
           <Calendar size={20} />
@@ -1657,7 +1654,7 @@ function GoogleCalendarCard({
                 Conectado
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-white/40">
+              <span className="flex items-center gap-1.5 text-[#71717A]">
                 <span className="flex h-1.5 w-1.5 rounded-full bg-white/20" />
                 Não conectado
               </span>
@@ -1679,7 +1676,7 @@ function GoogleCalendarCard({
               Conectar
             </Button>
           ) : (
-            <Badge variant="cold" className="text-[10px] px-2 py-0.5 border border-white/10 bg-white/5 text-white/50">
+            <Badge variant="cold" className="text-[10px] px-2 py-0.5 border border-[#E4E4E7] bg-[#FAFAFA] text-[#71717A]">
               Apenas Leitura
             </Badge>
           )
@@ -1692,11 +1689,11 @@ function GoogleCalendarCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-3"
+            className="border-t border-[#E4E4E7] bg-[#FAFAFA] p-4 flex flex-col gap-3"
           >
-            <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+            <div className="flex items-center gap-2 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2">
               <Calendar size={13} className="text-blue-300" />
-              <span className="font-mono text-[12px] text-white/70">
+              <span className="font-mono text-[12px] text-[#3F3F46]">
                 {company?.google_calendar_email}
               </span>
             </div>
@@ -1713,13 +1710,13 @@ function GoogleCalendarCard({
                 </Button>
               )}
             </div>
-            <p className="text-[11px] text-white/40 leading-relaxed">
+            <p className="text-[11px] text-[#71717A] leading-relaxed">
               Para revogar permanentemente o acesso à sua conta Google, remova a permissão da Agendra em{" "}
               <a
                 href="https://myaccount.google.com/permissions"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline text-white hover:text-white/80"
+                className="underline text-[#09090B] hover:text-[#09090B]"
               >
                 myaccount.google.com/permissions
               </a>.
@@ -1872,13 +1869,13 @@ function Flows({
           <span className="text-[11px] font-bold uppercase tracking-widest text-brand-teal-300/80">Motor em Ação</span>
         </div>
         <div className="relative grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3 flex flex-col gap-0.5">
-            <span className="text-3xl font-black text-white tabular-nums">{automationStats.remindersToday}</span>
-            <span className="text-[11px] text-white/40">Lembretes hoje</span>
+          <div className="rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] p-3 flex flex-col gap-0.5">
+            <span className="text-3xl font-black text-[#09090B] tabular-nums">{automationStats.remindersToday}</span>
+            <span className="text-[11px] text-[#71717A]">Lembretes hoje</span>
           </div>
-          <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-3 flex flex-col gap-0.5">
-            <span className="text-3xl font-black text-white tabular-nums">{automationStats.followupsWeek}</span>
-            <span className="text-[11px] text-white/40">Follow-ups esta semana</span>
+          <div className="rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] p-3 flex flex-col gap-0.5">
+            <span className="text-3xl font-black text-[#09090B] tabular-nums">{automationStats.followupsWeek}</span>
+            <span className="text-[11px] text-[#71717A]">Follow-ups esta semana</span>
           </div>
         </div>
       </div>
@@ -1887,7 +1884,7 @@ function Flows({
       <div className="flex flex-col gap-3">
 
         {/* Lembrete de Agendamento */}
-        <motion.div layout className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+        <motion.div layout className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] overflow-hidden">
           <button
             className="w-full flex items-center gap-3 p-4 text-left"
             onClick={() => setReminderExpanded(v => !v)}
@@ -1896,14 +1893,14 @@ function Flows({
               <Bell size={16} className="text-brand-teal-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-semibold text-white">Lembrete de Agendamento</div>
-              <div className="text-[11px] text-white/40 mt-0.5">
+              <div className="text-[13px] font-semibold text-[#09090B]">Lembrete de Agendamento</div>
+              <div className="text-[11px] text-[#71717A] mt-0.5">
                 Avisa leads automaticamente {reminderAdvance}h antes do horário
               </div>
             </div>
             <div className="flex items-center gap-2">
               <ActiveBadge />
-              <ChevronDown size={14} className={cn("text-white/30 transition-transform duration-200", reminderExpanded && "rotate-180")} />
+              <ChevronDown size={14} className={cn("text-[#A1A1AA] transition-transform duration-200", reminderExpanded && "rotate-180")} />
             </div>
           </button>
           <AnimatePresence>
@@ -1913,11 +1910,11 @@ function Flows({
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="border-t border-white/[0.06]"
+                className="border-t border-[#E4E4E7]"
               >
                 <div className="p-4 flex flex-col gap-4">
                   <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#71717A]">
                       Avisar com antecedência de
                     </label>
                     <div className="grid grid-cols-4 gap-1.5">
@@ -1930,7 +1927,7 @@ function Flows({
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             reminderAdvance === h
                               ? "bg-brand-teal-500/20 border border-brand-teal-500/40 text-brand-teal-300"
-                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                              : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
                           {h === 24 ? "24h" : `${h}h`}
@@ -1954,15 +1951,15 @@ function Flows({
         </motion.div>
 
         {/* Follow-up Inteligente */}
-        <div className={cn("rounded-xl border overflow-hidden relative", isBusiness ? "border-white/[0.08] bg-white/[0.02]" : "border-white/[0.06] bg-white/[0.01]")}>
+        <div className={cn("rounded-xl border overflow-hidden relative", isBusiness ? "border-[#E4E4E7] bg-[#FAFAFA]" : "border-[#E4E4E7] bg-white")}>
           {!isBusiness && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[rgb(11,18,34)]/60 backdrop-blur-[3px]">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[3px]">
               <div className="flex flex-col items-center gap-2 text-center px-6">
                 <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
                   <Zap size={15} className="text-brand-blue-400 animate-pulse" />
                 </div>
-                <p className="text-[12px] font-bold text-white">Plano Business</p>
-                <p className="text-[11px] text-white/40 max-w-[180px] leading-relaxed">Follow-up com IA contextual exclusivo do Business</p>
+                <p className="text-[12px] font-bold text-[#09090B]">Plano Business</p>
+                <p className="text-[11px] text-[#71717A] max-w-[180px] leading-relaxed">Follow-up com IA contextual exclusivo do Business</p>
                 <button
                   onClick={() => onChangeTab("billing")}
                   className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
@@ -1976,14 +1973,14 @@ function Flows({
             className={cn("w-full flex items-center gap-3 p-4 text-left", !isBusiness && "pointer-events-none")}
             onClick={() => isBusiness && setFollowupExpanded(v => !v)}
           >
-            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isBusiness ? "bg-brand-blue-500/15" : "bg-white/[0.04]")}>
-              <MessageCircle size={16} className={isBusiness ? "text-brand-blue-400" : "text-white/20"} />
+            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isBusiness ? "bg-brand-blue-500/15" : "bg-[#F4F4F5]")}>
+              <MessageCircle size={16} className={isBusiness ? "text-brand-blue-400" : "text-[#D4D4D8]"} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className={cn("text-[13px] font-semibold", isBusiness ? "text-white" : "text-white/40")}>
+              <div className={cn("text-[13px] font-semibold", isBusiness ? "text-[#09090B]" : "text-[#71717A]")}>
                 Follow-up Inteligente
               </div>
-              <div className="text-[11px] text-white/30 mt-0.5">
+              <div className="text-[11px] text-[#A1A1AA] mt-0.5">
                 IA reengaja leads silenciosos com mensagem contextual
               </div>
             </div>
@@ -1991,7 +1988,7 @@ function Flows({
               {isBusiness ? (
                 <>
                   <ActiveBadge />
-                  <ChevronDown size={14} className={cn("text-white/30 transition-transform duration-200", followupExpanded && "rotate-180")} />
+                  <ChevronDown size={14} className={cn("text-[#A1A1AA] transition-transform duration-200", followupExpanded && "rotate-180")} />
                 </>
               ) : (
                 <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Business</Badge>
@@ -2005,11 +2002,11 @@ function Flows({
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="border-t border-white/[0.06]"
+                className="border-t border-[#E4E4E7]"
               >
                 <div className="p-4 flex flex-col gap-4">
                   <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">Disparar após silêncio de</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#71717A]">Disparar após silêncio de</label>
                     <div className="grid grid-cols-3 gap-1.5">
                       {[12, 24, 48].map(h => (
                         <button
@@ -2020,7 +2017,7 @@ function Flows({
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             followupDelay === h
                               ? "bg-brand-blue-500/20 border border-brand-blue-500/40 text-brand-blue-300"
-                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                              : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
                           {h}h
@@ -2029,7 +2026,7 @@ function Flows({
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">Máx. tentativas por lead</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#71717A]">Máx. tentativas por lead</label>
                     <div className="grid grid-cols-3 gap-1.5">
                       {[1, 2, 3].map(n => (
                         <button
@@ -2040,7 +2037,7 @@ function Flows({
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             followupRetries === n
                               ? "bg-brand-blue-500/20 border border-brand-blue-500/40 text-brand-blue-300"
-                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                              : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
                           {n}x
@@ -2069,15 +2066,15 @@ function Flows({
         </div>
 
         {/* Reativação de Leads Frios */}
-        <div className={cn("rounded-xl border overflow-hidden relative", isBusiness ? "border-white/[0.08] bg-white/[0.02]" : "border-white/[0.06] bg-white/[0.01]")}>
+        <div className={cn("rounded-xl border overflow-hidden relative", isBusiness ? "border-[#E4E4E7] bg-[#FAFAFA]" : "border-[#E4E4E7] bg-white")}>
           {!isBusiness && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[rgb(11,18,34)]/60 backdrop-blur-[3px]">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[3px]">
               <div className="flex flex-col items-center gap-2 text-center px-6">
                 <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
                   <Zap size={15} className="text-brand-blue-400 animate-pulse" />
                 </div>
-                <p className="text-[12px] font-bold text-white">Plano Business</p>
-                <p className="text-[11px] text-white/40 max-w-[180px] leading-relaxed">Reativação automática de leads frios com IA exclusivo do Business</p>
+                <p className="text-[12px] font-bold text-[#09090B]">Plano Business</p>
+                <p className="text-[11px] text-[#71717A] max-w-[180px] leading-relaxed">Reativação automática de leads frios com IA exclusivo do Business</p>
                 <button
                   onClick={() => onChangeTab("billing")}
                   className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
@@ -2091,14 +2088,14 @@ function Flows({
             className={cn("w-full flex items-center gap-3 p-4 text-left", !isBusiness && "pointer-events-none")}
             onClick={() => isBusiness && setReactivationExpanded(v => !v)}
           >
-            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isBusiness ? "bg-brand-orange-500/15" : "bg-white/[0.04]")}>
-              <RefreshCw size={16} className={isBusiness ? "text-brand-orange-400" : "text-white/20"} />
+            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isBusiness ? "bg-brand-orange-500/15" : "bg-[#F4F4F5]")}>
+              <RefreshCw size={16} className={isBusiness ? "text-brand-orange-400" : "text-[#D4D4D8]"} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className={cn("text-[13px] font-semibold", isBusiness ? "text-white" : "text-white/40")}>
+              <div className={cn("text-[13px] font-semibold", isBusiness ? "text-[#09090B]" : "text-[#71717A]")}>
                 Reativação de Leads Frios
               </div>
-              <div className="text-[11px] text-white/30 mt-0.5">
+              <div className="text-[11px] text-[#A1A1AA] mt-0.5">
                 Lead inativo por {reactivationDays} dias recebe mensagem de reabertura com IA
               </div>
             </div>
@@ -2110,7 +2107,7 @@ function Flows({
                       Configurar
                     </Badge>
                   )}
-                  <ChevronDown size={14} className={cn("text-white/30 transition-transform duration-200", reactivationExpanded && "rotate-180")} />
+                  <ChevronDown size={14} className={cn("text-[#A1A1AA] transition-transform duration-200", reactivationExpanded && "rotate-180")} />
                 </>
               ) : (
                 <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Business</Badge>
@@ -2124,11 +2121,11 @@ function Flows({
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="border-t border-white/[0.06]"
+                className="border-t border-[#E4E4E7]"
               >
                 <div className="p-4 flex flex-col gap-4">
                   <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">Inativo há quantos dias</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#71717A]">Inativo há quantos dias</label>
                     <div className="grid grid-cols-4 gap-1.5">
                       {[14, 30, 60, 90].map(d => (
                         <button
@@ -2139,7 +2136,7 @@ function Flows({
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             reactivationDays === d
                               ? "bg-brand-orange-500/20 border border-brand-orange-500/40 text-brand-orange-300"
-                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                              : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
                           {d}d
@@ -2148,16 +2145,16 @@ function Flows({
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-white/40">Gancho / Oferta de Reativação</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#71717A]">Gancho / Oferta de Reativação</label>
                     <textarea
                       value={reactivationHook}
                       onChange={e => setReactivationHook(e.target.value)}
                       placeholder="Ex.: Estamos com 20% de desconto esta semana. Quer aproveitar e agendar?"
                       rows={3}
                       maxLength={500}
-                      className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none resize-none transition placeholder:text-white/20 focus:border-brand-orange-500/50 focus:bg-white/[0.06]"
+                      className="w-full rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none resize-none transition placeholder:text-[#D4D4D8] focus:border-brand-orange-500/50 focus:bg-[#F4F4F5]"
                     />
-                    <p className="text-[10px] text-white/30">
+                    <p className="text-[10px] text-[#A1A1AA]">
                       A IA usa este contexto para personalizar uma mensagem única para cada lead com base no histórico de conversa.
                     </p>
                   </div>
@@ -2177,13 +2174,13 @@ function Flows({
         </div>
 
         {/* Janela de Silêncio */}
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center gap-3">
+        <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 flex items-center gap-3">
           <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-orange-500/10 flex items-center justify-center">
             <Clock size={16} className="text-brand-orange-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold text-white">Janela de Silêncio</div>
-            <div className="text-[11px] text-white/40 mt-0.5">
+            <div className="text-[13px] font-semibold text-[#09090B]">Janela de Silêncio</div>
+            <div className="text-[11px] text-[#71717A] mt-0.5">
               {activeDaysCount} dias · {firstDay[0]}–{firstDay[1]}
             </div>
           </div>
@@ -2199,15 +2196,15 @@ function Flows({
         </div>
 
         {/* Webhooks */}
-        <div className={cn("rounded-xl border overflow-hidden relative", isPro ? "border-white/[0.08] bg-white/[0.02]" : "border-white/[0.06] bg-white/[0.01]")}>
+        <div className={cn("rounded-xl border overflow-hidden relative", isPro ? "border-[#E4E4E7] bg-[#FAFAFA]" : "border-[#E4E4E7] bg-white")}>
           {!isPro && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[rgb(11,18,34)]/60 backdrop-blur-[3px]">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[3px]">
               <div className="flex flex-col items-center gap-2 text-center px-6">
                 <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
                   <Zap size={15} className="text-brand-blue-400 animate-pulse" />
                 </div>
-                <p className="text-[12px] font-bold text-white">Plano Pro</p>
-                <p className="text-[11px] text-white/40 max-w-[180px] leading-relaxed">Webhooks para Zapier, Make e sistemas externos no plano Pro+</p>
+                <p className="text-[12px] font-bold text-[#09090B]">Plano Pro</p>
+                <p className="text-[11px] text-[#71717A] max-w-[180px] leading-relaxed">Webhooks para Zapier, Make e sistemas externos no plano Pro+</p>
                 <button
                   onClick={() => onChangeTab("billing")}
                   className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
@@ -2221,14 +2218,14 @@ function Flows({
             className={cn("w-full flex items-center gap-3 p-4 text-left", !isPro && "pointer-events-none")}
             onClick={() => isPro && setWebhookExpanded(v => !v)}
           >
-            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isPro ? "bg-brand-teal-500/15" : "bg-white/[0.04]")}>
-              <GitBranch size={16} className={isPro ? "text-brand-teal-400" : "text-white/20"} />
+            <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isPro ? "bg-brand-teal-500/15" : "bg-[#F4F4F5]")}>
+              <GitBranch size={16} className={isPro ? "text-brand-teal-400" : "text-[#D4D4D8]"} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className={cn("text-[13px] font-semibold", isPro ? "text-white" : "text-white/40")}>
+              <div className={cn("text-[13px] font-semibold", isPro ? "text-[#09090B]" : "text-[#71717A]")}>
                 Webhooks (Zapier / Make)
               </div>
-              <div className="text-[11px] text-white/30 mt-0.5">
+              <div className="text-[11px] text-[#A1A1AA] mt-0.5">
                 {webhooks.length > 0 ? `${webhooks.length} endpoint${webhooks.length > 1 ? "s" : ""} cadastrado${webhooks.length > 1 ? "s" : ""}` : "Envie eventos em tempo real para sistemas externos"}
               </div>
             </div>
@@ -2240,7 +2237,7 @@ function Flows({
                       {webhooks.length} endpoints
                     </Badge>
                   )}
-                  <ChevronDown size={14} className={cn("text-white/30 transition-transform duration-200", webhookExpanded && "rotate-180")} />
+                  <ChevronDown size={14} className={cn("text-[#A1A1AA] transition-transform duration-200", webhookExpanded && "rotate-180")} />
                 </>
               ) : (
                 <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Pro+</Badge>
@@ -2254,14 +2251,14 @@ function Flows({
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="border-t border-white/[0.06]"
+                className="border-t border-[#E4E4E7]"
               >
                 <div className="p-4 flex flex-col gap-4">
                   {/* Existing webhooks list */}
                   {webhooks.length > 0 && (
                     <div className="flex flex-col gap-2">
                       {webhooks.map(wh => (
-                        <div key={wh.id} className="flex items-center justify-between p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+                        <div key={wh.id} className="flex items-center justify-between p-3 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA]">
                           <div className="min-w-0 flex-1">
                             <p className="text-[12px] font-semibold text-white/90 truncate">{wh.label ?? wh.url}</p>
                             <p className="text-[10px] text-white/35 truncate">{wh.url}</p>
@@ -2277,7 +2274,7 @@ function Flows({
                             <button
                               type="button"
                               onClick={() => handleDeleteWebhook(wh.id)}
-                              className="ml-3 h-8 w-8 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 transition shrink-0"
+                              className="ml-3 h-8 w-8 rounded-lg flex items-center justify-center text-[#A1A1AA] hover:text-red-400 hover:bg-red-500/10 transition shrink-0"
                               title="Excluir webhook"
                             >
                               <Trash2 size={15} />
@@ -2300,7 +2297,7 @@ function Flows({
                       >
                         <p className="text-[11px] font-bold uppercase tracking-widest text-brand-teal-300/70">Novo Webhook</p>
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] text-white/40">URL do Endpoint *</label>
+                          <label className="text-[10px] text-[#71717A]">URL do Endpoint *</label>
                           <Input
                             value={webhookUrl}
                             onChange={e => setWebhookUrl(e.target.value)}
@@ -2308,7 +2305,7 @@ function Flows({
                           />
                         </div>
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] text-white/40">Nome amigável (opcional)</label>
+                          <label className="text-[10px] text-[#71717A]">Nome amigável (opcional)</label>
                           <Input
                             value={webhookLabel}
                             onChange={e => setWebhookLabel(e.target.value)}
@@ -2316,7 +2313,7 @@ function Flows({
                           />
                         </div>
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] text-white/40">Eventos</label>
+                          <label className="text-[10px] text-[#71717A]">Eventos</label>
                           <div className="flex flex-wrap gap-2">
                             {["booking.created", "lead.status_changed", "followup.sent", "reminder.sent"].map(ev => (
                               <button
@@ -2331,7 +2328,7 @@ function Flows({
                                   "text-[10px] font-mono px-2 py-1 rounded-lg border transition",
                                   webhookEvents.includes(ev)
                                     ? "bg-brand-teal-500/20 border-brand-teal-500/40 text-brand-teal-300"
-                                    : "bg-white/[0.03] border-white/[0.08] text-white/40 hover:text-white/70"
+                                    : "bg-[#F4F4F5] border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                                 )}
                               >
                                 {ev}
@@ -2364,7 +2361,7 @@ function Flows({
                         <button
                           type="button"
                           onClick={() => setWebhookFormVisible(true)}
-                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20 text-[12px] font-semibold transition"
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46] hover:border-[#D4D4D8] text-[12px] font-semibold transition"
                         >
                           <Plus size={14} />
                           Adicionar endpoint
@@ -2388,8 +2385,8 @@ function Flows({
       {/* ── Atividade Recente ──────────────────────────────────── */}
       {automationEvents.length > 0 && (
         <div className="flex flex-col gap-2.5">
-          <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/30 px-0.5">Atividade Recente</h4>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.04] overflow-hidden">
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA] px-0.5">Atividade Recente</h4>
+          <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] divide-y divide-white/[0.04] overflow-hidden">
             {automationEvents.slice(0, 10).map(ev => {
               const Icon = ev.type === "reminder_sent" ? Bell : ev.type === "followup_sent" ? MessageCircle : RefreshCw;
               const color = ev.type === "reminder_sent"
@@ -2398,9 +2395,9 @@ function Flows({
                 ? "text-brand-blue-400"
                 : "text-brand-orange-400";
               return (
-                <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#FAFAFA] transition-colors">
                   <Icon size={13} className={cn("shrink-0", color)} />
-                  <span className="flex-1 text-[12px] text-white/60 truncate">{ev.detail ?? ev.type}</span>
+                  <span className="flex-1 text-[12px] text-[#3F3F46] truncate">{ev.detail ?? ev.type}</span>
                   <span className="text-[10px] text-white/25 shrink-0 tabular-nums">{formatTimeAgo(ev.created_at)}</span>
                 </div>
               );
@@ -2410,10 +2407,10 @@ function Flows({
       )}
 
       {automationEvents.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-8 gap-2 text-center rounded-xl border border-dashed border-white/[0.06]">
+        <div className="flex flex-col items-center justify-center py-8 gap-2 text-center rounded-xl border border-dashed border-[#E4E4E7]">
           <Zap size={20} className="text-white/15" />
-          <p className="text-[12px] text-white/30 font-medium">Nenhuma automação executada ainda</p>
-          <p className="text-[11px] text-white/20 max-w-xs leading-relaxed">
+          <p className="text-[12px] text-[#A1A1AA] font-medium">Nenhuma automação executada ainda</p>
+          <p className="text-[11px] text-[#D4D4D8] max-w-xs leading-relaxed">
             O feed de atividade aparece aqui após os primeiros agendamentos e follow-ups.
           </p>
         </div>
@@ -2573,10 +2570,10 @@ function Team({
             return (
               <div
                 key={m.id}
-                className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 hover:bg-white/[0.05] transition-colors"
+                className="flex items-center gap-3 rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-3 hover:bg-[#F4F4F5] transition-colors"
               >
                 <div
-                  className="grid h-9 w-9 place-items-center rounded-full text-xs font-bold text-white shadow-lg"
+                  className="grid h-9 w-9 place-items-center rounded-full text-xs font-bold text-[#09090B] shadow-lg"
                   style={{ background: COLORS[i % COLORS.length] }}
                 >
                   {initials}
@@ -2613,9 +2610,9 @@ function Team({
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 hover:bg-white/[0.05] transition-colors"
+                    className="flex items-center gap-3 rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-3 hover:bg-[#F4F4F5] transition-colors"
                   >
-                    <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-dashed border-white/20 bg-white/[0.04] text-white/30">
+                    <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-dashed border-[#D4D4D8] bg-[#F4F4F5] text-[#A1A1AA]">
                       <UserPlus size={15} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -2623,9 +2620,9 @@ function Team({
                       <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: expiresSoon ? "#F97316" : "var(--color-fg-3)" }}>
                         <Clock size={10} />
                         {expiresSoon ? `Expira em ${daysLeft}d` : `${daysLeft} dias restantes`}
-                        <span className="text-white/20">·</span>
+                        <span className="text-[#D4D4D8]">·</span>
                         <Badge variant={inv.role === "admin" ? "hot" : "cold"}>{inv.role}</Badge>
-                        <span className="text-white/20">·</span>
+                        <span className="text-[#D4D4D8]">·</span>
                         <span style={{ color: "var(--color-fg-3)" }}>
                           Enviado {new Date(inv.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
                         </span>
@@ -2686,16 +2683,16 @@ function Team({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="border border-white/[0.06] bg-[#0B1222] rounded-xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
+              className="border border-[#E4E4E7] bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
             >
               <div className="relative z-10 flex flex-col gap-5">
                 <div>
-                  <h3 className="text-lg font-bold text-white">Convidar membro do time</h3>
-                  <p className="text-sm text-white/50 mt-1">Convide alguém para gerenciar sua conta Agendra</p>
+                  <h3 className="text-lg font-bold text-[#09090B]">Convidar membro do time</h3>
+                  <p className="text-sm text-[#71717A] mt-1">Convide alguém para gerenciar sua conta Agendra</p>
                 </div>
                 <form onSubmit={handleSendInvite} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-white/40">E-mail</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#71717A]">E-mail</label>
                     <Input
                       type="email"
                       placeholder="colega@example.com"
@@ -2707,7 +2704,7 @@ function Team({
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-white/40">Perfil</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-[#71717A]">Perfil</label>
                     <div className="grid grid-cols-2 gap-2">
                       {["member", "admin"].map((role) => (
                         <button
@@ -2718,7 +2715,7 @@ function Team({
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             inviteRole === role
                               ? "bg-brand-blue-500/30 border border-brand-blue-500/50 text-brand-blue-300"
-                              : "bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70"
+                              : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
                           {role === "admin" ? "Admin" : "Membro"}
@@ -2767,7 +2764,7 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   "member.accept_invite": { label: "Convite Aceito", color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" },
   "member.decline_invite": { label: "Convite Recusado", color: "bg-orange-500/10 text-orange-300 border-orange-500/20" },
   "member.cancel_invite": { label: "Convite Cancelado", color: "bg-gray-500/10 text-gray-300 border-gray-500/20" },
-  "member.resend_invite": { label: "Convite Reenviado", color: "bg-pink-500/10 text-pink-300 border-pink-500/20" },
+  "member.resend_invite": { label: "Convite Reenviado", color: "bg-pink-500/10 text-[#DB2777] border-pink-500/20" },
   "webhook.save": { label: "Webhook Configurado", color: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20" },
   "webhook.delete": { label: "Webhook Excluído", color: "bg-red-500/10 text-red-300 border-red-500/20" },
   "reactivation.update": { label: "Reativação de Leads Salva", color: "bg-violet-500/10 text-violet-300 border-violet-500/20" },
@@ -2806,7 +2803,7 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
   }, [search, filterAction]);
 
   return (
-    <Card className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl mt-2">
+    <Card className="border border-[#E4E4E7] bg-white rounded-xl mt-2">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText size={18} className="text-brand-blue-400" />
@@ -2827,7 +2824,7 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
           <select
             value={filterAction}
             onChange={(e) => setFilterAction(e.target.value)}
-            className="rounded-xl border border-white/[0.08] bg-[#0A0A0A] px-3.5 py-2 text-xs text-white outline-none focus:border-brand-blue-500/50 sm:w-48"
+            className="rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2 text-xs text-[#09090B] outline-none focus:border-[#2563EB] sm:w-48"
           >
             <option value="all">Todas as ações</option>
             <option value="channels">Canais</option>
@@ -2841,25 +2838,25 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
         {paginated.length > 0 ? (
           <div className="flex flex-col gap-2">
             {paginated.map((log) => {
-              const meta = ACTION_LABELS[log.action] ?? { label: log.action, color: "bg-white/5 text-white/70 border-white/10" };
+              const meta = ACTION_LABELS[log.action] ?? { label: log.action, color: "bg-[#FAFAFA] text-[#3F3F46] border-[#E4E4E7]" };
               const isExpanded = expandedId === log.id;
               return (
-                <div key={log.id} className="rounded-xl border border-white/[0.06] bg-white/[0.01] overflow-hidden transition-all duration-200">
+                <div key={log.id} className="rounded-xl border border-[#E4E4E7] bg-white overflow-hidden transition-all duration-200">
                   <div 
                     onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-white/[0.02] transition-colors gap-3 flex-wrap sm:flex-nowrap"
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-[#FAFAFA] transition-colors gap-3 flex-wrap sm:flex-nowrap"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 flex-1">
                       <Badge variant="neutral" className={cn("text-[9px] uppercase tracking-wider px-2 py-0.5 border font-semibold", meta.color)}>
                         {meta.label}
                       </Badge>
-                      <span className="text-[12px] font-medium text-white/80 truncate">{log.actor_email ?? "Integração"}</span>
+                      <span className="text-[12px] font-medium text-[#09090B] truncate">{log.actor_email ?? "Integração"}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-[10px] text-white/40 whitespace-nowrap">
+                      <span className="text-[10px] text-[#71717A] whitespace-nowrap">
                         {new Date(log.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </span>
-                      <ChevronDown size={14} className={cn("text-white/40 transition-transform duration-200", isExpanded && "rotate-180")} />
+                      <ChevronDown size={14} className={cn("text-[#71717A] transition-transform duration-200", isExpanded && "rotate-180")} />
                     </div>
                   </div>
                   
@@ -2870,28 +2867,28 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="border-t border-white/[0.04] bg-white/[0.01] p-3.5 flex flex-col gap-3.5"
+                        className="border-t border-[#E4E4E7] bg-white p-3.5 flex flex-col gap-3.5"
                       >
                         <div className="grid grid-cols-2 gap-4 text-[10px]">
                           <div>
-                            <span className="block text-white/30 uppercase tracking-widest font-mono">Endereço IP</span>
-                            <span className="block mt-0.5 text-white/70 font-mono">{log.ip_address ?? "Não disponível"}</span>
+                            <span className="block text-[#A1A1AA] uppercase tracking-widest font-mono">Endereço IP</span>
+                            <span className="block mt-0.5 text-[#3F3F46] font-mono">{log.ip_address ?? "Não disponível"}</span>
                           </div>
                           <div>
-                            <span className="block text-white/30 uppercase tracking-widest font-mono">ID do Registro</span>
-                            <span className="block mt-0.5 text-white/40 font-mono truncate">{log.id}</span>
+                            <span className="block text-[#A1A1AA] uppercase tracking-widest font-mono">ID do Registro</span>
+                            <span className="block mt-0.5 text-[#71717A] font-mono truncate">{log.id}</span>
                           </div>
                           <div className="col-span-2">
-                            <span className="block text-white/30 uppercase tracking-widest font-mono">Dispositivo (User Agent)</span>
-                            <span className="block mt-0.5 text-white/60 font-mono truncate sm:max-w-xl" title={log.user_agent}>
+                            <span className="block text-[#A1A1AA] uppercase tracking-widest font-mono">Dispositivo (User Agent)</span>
+                            <span className="block mt-0.5 text-[#3F3F46] font-mono truncate sm:max-w-xl" title={log.user_agent}>
                               {log.user_agent ?? "Não disponível"}
                             </span>
                           </div>
                         </div>
                         
                         <div>
-                          <span className="block text-[10px] text-white/30 uppercase tracking-widest font-mono mb-1.5">Metadados da Ação (Payload)</span>
-                          <pre className="text-[10px] font-mono p-3 rounded-lg border border-white/[0.06] bg-black/40 text-brand-teal-300 overflow-x-auto max-h-48 leading-relaxed scrollbar-thin">
+                          <span className="block text-[10px] text-[#A1A1AA] uppercase tracking-widest font-mono mb-1.5">Metadados da Ação (Payload)</span>
+                          <pre className="text-[10px] font-mono p-3 rounded-lg border border-[#E4E4E7] bg-black/40 text-brand-teal-300 overflow-x-auto max-h-48 leading-relaxed scrollbar-thin">
                             {JSON.stringify(log.payload, null, 2)}
                           </pre>
                         </div>
@@ -2903,13 +2900,13 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
             })}
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-3 px-1 text-xs text-white/40">
+              <div className="flex items-center justify-between mt-3 px-1 text-xs text-[#71717A]">
                 <span>Página {currentPage} de {totalPages} ({filtered.length} logs)</span>
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="h-8 px-3 font-semibold text-white/70 hover:text-white"
+                    className="h-8 px-3 font-semibold text-[#3F3F46] hover:text-[#09090B]"
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage(prev => prev - 1)}
                   >
@@ -2918,7 +2915,7 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="h-8 px-3 font-semibold text-white/70 hover:text-white"
+                    className="h-8 px-3 font-semibold text-[#3F3F46] hover:text-[#09090B]"
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(prev => prev + 1)}
                   >
@@ -2929,9 +2926,9 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
             )}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-10 gap-2 text-center border border-dashed border-white/[0.06] rounded-xl bg-white/[0.01]">
-            <p className="text-[12px] text-white/40 font-semibold">Nenhuma ação administrativa encontrada</p>
-            <p className="text-[11px] text-white/20 leading-relaxed max-w-xs px-4">
+          <div className="flex flex-col items-center justify-center py-10 gap-2 text-center border border-dashed border-[#E4E4E7] rounded-xl bg-white">
+            <p className="text-[12px] text-[#71717A] font-semibold">Nenhuma ação administrativa encontrada</p>
+            <p className="text-[11px] text-[#D4D4D8] leading-relaxed max-w-xs px-4">
               Tente redefinir os filtros ou buscar por outro termo.
             </p>
           </div>
@@ -3073,14 +3070,14 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
       )}
 
       {/* Barra de Uso */}
-      <Card className="bg-white/[0.02] border-brand-teal-500/10">
+      <Card className="bg-[#FAFAFA] border-brand-teal-500/10">
         <CardContent className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1 w-full">
             <div className="flex justify-between items-center mb-2">
               <span className="text-[13px] font-semibold text-white/90">Consumo de Leads ({currentPlan.toUpperCase()})</span>
-              <span className="text-xs font-mono text-white/60">{leadsUsed} / {leadsMax}</span>
+              <span className="text-xs font-mono text-[#3F3F46]">{leadsUsed} / {leadsMax}</span>
             </div>
-            <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+            <div className="h-2 w-full bg-[#FAFAFA] rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${leadsPct}%` }}
@@ -3114,7 +3111,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
               </Button>
             </Link>
           ) : (
-            <Badge variant="cold" className="text-[10px] px-2.5 py-1 border border-white/10 bg-white/5 text-white/50">
+            <Badge variant="cold" className="text-[10px] px-2.5 py-1 border border-[#E4E4E7] bg-[#FAFAFA] text-[#71717A]">
               Apenas Leitura
             </Badge>
           )}
@@ -3123,16 +3120,16 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
 
       {/* Tabela de Preços */}
       <div className="flex flex-col items-center mb-4">
-        <div className="flex items-center gap-3 p-1 rounded-full border border-white/10 bg-white/5">
+        <div className="flex items-center gap-3 p-1 rounded-full border border-[#E4E4E7] bg-[#FAFAFA]">
           <button
             onClick={() => setIsAnnual(false)}
-            className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors", !isAnnual ? "bg-white/10 text-white" : "text-white/40")}
+            className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors", !isAnnual ? "bg-[#F4F4F5] text-[#09090B]" : "text-[#71717A]")}
           >
             Mensal
           </button>
           <button
             onClick={() => setIsAnnual(true)}
-            className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors flex items-center gap-1.5", isAnnual ? "bg-white/10 text-brand-teal-300" : "text-white/40")}
+            className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors flex items-center gap-1.5", isAnnual ? "bg-[#F4F4F5] text-brand-teal-300" : "text-[#71717A]")}
           >
             Anual <Badge variant="hot" className="text-[9px] px-1 py-0 h-4">-25%</Badge>
           </button>
@@ -3153,13 +3150,13 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
               className={cn(
                 "relative flex flex-col rounded-2xl border p-6 overflow-hidden",
-                p.recommended ? "border-brand-blue-500/50 bg-brand-blue-500/5" : "border-white/[0.08] bg-white/[0.02]",
+                p.recommended ? "border-brand-blue-500/50 bg-brand-blue-500/5" : "border-[#E4E4E7] bg-[#FAFAFA]",
                 isActive && "border-brand-teal-500/50"
               )}
             >
               {p.recommended && (
                 <div className="absolute top-0 right-0 left-0 flex justify-center transform -translate-y-px">
-                  <div className="bg-brand-blue-500 text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-b-lg">
+                  <div className="bg-brand-blue-500 text-[#09090B] text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-b-lg">
                     Recomendado
                   </div>
                 </div>
@@ -3167,19 +3164,19 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
               
               <div className="mt-4 mb-2">
                 <h3 className="text-xl font-bold">{p.name}</h3>
-                <p className="text-[12px] text-white/50 h-8">{p.desc}</p>
+                <p className="text-[12px] text-[#71717A] h-8">{p.desc}</p>
               </div>
 
               <div className="my-4 flex items-baseline gap-1">
                 <span className="text-3xl font-black">R$ {isAnnual ? p.annual : p.monthly}</span>
-                <span className="text-xs text-white/50">/mês</span>
+                <span className="text-xs text-[#71717A]">/mês</span>
               </div>
               
               {isAnnual && (
-                <div className="text-[11px] text-white/40 mb-6">Faturado R$ {p.annual * 12}/ano</div>
+                <div className="text-[11px] text-[#71717A] mb-6">Faturado R$ {p.annual * 12}/ano</div>
               )}
               {!isAnnual && (
-                <div className="text-[11px] text-white/40 mb-6 invisible">Espaço</div>
+                <div className="text-[11px] text-[#71717A] mb-6 invisible">Espaço</div>
               )}
 
               <Button
@@ -3196,8 +3193,8 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
                   <Check size={14} /> {p.leads}
                 </div>
                 {p.features.map((f, i) => (
-                  <div key={i} className="flex items-start gap-2 text-[12px] text-white/70">
-                    <Check size={14} className="mt-0.5 text-white/30 shrink-0" />
+                  <div key={i} className="flex items-start gap-2 text-[12px] text-[#3F3F46]">
+                    <Check size={14} className="mt-0.5 text-[#A1A1AA] shrink-0" />
                     {f}
                   </div>
                 ))}
@@ -3305,7 +3302,7 @@ function Services({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold">Serviços</h3>
-          <p className="text-xs text-white/40">Gerencie os serviços que sua IA pode agendar.</p>
+          <p className="text-xs text-[#71717A]">Gerencie os serviços que sua IA pode agendar.</p>
         </div>
         {!isReadOnly && (
           <Button
@@ -3325,7 +3322,7 @@ function Services({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] p-5 rounded-xl"
+            className="border border-[#E4E4E7] bg-white p-5 rounded-xl"
           >
             <form onSubmit={handleAdd} className="grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -3339,7 +3336,7 @@ function Services({
               <Field label="Duração (minutos)">
                 <select
                   name="duration"
-                  className="w-full rounded-xl border border-white/[0.08] bg-[#0A0A0A] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
+                  className="w-full rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2.5 text-sm text-[#09090B] outline-none focus:border-[#2563EB]"
                   defaultValue="60"
                 >
                   {DURATION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -3349,7 +3346,7 @@ function Services({
                 <textarea
                   name="description"
                   placeholder="Breve descrição para ajudar a IA a explicar o serviço..."
-                  className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none resize-none h-20"
+                  className="w-full rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none resize-none h-20"
                 />
               </Field>
               <div className="flex justify-end gap-3">
@@ -3365,8 +3362,8 @@ function Services({
 
       <div className="grid gap-3">
         {services.length === 0 && !isAdding && (
-          <div className="text-center py-12 border border-dashed border-white/[0.06] bg-white/[0.005] rounded-xl">
-            <p className="text-sm text-white/30">Nenhum serviço cadastrado ainda.</p>
+          <div className="text-center py-12 border border-dashed border-[#E4E4E7] bg-white rounded-xl">
+            <p className="text-sm text-[#A1A1AA]">Nenhum serviço cadastrado ainda.</p>
           </div>
         )}
         {services.map((s) =>
@@ -3376,7 +3373,7 @@ function Services({
               layout
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] p-4 rounded-xl"
+              className="border border-[#E4E4E7] bg-white p-4 rounded-xl"
             >
               <div className="grid gap-3 sm:grid-cols-2 mb-3">
                 <Field label="Nome do Serviço">
@@ -3399,7 +3396,7 @@ function Services({
                 <select
                   value={editValues.duration}
                   onChange={(e) => setEditValues((v) => ({ ...v, duration: Number(e.target.value) }))}
-                  className="w-full rounded-xl border border-white/[0.08] bg-[#0A0A0A] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
+                  className="w-full rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2.5 text-sm text-[#09090B] outline-none focus:border-[#2563EB]"
                 >
                   {DURATION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -3417,7 +3414,7 @@ function Services({
               layout
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="border border-white/[0.03] bg-white/[0.005] flex items-center justify-between p-4 rounded-xl hover:border-white/[0.06] hover:bg-white/[0.01] transition-all group"
+              className="border border-[#E4E4E7] bg-white flex items-center justify-between p-4 rounded-xl hover:border-[#E4E4E7] hover:bg-white transition-all group"
             >
               <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400">
@@ -3426,7 +3423,7 @@ function Services({
                 <div>
                   <h4 className="font-bold text-sm">{s.name}</h4>
                   <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-[11px] text-white/40 flex items-center gap-1">
+                    <span className="text-[11px] text-[#71717A] flex items-center gap-1">
                       <Clock size={12} /> {s.duration} min
                     </span>
                     {s.price && (
@@ -3436,13 +3433,13 @@ function Services({
                     )}
                   </div>
                   {s.description && (
-                    <p className="text-[10px] text-white/30 mt-0.5 max-w-[200px] truncate">{s.description}</p>
+                    <p className="text-[10px] text-[#A1A1AA] mt-0.5 max-w-[200px] truncate">{s.description}</p>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <div className="flex items-center gap-2 mr-2">
-                  <span className="text-[10px] uppercase tracking-wider text-white/40 font-bold">
+                  <span className="text-[10px] uppercase tracking-wider text-[#71717A] font-bold">
                     {s.is_paused ? "Pausado" : "Ativo"}
                   </span>
                   <Switch
@@ -3456,7 +3453,7 @@ function Services({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-white/40 hover:text-white"
+                      className="h-8 w-8 text-[#71717A] hover:text-[#09090B]"
                       onClick={() => startEdit(s)}
                     >
                       <Edit3 size={14} />
@@ -3464,7 +3461,7 @@ function Services({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-white/40 hover:text-red-400"
+                      className="h-8 w-8 text-[#71717A] hover:text-red-400"
                       onClick={() => handleDelete(s.id)}
                     >
                       <Trash2 size={14} />
@@ -3527,7 +3524,7 @@ function Rules({ company, isReadOnly = false }: { company: Company | null; isRea
         </CardHeader>
         <CardContent>
           {/* Auto-escalation */}
-          <div className="mb-5 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+          <div className="mb-5 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <div className="text-[13px] font-bold">Escalar lead frio para humano</div>
@@ -3572,7 +3569,7 @@ function Rules({ company, isReadOnly = false }: { company: Company | null; isRea
               <select
                 name="slot_duration_minutes"
                 defaultValue={pc.slot_duration_minutes ?? 60}
-                className="w-full rounded-xl border border-white/[0.08] bg-[rgb(11,18,34)] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
+                className="w-full rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2.5 text-sm text-[#09090B] outline-none focus:border-[#2563EB]"
               >
                 {SLOT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -3583,7 +3580,7 @@ function Rules({ company, isReadOnly = false }: { company: Company | null; isRea
               <select
                 name="timezone"
                 defaultValue={pc.timezone ?? "America/Sao_Paulo"}
-                className="w-full rounded-xl border border-white/[0.08] bg-[rgb(11,18,34)] px-3.5 py-2.5 text-sm text-white outline-none focus:border-brand-blue-500/50"
+                className="w-full rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2.5 text-sm text-[#09090B] outline-none focus:border-[#2563EB]"
               >
                 {TIMEZONES.map((tz) => (
                   <option key={tz.value} value={tz.value}>{tz.label}</option>
@@ -3708,15 +3705,15 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
             </div>
             <Badge variant="hot" className="text-[10px]">BETA</Badge>
           </div>
-          <p className="text-[11px] text-white/40 mt-2 leading-relaxed">{triggerHint}</p>
+          <p className="text-[11px] text-[#71717A] mt-2 leading-relaxed">{triggerHint}</p>
         </CardHeader>
         <CardContent>
           {liveLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-              <div className="h-12 w-12 rounded-full bg-white/[0.04] flex items-center justify-center">
-                <Zap size={22} className="text-white/20" />
+              <div className="h-12 w-12 rounded-full bg-[#F4F4F5] flex items-center justify-center">
+                <Zap size={22} className="text-[#D4D4D8]" />
               </div>
-              <p className="text-sm font-medium text-white/40">Nenhuma decisão registrada ainda</p>
+              <p className="text-sm font-medium text-[#71717A]">Nenhuma decisão registrada ainda</p>
               <p className="text-[12px] text-white/25 max-w-xs leading-relaxed">
                 Os logs aparecem em interações relevantes: primeira mensagem, agendamento, cancelamento, mudança de status e a cada {isBusiness ? "5" : "10"} respostas da IA.
               </p>
@@ -3732,10 +3729,10 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
                   <div
                     key={log.id}
                     className={cn(
-                      "p-4 rounded-xl border border-white/[0.03] bg-white/[0.005] transition-all relative overflow-hidden group/log shadow-md",
+                      "p-4 rounded-xl border border-[#E4E4E7] bg-white transition-all relative overflow-hidden group/log shadow-md",
                       isPulsing
                         ? "border-brand-teal-400/40 bg-brand-teal-500/[0.02]"
-                        : "hover:border-white/[0.06] hover:bg-white/[0.01]"
+                        : "hover:border-[#E4E4E7] hover:bg-white"
                     )}
                   >
                     <div className="flex justify-between items-start mb-2">
@@ -3744,32 +3741,32 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
                           "h-2 w-2 rounded-full",
                           log.urgency_detected ? "bg-brand-orange-400" : isPositive ? "bg-brand-teal-400" : "bg-white/20"
                         )} />
-                        <span className="text-[13px] font-bold text-white">{leadName}</span>
+                        <span className="text-[13px] font-bold text-[#09090B]">{leadName}</span>
                         {log.intent_detected && (
-                          <Badge variant="neutral" className="text-[9px] bg-white/5 border-white/10">{log.intent_detected}</Badge>
+                          <Badge variant="neutral" className="text-[9px] bg-[#FAFAFA] border-[#E4E4E7]">{log.intent_detected}</Badge>
                         )}
                       </div>
-                      <span className="text-[11px] text-white/40">{timeAgo}</span>
+                      <span className="text-[11px] text-[#71717A]">{timeAgo}</span>
                     </div>
                     {log.rationale && (
-                      <p className="text-[12px] text-white/60 leading-relaxed mb-3">{log.rationale}</p>
+                      <p className="text-[12px] text-[#3F3F46] leading-relaxed mb-3">{log.rationale}</p>
                     )}
-                    <div className="flex items-center gap-4 border-t border-white/5 pt-3 mt-1">
+                    <div className="flex items-center gap-4 border-t border-[#F4F4F5] pt-3 mt-1">
                       <div className="flex flex-col">
-                        <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Sentimento</span>
+                        <span className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-0.5">Sentimento</span>
                         <span className={cn("text-[12px] font-mono", isPositive ? "text-brand-teal-300" : "text-brand-orange-300")}>
                           {log.sentiment_score != null ? (log.sentiment_score >= 0 ? '+' : '') + log.sentiment_score.toFixed(2) : '—'}
                         </span>
                       </div>
                       {log.objection_handled && (
                         <div className="flex flex-col">
-                          <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Objeção tratada</span>
-                          <span className="text-[12px] font-mono text-white/80 truncate max-w-[180px]">{log.objection_handled}</span>
+                          <span className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-0.5">Objeção tratada</span>
+                          <span className="text-[12px] font-mono text-[#09090B] truncate max-w-[180px]">{log.objection_handled}</span>
                         </div>
                       )}
                       {log.urgency_detected && (
                         <div className="flex flex-col">
-                          <span className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-0.5">Urgência</span>
+                          <span className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-0.5">Urgência</span>
                           <span className="text-[12px] font-mono text-brand-orange-300">Detectada</span>
                         </div>
                       )}
@@ -3782,7 +3779,7 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full text-white/40 hover:text-white/70 mt-1"
+                  className="w-full text-[#71717A] hover:text-[#3F3F46] mt-1"
                   onClick={() => setVisibleCount((v) => v + 10)}
                 >
                   Ver mais ({liveLogs.length - visibleCount} restantes)
