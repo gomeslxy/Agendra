@@ -68,7 +68,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
           n.kind === "section" ? (
             <div
               key={`s-${idx}`}
-              className="mt-2 px-2.5 pt-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#A1A1AA]"
+              className="mt-2 px-2.5 pt-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]"
             >
               {n.label}
             </div>
@@ -128,7 +128,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
             {(planType === "trial" || planType === "free") && (
               <div className="mb-2.5 space-y-1 px-0.5">
                 <div className="flex items-center justify-between text-[9px] font-medium">
-                  <span className="text-[#A1A1AA]">Trial ativo</span>
+                  <span className="text-[#71717A]">Trial ativo</span>
                   <span className="font-mono text-[9px] text-[#71717A]">
                     {(() => {
                       const { remaining } = calculateTrialStatus(profile?.companies?.created_at);

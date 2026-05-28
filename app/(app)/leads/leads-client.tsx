@@ -133,7 +133,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               onClick={() => setFilter(f.id)}
               className={cn(
                 "relative pb-2 text-[11px] font-bold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1.5 cursor-pointer",
-                active ? "text-[#2563EB]" : "text-[#A1A1AA] hover:text-[#3F3F46]",
+                active ? "text-[#2563EB]" : "text-[#71717A] hover:text-[#3F3F46]",
               )}
             >
               <span>{f.label}</span>
@@ -141,7 +141,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                 "font-mono text-[9px] px-1.5 py-0.5 rounded",
                 active
                   ? "bg-[#EFF6FF] text-[#2563EB]"
-                  : "bg-[#F4F4F5] text-[#A1A1AA]",
+                  : "bg-[#F4F4F5] text-[#71717A]",
               )}>{count}</span>
               {active && (
                 <motion.div
@@ -220,7 +220,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                           l.status === "success" ? "bg-[#14B8A6]" : "bg-[#3B82F6]",
                         )} />
                         <span className="text-[#3F3F46]">{HEAT_LABEL[l.status]}</span>
-                        <span className="font-mono text-[10px] text-[#A1A1AA]">({l.heat_score})</span>
+                        <span className="font-mono text-[10px] text-[#71717A]">({l.heat_score})</span>
                       </div>
                     </td>
                     <td className="px-4 py-3.5">
@@ -456,7 +456,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
                 {/* Heat */}
                 <div className="border border-[#E4E4E7] bg-[#FAFAFA] rounded-xl p-4">
-                  <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#14B8A6] mb-3">
+                  <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0D9488] mb-3">
                     QUALIFICAÇÃO · IA
                   </div>
                   <div className="flex items-center gap-2 mb-2">

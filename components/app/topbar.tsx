@@ -87,7 +87,7 @@ export function Topbar({ cta }: TopbarProps) {
 
         {/* Desktop: search bar */}
         <div className="relative hidden max-w-[420px] flex-1 md:block">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A1A1AA]" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" />
           <input
             placeholder="Buscar leads, conversas, agendamentos…"
             className="w-full h-[34px] bg-[#F4F4F5] border border-[#E4E4E7] rounded-lg pl-9 pr-8 text-[13px] text-[#09090B] placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
@@ -98,7 +98,7 @@ export function Topbar({ cta }: TopbarProps) {
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A1A1AA] hover:text-[#71717A]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#71717A] hover:text-[#3F3F46]"
               aria-label="Limpar busca"
             >
               <X size={14} />
@@ -169,7 +169,7 @@ export function Topbar({ cta }: TopbarProps) {
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-[#09090B]">{displayName}</div>
                       <div className="truncate text-[12px] text-[#71717A]">{companyName}</div>
-                      <div className="font-mono text-[11px] text-[#A1A1AA]">{displayPlan}</div>
+                      <div className="font-mono text-[11px] text-[#71717A]">{displayPlan}</div>
                     </div>
                   </div>
 
@@ -177,7 +177,7 @@ export function Topbar({ cta }: TopbarProps) {
                   {isTrial && (
                     <div className="mb-5 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px] font-medium">
-                        <span className="text-[#A1A1AA]">Trial em progresso</span>
+                        <span className="text-[#71717A]">Trial em progresso</span>
                         <span className="text-[#2563EB]">{remaining} dias restantes</span>
                       </div>
                       <div className="h-[2px] w-full overflow-hidden rounded-full bg-[#E4E4E7]">

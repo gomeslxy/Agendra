@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useTransition } from "react";
 import React from "react";
@@ -305,7 +305,7 @@ export function SettingsShell({
               >
                 <t.icon size={16} className={cn(
                   "transition-transform duration-300 group-hover:scale-110",
-                  active ? "text-brand-blue-400" : "text-[#D4D4D8] group-hover:text-[#71717A]"
+                  active ? "text-[#2563EB]" : "text-[#D4D4D8] group-hover:text-[#71717A]"
                 )} />
                 <span className="relative z-10">{t.label}</span>
                 {active && (
@@ -344,7 +344,7 @@ export function SettingsShell({
                     >
                       <t.icon size={15} className={cn(
                         "transition-transform duration-150 group-hover:scale-105",
-                        active ? "text-brand-blue-400" : "text-[#D4D4D8] group-hover:text-[#71717A]"
+                        active ? "text-[#2563EB]" : "text-[#D4D4D8] group-hover:text-[#71717A]"
                       )} />
                       <span className="relative z-10 flex-1">{t.label}</span>
                     </button>
@@ -450,7 +450,7 @@ function FeatureGate({
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-black/40 bg-gradient-to-t from-[rgb(11,18,34)] to-transparent">
         <div className="border border-[#E4E4E7] bg-white p-6 sm:p-8 rounded-xl max-w-md w-full relative overflow-hidden shadow-2xl">
           
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-blue-500/20 text-brand-blue-400 mb-4 ring-1 ring-brand-blue-500/30">
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-blue-500/20 text-[#2563EB] mb-4 ring-1 ring-brand-blue-500/30">
             <Zap size={24} className="animate-pulse" />
           </div>
           
@@ -520,7 +520,7 @@ function ToneSelect({ defaultValue }: { defaultValue: string }) {
           </button>
         ))}
       </div>
-      <div className="text-[11px] text-brand-blue-300/70 italic text-center h-4">
+      <div className="text-[11px] text-[#1D4ED8]/70 italic text-center h-4">
         {options.find(o => o.value === selected)?.desc}
       </div>
     </div>
@@ -712,7 +712,7 @@ function ServicesInput({ defaultValue, businessType }: { defaultValue: string; b
       {raw && (
         <div className="flex flex-wrap gap-1 mt-1">
           {raw.split(",").map((s) => s.trim()).filter(Boolean).map((s) => (
-            <span key={s} className="rounded-full border border-brand-teal-500/20 bg-brand-teal-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-teal-300">
+            <span key={s} className="rounded-full border border-brand-teal-500/20 bg-brand-teal-500/10 px-2 py-0.5 text-[11px] font-medium text-[#0D9488]">
               {s}
             </span>
           ))}
@@ -903,7 +903,7 @@ function Persona({
                 <button 
                   type="button"
                   onClick={() => onChangeTab("services")}
-                  className="text-[11px] font-bold text-brand-blue-400 hover:underline"
+                  className="text-[11px] font-bold text-[#2563EB] hover:underline"
                 >
                   Configurar →
                 </button>
@@ -911,7 +911,7 @@ function Persona({
               <div className="flex flex-wrap gap-1">
                 {services.length > 0 ? (
                   services.map((s) => (
-                    <Badge key={s.id} variant="neutral" className="border-brand-blue-500/20 bg-brand-blue-500/10 text-brand-blue-300 text-[10px]">
+                    <Badge key={s.id} variant="neutral" className="border-brand-blue-500/20 bg-brand-blue-500/10 text-[#1D4ED8] text-[10px]">
                       {s.name}
                     </Badge>
                   ))
@@ -953,7 +953,7 @@ function Persona({
             />
             <div className="h-14 w-14 rounded-full bg-[#F4F4F5] flex items-center justify-center text-[#A1A1AA] mb-4 ring-4 ring-[#E4E4E7] group-hover:scale-110 transition-transform duration-300">
               {uploading ? (
-                <Loader2 size={24} className="animate-spin text-brand-blue-400" />
+                <Loader2 size={24} className="animate-spin text-[#2563EB]" />
               ) : (
                 <UploadCloud size={24} className="text-[#3F3F46]" />
               )}
@@ -961,7 +961,7 @@ function Persona({
             {uploading ? (
               <div className="flex flex-col items-center text-center">
                 <p className="text-sm font-bold text-[#09090B] mb-1">Indexando arquivo...</p>
-                <p className="text-xs text-brand-blue-300/80 animate-pulse">{uploadStatus}</p>
+                <p className="text-xs text-[#1D4ED8]/80 animate-pulse">{uploadStatus}</p>
               </div>
             ) : (
               <div className="flex flex-col items-center text-center">
@@ -990,7 +990,7 @@ function Persona({
                     className="flex items-center justify-between p-3 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] hover:bg-[#F4F4F5] transition duration-200"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-9 w-9 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400 shrink-0">
+                      <div className="h-9 w-9 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-[#2563EB] shrink-0">
                         <FileText size={18} />
                       </div>
                       <div className="min-w-0">
@@ -1103,7 +1103,7 @@ function Channels({
       <div className="border border-[#E4E4E7] bg-white p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-bold text-[#09090B] flex items-center gap-1.5">
-            <Zap size={15} className="text-brand-blue-400" />
+            <Zap size={15} className="text-[#2563EB]" />
             Canais da Empresa ({totalActiveChannels}/{maxChannels})
           </h3>
           <p className="text-[11px] text-[#71717A] mt-1">
@@ -1119,7 +1119,7 @@ function Channels({
         {/* 1. SEÇÃO WHATSAPP */}
         <div className="flex flex-col gap-2.5">
           <h4 className="text-[10px] uppercase font-bold tracking-wider text-[#71717A] flex items-center gap-1.5 pl-1">
-            <MessageCircle size={12} className="text-brand-teal-400" />
+            <MessageCircle size={12} className="text-[#0D9488]" />
             WhatsApp Business Cloud API
           </h4>
           
@@ -1213,7 +1213,7 @@ function Channels({
         {/* 3. SEÇÃO GOOGLE CALENDAR */}
         <div className="flex flex-col gap-2.5">
           <h4 className="text-[10px] uppercase font-bold tracking-wider text-[#71717A] flex items-center gap-1.5 pl-1">
-            <Calendar size={12} className="text-brand-blue-400" />
+            <Calendar size={12} className="text-[#2563EB]" />
             Google Calendar (Agenda)
           </h4>
           <GoogleCalendarCard company={company} connected={gcalConnected} isReadOnly={isReadOnly} />
@@ -1323,7 +1323,7 @@ function WhatsAppChannelCard({
                 Erro de Autenticação
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-brand-teal-300">
+              <span className="flex items-center gap-1.5 text-[#0D9488]">
                 <span className="flex h-1.5 w-1.5 rounded-full bg-brand-teal-500 animate-pulse" />
                 Ativo
               </span>
@@ -1847,7 +1847,7 @@ function Flows({
   const firstDay = wh ? Object.values(wh)[0] : (["09:00", "18:00"] as [string, string]);
 
   const ActiveBadge = () => (
-    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-teal-500/10 text-brand-teal-300 border-brand-teal-500/20 flex items-center gap-1 shrink-0">
+    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-teal-500/10 text-[#0D9488] border-brand-teal-500/20 flex items-center gap-1 shrink-0">
       <span className="h-1.5 w-1.5 rounded-full bg-brand-teal-400 animate-pulse" />
       Ativo
     </Badge>
@@ -1866,7 +1866,7 @@ function Flows({
         <div className="absolute -left-4 -bottom-4 h-24 w-24 rounded-full bg-brand-teal-500/10 blur-2xl pointer-events-none" />
         <div className="relative flex items-center gap-2 mb-4">
           <span className="flex h-2 w-2 rounded-full bg-brand-teal-400 shadow-[0_0_8px_#14B8A6] animate-pulse" />
-          <span className="text-[11px] font-bold uppercase tracking-widest text-brand-teal-300/80">Motor em Ação</span>
+          <span className="text-[11px] font-bold uppercase tracking-widest text-[#0D9488]/80">Motor em Ação</span>
         </div>
         <div className="relative grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] p-3 flex flex-col gap-0.5">
@@ -1890,7 +1890,7 @@ function Flows({
             onClick={() => setReminderExpanded(v => !v)}
           >
             <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-teal-500/15 flex items-center justify-center">
-              <Bell size={16} className="text-brand-teal-400" />
+              <Bell size={16} className="text-[#0D9488]" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-semibold text-[#09090B]">Lembrete de Agendamento</div>
@@ -1926,7 +1926,7 @@ function Flows({
                           className={cn(
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             reminderAdvance === h
-                              ? "bg-brand-teal-500/20 border border-brand-teal-500/40 text-brand-teal-300"
+                              ? "bg-brand-teal-500/20 border border-brand-teal-500/40 text-[#0D9488]"
                               : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
@@ -1956,13 +1956,13 @@ function Flows({
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[3px]">
               <div className="flex flex-col items-center gap-2 text-center px-6">
                 <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
-                  <Zap size={15} className="text-brand-blue-400 animate-pulse" />
+                  <Zap size={15} className="text-[#2563EB] animate-pulse" />
                 </div>
                 <p className="text-[12px] font-bold text-[#09090B]">Plano Business</p>
                 <p className="text-[11px] text-[#71717A] max-w-[180px] leading-relaxed">Follow-up com IA contextual exclusivo do Business</p>
                 <button
                   onClick={() => onChangeTab("billing")}
-                  className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
+                  className="mt-1 text-[11px] font-bold text-[#2563EB] hover:underline"
                 >
                   Fazer upgrade →
                 </button>
@@ -1974,7 +1974,7 @@ function Flows({
             onClick={() => isBusiness && setFollowupExpanded(v => !v)}
           >
             <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isBusiness ? "bg-brand-blue-500/15" : "bg-[#F4F4F5]")}>
-              <MessageCircle size={16} className={isBusiness ? "text-brand-blue-400" : "text-[#D4D4D8]"} />
+              <MessageCircle size={16} className={isBusiness ? "text-[#2563EB]" : "text-[#D4D4D8]"} />
             </div>
             <div className="flex-1 min-w-0">
               <div className={cn("text-[13px] font-semibold", isBusiness ? "text-[#09090B]" : "text-[#71717A]")}>
@@ -1991,7 +1991,7 @@ function Flows({
                   <ChevronDown size={14} className={cn("text-[#A1A1AA] transition-transform duration-200", followupExpanded && "rotate-180")} />
                 </>
               ) : (
-                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Business</Badge>
+                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-[#1D4ED8] border-brand-blue-500/20">Business</Badge>
               )}
             </div>
           </button>
@@ -2016,7 +2016,7 @@ function Flows({
                           className={cn(
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             followupDelay === h
-                              ? "bg-brand-blue-500/20 border border-brand-blue-500/40 text-brand-blue-300"
+                              ? "bg-brand-blue-500/20 border border-brand-blue-500/40 text-[#1D4ED8]"
                               : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
@@ -2036,7 +2036,7 @@ function Flows({
                           className={cn(
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             followupRetries === n
-                              ? "bg-brand-blue-500/20 border border-brand-blue-500/40 text-brand-blue-300"
+                              ? "bg-brand-blue-500/20 border border-brand-blue-500/40 text-[#1D4ED8]"
                               : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
@@ -2046,7 +2046,7 @@ function Flows({
                     </div>
                   </div>
                   <div className="rounded-lg bg-brand-blue-500/5 border border-brand-blue-500/10 p-3">
-                    <p className="text-[11px] text-brand-blue-200/60 leading-relaxed">
+                    <p className="text-[11px] text-[#71717A] leading-relaxed">
                       A IA gera mensagens únicas para cada lead com base no histórico da conversa — não são templates genéricos.
                     </p>
                   </div>
@@ -2071,13 +2071,13 @@ function Flows({
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[3px]">
               <div className="flex flex-col items-center gap-2 text-center px-6">
                 <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
-                  <Zap size={15} className="text-brand-blue-400 animate-pulse" />
+                  <Zap size={15} className="text-[#2563EB] animate-pulse" />
                 </div>
                 <p className="text-[12px] font-bold text-[#09090B]">Plano Business</p>
                 <p className="text-[11px] text-[#71717A] max-w-[180px] leading-relaxed">Reativação automática de leads frios com IA exclusivo do Business</p>
                 <button
                   onClick={() => onChangeTab("billing")}
-                  className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
+                  className="mt-1 text-[11px] font-bold text-[#2563EB] hover:underline"
                 >
                   Fazer upgrade →
                 </button>
@@ -2089,7 +2089,7 @@ function Flows({
             onClick={() => isBusiness && setReactivationExpanded(v => !v)}
           >
             <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isBusiness ? "bg-brand-orange-500/15" : "bg-[#F4F4F5]")}>
-              <RefreshCw size={16} className={isBusiness ? "text-brand-orange-400" : "text-[#D4D4D8]"} />
+              <RefreshCw size={16} className={isBusiness ? "text-[#F97316]" : "text-[#D4D4D8]"} />
             </div>
             <div className="flex-1 min-w-0">
               <div className={cn("text-[13px] font-semibold", isBusiness ? "text-[#09090B]" : "text-[#71717A]")}>
@@ -2103,14 +2103,14 @@ function Flows({
               {isBusiness ? (
                 <>
                   {pc.reactivation_hook ? <ActiveBadge /> : (
-                    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-orange-500/10 text-brand-orange-300 border-brand-orange-500/20">
+                    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-orange-500/10 text-[#C2410C] border-brand-orange-500/20">
                       Configurar
                     </Badge>
                   )}
                   <ChevronDown size={14} className={cn("text-[#A1A1AA] transition-transform duration-200", reactivationExpanded && "rotate-180")} />
                 </>
               ) : (
-                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Business</Badge>
+                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-[#1D4ED8] border-brand-blue-500/20">Business</Badge>
               )}
             </div>
           </button>
@@ -2135,7 +2135,7 @@ function Flows({
                           className={cn(
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             reactivationDays === d
-                              ? "bg-brand-orange-500/20 border border-brand-orange-500/40 text-brand-orange-300"
+                              ? "bg-brand-orange-500/20 border border-brand-orange-500/40 text-[#C2410C]"
                               : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
@@ -2176,7 +2176,7 @@ function Flows({
         {/* Janela de Silêncio */}
         <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4 flex items-center gap-3">
           <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-orange-500/10 flex items-center justify-center">
-            <Clock size={16} className="text-brand-orange-400" />
+            <Clock size={16} className="text-[#F97316]" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-semibold text-[#09090B]">Janela de Silêncio</div>
@@ -2188,7 +2188,7 @@ function Flows({
             <ActiveBadge />
             <button
               onClick={() => onChangeTab("rules")}
-              className="text-[11px] font-bold text-brand-blue-400 hover:underline"
+              className="text-[11px] font-bold text-[#2563EB] hover:underline"
             >
               Configurar →
             </button>
@@ -2201,13 +2201,13 @@ function Flows({
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[3px]">
               <div className="flex flex-col items-center gap-2 text-center px-6">
                 <div className="h-8 w-8 rounded-full bg-brand-blue-500/20 flex items-center justify-center">
-                  <Zap size={15} className="text-brand-blue-400 animate-pulse" />
+                  <Zap size={15} className="text-[#2563EB] animate-pulse" />
                 </div>
                 <p className="text-[12px] font-bold text-[#09090B]">Plano Pro</p>
                 <p className="text-[11px] text-[#71717A] max-w-[180px] leading-relaxed">Webhooks para Zapier, Make e sistemas externos no plano Pro+</p>
                 <button
                   onClick={() => onChangeTab("billing")}
-                  className="mt-1 text-[11px] font-bold text-brand-blue-400 hover:underline"
+                  className="mt-1 text-[11px] font-bold text-[#2563EB] hover:underline"
                 >
                   Fazer upgrade →
                 </button>
@@ -2219,7 +2219,7 @@ function Flows({
             onClick={() => isPro && setWebhookExpanded(v => !v)}
           >
             <div className={cn("h-9 w-9 shrink-0 rounded-lg flex items-center justify-center", isPro ? "bg-brand-teal-500/15" : "bg-[#F4F4F5]")}>
-              <GitBranch size={16} className={isPro ? "text-brand-teal-400" : "text-[#D4D4D8]"} />
+              <GitBranch size={16} className={isPro ? "text-[#0D9488]" : "text-[#D4D4D8]"} />
             </div>
             <div className="flex-1 min-w-0">
               <div className={cn("text-[13px] font-semibold", isPro ? "text-[#09090B]" : "text-[#71717A]")}>
@@ -2233,14 +2233,14 @@ function Flows({
               {isPro ? (
                 <>
                   {webhooks.length > 0 ? <ActiveBadge /> : (
-                    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-teal-500/10 text-brand-teal-300 border-brand-teal-500/20">
+                    <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-teal-500/10 text-[#0D9488] border-brand-teal-500/20">
                       {webhooks.length} endpoints
                     </Badge>
                   )}
                   <ChevronDown size={14} className={cn("text-[#A1A1AA] transition-transform duration-200", webhookExpanded && "rotate-180")} />
                 </>
               ) : (
-                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-brand-blue-300 border-brand-blue-500/20">Pro+</Badge>
+                <Badge variant="neutral" className="text-[10px] px-2 py-0.5 bg-brand-blue-500/10 text-[#1D4ED8] border-brand-blue-500/20">Pro+</Badge>
               )}
             </div>
           </button>
@@ -2264,7 +2264,7 @@ function Flows({
                             <p className="text-[10px] text-[#A1A1AA] truncate">{wh.url}</p>
                             <div className="flex gap-1 mt-1 flex-wrap">
                               {wh.event_types.map(ev => (
-                                <span key={ev} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-brand-teal-500/10 text-brand-teal-300 border border-brand-teal-500/20">
+                                <span key={ev} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-brand-teal-500/10 text-[#0D9488] border border-brand-teal-500/20">
                                   {ev}
                                 </span>
                               ))}
@@ -2295,7 +2295,7 @@ function Flows({
                         transition={{ duration: 0.2 }}
                         className="flex flex-col gap-3 p-4 rounded-xl border border-brand-teal-500/20 bg-brand-teal-500/5"
                       >
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-brand-teal-300/70">Novo Webhook</p>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-[#0D9488]/70">Novo Webhook</p>
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[10px] text-[#71717A]">URL do Endpoint *</label>
                           <Input
@@ -2327,7 +2327,7 @@ function Flows({
                                 className={cn(
                                   "text-[10px] font-mono px-2 py-1 rounded-lg border transition",
                                   webhookEvents.includes(ev)
-                                    ? "bg-brand-teal-500/20 border-brand-teal-500/40 text-brand-teal-300"
+                                    ? "bg-brand-teal-500/20 border-brand-teal-500/40 text-[#0D9488]"
                                     : "bg-[#F4F4F5] border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                                 )}
                               >
@@ -2371,8 +2371,8 @@ function Flows({
                   </AnimatePresence>
                   
                   <div className="rounded-lg bg-brand-teal-500/5 border border-brand-teal-500/10 p-3">
-                    <p className="text-[11px] text-brand-teal-200/60 leading-relaxed">
-                      Cada requisição é assinada com HMAC-SHA256. Valide a assinatura no header <code className="text-brand-teal-300 text-[10px]">X-Agendra-Signature</code>.
+                    <p className="text-[11px] text-[#71717A] leading-relaxed">
+                      Cada requisição é assinada com HMAC-SHA256. Valide a assinatura no header <code className="text-[#0D9488] text-[10px]">X-Agendra-Signature</code>.
                     </p>
                   </div>
                 </div>
@@ -2390,10 +2390,10 @@ function Flows({
             {automationEvents.slice(0, 10).map(ev => {
               const Icon = ev.type === "reminder_sent" ? Bell : ev.type === "followup_sent" ? MessageCircle : RefreshCw;
               const color = ev.type === "reminder_sent"
-                ? "text-brand-teal-400"
+                ? "text-[#0D9488]"
                 : ev.type === "followup_sent"
-                ? "text-brand-blue-400"
-                : "text-brand-orange-400";
+                ? "text-[#2563EB]"
+                : "text-[#F97316]";
               return (
                 <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#FAFAFA] transition-colors">
                   <Icon size={13} className={cn("shrink-0", color)} />
@@ -2634,7 +2634,7 @@ function Team({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 px-2 text-[11px] text-brand-teal-400 hover:bg-brand-teal-500/10 hover:text-brand-teal-300"
+                            className="h-7 px-2 text-[11px] text-[#0D9488] hover:bg-brand-teal-500/10 hover:text-[#0D9488]"
                             onClick={() => handleResend(inv.id)}
                             disabled={resendPending}
                           >
@@ -2714,7 +2714,7 @@ function Team({
                           className={cn(
                             "py-2 rounded-lg text-xs font-bold transition-all",
                             inviteRole === role
-                              ? "bg-brand-blue-500/30 border border-brand-blue-500/50 text-brand-blue-300"
+                              ? "bg-brand-blue-500/30 border border-brand-blue-500/50 text-[#1D4ED8]"
                               : "bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] hover:text-[#3F3F46]"
                           )}
                         >
@@ -2806,7 +2806,7 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
     <Card className="border border-[#E4E4E7] bg-white rounded-xl mt-2">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FileText size={18} className="text-brand-blue-400" />
+          <FileText size={18} className="text-[#2563EB]" />
           Auditoria Administrativa (SOC2)
         </CardTitle>
         <CardDescription>
@@ -2888,7 +2888,7 @@ function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
                         
                         <div>
                           <span className="block text-[10px] text-[#A1A1AA] uppercase tracking-widest font-mono mb-1.5">Metadados da Ação (Payload)</span>
-                          <pre className="text-[10px] font-mono p-3 rounded-lg border border-[#E4E4E7] bg-black/40 text-brand-teal-300 overflow-x-auto max-h-48 leading-relaxed scrollbar-thin">
+                          <pre className="text-[10px] font-mono p-3 rounded-lg border border-[#E4E4E7] bg-black/40 text-[#0D9488] overflow-x-auto max-h-48 leading-relaxed scrollbar-thin">
                             {JSON.stringify(log.payload, null, 2)}
                           </pre>
                         </div>
@@ -3018,14 +3018,14 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
           <CardContent className="p-4 flex items-center gap-3">
             <div className={cn(
               "p-2 rounded-full",
-              trialDaysRemaining === 0 ? "bg-red-500/20 text-red-400" : "bg-brand-blue-500/20 text-brand-blue-400"
+              trialDaysRemaining === 0 ? "bg-red-500/20 text-red-400" : "bg-brand-blue-500/20 text-[#2563EB]"
             )}>
               <Clock size={16} />
             </div>
             <div className="flex-1">
               <p className={cn(
                 "text-sm font-semibold",
-                trialDaysRemaining === 0 ? "text-red-300" : "text-brand-blue-300"
+                trialDaysRemaining === 0 ? "text-red-300" : "text-[#1D4ED8]"
               )}>
                 {trialDaysRemaining === 0
                   ? "Período de teste expirado"
@@ -3035,7 +3035,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
               </p>
               <p className={cn(
                 "text-xs mt-0.5",
-                trialDaysRemaining === 0 ? "text-red-300/60" : "text-brand-blue-300/70"
+                trialDaysRemaining === 0 ? "text-red-300/60" : "text-[#1D4ED8]/70"
               )}>
                 {trialDaysRemaining === 0
                   ? "Assine agora para reativar a IA."
@@ -3044,8 +3044,8 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
             </div>
             {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
               <div className="shrink-0 flex flex-col items-center">
-                <span className="text-3xl font-black text-brand-blue-300 tabular-nums leading-none">{trialDaysRemaining}</span>
-                <span className="text-[9px] text-brand-blue-400/60 uppercase tracking-wider">{trialDaysRemaining === 1 ? "dia" : "dias"}</span>
+                <span className="text-3xl font-black text-[#1D4ED8] tabular-nums leading-none">{trialDaysRemaining}</span>
+                <span className="text-[9px] text-[#2563EB]/60 uppercase tracking-wider">{trialDaysRemaining === 1 ? "dia" : "dias"}</span>
               </div>
             )}
           </CardContent>
@@ -3056,12 +3056,12 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
       {cancelAtPeriodEnd && currentPeriodEnd && (
         <Card className="border-brand-orange-500/30 bg-brand-orange-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 rounded-full bg-brand-orange-500/20 text-brand-orange-400">
+            <div className="p-2 rounded-full bg-brand-orange-500/20 text-[#F97316]">
               <Clock size={16} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-brand-orange-300">Sua assinatura foi cancelada</p>
-              <p className="text-xs text-brand-orange-300/70">
+              <p className="text-sm font-semibold text-[#C2410C]">Sua assinatura foi cancelada</p>
+              <p className="text-xs text-[#C2410C]/70">
                 Seu acesso ao plano <strong>{currentPlan.toUpperCase()}</strong> continuará ativo até o dia <strong>{new Date(currentPeriodEnd).toLocaleDateString()}</strong>. Após essa data, você voltará ao plano Trial.
               </p>
             </div>
@@ -3086,7 +3086,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
               />
             </div>
             {leadsPct > 85 && (
-              <p className="text-[11px] text-brand-orange-400 mt-2 font-medium">Você está perto do limite do seu plano. Faça upgrade para não pausar a IA.</p>
+              <p className="text-[11px] text-[#F97316] mt-2 font-medium">Você está perto do limite do seu plano. Faça upgrade para não pausar a IA.</p>
             )}
           </div>
           {isSubscriptionManageable ? (
@@ -3104,7 +3104,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
               <Button
                 variant="secondary"
                 size="sm"
-                className="whitespace-nowrap bg-brand-blue-500/10 text-brand-blue-400 hover:bg-brand-blue-500/20 border-brand-blue-500/20"
+                className="whitespace-nowrap bg-brand-blue-500/10 text-[#2563EB] hover:bg-brand-blue-500/20 border-brand-blue-500/20"
               >
                 <Zap size={13} className="mr-1.5" />
                 Fazer Upgrade
@@ -3129,7 +3129,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
           </button>
           <button
             onClick={() => setIsAnnual(true)}
-            className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors flex items-center gap-1.5", isAnnual ? "bg-[#F4F4F5] text-brand-teal-300" : "text-[#71717A]")}
+            className={cn("px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors flex items-center gap-1.5", isAnnual ? "bg-[#F4F4F5] text-[#0D9488]" : "text-[#71717A]")}
           >
             Anual <Badge variant="hot" className="text-[9px] px-1 py-0 h-4">-25%</Badge>
           </button>
@@ -3189,7 +3189,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
               </Button>
 
               <div className="flex flex-col gap-3 flex-1">
-                <div className="flex items-center gap-2 text-[13px] font-semibold text-brand-teal-300">
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-[#0D9488]">
                   <Check size={14} /> {p.leads}
                 </div>
                 {p.features.map((f, i) => (
@@ -3417,7 +3417,7 @@ function Services({
               className="border border-[#E4E4E7] bg-white flex items-center justify-between p-4 rounded-xl hover:border-[#E4E4E7] hover:bg-white transition-all group"
             >
               <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-brand-blue-400">
+                <div className="h-10 w-10 rounded-lg bg-brand-blue-500/10 flex items-center justify-center text-[#2563EB]">
                   <Briefcase size={20} />
                 </div>
                 <div>
@@ -3427,7 +3427,7 @@ function Services({
                       <Clock size={12} /> {s.duration} min
                     </span>
                     {s.price && (
-                      <span className="text-[11px] text-brand-teal-400 font-medium">
+                      <span className="text-[11px] text-[#0D9488] font-medium">
                         R$ {new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(s.price)}
                       </span>
                     )}
@@ -3545,7 +3545,7 @@ function Rules({ company, isReadOnly = false }: { company: Company | null; isRea
                   <span className="text-[11px] font-medium" style={{ color: "var(--color-fg-3)" }}>
                     Escalar quando score abaixo de:
                   </span>
-                  <span className="font-mono text-sm font-bold text-brand-blue-400">{escalationThreshold}</span>
+                  <span className="font-mono text-sm font-bold text-[#2563EB]">{escalationThreshold}</span>
                 </div>
                 <input
                   type="range"
@@ -3754,7 +3754,7 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
                     <div className="flex items-center gap-4 border-t border-[#F4F4F5] pt-3 mt-1">
                       <div className="flex flex-col">
                         <span className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-0.5">Sentimento</span>
-                        <span className={cn("text-[12px] font-mono", isPositive ? "text-brand-teal-300" : "text-brand-orange-300")}>
+                        <span className={cn("text-[12px] font-mono", isPositive ? "text-[#0D9488]" : "text-[#C2410C]")}>
                           {log.sentiment_score != null ? (log.sentiment_score >= 0 ? '+' : '') + log.sentiment_score.toFixed(2) : '—'}
                         </span>
                       </div>
@@ -3767,7 +3767,7 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
                       {log.urgency_detected && (
                         <div className="flex flex-col">
                           <span className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-0.5">Urgência</span>
-                          <span className="text-[12px] font-mono text-brand-orange-300">Detectada</span>
+                          <span className="text-[12px] font-mono text-[#C2410C]">Detectada</span>
                         </div>
                       )}
                     </div>

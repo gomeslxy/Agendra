@@ -455,7 +455,7 @@ export function AgendaClient({
                     transition={{ duration: 0.2, delay: i * 0.04 }}
                     className="flex items-start gap-3 rounded-xl border border-[#E4E4E7] bg-white p-3 hover:bg-[#F4F4F5] hover:border-[#D4D4D8] transition-all duration-200"
                   >
-                    <span className="min-w-[44px] font-mono text-xs font-semibold text-[#14B8A6] shrink-0">
+                    <span className="min-w-[44px] font-mono text-xs font-semibold text-[#0D9488] shrink-0">
                       {formatTime(e.start_time)}
                     </span>
                     <div className="min-w-0 flex-1">

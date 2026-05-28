@@ -38,7 +38,7 @@ export function MobileNav() {
                 onClick={() => trackEvent("nav_click", { target: item.id })}
                 className={cn(
                   "flex flex-1 flex-col items-center gap-1 px-2 py-3 text-[10px] font-medium transition-colors",
-                  active ? "text-[#2563EB]" : "text-[#A1A1AA]",
+                  active ? "text-[#2563EB]" : "text-[#71717A]",
                 )}
               >
                 <div className="relative">
@@ -46,7 +46,7 @@ export function MobileNav() {
                     size={20}
                     className={cn(
                       "transition-colors duration-150",
-                      active ? "text-[#2563EB]" : "text-[#A1A1AA]",
+                      active ? "text-[#2563EB]" : "text-[#71717A]",
                     )}
                   />
                   {active && (

@@ -120,7 +120,7 @@ export function ChatBubble({
           {timestamp && !hideTime && (
             <div className={cn(
               "self-end text-[9px] font-medium mt-1",
-              variant === "lead" ? "text-[#A1A1AA]" : "text-white/60"
+              variant === "lead" ? "text-[#71717A]" : "text-white/60"
             )}>
               {formatTime(timestamp)}
             </div>

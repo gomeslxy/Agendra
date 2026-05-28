@@ -197,7 +197,7 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
                   )} />
                   <div className="flex flex-col">
                     <span>{CONTROL_LABEL[m]}</span>
-                    <span className="text-[8px] font-medium text-[#A1A1AA] tracking-normal normal-case">
+                    <span className="text-[8px] font-medium text-[#71717A] tracking-normal normal-case">
                       {m === "autonomous" ? "IA responde automaticamente" :
                        m === "shadow" ? "Gera rascunhos para aprovar" : "IA desativada para este lead"}
                     </span>
@@ -263,7 +263,7 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
             {l.channel === "whatsapp" && <MessageCircle size={11} className="text-[#14B8A6] shrink-0" />}
             {l.channel === "instagram" && <Instagram size={11} className="text-pink-400 shrink-0" />}
           </div>
-          <span className="font-mono text-[9px] font-medium text-[#A1A1AA] whitespace-nowrap">
+          <span className="font-mono text-[9px] font-medium text-[#71717A] whitespace-nowrap">
             {last ? relativeTime(last.created_at) : "—"}
           </span>
         </div>
@@ -275,7 +275,7 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
           )}
           <span className={cn(
             "truncate text-[11px] transition-colors",
-            isActive ? "text-[#71717A]" : "text-[#A1A1AA]"
+            isActive ? "text-[#71717A]" : "text-[#71717A]"
           )}>
             {last?.content ?? "Nenhuma mensagem"}
           </span>
@@ -757,7 +757,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all duration-500",
                 isConnected
                   ? "bg-[#F0FDFA] text-[#0F766E] border border-[#CCFBF1]"
-                  : "bg-[#F4F4F5] text-[#A1A1AA] border border-[#E4E4E7]"
+                  : "bg-[#F4F4F5] text-[#71717A] border border-[#E4E4E7]"
               )}>
                 <span className={cn(
                   "h-1.5 w-1.5 rounded-full transition-all duration-500",
@@ -769,7 +769,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           </div>
           <div className="mt-4 flex flex-col gap-3 px-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A1A1AA]" size={14} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]" size={14} />
               <input
                 type="text"
                 placeholder="Buscar por nome ou telefone..."
@@ -785,7 +785,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   onClick={() => setStatusFilter(status)}
                   className={cn(
                     "relative pb-2 text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 whitespace-nowrap cursor-pointer",
-                    statusFilter === status ? "text-[#2563EB]" : "text-[#A1A1AA] hover:text-[#71717A]"
+                    statusFilter === status ? "text-[#2563EB]" : "text-[#71717A] hover:text-[#3F3F46]"
                   )}
                 >
                   {status === 'all' ? 'Todos' : status === 'hot' ? 'Quente' : status === 'warm' ? 'Morno' : status === 'cold' ? 'Frio' : 'Convertidos'}
@@ -806,7 +806,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   onClick={() => setChannelFilter(chan)}
                   className={cn(
                     "relative pb-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 whitespace-nowrap flex items-center gap-1 cursor-pointer",
-                    channelFilter === chan ? "text-[#09090B]" : "text-[#A1A1AA] hover:text-[#71717A]"
+                    channelFilter === chan ? "text-[#09090B]" : "text-[#71717A] hover:text-[#3F3F46]"
                   )}
                 >
                   {chan === 'whatsapp' && <MessageCircle size={10} className="text-[#14B8A6] shrink-0" />}

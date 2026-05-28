@@ -24,7 +24,7 @@ export function Switch({ checked, onChange, label, disabled }: SwitchProps) {
         disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
         checked
           ? "border-[#2563EB]/50 bg-gradient-to-b from-[#2563EB] to-[#1D4ED8]"
-          : "border-white/10 bg-white/[0.08]",
+          : "border-[#E4E4E7] bg-[#F4F4F5]",
       )}
     >
       <motion.span

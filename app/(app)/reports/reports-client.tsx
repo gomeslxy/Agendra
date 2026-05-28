@@ -310,7 +310,7 @@ function RoiHero({
             <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-[#09090B]">
               {revenue > 0
                 ? <AnimatedNumber value={Math.round(revenue)} prefix="R$ " />
-                : <span className="text-2xl text-[#A1A1AA]">Sem transações ainda</span>
+                : <span className="text-2xl text-[#71717A]">Sem transações ainda</span>
               }
             </div>
             {revenue > 0 && (
@@ -397,8 +397,8 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
           }}
         />
         <div className="mt-1 flex justify-between">
-          <span className="font-mono text-[10px] text-[#A1A1AA]">10%</span>
-          <span className="font-mono text-[10px] text-[#A1A1AA]">80%</span>
+          <span className="font-mono text-[10px] text-[#71717A]">10%</span>
+          <span className="font-mono text-[10px] text-[#71717A]">80%</span>
         </div>
       </div>
 
@@ -510,7 +510,7 @@ function SalesCard({ initial, companyId }: { initial: RecentTransaction[]; compa
         <div className="text-right">
           <p className="font-mono text-[10px] uppercase tracking-wider text-[#71717A]">Hoje</p>
           <p className="font-mono text-lg font-bold text-[#16A34A]">
-            {todayRevenue > 0 ? formatBRL(todayRevenue) : <span className="text-sm text-[#A1A1AA]">—</span>}
+            {todayRevenue > 0 ? formatBRL(todayRevenue) : <span className="text-sm text-[#71717A]">—</span>}
           </p>
         </div>
       </div>
@@ -518,8 +518,8 @@ function SalesCard({ initial, companyId }: { initial: RecentTransaction[]; compa
       {txs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <DollarSign size={24} className="mb-2 text-[#D4D4D8]" />
-          <p className="text-[13px] text-[#A1A1AA]">Nenhuma venda registrada ainda</p>
-          <p className="mt-1 text-[11px] text-[#D4D4D8]">Ative Fintech para rastrear pagamentos em tempo real</p>
+          <p className="text-[13px] text-[#71717A]">Nenhuma venda registrada ainda</p>
+          <p className="mt-1 text-[11px] text-[#71717A]">Ative Fintech para rastrear pagamentos em tempo real</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -544,7 +544,7 @@ function SalesCard({ initial, companyId }: { initial: RecentTransaction[]; compa
                   </div>
                   <div>
                     <p className="text-[13px] font-medium text-[#09090B]">{tx.lead?.name ?? 'Lead'}</p>
-                    <p className="text-[11px] text-[#A1A1AA]">
+                    <p className="text-[11px] text-[#71717A]">
                       {fmtTime(tx.paid_at)}
                       {tx.paid_at && tx.paid_at.slice(0, 10) !== today && (
                         <> · {fmtDay(tx.paid_at)}</>
@@ -772,7 +772,7 @@ export function ReportsClient({
           <div className="mt-3 text-[28px] font-bold leading-none tracking-[-0.03em] text-[#16A34A]">
             {periodRevenue > 0
               ? formatBRL(periodRevenue)
-              : <span className="text-base text-[#A1A1AA]">—</span>
+              : <span className="text-base text-[#71717A]">—</span>
             }
           </div>
           {prevRevenue > 0 && periodRevenue > 0 && (() => {
@@ -786,12 +786,12 @@ export function ReportsClient({
                   {delta > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
                   {delta > 0 ? "+" : ""}{delta}%
                 </span>
-                <span className="text-[10px] text-[#A1A1AA]">vs anterior</span>
+                <span className="text-[10px] text-[#71717A]">vs anterior</span>
               </div>
             );
           })()}
           {periodRevenue === 0 && (
-            <p className="mt-2 text-[10px] text-[#A1A1AA]">Ative Fintech para rastrear</p>
+            <p className="mt-2 text-[10px] text-[#71717A]">Ative Fintech para rastrear</p>
           )}
         </motion.div>
 

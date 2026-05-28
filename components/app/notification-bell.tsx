@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,25 +30,25 @@ function timeAgo(dateStr: string): string {
 
 const PRIORITY_DOT: Record<string, string> = {
   critical: "bg-red-500",
-  high: "bg-orange-400",
-  medium: "bg-brand-blue-400",
-  low: "bg-white/30",
+  high: "bg-orange-500",
+  medium: "bg-blue-600",
+  low: "bg-gray-400",
 };
 
 const PRIORITY_BG: Record<string, string> = {
   critical: "bg-red-500/10 border-red-500/20",
   high: "bg-orange-500/8 border-orange-500/15",
-  medium: "bg-[#F4F4F5] border-white/[0.08]",
-  low: "bg-[#F4F4F5] border-white/[0.05]",
+  medium: "bg-[#F4F4F5] border-[#E4E4E7]",
+  low: "bg-[#F4F4F5] border-[#E4E4E7]",
 };
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
-  invite: <UserPlus size={14} className="text-brand-blue-400" />,
-  member_joined: <Users size={14} className="text-brand-teal-400" />,
+  invite: <UserPlus size={14} className="text-[#2563EB]" />,
+  member_joined: <Users size={14} className="text-[#0D9488]" />,
   member_left: <Users size={14} className="text-[#71717A]" />,
-  channel_error: <AlertTriangle size={14} className="text-red-400" />,
-  payment_failed: <CreditCard size={14} className="text-red-400" />,
-  lead_hot: <Zap size={14} className="text-orange-400" />,
+  channel_error: <AlertTriangle size={14} className="text-red-500" />,
+  payment_failed: <CreditCard size={14} className="text-red-500" />,
+  lead_hot: <Zap size={14} className="text-orange-500" />,
   system: <Info size={14} className="text-[#71717A]" />,
 };
 
@@ -108,7 +108,7 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
       className={cn(
         "rounded-xl border p-3 transition-colors",
         PRIORITY_BG[notification.priority],
-        !notification.read && "ring-1 ring-brand-blue-500/20",
+        !notification.read && "ring-1 ring-[#2563EB]/20",
         !isInvite && notification.action_url && "cursor-pointer hover:bg-[#F4F4F5]"
       )}
       onClick={!isInvite ? handleClick : undefined}
@@ -137,10 +137,10 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
               <button
                 onClick={handleAccept}
                 disabled={accepting || declining}
-                className="flex items-center gap-1 rounded-lg bg-brand-teal-500/20 px-3 py-1.5 text-[11px] font-semibold text-brand-teal-300 transition-colors hover:bg-brand-teal-500/30 disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg bg-[#F0FDFA] border border-[#99F6E4] px-3 py-1.5 text-[11px] font-semibold text-[#0D9488] transition-colors hover:bg-[#CCFBF1] disabled:opacity-50"
               >
                 {accepting ? (
-                  <span className="h-3 w-3 animate-spin rounded-full border border-brand-teal-400 border-t-transparent" />
+                  <span className="h-3 w-3 animate-spin rounded-full border border-[#0D9488] border-t-transparent" />
                 ) : (
                   <Check size={11} />
                 )}
@@ -149,10 +149,10 @@ function NotificationCard({ notification, onRead, onDismiss }: NotificationCardP
               <button
                 onClick={handleDecline}
                 disabled={accepting || declining}
-                className="flex items-center gap-1 rounded-lg bg-[#F4F4F5] px-3 py-1.5 text-[11px] font-semibold text-[#71717A] transition-colors hover:bg-[#F4F4F5] hover:text-[#3F3F46] disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg bg-[#F4F4F5] border border-[#E4E4E7] px-3 py-1.5 text-[11px] font-semibold text-[#71717A] transition-colors hover:bg-[#E4E4E7] hover:text-[#3F3F46] disabled:opacity-50"
               >
                 {declining ? (
-                  <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-transparent" />
+                  <span className="h-3 w-3 animate-spin rounded-full border border-gray-400 border-t-transparent" />
                 ) : (
                   <X size={11} />
                 )}
@@ -285,14 +285,13 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 sm:-right-4 top-full z-[100] mt-3 w-[340px] origin-top-right overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/60 backdrop-blur-3xl ring-1 ring-white/5"
-            style={{ backgroundColor: "rgba(11,18,34,0.98)" }}
+            className="absolute right-0 sm:-right-4 top-full z-[100] mt-3 w-[340px] origin-top-right overflow-hidden rounded-2xl border border-[#E4E4E7] bg-white shadow-2xl ring-1 ring-black/5"
           >
-            <div className="flex items-center justify-between border-b border-white/10 bg-[#F4F4F5] px-4 py-3">
+            <div className="flex items-center justify-between border-b border-[#E4E4E7] bg-[#F4F4F5] px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-[14px] font-semibold text-[#09090B] tracking-tight">Notificações</span>
                 {unreadCount > 0 && (
-                  <span className="rounded-full bg-brand-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-brand-blue-400">
+                  <span className="rounded-full bg-[#EFF6FF] border border-[#BFDBFE] px-2 py-0.5 text-[10px] font-bold text-[#2563EB]">
                     {unreadCount} nova{unreadCount !== 1 ? "s" : ""}
                   </span>
                 )}
@@ -301,7 +300,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                 <button
                   onClick={handleMarkAll}
                   disabled={markingAll}
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[#71717A] transition-colors hover:bg-[#FAFAFA] hover:text-[#09090B] disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[#71717A] transition-colors hover:bg-white hover:text-[#09090B] disabled:opacity-50"
                 >
                   <CheckCheck size={14} />
                   Marcar lidas
@@ -343,8 +342,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             </div>
 
             {notifications.length > 0 && (
-              <div className="border-t border-white/5 bg-[#F4F4F5] px-4 py-2.5">
-                <p className="text-center text-[11px] font-medium text-[#A1A1AA]">
+              <div className="border-t border-[#E4E4E7] bg-[#F4F4F5] px-4 py-2.5">
+                <p className="text-center text-[11px] font-medium text-[#71717A]">
                   Mostrando as últimas {notifications.length} notificações
                 </p>
               </div>
