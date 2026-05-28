@@ -13,10 +13,10 @@ const interTight = Inter_Tight({
 
 const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["500"],
   display: "swap",
   variable: "--font-jetbrains",
-  preload: true,
+  preload: false,
   adjustFontFallback: true,
 });
 
