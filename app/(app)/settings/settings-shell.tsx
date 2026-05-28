@@ -35,6 +35,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ShinyButton } from "@/components/ui/shiny-button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -1057,9 +1058,11 @@ function Persona({
             </p>
           </Field>
           {error && <p className="mb-4 text-xs text-red-400 font-medium">{error}</p>}
-          <Button type="submit" variant="blue" size="sm" className="w-full font-bold h-10" disabled={pending}>
-            {saved ? <><Check size={14} className="mr-2" /> Salvo ✓</> : pending ? "Salvando…" : "Salvar configurações"}
-          </Button>
+           <ShinyButton type="submit" className="shiny-cta w-full bg-[#F97316] hover:bg-[#EA580C] !py-2.5 font-bold h-11 shadow-glow-orange/30 shrink-0" disabled={pending}>
+            <span className="flex items-center justify-center gap-1.5 font-bold text-sm">
+              {saved ? <><Check size={14} className="mr-1.5" /> Salvo ✓</> : pending ? "Salvando…" : "Salvar configurações"}
+            </span>
+          </ShinyButton>
         </CardContent>
       </Card>
       </fieldset>
@@ -3728,12 +3731,17 @@ function LogsView({ logs, companyId, planType }: { logs: AiDecisionLog[]; compan
                   <div
                     key={log.id}
                     className={cn(
-                      "p-4 rounded-xl border bg-white/[0.02] transition-all",
+                      "glass p-4 rounded-xl border border-white/[0.06] bg-white/[0.01] transition-all relative overflow-hidden group/log shadow-lg",
                       isPulsing
-                        ? "border-brand-teal-400/60 shadow-[0_0_24px_rgba(45,212,191,0.18)]"
-                        : "border-white/5 hover:border-white/10"
+                        ? "border-brand-teal-400/60 bg-brand-teal-500/[0.04] shadow-[0_0_24px_rgba(45,212,191,0.18)]"
+                        : "hover:border-white/[0.12] hover:bg-white/[0.03]"
                     )}
                   >
+                    {/* Glowing highlight strip */}
+                    <div className={cn(
+                      "absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover/log:opacity-100 opacity-60 pointer-events-none",
+                      log.urgency_detected ? "via-brand-orange-500/25" : isPositive ? "via-brand-teal-500/25" : "via-brand-blue-500/25"
+                    )} />
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                         <div className={cn(

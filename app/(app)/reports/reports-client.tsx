@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { exportReportsXlsx } from "./actions";
 import { createClient } from "@/lib/supabase/client";
 import { ProviderHealthSection } from "./components/ProviderHealthSection";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /* ─── helpers ─────────────────────────────────────────────── */
 function AnimatedNumber({ value, suffix = "", prefix = "" }: { value: number; suffix?: string; prefix?: string }) {
@@ -245,8 +246,12 @@ function KpiCard({
     <motion.div
       variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
       whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 26 } }}
-      className="glass rounded-2xl p-5"
+      className="glass rounded-2xl p-5 relative overflow-hidden group/kpi"
     >
+      {/* Dynamic top highlight line */}
+      <div 
+        className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent transition-all duration-500 group-hover/kpi:via-white/30" 
+      />
       <div className="flex items-start justify-between">
         <span className="font-mono text-[10px] tracking-[0.16em]" style={{ color: "var(--color-fg-3)" }}>
           {label}
@@ -672,14 +677,12 @@ export function ReportsClient({
     return (
       <div className="h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:py-7 lg:px-8">
         <h1 className="mb-2 text-[28px] font-bold tracking-[-0.02em]">Business Intelligence</h1>
-        <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] py-20 text-center">
-          <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.06]">
-            <Activity size={24} style={{ color: "var(--color-fg-3)" }} />
-          </div>
-          <p className="text-sm font-semibold">Nenhum dado analítico ainda</p>
-          <p className="mt-1 max-w-xs text-[13px]" style={{ color: "var(--color-fg-3)" }}>
-            Seus dashboards serão gerados automaticamente assim que seus primeiros leads interagirem.
-          </p>
+        <div className="mt-12 max-w-xl mx-auto">
+          <EmptyState
+            icon={Activity}
+            title="Nenhum Dado Analítico Ainda"
+            description="Seus dashboards, gráficos de receita, qualificação de leads e funil de conversão serão gerados automaticamente assim que seus primeiros leads interagirem."
+          />
         </div>
       </div>
     );

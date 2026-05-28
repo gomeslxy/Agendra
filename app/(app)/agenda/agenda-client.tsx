@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { createEvent, deleteEvent } from "./actions";
 import { trackEvent } from "@/lib/analytics";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ShinyButton } from "@/components/ui/shiny-button";
 
 const MONTHS = [
   "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
@@ -343,17 +345,21 @@ export function AgendaClient({
             <CalendarDays size={14} />
             <span className="hidden sm:inline">Hoje</span>
           </Button>
-          <Button variant="primary" size="sm" onClick={() => setShowModal(true)}>
-            <Plus size={14} />
-            <span className="hidden sm:inline">Novo agendamento</span>
-            <span className="sm:hidden">Novo</span>
-          </Button>
+          <ShinyButton onClick={() => setShowModal(true)} className="shiny-cta bg-[#F97316] hover:bg-[#EA580C] !px-4 !py-2 shrink-0">
+            <span className="flex items-center gap-1.5 font-bold">
+              <Plus size={14} />
+              <span className="hidden sm:inline">Novo agendamento</span>
+              <span className="sm:hidden">Novo</span>
+            </span>
+          </ShinyButton>
         </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         {/* Calendar grid */}
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3 sm:p-5">
+        <div className="glass rounded-2xl border border-white/[0.08] bg-white/[0.02] p-3 sm:p-5 shadow-2xl relative overflow-hidden">
+          {/* DNA accent top hairline */}
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#2563EB]/25 to-transparent" />
           <div className="mb-4 flex items-center gap-3">
             <div className="flex-1 text-base font-semibold sm:text-lg">
               {MONTHS[viewMonth]} {viewYear}
@@ -406,7 +412,7 @@ export function AgendaClient({
                     !c.muted && "hover:bg-white/[0.05]",
                     c.muted && "opacity-30",
                     isToday && "border-[#2563EB]/50 bg-[#2563EB]/10",
-                    isSel && "border-[#F97316]/50 !bg-[#F97316]/10",
+                    isSel && "border-[#2563EB]/50 !bg-[#2563EB]/12 shadow-glow-blue/20",
                   )}
                 >
                   <span className="text-[11px] font-semibold sm:text-[13px]">{c.d}</span>
@@ -447,17 +453,27 @@ export function AgendaClient({
         </div>
 
         {/* Day events panel */}
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 sm:p-5">
+        <div className="glass rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5 shadow-2xl relative overflow-hidden">
+          {/* DNA accent top hairline */}
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#14B8A6]/25 to-transparent" />
           <div className="eyebrow mb-3">Dia {selected} · {MONTHS[viewMonth]}</div>
           <div className="flex flex-col gap-2.5 sm:max-h-[calc(100vh-260px)] sm:overflow-y-auto">
             {dayEvents.length === 0 ? (
-              <div
-                className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-4 text-center"
-                style={{ color: "var(--color-fg-3)" }}
-              >
-                <p className="text-sm">Sem agendamentos neste dia.</p>
-                <p className="mt-1 text-[11px]">Clique em "Novo" para adicionar.</p>
-              </div>
+              <EmptyState
+                icon={CalendarDays}
+                title="Sem Compromissos"
+                description={`Não há nenhum agendamento para o dia ${selected} de ${MONTHS[viewMonth]}.`}
+                action={
+                  <Button
+                    onClick={() => setShowModal(true)}
+                    variant="ghost"
+                    className="text-xs text-[#2563EB] hover:text-blue-400 hover:bg-white/5 underline underline-offset-4"
+                  >
+                    Novo agendamento
+                  </Button>
+                }
+                className="!my-0 !p-4 border-white/[0.06] bg-white/[0.01]"
+              />
             ) : (
               dayEvents.map((e, i) => {
                 const status = e.leads?.status ?? "cold";
@@ -570,7 +586,7 @@ export function AgendaClient({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 16 }}
                 transition={{ duration: 0.18 }}
-                className="w-full max-w-md border border-white/[0.1] bg-[rgba(11,18,34,0.97)] p-6 shadow-2xl backdrop-blur-xl flex flex-col rounded-2xl max-h-[85vh]"
+                className="glass glass-strong w-full max-w-md border border-white/[0.12] bg-[rgba(11,18,34,0.75)] p-6 shadow-2xl flex flex-col rounded-2xl max-h-[85vh] relative overflow-hidden"
               >
                 <div className="mb-5 flex shrink-0 items-center justify-between">
                   <h2 className="text-lg font-semibold">Novo agendamento</h2>
@@ -666,25 +682,16 @@ export function AgendaClient({
                     )}
 
                     <div className="mt-2 flex gap-2 shrink-0">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="flex-1 justify-center"
-                        onClick={() => setShowModal(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
+                      <ShinyButton
                         type="submit"
-                        variant="primary"
-                        size="sm"
-                        className="flex-1 justify-center"
                         disabled={isPending}
+                        className="shiny-cta flex-1 justify-center bg-[#F97316] hover:bg-[#EA580C] !py-2 shadow-glow-orange/30 shrink-0"
                       >
-                        {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                        {isPending ? "Salvando..." : "Criar"}
-                      </Button>
+                        <span className="flex items-center justify-center gap-1.5 font-bold">
+                          {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                          {isPending ? "Criando..." : "Criar agendamento"}
+                        </span>
+                      </ShinyButton>
                     </div>
                   </form>
                 </div>

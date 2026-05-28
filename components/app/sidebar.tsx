@@ -53,10 +53,18 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
 
   return (
     <aside
-      className="hidden h-screen flex-col gap-4 border-r border-white/[0.08] bg-[rgba(11,18,34,0.55)] p-4 backdrop-blur-xl md:flex"
+      key="sidebar"
+      className="glass hidden h-screen flex-col gap-4 !rounded-none !border-y-0 !border-l-0 border-r border-white/[0.08] bg-[rgba(11,18,34,0.35)] p-4 md:flex shadow-2xl z-20"
     >
-      <Link href="/inbox" className="flex items-center gap-2.5 px-2 py-1.5">
-        <Image src="/assets/agendra-logo.svg" alt="Agendra" width={104} height={26} priority />
+      <Link href="/inbox" className="flex items-center justify-between px-2 py-1.5 shrink-0">
+        <Image src="/assets/agendra-logo.svg" alt="Agendra" width={96} height={24} priority />
+        <div className="flex items-center gap-1.5 rounded-full border border-brand-teal-500/25 bg-brand-teal-500/5 px-2 py-0.5 text-[9px] font-bold text-brand-teal-400 tracking-wide">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-teal-400 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-teal-500" />
+          </span>
+          AI ACTIVE
+        </div>
       </Link>
 
       <nav className="relative flex flex-col gap-0.5">
@@ -105,7 +113,8 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
       </nav>
 
       {/* User card */}
-      <div className="mt-auto rounded-xl border border-white/[0.08] bg-white/[0.04] p-3">
+      <div className="glass mt-auto rounded-xl border border-white/[0.08] bg-[rgba(255,255,255,0.02)] p-3 shadow-inner relative overflow-hidden group/user z-10 shrink-0">
+        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#2563EB]/20 to-transparent transition-opacity duration-300 group-hover/user:via-[#2563EB]/40 pointer-events-none" />
         {!mounted || loading ? (
           <div className="h-16 animate-pulse rounded-lg bg-white/[0.04]" />
         ) : (

@@ -10,6 +10,8 @@ import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { LeadWithLastMessage } from "@/lib/types/database";
 import { createLead, exportLeads } from "./actions";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ShinyButton } from "@/components/ui/shiny-button";
 
 type Filter = "all" | "hot" | "warm" | "cold" | "success";
 
@@ -114,10 +116,12 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
             <Download size={14} />
             {exportPending ? "…" : "Exportar"}
           </Button>
-          <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
-            <UserPlus size={14} />
-            Novo lead
-          </Button>
+          <ShinyButton onClick={() => setShowNewModal(true)} className="shiny-cta pulse-cta bg-[#F97316] hover:bg-[#EA580C] !px-4 !py-2 shrink-0">
+            <span className="flex items-center gap-1.5 font-bold">
+              <UserPlus size={14} />
+              Novo lead
+            </span>
+          </ShinyButton>
         </div>
       </header>
 
@@ -144,22 +148,32 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
         })}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+      <div className="glass overflow-x-auto rounded-2xl border border-white/[0.08] bg-white/[0.02] shadow-2xl relative">
+        {/* DNA highlight top strip */}
+        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#2563EB]/30 to-transparent" />
+        
         {visible.length === 0 ? (
-          <div className="px-6 py-12 text-center" style={{ color: "var(--color-fg-3)" }}>
-            <p className="text-sm">
-              {filter === "all"
-                ? "Nenhum lead ainda. Quando o WhatsApp estiver conectado, eles aparecem aqui."
-                : `Nenhum lead ${HEAT_LABEL[filter]?.toLowerCase() ?? filter}.`}
-            </p>
-            {filter === "all" && (
-              <button
-                onClick={() => setShowNewModal(true)}
-                className="mt-3 text-xs text-[#2563EB] underline underline-offset-2 hover:text-blue-400"
-              >
-                Adicionar lead manualmente
-              </button>
-            )}
+          <div className="p-12 text-center">
+            <EmptyState
+              icon={UserPlus}
+              title="Sem Leads Encontrados"
+              description={
+                filter === "all"
+                  ? "Nenhum lead foi cadastrado ainda. Conecte o WhatsApp ou adicione manualmente."
+                  : `Não encontramos leads com a qualificação ${HEAT_LABEL[filter] || filter} no momento.`
+              }
+              action={
+                filter === "all" ? (
+                  <Button
+                    onClick={() => setShowNewModal(true)}
+                    variant="ghost"
+                    className="text-xs text-[#2563EB] hover:text-blue-400 hover:bg-white/5 underline underline-offset-4"
+                  >
+                    Adicionar lead manualmente
+                  </Button>
+                ) : undefined
+              }
+            />
           </div>
         ) : (
           <table className="w-full border-collapse">
@@ -374,16 +388,16 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                       >
                         Cancelar
                       </Button>
-                      <Button
+                      <ShinyButton
                         type="submit"
-                        variant="primary"
-                        size="sm"
-                        className="flex-1 justify-center"
                         disabled={isPending}
+                        className="shiny-cta flex-1 justify-center bg-[#F97316] hover:bg-[#EA580C] !py-2 shadow-glow-orange/30 shrink-0"
                       >
-                        {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                        {isPending ? "Salvando..." : "Criar lead"}
-                      </Button>
+                        <span className="flex items-center justify-center gap-1.5 font-bold">
+                          {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                          {isPending ? "Salvando..." : "Criar lead"}
+                        </span>
+                      </ShinyButton>
                     </div>
                   </form>
                 </div>
@@ -411,7 +425,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 380, damping: 38 }}
-              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-white/[0.08] bg-[rgba(11,18,34,0.97)] shadow-2xl backdrop-blur-xl"
+              className="glass glass-strong fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col !rounded-none !border-y-0 !border-r-0 border-l border-white/[0.08] bg-[rgba(11,18,34,0.65)] shadow-2xl"
             >
               <div className="flex items-center gap-3 border-b border-white/[0.08] p-5">
                 <div
@@ -436,7 +450,8 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
 
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
                 {/* Heat */}
-                <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <div className="glass rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 shadow-lg relative overflow-hidden">
+                  <div className="absolute top-0 inset-x-4 h-[1px] bg-gradient-to-r from-transparent via-[#14B8A6]/20 to-transparent" />
                   <div className="eyebrow mb-3" style={{ color: "var(--color-brand-teal-300)" }}>
                     QUALIFICAÇÃO · IA
                   </div>
@@ -454,7 +469,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                 </div>
 
                 {/* Contato */}
-                <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+                <div className="glass rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 shadow-lg">
                   <div className="eyebrow mb-3">CONTATO</div>
                   <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2.5 text-[13px]">
@@ -485,7 +500,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
 
                 {/* Última mensagem */}
                 {selectedLead.last_message && (
-                  <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+                  <div className="glass rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 shadow-lg">
                     <div className="eyebrow mb-3">ÚLTIMA MENSAGEM</div>
                     <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-fg-2)" }}>
                       "{selectedLead.last_message.content}"

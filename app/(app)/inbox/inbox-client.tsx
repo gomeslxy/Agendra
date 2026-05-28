@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Search, MessageCircle, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatBubble } from "@/components/app/chat-bubble";
+import { EmptyState } from "@/components/ui/empty-state";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { stagger } from "@/components/motion/variants";
 import { cn } from "@/lib/utils";
@@ -73,8 +74,8 @@ function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChan
         onClick={(e) => { e.stopPropagation(); setToneOpen(!toneOpen); }}
         disabled={tonePending}
         className={cn(
-          "flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/10 disabled:opacity-50",
-          toneOpen && "border-brand-blue-500/30 bg-white/10",
+          "flex items-center justify-between gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/[0.08] disabled:opacity-50 backdrop-blur-md",
+          toneOpen && "border-brand-blue-500/30 bg-white/[0.08]",
           compact ? "h-8 px-2" : "w-full"
         )}
       >
@@ -104,7 +105,7 @@ function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChan
               animate={{ opacity: 1, y: 4, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.95 }}
               className={cn(
-                "absolute z-[101] overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1 shadow-2xl shadow-black/50",
+                "glass absolute z-[101] overflow-hidden rounded-xl border border-white/[0.12] bg-[#0A0A0A]/90 p-1 shadow-2xl shadow-black/60",
                 compact ? "right-0 top-full mt-1 w-32" : "left-0 top-full w-full"
               )}
             >
@@ -149,8 +150,8 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
         onClick={(e) => { e.stopPropagation(); setControlOpen(!controlOpen); }}
         disabled={controlPending}
         className={cn(
-          "flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/10 disabled:opacity-50",
-          controlOpen && "border-brand-blue-500/30 bg-white/10",
+          "flex items-center justify-between gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/[0.08] disabled:opacity-50 backdrop-blur-md",
+          controlOpen && "border-brand-blue-500/30 bg-white/[0.08]",
           compact ? "h-8 px-2" : "w-full"
         )}
       >
@@ -179,7 +180,7 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
               animate={{ opacity: 1, y: 4, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.95 }}
               className={cn(
-                "absolute z-[101] overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]/95 backdrop-blur-xl p-1 shadow-2xl shadow-black/50",
+                "glass absolute z-[101] overflow-hidden rounded-xl border border-white/[0.12] bg-[#0A0A0A]/90 p-1 shadow-2xl shadow-black/60",
                 compact ? "right-0 top-full mt-1 w-44" : "left-0 top-full w-full"
               )}
             >
@@ -906,14 +907,12 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         !showChatOnMobile ? "hidden lg:flex lg:flex-1" : "flex w-full lg:flex-1"
       )}>
         {!selected ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-            <div className="h-20 w-20 rounded-full bg-white/[0.02] border border-white/[0.05] flex items-center justify-center shadow-inner">
-               <Zap size={32} className="text-white/10" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white/40">Agendra Inbox</h3>
-              <p className="text-sm text-white/20 mt-1 max-w-[240px]">Selecione um lead para iniciar a gestão de atendimento em tempo real.</p>
-            </div>
+          <div className="flex flex-1 flex-col items-center justify-center p-8">
+            <EmptyState
+              icon={Zap}
+              title="Agendra Inbox"
+              description="Selecione um lead na lista ao lado para iniciar a gestão de atendimento em tempo real e acompanhar a automação da inteligência artificial."
+            />
           </div>
         ) : (
           <>
@@ -1310,7 +1309,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       </section>
 
       {/* COL 3 — detail */}
-      <aside className="hidden flex-col gap-4 overflow-y-auto border-l border-white/[0.08] bg-background/30 p-5 w-[320px] shrink-0 custom-scrollbar xl:flex">
+      <aside className="glass hidden flex-col gap-4 overflow-y-auto !rounded-none !border-y-0 !border-r-0 border-l border-white/[0.08] bg-[rgba(11,18,34,0.18)] p-5 w-[320px] shrink-0 custom-scrollbar xl:flex shadow-2xl z-10">
         {selected && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
