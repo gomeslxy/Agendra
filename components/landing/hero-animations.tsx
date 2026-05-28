@@ -2,7 +2,6 @@
 
 import React from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowRight, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShinyButton } from "@/components/ui/shiny-button";
@@ -10,23 +9,19 @@ import { trackEvent } from "@/lib/analytics";
 
 // CSS-driven fade-up — zero hydration cost, h1 (LCP element) visible immediately
 export function HeroLeftAnimation({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="animate-hero-left">
-      {children}
-    </div>
-  );
+  return <div className="animate-hero-left">{children}</div>;
 }
 
-export function HeroRightAnimation({ children, className }: { children: React.ReactNode; className?: string }) {
+// CSS-driven scale-in — replaces former motion.div to remove framer-motion from Hero LCP path
+export function HeroRightAnimation({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-      className={className}
-    >
-      {children}
-    </motion.div>
+    <div className={`animate-hero-right ${className ?? ""}`}>{children}</div>
   );
 }
 
@@ -41,10 +36,18 @@ export function HeroButtons() {
 
   return (
     <div className="mt-7 flex flex-wrap gap-3">
-      <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "hero", target: "signup" })}>
+      <Link
+        href="/signup"
+        onClick={() =>
+          trackEvent("cta_click", { location: "hero", target: "signup" })
+        }
+      >
         <ShinyButton className="px-8 group">
           Começar grátis
-          <ArrowRight size={18} className="ml-2 inline-block transition-transform group-hover:translate-x-1" />
+          <ArrowRight
+            size={18}
+            className="ml-2 inline-block transition-transform group-hover:translate-x-1"
+          />
         </ShinyButton>
       </Link>
       <Button
