@@ -25,13 +25,38 @@ export const dynamic = "force-static";
 import { Header } from "@/components/landing/header";
 import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
-import { ProductDemo } from "@/components/landing/product-demo";
-import { Benefits } from "@/components/landing/benefits";
-import { Proof } from "@/components/landing/proof";
-import { UseCases } from "@/components/landing/use-cases";
-import { FAQ } from "@/components/landing/faq";
-import { FinalCTA } from "@/components/landing/final-cta";
-import { Footer } from "@/components/landing/footer";
+import nextDynamic from "next/dynamic";
+import { SectionSkeleton } from "@/components/landing/section-skeleton";
+
+// Below-fold — SSR mantido (default ssr: true), client JS lazy
+const ProductDemo = nextDynamic(
+  () => import("@/components/landing/product-demo").then((m) => m.ProductDemo),
+  { loading: () => <SectionSkeleton minHeight={600} /> }
+);
+const Benefits = nextDynamic(
+  () => import("@/components/landing/benefits").then((m) => m.Benefits),
+  { loading: () => <SectionSkeleton minHeight={500} /> }
+);
+const Proof = nextDynamic(
+  () => import("@/components/landing/proof").then((m) => m.Proof),
+  { loading: () => <SectionSkeleton minHeight={300} /> }
+);
+const UseCases = nextDynamic(
+  () => import("@/components/landing/use-cases").then((m) => m.UseCases),
+  { loading: () => <SectionSkeleton minHeight={400} /> }
+);
+const FAQ = nextDynamic(
+  () => import("@/components/landing/faq").then((m) => m.FAQ),
+  { loading: () => <SectionSkeleton minHeight={450} /> }
+);
+const FinalCTA = nextDynamic(
+  () => import("@/components/landing/final-cta").then((m) => m.FinalCTA),
+  { loading: () => <SectionSkeleton minHeight={300} /> }
+);
+const Footer = nextDynamic(
+  () => import("@/components/landing/footer").then((m) => m.Footer),
+  { loading: () => <SectionSkeleton minHeight={200} /> }
+);
 
 export default function LandingPage() {
   return (
