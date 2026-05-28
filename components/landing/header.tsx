@@ -118,7 +118,7 @@ export function Header({ isLoggedIn = false }: HeaderProps = {}) {
             alt="Agendra - Inteligência Artificial para Agendamento"
             width={120}
             height={30}
-            style={{ height: "auto" }}
+            style={{ width: "auto", height: "auto" }}
             priority
           />
         </Link>
