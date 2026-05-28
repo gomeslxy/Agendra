@@ -4,7 +4,7 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "blue";
+type Variant = "primary" | "secondary" | "ghost" | "blue" | "orange";
 type Size = "sm" | "md" | "lg" | "icon";
 
 interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "ref"> {
@@ -14,31 +14,44 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "ref
 }
 
 const VARIANT: Record<Variant, string> = {
+  // Orange = conversion CTA (Assinar, Upgrade, Novo lead)
+  orange:
+    "text-white bg-[#F97316] border-transparent " +
+    "hover:bg-[#EA580C] shadow-[0_2px_8px_rgba(249,115,22,0.22)] " +
+    "hover:shadow-[0_4px_16px_rgba(249,115,22,0.30)]",
+  // Blue = primary navigation action
   primary:
-    "text-white border-white/20 bg-gradient-to-b from-[#FB923C] via-[#F97316] to-[#EA580C] " +
-    "[box-shadow:var(--shadow-glow-orange),inset_0_1px_0_rgba(255,255,255,0.35)] " +
-    "hover:[box-shadow:var(--shadow-glow-orange),inset_0_1px_0_rgba(255,255,255,0.45),0_18px_50px_rgba(249,115,22,0.5)]",
+    "text-white bg-[#2563EB] border-transparent " +
+    "hover:bg-[#1D4ED8] shadow-[0_2px_8px_rgba(37,99,235,0.22)] " +
+    "hover:shadow-[0_4px_16px_rgba(37,99,235,0.28)]",
+  // Secondary = subtle framed button
   secondary:
-    "text-white bg-white/[0.06] border-white/[0.14] backdrop-blur-md hover:bg-white/[0.10]",
-  ghost: "text-white bg-transparent border-transparent hover:bg-white/[0.04]",
+    "text-[#3F3F46] bg-white border-[#E4E4E7] " +
+    "hover:bg-[#F4F4F5] hover:border-[#D4D4D8]",
+  // Ghost = icon buttons, contextual actions
+  ghost:
+    "text-[#71717A] bg-transparent border-transparent " +
+    "hover:bg-[#F4F4F5] hover:text-[#3F3F46]",
+  // Blue alias kept for backward compat
   blue:
-    "text-white border-white/20 bg-gradient-to-b from-[#3B82F6] to-[#2563EB] " +
-    "[box-shadow:var(--shadow-glow-blue),inset_0_1px_0_rgba(255,255,255,0.30)]",
+    "text-white bg-[#2563EB] border-transparent " +
+    "hover:bg-[#1D4ED8] shadow-[0_2px_8px_rgba(37,99,235,0.22)]",
 };
 
 const SIZE: Record<Size, string> = {
   sm: "px-3 py-1.5 text-xs",
-  md: "px-5 py-3 text-sm",
-  lg: "px-6 py-3.5 text-base",
+  md: "px-4 py-2 text-sm",
+  lg: "px-5 py-2.5 text-base",
   icon: "p-0 flex items-center justify-center",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = "secondary", size = "md", pulse, className, children, ...rest }, ref) => {
     const classNames = cn(
-      "inline-flex items-center gap-2.5 rounded-full border font-medium leading-none cursor-pointer select-none isolate",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950",
-      "transition-[box-shadow,background,filter] duration-200",
+      "inline-flex items-center gap-2 rounded-lg border font-semibold leading-none cursor-pointer select-none isolate",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+      "transition-[box-shadow,background,filter,border-color] duration-150",
+      "disabled:opacity-50 disabled:pointer-events-none",
       VARIANT[variant],
       SIZE[size],
       pulse && "pulse-cta",
@@ -49,7 +62,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <motion.button
         ref={ref}
         initial={false}
-        whileHover={{ y: -1, filter: "brightness(1.05)" }}
+        whileHover={{ y: -1 }}
         whileTap={{ scale: 0.98, y: 0 }}
         transition={{ type: "spring", stiffness: 400, damping: 28 }}
         className={classNames}

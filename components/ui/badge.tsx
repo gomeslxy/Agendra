@@ -4,11 +4,11 @@ import { cn } from "@/lib/utils";
 type Heat = "hot" | "warm" | "cold" | "success" | "neutral";
 
 const HEAT_CLS: Record<Heat, string> = {
-  hot:     "text-[#F97316] border-[#F97316]/40 bg-[#F97316]/10",
-  warm:    "text-[#F59E0B] border-[#F59E0B]/40 bg-[#F59E0B]/10",
-  cold:    "text-[#60A5FA] border-[#60A5FA]/40 bg-[#60A5FA]/10",
-  success: "text-brand-teal-300 border-brand-teal-500/40 bg-brand-teal-500/10",
-  neutral: "text-fg-2 border-white/10 bg-white/[0.04]",
+  hot:     "text-[#C2410C] border-[#FED7AA] bg-[#FFF7ED]",
+  warm:    "text-[#854D0E] border-[#FDE68A] bg-[#FEFCE8]",
+  cold:    "text-[#1D4ED8] border-[#BFDBFE] bg-[#EFF6FF]",
+  success: "text-[#166534] border-[#BBF7D0] bg-[#F0FDF4]",
+  neutral: "text-[#71717A] border-[#E4E4E7] bg-[#F4F4F5]",
 };
 
 interface BadgeProps {
@@ -27,16 +27,13 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
         HEAT_CLS[variant],
         className,
       )}
     >
       {withDot && (
-        <span
-          className="h-1.5 w-1.5 rounded-full"
-          style={{ background: "currentColor" }}
-        />
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />
       )}
       {children}
     </span>
