@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils";
 import { createEvent, deleteEvent } from "./actions";
 import { trackEvent } from "@/lib/analytics";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ShinyButton } from "@/components/ui/shiny-button";
 
 const MONTHS = [
   "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
@@ -119,7 +118,6 @@ export function AgendaClient({
   gcalConnected?: boolean;
   gcalEmail?: string | null;
   lastSyncedAt?: string | null;
-  /** If true, auto-triggers GCal sync on mount (data is stale) */
   autoSync?: boolean;
 }) {
   const router = useRouter();
@@ -137,7 +135,6 @@ export function AgendaClient({
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  // P1 fix: auto-sync on mount when data is stale — keeps SSR fast
   const didAutoSync = useRef(false);
   useEffect(() => {
     if (!autoSync || didAutoSync.current) return;
@@ -149,7 +146,6 @@ export function AgendaClient({
       .finally(() => setIsSyncing(false));
   }, [autoSync, router]);
 
-  // Reset form times whenever modal opens, based on selected day
   useEffect(() => {
     if (!showModal) return;
     const base = new Date(viewYear, viewMonth, selected, 9, 0);
@@ -207,16 +203,12 @@ export function AgendaClient({
     if (m > 11) { m = 0; y += 1; }
     setViewMonth(m);
     setViewYear(y);
-    // P1 fix: clamp selected day to the max days in the new month
-    // (e.g. navigating from Jan 31 to Feb → clamp to 28/29)
     const maxDay = new Date(y, m + 1, 0).getDate();
     setSelected((prev) => Math.min(prev, maxDay));
   };
 
   const handleCreate = (formData: FormData) => {
     setError(null);
-    // P0 timezone fix: datetime-local inputs return local time strings without timezone.
-    // Convert to UTC ISO strings here (in browser) so the server action receives UTC.
     const startLocal = formData.get("start_time") as string | null;
     const endLocal = formData.get("end_time") as string | null;
     if (startLocal) formData.set("start_time", new Date(startLocal).toISOString());
@@ -229,7 +221,6 @@ export function AgendaClient({
         setShowModal(false);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erro ao criar agendamento";
-        // Map internal onboarding error to user-friendly message
         setError(
           msg.startsWith("Onboarding not complete")
             ? "Complete o onboarding da sua empresa antes de criar agendamentos."
@@ -240,7 +231,6 @@ export function AgendaClient({
   };
 
   const handleDelete = (eventId: string) => {
-    // P2 fix: require confirmation before delete (irreversible action)
     if (deleteConfirm !== eventId) {
       setDeleteConfirm(eventId);
       return;
@@ -270,6 +260,9 @@ export function AgendaClient({
     }
   };
 
+  // isMobile used to suppress mobile-specific layout differences
+  void isMobile;
+
   return (
     <div className="relative mobile-scroll-area h-full overflow-y-auto px-4 pt-4 pb-[calc(72px+env(safe-area-inset-bottom,12px))] sm:pt-7 sm:px-8 sm:pb-7">
       {/* Sync loading overlay */}
@@ -281,19 +274,19 @@ export function AgendaClient({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="flex flex-col items-center gap-4 rounded-2xl border border-white/[0.1] bg-[rgba(11,18,34,0.97)] px-10 py-8 shadow-2xl"
+              className="flex flex-col items-center gap-4 rounded-2xl border border-[#E4E4E7] bg-white px-10 py-8 shadow-2xl"
             >
-              <RefreshCw size={28} className="animate-spin text-indigo-400" />
+              <RefreshCw size={28} className="animate-spin text-[#6366F1]" />
               <div className="text-center">
-                <p className="font-semibold">Sincronizando</p>
-                <p className="mt-1 text-sm" style={{ color: "var(--color-fg-3)" }}>
+                <p className="font-semibold text-[#09090B]">Sincronizando</p>
+                <p className="mt-1 text-sm text-[#71717A]">
                   Buscando eventos do Google Calendar...
                 </p>
               </div>
@@ -301,10 +294,11 @@ export function AgendaClient({
           </motion.div>
         )}
       </AnimatePresence>
+
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-end">
         <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em] sm:text-[28px]">Agenda</h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--color-fg-2)" }}>
+          <h1 className="text-[24px] font-bold tracking-[-0.02em] text-[#09090B] sm:text-[28px]">Agenda</h1>
+          <p className="mt-1 text-sm text-[#71717A]">
             {dayEvents.length} evento{dayEvents.length === 1 ? "" : "s"} em {selected} de {MONTHS[viewMonth]}.
           </p>
         </div>
@@ -312,20 +306,12 @@ export function AgendaClient({
           {gcalConnected && (
             <div className="flex items-center gap-2">
               {lastSyncedAt && (
-                <span
-                  className="hidden text-[11px] sm:inline"
-                  style={{ color: "var(--color-fg-3)" }}
-                >
+                <span className="hidden text-[11px] text-[#71717A] sm:inline">
                   {gcalEmail ? `${gcalEmail} · ` : ""}
                   {formatRelative(lastSyncedAt)}
                 </span>
               )}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSync}
-                disabled={isSyncing}
-              >
+              <Button variant="secondary" size="sm" onClick={handleSync} disabled={isSyncing}>
                 <RefreshCw size={14} className={cn(isSyncing && "animate-spin")} />
                 <span className="hidden sm:inline">
                   {isSyncing ? "Sincronizando..." : "Sincronizar"}
@@ -345,34 +331,32 @@ export function AgendaClient({
             <CalendarDays size={14} />
             <span className="hidden sm:inline">Hoje</span>
           </Button>
-          <ShinyButton onClick={() => setShowModal(true)} className="shiny-cta bg-[#F97316] hover:bg-[#EA580C] !px-4 !py-2 shrink-0">
-            <span className="flex items-center gap-1.5 font-bold">
-              <Plus size={14} />
-              <span className="hidden sm:inline">Novo agendamento</span>
-              <span className="sm:hidden">Novo</span>
-            </span>
-          </ShinyButton>
+          <Button variant="orange" size="sm" onClick={() => setShowModal(true)}>
+            <Plus size={14} />
+            <span className="hidden sm:inline">Novo agendamento</span>
+            <span className="sm:hidden">Novo</span>
+          </Button>
         </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         {/* Calendar grid */}
-        <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-3 sm:p-5 relative overflow-hidden">
+        <div className="border border-[#E4E4E7] bg-white rounded-xl p-3 sm:p-5 shadow-sm">
           <div className="mb-4 flex items-center gap-3">
-            <div className="flex-1 text-base font-semibold sm:text-lg">
+            <div className="flex-1 text-base font-semibold text-[#09090B] sm:text-lg">
               {MONTHS[viewMonth]} {viewYear}
             </div>
             <div className="flex gap-1">
               <button
                 onClick={() => navMonth(-1)}
-                className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-fg-2 transition hover:bg-white/[0.08] hover:text-white"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] text-[#71717A] transition hover:bg-[#E4E4E7] hover:text-[#09090B]"
                 aria-label="Mês anterior"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 onClick={() => navMonth(1)}
-                className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-fg-2 transition hover:bg-white/[0.08] hover:text-white"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] text-[#71717A] transition hover:bg-[#E4E4E7] hover:text-[#09090B]"
                 aria-label="Próximo mês"
               >
                 <ChevronRight size={16} />
@@ -384,8 +368,7 @@ export function AgendaClient({
             {DOW.map((d) => (
               <div
                 key={d}
-                className="py-1 text-center font-mono text-[9px] font-medium uppercase tracking-[0.12em] sm:text-[10px] sm:tracking-[0.16em]"
-                style={{ color: "var(--color-fg-3)" }}
+                className="py-1 text-center font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-[#A1A1AA] sm:text-[10px] sm:tracking-[0.16em]"
               >
                 {d}
               </div>
@@ -406,15 +389,17 @@ export function AgendaClient({
                   onClick={() => !c.muted && setSelected(c.d)}
                   className={cn(
                     "flex min-h-[60px] cursor-pointer flex-col gap-1 rounded-xl border p-1.5 text-left sm:min-h-[80px] sm:p-2",
-                    "border-white/[0.08] bg-white/[0.02] transition-colors",
-                    !c.muted && "hover:bg-white/[0.05]",
-                    c.muted && "opacity-30",
-                    isToday && "border-[#2563EB]/50 bg-[#2563EB]/10",
-                    isSel && "border-[#2563EB]/50 !bg-[#2563EB]/12 shadow-glow-blue/20",
+                    "border-[#E4E4E7] bg-white transition-colors",
+                    !c.muted && "hover:bg-[#F4F4F5]",
+                    c.muted && "opacity-30 cursor-default",
+                    isToday && !isSel && "border-[#BFDBFE] bg-[#EFF6FF]",
+                    isSel && "border-[#2563EB] bg-[#DBEAFE] shadow-[0_0_0_2px_rgba(37,99,235,0.1)]",
                   )}
                 >
-                  <span className="text-[11px] font-semibold sm:text-[13px]">{c.d}</span>
-                  {/* Event status dots */}
+                  <span className={cn(
+                    "text-[11px] font-semibold sm:text-[13px]",
+                    isSel ? "text-[#1D4ED8]" : "text-[#09090B]",
+                  )}>{c.d}</span>
                   <div className="flex flex-wrap gap-1 mt-auto pb-0.5 select-none max-h-3 overflow-hidden">
                     {evs.map((e, j) => {
                       const color =
@@ -425,9 +410,7 @@ export function AgendaClient({
                         <span
                           key={j}
                           className="h-1.5 w-1.5 rounded-full shrink-0"
-                          style={{
-                            backgroundColor: color
-                          }}
+                          style={{ backgroundColor: color }}
                           title={e.title}
                         />
                       );
@@ -440,8 +423,10 @@ export function AgendaClient({
         </div>
 
         {/* Day events panel */}
-        <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-4 sm:p-5 relative overflow-hidden">
-          <div className="eyebrow mb-3">Dia {selected} · {MONTHS[viewMonth]}</div>
+        <div className="border border-[#E4E4E7] bg-white rounded-xl p-4 sm:p-5 shadow-sm">
+          <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A] mb-3">
+            Dia {selected} · {MONTHS[viewMonth]}
+          </div>
           <div className="flex flex-col gap-2.5 sm:max-h-[calc(100vh-260px)] sm:overflow-y-auto">
             {dayEvents.length === 0 ? (
               <EmptyState
@@ -452,12 +437,11 @@ export function AgendaClient({
                   <Button
                     onClick={() => setShowModal(true)}
                     variant="ghost"
-                    className="text-xs text-[#2563EB] hover:text-blue-400 hover:bg-white/5 underline underline-offset-4"
+                    className="text-xs text-[#2563EB] hover:text-[#1D4ED8]"
                   >
                     Novo agendamento
                   </Button>
                 }
-                className="!my-0 !p-4 border-white/[0.06] bg-white/[0.01]"
               />
             ) : (
               dayEvents.map((e, i) => {
@@ -469,69 +453,67 @@ export function AgendaClient({
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2, delay: i * 0.04 }}
-                    className="flex items-start gap-3 rounded-xl border border-white/[0.03] bg-white/[0.01] p-3 hover:bg-white/[0.03] hover:border-white/[0.06] transition-all duration-200"
+                    className="flex items-start gap-3 rounded-xl border border-[#E4E4E7] bg-white p-3 hover:bg-[#F4F4F5] hover:border-[#D4D4D8] transition-all duration-200"
                   >
-                    <span className="min-w-[44px] font-mono text-xs font-semibold text-brand-teal-400 shrink-0">
+                    <span className="min-w-[44px] font-mono text-xs font-semibold text-[#14B8A6] shrink-0">
                       {formatTime(e.start_time)}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[13px] font-semibold">{e.title}</span>
+                        <span className="text-[13px] font-semibold text-[#09090B]">{e.title}</span>
                         {isGcal && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/20 bg-indigo-400/5 px-1.5 py-0.5 text-[9px] font-bold text-indigo-400">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-[#C7D2FE] bg-[#EEF2FF] px-1.5 py-0.5 text-[9px] font-bold text-[#6366F1]">
                             <Cloud size={8} />
                             Google
                           </span>
                         )}
                         {e.gcal_sync_status === "error" && (
-                          <span className="rounded-full border border-amber-400/20 bg-amber-400/5 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">
+                          <span className="rounded-full border border-[#FDE68A] bg-[#FFFBEB] px-1.5 py-0.5 text-[9px] font-bold text-[#92400E]">
                             Sync pendente
                           </span>
                         )}
                       </div>
                       {e.leads?.name && (
-                        <div className="mt-0.5 truncate text-[11px]" style={{ color: "var(--color-fg-3)" }}>
+                        <div className="mt-0.5 truncate text-[11px] text-[#71717A]">
                           {e.leads.name} · {e.leads.phone}
                         </div>
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {!isGcal && e.leads && (
-                        <div className="flex items-center gap-1 text-[10px] font-semibold text-white/50 select-none">
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-[#71717A] select-none">
                           <span className={cn(
                             "h-1.5 w-1.5 rounded-full shrink-0",
-                            status === 'hot' ? 'bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.4)]' :
-                            status === 'warm' ? 'bg-yellow-500' :
-                            status === 'success' ? 'bg-teal-500' : 'bg-blue-400'
+                            status === "hot"     ? "bg-[#F97316] shadow-[0_0_6px_rgba(249,115,22,0.4)]" :
+                            status === "warm"    ? "bg-[#EAB308]" :
+                            status === "success" ? "bg-[#14B8A6]" : "bg-[#3B82F6]",
                           )} />
                           <span>{HEAT_LABEL[status]}</span>
                         </div>
                       )}
-                      {/* Pending/rescheduled event status badge */}
                       {e.status === "pending" && (
-                        <span className="rounded-full border border-amber-400/20 bg-amber-400/5 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">
+                        <span className="rounded-full border border-[#FDE68A] bg-[#FFFBEB] px-1.5 py-0.5 text-[9px] font-bold text-[#92400E]">
                           Pendente
                         </span>
                       )}
                       {e.status === "rescheduled" && (
-                        <span className="rounded-full border border-blue-400/20 bg-blue-400/5 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
+                        <span className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-1.5 py-0.5 text-[9px] font-bold text-[#1D4ED8]">
                           Remarcado
                         </span>
                       )}
                       {!isGcal && (
                         deleteConfirm === e.id ? (
-                          // P2 fix: confirmation state before irreversible delete
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-red-400 font-bold">Excluir?</span>
+                            <span className="text-[10px] text-[#DC2626] font-bold">Excluir?</span>
                             <button
                               onClick={() => handleDelete(e.id)}
-                              className="rounded px-1.5 py-0.5 text-[10px] font-black text-red-400 hover:bg-red-400/10 cursor-pointer"
+                              className="rounded px-1.5 py-0.5 text-[10px] font-black text-[#DC2626] hover:bg-[#FFF1F2] cursor-pointer"
                             >
                               Sim
                             </button>
                             <button
                               onClick={() => setDeleteConfirm(null)}
-                              className="rounded px-1.5 py-0.5 text-[10px] text-fg-3 hover:bg-white/[0.08] cursor-pointer"
+                              className="rounded px-1.5 py-0.5 text-[10px] text-[#71717A] hover:bg-[#F4F4F5] cursor-pointer"
                             >
                               Não
                             </button>
@@ -539,7 +521,7 @@ export function AgendaClient({
                         ) : (
                           <button
                             onClick={() => handleDelete(e.id)}
-                            className="grid h-6 w-6 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-red-400 cursor-pointer shrink-0"
+                            className="grid h-6 w-6 place-items-center rounded-lg text-[#A1A1AA] transition hover:bg-[#FFF1F2] hover:text-[#DC2626] cursor-pointer shrink-0"
                             aria-label="Excluir"
                           >
                             <Trash2 size={12} />
@@ -565,7 +547,7 @@ export function AgendaClient({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowModal(false)}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
             />
             <motion.div
               key="modal-wrap"
@@ -577,13 +559,13 @@ export function AgendaClient({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 16 }}
                 transition={{ duration: 0.18 }}
-                className="w-full max-w-md border border-white/[0.06] bg-[#0B1222] p-6 shadow-2xl flex flex-col rounded-xl max-h-[85vh] relative overflow-hidden"
+                className="w-full max-w-md border border-[#E4E4E7] bg-white p-6 shadow-2xl flex flex-col rounded-xl max-h-[85vh]"
               >
                 <div className="mb-5 flex shrink-0 items-center justify-between">
-                  <h2 className="text-lg font-semibold">Novo agendamento</h2>
+                  <h2 className="text-lg font-semibold text-[#09090B]">Novo agendamento</h2>
                   <button
                     onClick={() => setShowModal(false)}
-                    className="grid h-8 w-8 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-white"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-[#71717A] transition hover:bg-[#F4F4F5] hover:text-[#09090B]"
                   >
                     <X size={16} />
                   </button>
@@ -592,30 +574,24 @@ export function AgendaClient({
                 <div className="overflow-y-auto px-1 -mx-1 flex-1">
                   <form action={handleCreate} className="flex flex-col gap-4 pb-2">
                     <div className="flex flex-col gap-1.5">
-                      <label
-                        className="font-mono text-[11px] uppercase tracking-wider"
-                        style={{ color: "var(--color-fg-3)" }}
-                      >
+                      <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                         Título / motivo *
                       </label>
                       <input
                         name="title"
                         required
                         placeholder="Ex: Consulta inicial, Retorno..."
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                        className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label
-                        className="font-mono text-[11px] uppercase tracking-wider"
-                        style={{ color: "var(--color-fg-3)" }}
-                      >
+                      <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                         Lead (opcional)
                       </label>
                       <select
                         name="lead_id"
-                        className="rounded-xl border border-white/[0.08] bg-[rgba(11,18,34,0.9)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50"
+                        className="rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10"
                       >
                         <option value="">— Nenhum lead vinculado —</option>
                         {leads.map((l) => (
@@ -625,7 +601,7 @@ export function AgendaClient({
                         ))}
                       </select>
                       {leads.length === 200 && (
-                        <p className="text-[10px]" style={{ color: "var(--color-fg-3)" }}>
+                        <p className="text-[10px] text-[#71717A]">
                           Exibindo os 200 leads mais recentes. Use a busca de leads para encontrar outros.
                         </p>
                       )}
@@ -633,10 +609,7 @@ export function AgendaClient({
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="flex flex-col gap-1.5">
-                        <label
-                          className="font-mono text-[11px] uppercase tracking-wider"
-                          style={{ color: "var(--color-fg-3)" }}
-                        >
+                        <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                           Início *
                         </label>
                         <input
@@ -645,14 +618,11 @@ export function AgendaClient({
                           required
                           value={startTime}
                           onChange={(e) => handleStartChange(e.target.value)}
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                          className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                         />
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        <label
-                          className="font-mono text-[11px] uppercase tracking-wider"
-                          style={{ color: "var(--color-fg-3)" }}
-                        >
+                        <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                           Fim *
                         </label>
                         <input
@@ -661,28 +631,37 @@ export function AgendaClient({
                           required
                           value={endTime}
                           onChange={(e) => setEndTime(e.target.value)}
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                          className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                         />
                       </div>
                     </div>
 
                     {error && (
-                      <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                      <p className="rounded-lg border border-[#FECACA] bg-[#FFF1F2] px-3 py-2 text-sm text-[#DC2626]">
                         {error}
                       </p>
                     )}
 
                     <div className="mt-2 flex gap-2 shrink-0">
-                      <ShinyButton
-                        type="submit"
-                        disabled={isPending}
-                        className="shiny-cta flex-1 justify-center bg-[#F97316] hover:bg-[#EA580C] !py-2 shadow-glow-orange/30 shrink-0"
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1 justify-center"
+                        onClick={() => setShowModal(false)}
                       >
-                        <span className="flex items-center justify-center gap-1.5 font-bold">
-                          {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                          {isPending ? "Criando..." : "Criar agendamento"}
-                        </span>
-                      </ShinyButton>
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="submit"
+                        variant="orange"
+                        size="sm"
+                        disabled={isPending}
+                        className="flex-1 justify-center"
+                      >
+                        {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                        {isPending ? "Criando..." : "Criar agendamento"}
+                      </Button>
                     </div>
                   </form>
                 </div>
