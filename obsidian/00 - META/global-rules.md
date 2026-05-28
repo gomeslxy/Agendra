@@ -93,10 +93,12 @@ Update in this order:
 - Never write standard markdown external links `[Text](path)` for vault internal notes; always use wikilinks `[[Path/Note\|Text]]`.
 - Never append a new session to `sessions.md` (deprecated) or put two distinct sessions in the same file.
 
-## 🌑 High-Contrast Minimal Slate Design System
-- **Philosophy**: Premium, high-contrast, clean slate layouts with sharp borders.
-- **Glass utility**: Use simplified solid cards (no blur, pure obsidian/zinc borders).
-- **Motion**: Every interaction must have a fast, functional `framer-motion` effect.
+## ☀️ Steel Precision Light Design System (Phase 11 — active desde 28/05/2026)
+- **Philosophy**: Premium, clean, whitespace-first. Superfícies brancas nítidas com bordas precisas.
+- **Base**: `#FAFAFA` página, `#FFFFFF` cards/modais, `#F4F4F5` raised/hover — NUNCA dark backgrounds no dashboard.
+- **Tokens proibidos no app**: `.glass`, `bg-[#09090B]`, `bg-white/[0.0X]`, `border-white/[0.XX]`, `ShinyButton`.
+- **CTAs**: `Button variant="orange"` para conversão. `variant="default"` para ação primária neutra.
+- **Motion**: Framer Motion obrigatório em toda interação. Entradas `y: 12 → 0`, easing `[0.22, 1, 0.36, 1]`.
 - **Reference**: `obsidian/04 - DESIGN/design-system.md`.
 
 ## 🔒 Security & Multitenancy

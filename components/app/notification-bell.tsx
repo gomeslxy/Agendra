@@ -255,8 +255,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500",
-          open 
-            ? "bg-white/15 text-[#09090B] shadow-inner" 
+          open
+            ? "bg-[#E4E4E7] text-[#09090B] shadow-inner"
             : "text-[#3F3F46] hover:bg-[#F4F4F5] hover:text-[#09090B]"
         )}
       >
