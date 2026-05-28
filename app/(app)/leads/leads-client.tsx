@@ -6,12 +6,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Download, UserPlus, X, Plus, Loader2, Phone, Mail, MapPin, MessageSquare, MessageCircle, Instagram } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
+import { HEAT_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { LeadWithLastMessage } from "@/lib/types/database";
 import { createLead, exportLeads } from "./actions";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ShinyButton } from "@/components/ui/shiny-button";
 
 type Filter = "all" | "hot" | "warm" | "cold" | "success";
 
@@ -106,8 +105,8 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
     <div className="mobile-scroll-area h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:px-8 lg:py-7">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold tracking-[-0.02em]">Leads</h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--color-fg-2)" }}>
+          <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[#09090B]">Leads</h1>
+          <p className="mt-1 text-sm text-[#71717A]">
             {visible.length} leads {filter === "all" ? "no total" : `· filtro: ${HEAT_LABEL[filter] || filter}`}
           </p>
         </div>
@@ -116,16 +115,15 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
             <Download size={14} />
             {exportPending ? "…" : "Exportar"}
           </Button>
-          <ShinyButton onClick={() => setShowNewModal(true)} className="shiny-cta pulse-cta bg-[#F97316] hover:bg-[#EA580C] !px-4 !py-2 shrink-0">
-            <span className="flex items-center gap-1.5 font-bold">
-              <UserPlus size={14} />
-              Novo lead
-            </span>
-          </ShinyButton>
+          <Button variant="orange" size="sm" onClick={() => setShowNewModal(true)}>
+            <UserPlus size={14} />
+            Novo lead
+          </Button>
         </div>
       </header>
 
-      <div className="mb-6 flex gap-4 border-b border-white/[0.03] pb-1 select-none">
+      {/* Filter tabs */}
+      <div className="mb-6 flex gap-4 border-b border-[#E4E4E7] pb-1 select-none">
         {FILTERS.map((f) => {
           const count = f.id === "all" ? leads.length : (statusCounts[f.id] ?? 0);
           const active = f.id === filter;
@@ -135,20 +133,20 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               onClick={() => setFilter(f.id)}
               className={cn(
                 "relative pb-2 text-[11px] font-bold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1.5 cursor-pointer",
-                active
-                  ? "text-brand-blue-400"
-                  : "text-white/30 hover:text-white/60"
+                active ? "text-[#2563EB]" : "text-[#A1A1AA] hover:text-[#3F3F46]",
               )}
             >
               <span>{f.label}</span>
               <span className={cn(
-                "font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-white/40",
-                active && "text-white bg-white/[0.08]"
+                "font-mono text-[9px] px-1.5 py-0.5 rounded",
+                active
+                  ? "bg-[#EFF6FF] text-[#2563EB]"
+                  : "bg-[#F4F4F5] text-[#A1A1AA]",
               )}>{count}</span>
               {active && (
                 <motion.div
                   layoutId="active-leads-filter"
-                  className="absolute bottom-0 inset-x-0 h-[1px] bg-brand-blue-400"
+                  className="absolute bottom-0 inset-x-0 h-[2px] bg-[#2563EB] rounded-full"
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
@@ -157,8 +155,8 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
         })}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-white/[0.04] bg-white/[0.005] shadow-xl relative">
-        
+      {/* Table */}
+      <div className="overflow-x-auto rounded-2xl border border-[#E4E4E7] bg-white shadow-sm relative">
         {visible.length === 0 ? (
           <div className="p-12 text-center">
             <EmptyState
@@ -174,7 +172,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                   <Button
                     onClick={() => setShowNewModal(true)}
                     variant="ghost"
-                    className="text-xs text-[#2563EB] hover:text-blue-400 hover:bg-white/5 underline underline-offset-4"
+                    className="text-xs text-[#2563EB] hover:text-[#1D4ED8]"
                   >
                     Adicionar lead manualmente
                   </Button>
@@ -185,12 +183,11 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
         ) : (
           <table className="w-full border-collapse">
             <thead>
-              <tr>
+              <tr className="bg-[#FAFAFA]">
                 {["Lead", "Heat · Score", "Canal", "Origem", "Status", "Última msg"].map((h) => (
                   <th
                     key={h}
-                    className="border-b border-white/[0.08] px-4 py-3.5 text-left font-mono text-[11px] font-semibold uppercase tracking-[0.12em]"
-                    style={{ color: "var(--color-fg-3)" }}
+                    className="border-b border-[#E4E4E7] px-4 py-3.5 text-left font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71717A]"
                   >
                     {h}
                   </th>
@@ -203,15 +200,13 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                   <>
                     <td className="px-4 py-3.5 text-[13px]">
                       <div className="flex items-center gap-2.5">
-                        <div
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[10px] font-bold text-white/80"
-                        >
+                        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#F4F4F5] border border-[#E4E4E7] text-[10px] font-bold text-[#3F3F46]">
                           {initials(l.name)}
                         </div>
                         <div>
-                          <div className="text-[13px] font-semibold">{l.name}</div>
+                          <div className="text-[13px] font-semibold text-[#09090B]">{l.name}</div>
                           {l.city && (
-                            <div className="text-[11px]" style={{ color: "var(--color-fg-3)" }}>{l.city}</div>
+                            <div className="text-[11px] text-[#71717A]">{l.city}</div>
                           )}
                         </div>
                       </div>
@@ -220,30 +215,30 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                       <div className="flex items-center gap-1.5 text-xs font-semibold select-none">
                         <span className={cn(
                           "h-1.5 w-1.5 rounded-full shrink-0",
-                          l.status === 'hot' ? 'bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.4)]' :
-                          l.status === 'warm' ? 'bg-yellow-500' :
-                          l.status === 'success' ? 'bg-teal-500' : 'bg-blue-400'
+                          l.status === "hot"     ? "bg-[#F97316] shadow-[0_0_6px_rgba(249,115,22,0.4)]" :
+                          l.status === "warm"    ? "bg-[#EAB308]" :
+                          l.status === "success" ? "bg-[#14B8A6]" : "bg-[#3B82F6]",
                         )} />
-                        <span>{HEAT_LABEL[l.status]}</span>
-                        <span className="font-mono text-[10px] text-white/30">({l.heat_score})</span>
+                        <span className="text-[#3F3F46]">{HEAT_LABEL[l.status]}</span>
+                        <span className="font-mono text-[10px] text-[#A1A1AA]">({l.heat_score})</span>
                       </div>
                     </td>
                     <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-1.5 font-mono text-xs">
+                      <div className="flex items-center gap-1.5 font-mono text-xs text-[#3F3F46]">
                         {l.channel === "whatsapp" && (
-                          <MessageCircle size={14} className="text-teal-400 shrink-0" />
+                          <MessageCircle size={14} className="text-[#14B8A6] shrink-0" />
                         )}
                         {l.channel === "instagram" && (
-                          <Instagram size={14} className="text-pink-400 shrink-0" />
+                          <Instagram size={14} className="text-[#EC4899] shrink-0" />
                         )}
                         <span className="capitalize">{l.channel}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 text-sm" style={{ color: "var(--color-fg-2)" }}>
+                    <td className="px-4 py-3.5 text-sm text-[#3F3F46]">
                       {l.source ?? "—"}
                     </td>
-                    <td className="px-4 py-3.5 text-sm capitalize">{l.status}</td>
-                    <td className="px-4 py-3.5 font-mono text-xs" style={{ color: "var(--color-fg-3)" }}>
+                    <td className="px-4 py-3.5 text-sm capitalize text-[#3F3F46]">{l.status}</td>
+                    <td className="px-4 py-3.5 font-mono text-xs text-[#71717A]">
                       {l.last_message ? relativeTime(l.last_message.created_at) : relativeTime(l.created_at)}
                     </td>
                   </>
@@ -255,9 +250,9 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: idx * 0.02 }}
-                    whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }}
+                    whileHover={{ backgroundColor: "#F4F4F5" }}
                     onClick={() => setSelectedLead(l)}
-                    className="cursor-pointer border-b border-white/[0.08] last:border-b-0"
+                    className="cursor-pointer border-b border-[#E4E4E7] last:border-b-0"
                   >
                     {rowContent}
                   </motion.tr>
@@ -265,7 +260,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                   <tr
                     key={l.id}
                     onClick={() => setSelectedLead(l)}
-                    className="cursor-pointer border-b border-white/[0.08] last:border-b-0 hover:bg-white/[0.03]"
+                    className="cursor-pointer border-b border-[#E4E4E7] last:border-b-0 hover:bg-[#F4F4F5] transition-colors"
                   >
                     {rowContent}
                   </tr>
@@ -286,7 +281,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowNewModal(false)}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
             />
             <motion.div
               key="modal"
@@ -296,12 +291,12 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               transition={{ duration: 0.18 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border border-white/[0.1] bg-[rgba(11,18,34,0.95)] p-6 shadow-2xl backdrop-blur-xl">
+              <div className="w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border border-[#E4E4E7] bg-white p-6 shadow-2xl">
                 <div className="mb-5 flex shrink-0 items-center justify-between">
-                  <h2 className="text-lg font-semibold">Novo lead</h2>
+                  <h2 className="text-lg font-semibold text-[#09090B]">Novo lead</h2>
                   <button
                     onClick={() => setShowNewModal(false)}
-                    className="grid h-8 w-8 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-white"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-[#71717A] transition hover:bg-[#F4F4F5] hover:text-[#09090B]"
                   >
                     <X size={16} />
                   </button>
@@ -311,38 +306,38 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                   <form action={handleCreate} className="flex flex-col gap-4 pb-2">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
-                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                        <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                           Nome completo *
                         </label>
                         <input
                           name="name"
                           required
                           placeholder="João da Silva"
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                          className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                         />
                       </div>
 
                       <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
-                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                        <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                           Telefone * (com DDI)
                         </label>
                         <input
                           name="phone"
                           required
                           placeholder="+5511999999999"
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                          className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                         />
                       </div>
 
                       <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
-                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                        <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                           Canal *
                         </label>
                         <select
                           name="channel"
                           required
                           defaultValue="whatsapp"
-                          className="rounded-xl border border-white/[0.08] bg-[rgba(11,18,34,0.9)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2563EB]/50"
+                          className="rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10"
                         >
                           <option value="whatsapp">WhatsApp</option>
                           <option value="instagram">Instagram</option>
@@ -351,42 +346,42 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                       </div>
 
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                        <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                           Origem
                         </label>
                         <input
                           name="source"
                           placeholder="Ex: Google Ads"
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                          className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                         />
                       </div>
 
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                        <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                           Cidade
                         </label>
                         <input
                           name="city"
                           placeholder="São Paulo"
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                          className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                         />
                       </div>
 
                       <div className="col-span-1 sm:col-span-2 flex flex-col gap-1.5">
-                        <label className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+                        <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                           E-mail
                         </label>
                         <input
                           name="email"
                           type="email"
                           placeholder="joao@exemplo.com"
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm outline-none transition placeholder:text-fg-3 focus:border-[#2563EB]/50 focus:bg-white/[0.06]"
+                          className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                         />
                       </div>
                     </div>
 
                     {formError && (
-                      <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                      <p className="rounded-lg border border-[#FECACA] bg-[#FFF1F2] px-3 py-2 text-sm text-[#DC2626]">
                         {formError}
                       </p>
                     )}
@@ -401,16 +396,16 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                       >
                         Cancelar
                       </Button>
-                      <ShinyButton
+                      <Button
                         type="submit"
+                        variant="orange"
+                        size="sm"
                         disabled={isPending}
-                        className="shiny-cta flex-1 justify-center bg-[#F97316] hover:bg-[#EA580C] !py-2 shadow-glow-orange/30 shrink-0"
+                        className="flex-1 justify-center"
                       >
-                        <span className="flex items-center justify-center gap-1.5 font-bold">
-                          {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                          {isPending ? "Salvando..." : "Criar lead"}
-                        </span>
-                      </ShinyButton>
+                        {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                        {isPending ? "Salvando..." : "Criar lead"}
+                      </Button>
                     </div>
                   </form>
                 </div>
@@ -430,7 +425,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedLead(null)}
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/30"
             />
             <motion.aside
               key="drawer"
@@ -438,23 +433,21 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 380, damping: 38 }}
-              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-white/[0.04] bg-[#0B1222] shadow-2xl"
+              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-[#E4E4E7] bg-white shadow-2xl"
             >
-              <div className="flex items-center gap-3 border-b border-white/[0.04] p-5">
-                <div
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[0.06] border border-white/[0.08] text-xs font-bold text-white/80"
-                >
+              <div className="flex items-center gap-3 border-b border-[#E4E4E7] p-5">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#EFF6FF] border border-[#BFDBFE] text-xs font-bold text-[#2563EB]">
                   {initials(selectedLead.name)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="truncate text-[15px] font-semibold">{selectedLead.name}</div>
-                  <div className="font-mono text-[11px]" style={{ color: "var(--color-fg-3)" }}>
+                  <div className="truncate text-[15px] font-semibold text-[#09090B]">{selectedLead.name}</div>
+                  <div className="font-mono text-[11px] text-[#71717A]">
                     criado {formatDate(selectedLead.created_at)}
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedLead(null)}
-                  className="grid h-8 w-8 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-white"
+                  className="grid h-8 w-8 place-items-center rounded-lg text-[#71717A] transition hover:bg-[#F4F4F5] hover:text-[#09090B]"
                 >
                   <X size={16} />
                 </button>
@@ -462,48 +455,48 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
 
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
                 {/* Heat */}
-                <div className="border border-white/[0.03] bg-white/[0.005] rounded-xl p-4">
-                  <div className="eyebrow mb-3" style={{ color: "var(--color-brand-teal-300)" }}>
+                <div className="border border-[#E4E4E7] bg-[#FAFAFA] rounded-xl p-4">
+                  <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#14B8A6] mb-3">
                     QUALIFICAÇÃO · IA
                   </div>
                   <div className="flex items-center gap-2 mb-2">
                     <Badge variant={selectedLead.status as "hot" | "warm" | "cold" | "success"}>
                       {HEAT_LABEL[selectedLead.status]}
                     </Badge>
-                    <span className="font-mono text-sm font-semibold">{selectedLead.heat_score}/100</span>
+                    <span className="font-mono text-sm font-semibold text-[#09090B]">{selectedLead.heat_score}/100</span>
                   </div>
                   {selectedLead.summary && (
-                    <p className="mt-2 text-[13px] leading-relaxed" style={{ color: "var(--color-fg-2)" }}>
+                    <p className="mt-2 text-[13px] leading-relaxed text-[#3F3F46]">
                       {selectedLead.summary}
                     </p>
                   )}
                 </div>
 
                 {/* Contato */}
-                <div className="border border-white/[0.03] bg-white/[0.005] rounded-xl p-4">
-                  <div className="eyebrow mb-3">CONTATO</div>
+                <div className="border border-[#E4E4E7] bg-[#FAFAFA] rounded-xl p-4">
+                  <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A] mb-3">CONTATO</div>
                   <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2.5 text-[13px]">
-                      <Phone size={13} style={{ color: "var(--color-fg-3)" }} />
-                      <span>{selectedLead.phone}</span>
+                      <Phone size={13} className="text-[#71717A]" />
+                      <span className="text-[#09090B]">{selectedLead.phone}</span>
                     </div>
                     {selectedLead.email && (
                       <div className="flex items-center gap-2.5 text-[13px]">
-                        <Mail size={13} style={{ color: "var(--color-fg-3)" }} />
-                        <span>{selectedLead.email}</span>
+                        <Mail size={13} className="text-[#71717A]" />
+                        <span className="text-[#09090B]">{selectedLead.email}</span>
                       </div>
                     )}
                     {selectedLead.city && (
                       <div className="flex items-center gap-2.5 text-[13px]">
-                        <MapPin size={13} style={{ color: "var(--color-fg-3)" }} />
-                        <span>{selectedLead.city}</span>
+                        <MapPin size={13} className="text-[#71717A]" />
+                        <span className="text-[#09090B]">{selectedLead.city}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2.5 text-[13px]">
-                      <MessageSquare size={13} style={{ color: "var(--color-fg-3)" }} />
-                      <span className="capitalize">{selectedLead.channel}</span>
+                      <MessageSquare size={13} className="text-[#71717A]" />
+                      <span className="capitalize text-[#09090B]">{selectedLead.channel}</span>
                       {selectedLead.source && (
-                        <span style={{ color: "var(--color-fg-3)" }}>· {selectedLead.source}</span>
+                        <span className="text-[#71717A]">· {selectedLead.source}</span>
                       )}
                     </div>
                   </div>
@@ -511,12 +504,12 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
 
                 {/* Última mensagem */}
                 {selectedLead.last_message && (
-                  <div className="border border-white/[0.03] bg-white/[0.005] rounded-xl p-4">
-                    <div className="eyebrow mb-3">ÚLTIMA MENSAGEM</div>
-                    <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-fg-2)" }}>
+                  <div className="border border-[#E4E4E7] bg-[#FAFAFA] rounded-xl p-4">
+                    <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A] mb-3">ÚLTIMA MENSAGEM</div>
+                    <p className="text-[13px] leading-relaxed text-[#3F3F46]">
                       "{selectedLead.last_message.content}"
                     </p>
-                    <p className="mt-2 font-mono text-[11px]" style={{ color: "var(--color-fg-3)" }}>
+                    <p className="mt-2 font-mono text-[11px] text-[#71717A]">
                       {formatDate(selectedLead.last_message.created_at)} · {selectedLead.last_message.role}
                     </p>
                   </div>
@@ -527,8 +520,7 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                   <Link
                     href="/inbox"
                     onClick={() => setSelectedLead(null)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-medium transition hover:bg-white/[0.08] hover:text-white"
-                    style={{ color: "var(--color-fg-2)" }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2 text-xs font-medium text-[#3F3F46] transition hover:bg-[#E4E4E7] hover:text-[#09090B]"
                   >
                     Ver conversa no inbox
                   </Link>
