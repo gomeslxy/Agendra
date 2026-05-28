@@ -120,20 +120,20 @@ export default async function SettingsPage() {
   return (
     <Suspense fallback={<SettingsSkeleton />}>
       <SettingsShell
-        company={company ?? null}
-        memberships={memberships ?? []}
-        channels={channels ?? []}
-        services={services}
-        usage={usage}
-        aiLogs={aiLogsData ?? []}
-        automationStats={{ remindersToday: remindersToday ?? 0, followupsWeek: followupsWeek ?? 0 }}
-        automationEvents={automationEventsData ?? []}
-        webhooks={webhooksData ?? []}
-        pendingInvitations={pendingInvitationsData ?? []}
-        currentUserRole={userRole ?? "member"}
-        auditLogs={auditLogsData ?? []}
-      />
-    </Suspense>
+          company={company ?? null}
+          memberships={memberships ?? []}
+          channels={channels ?? []}
+          services={services}
+          usage={usage}
+          aiLogs={aiLogsData ?? []}
+          automationStats={{ remindersToday: remindersToday ?? 0, followupsWeek: followupsWeek ?? 0 }}
+          automationEvents={automationEventsData ?? []}
+          webhooks={webhooksData ?? []}
+          pendingInvitations={pendingInvitationsData ?? []}
+          currentUserRole={userRole ?? "member"}
+          auditLogs={auditLogsData ?? []}
+        />
+      </Suspense>
   );
 }
 

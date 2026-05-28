@@ -43,7 +43,6 @@ import { cn } from "@/lib/utils";
 import { updatePersona, saveWhatsAppChannel, completeWhatsAppOnboarding, disconnectChannel, disconnectWhatsAppChannel, saveAutomationConfig, updateCompany, inviteTeamMember, saveWebhookConfig, deleteWebhook, saveReactivationConfig } from "./actions";
 import { cancelInvitation, resendInvitation } from "./invitations/actions";
 import { createService, updateService, deleteService, toggleServiceStatus } from "./services/actions";
-import Script from "next/script";
 import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
 import { STRIPE_PRICE_IDS, PLANS_META } from "@/lib/billing/plans";
@@ -201,6 +200,26 @@ export function SettingsShell({
 }: SettingsShellProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Load Meta/FB SDK once per settings session (needed for WhatsApp embedded signup)
+  useEffect(() => {
+    (window as any).fbAsyncInit = function () {
+      (window as any).FB.init({
+        appId: process.env.NEXT_PUBLIC_META_APP_ID,
+        cookie: true,
+        xfbml: true,
+        version: "v19.0",
+      });
+    };
+    if (!document.getElementById("fb-sdk-script")) {
+      const s = document.createElement("script");
+      s.id = "fb-sdk-script";
+      s.src = "https://connect.facebook.net/pt_BR/sdk.js";
+      s.async = true;
+      s.defer = true;
+      document.body.appendChild(s);
+    }
+  }, []);
 
   // Tab state is local — no server round trip on tab switch.
   // Initialized from URL so deep-links and OAuth redirects work.
@@ -1230,24 +1249,6 @@ function Channels({
         </div>
       </div>
 
-      <Script
-        id="fb-sdk-init"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `window.fbAsyncInit = function() {
-            FB.init({
-              appId: '${process.env.NEXT_PUBLIC_META_APP_ID}',
-              cookie: true,
-              xfbml: true,
-              version: 'v19.0'
-            });
-          };`,
-        }}
-      />
-      <Script
-        src="https://connect.facebook.net/pt_BR/sdk.js"
-        strategy="afterInteractive"
-      />
     </div>
   );
 }
