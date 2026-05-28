@@ -54,7 +54,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
   return (
     <aside
       key="sidebar"
-      className="hidden h-screen flex-col gap-4 border-r border-[#E4E4E7] bg-white p-4 md:flex z-20"
+      className="hidden h-screen flex-col gap-4 border-r border-[#E4E4E7] bg-[#FAFAFA] p-4 md:flex z-20"
     >
       <Link href="/inbox" className="flex items-center gap-2 px-2 py-1.5 shrink-0 select-none">
         <Image src="/assets/agendra-logo.svg" alt="Agendra" width={96} height={24} priority />
@@ -109,7 +109,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
       </nav>
 
       {/* User card */}
-      <div className="mt-auto rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3 transition-all duration-200 hover:bg-[#F4F4F5] relative overflow-hidden group/user z-10 shrink-0">
+      <div className="mt-auto rounded-xl border border-[#E4E4E7] bg-white p-3 shadow-sm transition-all duration-200 hover:bg-[#F4F4F5] relative overflow-hidden group/user z-10 shrink-0">
         {!mounted || loading ? (
           <div className="h-16 animate-pulse rounded-lg bg-[#F4F4F5]" />
         ) : (
