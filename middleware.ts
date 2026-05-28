@@ -7,7 +7,27 @@ const PROTECTED_PREFIXES = ["/inbox", "/agenda", "/leads", "/reports", "/setting
 /** Routes for non-authenticated users only */
 const AUTH_PREFIXES = ["/login", "/signup", "/verify", "/recuperar-senha", "/nova-senha"];
 
+/** Public marketing routes — no auth check needed, ever */
+const PUBLIC_PREFIXES = ["/contato", "/planos", "/sobre", "/termos", "/privacidade"];
+
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Fast path: public marketing routes — skip Supabase round-trip entirely
+  const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+  if (isPublic) {
+    return NextResponse.next();
+  }
+
+  // Fast path: root without a session cookie — anonymous visitor, nothing to redirect
+  const hasSupabaseCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token"));
+
+  if (pathname === "/" && !hasSupabaseCookie) {
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -42,8 +62,6 @@ export async function middleware(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const { pathname } = request.nextUrl;
-
     // 1. Protected routes check
     const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
     if (isProtected && !user) {
@@ -59,7 +77,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/inbox", request.url));
     }
 
-    // 3. Root redirect
+    // 3. Root redirect for logged-in user
     if (pathname === "/" && user) {
       return NextResponse.redirect(new URL("/inbox", request.url));
     }
@@ -83,4 +101,3 @@ export const config = {
     "/((?!api|_next|favicon\\.ico|assets|fonts|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
   ],
 };
-
