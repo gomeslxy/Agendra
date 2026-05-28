@@ -54,9 +54,9 @@
   --color-heat-cold: #60A5FA;
 
   /* Surface / fg */
-  --color-fg-1: #F4F7FB;
-  --color-fg-2: #B5BFD2;
-  --color-fg-3: #6B7896;
+  --color-fg-1: #FAFAFA;
+  --color-fg-2: #E4E4E7;
+  --color-fg-3: #A1A1AA;
 
   /* Fonts (variables wired by next/font in app/layout.tsx) */
   --font-sans: var(--font-inter-tight), "Inter Tight", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -123,43 +123,30 @@
 }
 
 /* ------------------------------------------------------------
-   Liquid glass — signature surface
+   Minimal Slate Card surface (replaces Liquid Glass)
    ------------------------------------------------------------ */
 @layer components {
   .glass {
     position: relative;
-    background: rgba(15, 23, 42, 0.3);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 1rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    background: #0f1015;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
     overflow: hidden;
   }
   .glass::before {
-    content: "";
-    position: absolute; inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent 12%);
-    mix-blend-mode: screen;
-    opacity: 0.5;
+    display: none;
   }
   .glass::after {
     display: none;
   }
   .glass-strong {
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: #15161d;
+    border: 1px solid rgba(255, 255, 255, 0.12);
   }
 
   .bg-aurora {
-    background:
-      radial-gradient(50% 30% at 85% 0%, rgba(37,99,235,0.02), transparent 70%),
-      radial-gradient(40% 25% at 15% 25%, rgba(20,184,166,0.015), transparent 70%),
-      var(--color-ink-950);
+    background: #09090b;
     position: relative;
   }
   .bg-aurora::after {
@@ -175,32 +162,30 @@
   }
 
   .eyebrow {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--color-brand-teal-500);
   }
 
   .input {
     width: 100%;
-    padding: 12px 14px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 14px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
     color: var(--color-fg-1);
-    font: 400 15px var(--font-sans);
+    font: 400 14px var(--font-sans);
     outline: none;
     transition:
-      border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1),
-      background 200ms cubic-bezier(0.22, 1, 0.36, 1);
+      border-color 150ms ease,
+      background 150ms ease;
   }
-  .input::placeholder { color: var(--color-fg-3); }
+  .input::placeholder { color: var(--color-fg-3); opacity: 0.6; }
   .input:focus {
-    border-color: rgba(37, 99, 235, 0.6);
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
-    background: rgba(37, 99, 235, 0.06);
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
   }
 }
 

@@ -10,7 +10,7 @@ interface IconProps extends SVGProps<SVGSVGElement> {
 
 /**
  * Agendra Branded Icons
- * Premium, custom SVGs that follow the "Liquid Glass" and brand aesthetic.
+ * Premium, custom SVGs that follow the "High-Contrast Minimal Slate" and brand aesthetic.
  */
 
 export function IconInbox({ size = 20, className, ...props }: IconProps) {

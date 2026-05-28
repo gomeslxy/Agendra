@@ -23,7 +23,7 @@ A solução não apenas responde dúvidas, mas executa um fluxo completo de **qu
 
 O projeto evoluiu rapidamente e hoje conta com ferramentas de nível corporativo (Enterprise-grade):
 
-- **Liquid Glass Interface**: Dashboard sofisticado com efeitos de vidro, aurora gradients e micro-interações fluidas.
+- **High-Contrast Minimal Slate Interface**: Dashboard sofisticado com tema dark profundo, contraste elevado de fontes e micro-interações fluidas.
 - **Multi-Provider AI Router**: Fallback automático e inteligente entre modelos (Gemini Flash, Groq, Cerebras, SambaNova) utilizando um padrão Circuit Breaker, garantindo 99.9% de uptime para a IA.
 - **Modo Copiloto (Shadow Mode)**: A IA pode ser configurada para não responder diretamente, mas sim gerar rascunhos que os humanos podem revisar, editar e aprovar via painel.
 - **Compreensão de Áudio e Mídia**: Transcrição de áudio via Whisper (Groq) e análise de imagens com Gemini Vision.
@@ -44,7 +44,7 @@ O projeto evoluiu rapidamente e hoje conta com ferramentas de nível corporativo
 - **Backend**: Supabase (PostgreSQL, Realtime, Auth, Storage, Edge Functions)
 - **Cache & Fila**: Upstash Redis (Debounce atômico, Fallbacks, Locks)
 - **Integrações**: WhatsApp Cloud API, Google Calendar OAuth2, Stripe Webhooks
-- **Design System**: Shadcn/ui customizado com estética Liquid Glass
+- **Design System**: Shadcn/ui customizado com estética High-Contrast Minimal Slate
 
 ---
 
@@ -114,7 +114,7 @@ O cofre em `obsidian/` contém a alma estrutural do Agendra:
 - `00 - META/`: [Governança & Superpoderes (Regras Globais)](./obsidian/00%20-%20META/global-rules.md).
 - `01 - PRODUTO/`: [Roadmap Atual](./obsidian/01%20-%20PRODUTO/roadmap.md) e Visão Estratégica.
 - `02 - ARQUITETURA/`: Stack técnica, fluxos de banco de dados e APIs.
-- `04 - DESIGN/`: [Design System](./obsidian/04%20-%20DESIGN/design-system.md) (Filosofia Liquid Glass).
+- `04 - DESIGN/`: [Design System](./obsidian/04%20-%20DESIGN/design-system.md) (Filosofia High-Contrast Minimal Slate).
 - `05 - LOGS/`: [Histórico de Sessões](./obsidian/05%20-%20LOGS/sessions.md) documentando as Waves de evolução.
 - `06 - BACKLOG/`: Débitos técnicos e planejamentos futuros.
 

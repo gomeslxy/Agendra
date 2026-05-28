@@ -80,7 +80,7 @@ export function Topbar({ cta }: TopbarProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex items-center gap-3 border-b border-white/[0.03] bg-[rgba(11,18,34,0.15)] px-4 py-2.5 md:gap-4 md:px-6 md:py-3 backdrop-blur-md"
+        className="flex items-center gap-3 border-b border-white/[0.06] bg-[#0f1015] px-4 py-2.5 md:gap-4 md:px-6 md:py-3"
       >
         {/* Mobile: logo */}
         <Link href="/inbox" className="flex-shrink-0 md:hidden">

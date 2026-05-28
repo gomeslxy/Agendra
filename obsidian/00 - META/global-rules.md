@@ -93,10 +93,10 @@ Update in this order:
 - Never write standard markdown external links `[Text](path)` for vault internal notes; always use wikilinks `[[Path/Note\|Text]]`.
 - Never append a new session to `sessions.md` (deprecated) or put two distinct sessions in the same file.
 
-## 💎 Liquid Glass Design System
-- **Philosophy**: Premium, transparent, animated, responsive.
-- **Glass utility**: Use `.glass` for all containers.
-- **Motion**: Every interaction must have a `framer-motion` effect.
+## 🌑 High-Contrast Minimal Slate Design System
+- **Philosophy**: Premium, high-contrast, clean slate layouts with sharp borders.
+- **Glass utility**: Use simplified solid cards (no blur, pure obsidian/zinc borders).
+- **Motion**: Every interaction must have a fast, functional `framer-motion` effect.
 - **Reference**: `obsidian/04 - DESIGN/design-system.md`.
 
 ## 🔒 Security & Multitenancy

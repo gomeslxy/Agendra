@@ -54,7 +54,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
   return (
     <aside
       key="sidebar"
-      className="glass hidden h-screen flex-col gap-4 !rounded-none !border-y-0 !border-l-0 border-r border-white/[0.08] bg-[rgba(11,18,34,0.35)] p-4 md:flex shadow-2xl z-20"
+      className="hidden h-screen flex-col gap-4 border-r border-white/[0.06] bg-[#0f1015] p-4 md:flex z-20"
     >
       <Link href="/inbox" className="flex items-center gap-2 px-2 py-1.5 shrink-0 select-none">
         <Image src="/assets/agendra-logo.svg" alt="Agendra" width={96} height={24} priority />
