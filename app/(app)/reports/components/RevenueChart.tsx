@@ -20,15 +20,15 @@ interface ChartDataPoint {
 function AreaTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="glass relative z-50 rounded-xl px-4 py-3 text-xs shadow-xl">
-      <p className="mb-2 font-semibold text-white">{label}</p>
+    <div className="relative z-50 rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-xs shadow-xl">
+      <p className="mb-2 font-semibold text-[#09090B]">{label}</p>
       {payload.map((p: any) => (
         <div key={p.name} className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
-          <span style={{ color: "var(--color-fg-2)" }}>
+          <span className="text-[#71717A]">
             {p.name === "leads" ? "Leads" : "Agendamentos"}:
           </span>
-          <span className="font-mono font-semibold text-white">{p.value}</span>
+          <span className="font-mono font-semibold text-[#09090B]">{p.value}</span>
         </div>
       ))}
     </div>
@@ -52,7 +52,7 @@ export function RevenueChart({ data }: { data: ChartDataPoint[] }) {
         <CartesianGrid
           strokeDasharray="3 3"
           vertical={false}
-          stroke="rgba(255,255,255,0.05)"
+          stroke="#E4E4E7"
         />
         <XAxis
           dataKey="date"
@@ -71,7 +71,7 @@ export function RevenueChart({ data }: { data: ChartDataPoint[] }) {
         />
         <Tooltip
           content={<AreaTooltip />}
-          cursor={{ stroke: "rgba(255,255,255,0.1)", strokeWidth: 2 }}
+          cursor={{ stroke: "#D4D4D8", strokeWidth: 1 }}
         />
         <Area
           type="monotone"

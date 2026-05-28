@@ -8,7 +8,7 @@ const RevenueChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-full min-h-[220px] animate-pulse rounded-xl bg-white/[0.04]" />
+      <div className="h-full min-h-[220px] animate-pulse rounded-xl bg-[#F4F4F5]" />
     ),
   }
 );
@@ -70,7 +70,6 @@ interface RecentTransaction {
   lead: { name: string } | null;
 }
 
-// Provider health stats
 export interface ProviderStat {
   provider: 'cerebras' | 'groq' | 'sambanova' | 'gemini';
   requests_24h: number;
@@ -80,12 +79,10 @@ export interface ProviderStat {
   total_cost_7d: number;
 }
 
-// Chain kind aggregation stats
 export interface ChainStat {
   chain_kind: 'conv' | 'tools' | 'bg';
   count: number;
 }
-
 
 interface ReportsClientProps {
   dailyDetails: DayBucket[];
@@ -115,7 +112,7 @@ function ConversionFunnel({ stages }: { stages: FunnelStage[] }) {
           <div key={s.label}>
             {dropPct !== null && (
               <div className="mb-1 flex justify-end">
-                <span className="rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 font-mono text-[10px] text-red-400">
+                <span className="rounded-full border border-[#FECACA] bg-[#FFF1F2] px-2 py-0.5 font-mono text-[10px] text-[#DC2626]">
                   -{dropPct}% queda
                 </span>
               </div>
@@ -124,20 +121,20 @@ function ConversionFunnel({ stages }: { stages: FunnelStage[] }) {
               initial={{ opacity: 0, x: -16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.08, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="relative overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]"
+              className="relative overflow-hidden rounded-xl border border-[#E4E4E7] bg-white"
               style={{ marginInline: `${(i / stages.length) * 8}%` }}
             >
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${pct}%` }}
                 transition={{ delay: i * 0.08 + 0.2, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute inset-y-0 left-0 rounded-xl opacity-20"
+                className="absolute inset-y-0 left-0 rounded-xl opacity-15"
                 style={{ background: s.color }}
               />
               <div className="relative flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-                  <span className="text-sm font-medium" style={{ color: "var(--color-fg-2)" }}>{s.label}</span>
+                  <span className="text-sm font-medium text-[#3F3F46]">{s.label}</span>
                 </div>
                 <span className="font-mono text-base font-bold" style={{ color: s.color }}>
                   {s.value}
@@ -157,7 +154,6 @@ function LeadHeatmap({ data }: { data: HeatCell[] }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   const grid = new Map(data.map((d) => [`${d.weekday}-${d.hour}`, d.value]));
 
-  // Find peak hour
   let peak = { weekday: 0, hour: 0, value: 0 };
   for (const cell of data) {
     if (cell.value > peak.value) peak = cell;
@@ -166,27 +162,26 @@ function LeadHeatmap({ data }: { data: HeatCell[] }) {
   return (
     <div>
       {peak.value > 0 && (
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
-          <Info className="mt-0.5 text-blue-400" size={16} />
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3">
+          <Info className="mt-0.5 text-[#2563EB]" size={16} />
           <div>
-            <p className="text-[13px] font-medium text-blue-100">Pico de atividade</p>
-            <p className="text-xs text-blue-200/70">
+            <p className="text-[13px] font-medium text-[#1D4ED8]">Pico de atividade</p>
+            <p className="text-xs text-[#3B82F6]">
               Seu maior volume é <strong>{WEEKDAYS[peak.weekday]} às {peak.hour}h</strong> ({peak.value} leads).
               Garanta que a IA ou seu time estejam prontos para atender nesse horário.
             </p>
           </div>
         </div>
       )}
-      
+
       <div className="overflow-x-auto pb-4">
         <div className="min-w-[520px] relative">
-          {/* Hour labels */}
           <div className="mb-1 ml-10 grid" style={{ gridTemplateColumns: `repeat(24, 1fr)` }}>
             {HOURS.filter((h) => h % 4 === 0).map((h) => (
               <div
                 key={h}
-                className="font-mono text-[9px] text-center"
-                style={{ color: "var(--color-fg-3)", gridColumn: `${h + 1} / span 4` }}
+                className="font-mono text-[9px] text-center text-[#A1A1AA]"
+                style={{ gridColumn: `${h + 1} / span 4` }}
               >
                 {h}h
               </div>
@@ -194,7 +189,7 @@ function LeadHeatmap({ data }: { data: HeatCell[] }) {
           </div>
           {WEEKDAYS.map((day, wd) => (
             <div key={day} className="mb-0.5 flex items-center gap-1">
-              <span className="w-9 shrink-0 text-right font-mono text-[10px]" style={{ color: "var(--color-fg-3)" }}>
+              <span className="w-9 shrink-0 text-right font-mono text-[10px] text-[#A1A1AA]">
                 {day}
               </span>
               <div className="grid flex-1 gap-0.5" style={{ gridTemplateColumns: `repeat(24, 1fr)` }}>
@@ -210,14 +205,14 @@ function LeadHeatmap({ data }: { data: HeatCell[] }) {
                       className="aspect-square cursor-pointer rounded-sm relative"
                       style={{
                         background: val === 0
-                          ? "rgba(255,255,255,0.04)"
-                          : `rgba(59,130,246,${0.15 + intensity * 0.85})`,
+                          ? "#F4F4F5"
+                          : `rgba(37,99,235,${0.1 + intensity * 0.8})`,
                       }}
                     >
                       {tooltip?.weekday === wd && tooltip?.hour === h && (
-                        <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/[0.08] bg-[#1a1a1a]/95 px-3 py-1.5 text-xs shadow-xl backdrop-blur-md z-50">
-                          <span style={{ color: "var(--color-fg-3)" }}>{WEEKDAYS[wd]} às {h}h:</span>
-                          <span className="ml-1 font-mono font-semibold text-white">{val} lead{val !== 1 ? "s" : ""}</span>
+                        <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-xs shadow-xl z-50">
+                          <span className="text-[#71717A]">{WEEKDAYS[wd]} às {h}h:</span>
+                          <span className="ml-1 font-mono font-semibold text-[#09090B]">{val} lead{val !== 1 ? "s" : ""}</span>
                         </div>
                       )}
                     </motion.div>
@@ -233,45 +228,45 @@ function LeadHeatmap({ data }: { data: HeatCell[] }) {
 }
 
 /* ─── KPI Card Component ─────────────────────────────────────── */
-function KpiCard({ 
-  label, value, suffix = "", icon: Icon, color, prevValue 
-}: { 
-  label: string; value: number; suffix?: string; icon: any; color: string; prevValue?: number 
+function KpiCard({
+  label, value, suffix = "", icon: Icon, color, prevValue
+}: {
+  label: string; value: number; suffix?: string; icon: any; color: string; prevValue?: number
 }) {
-  const delta = prevValue !== undefined && prevValue > 0 
-    ? Math.round(((value - prevValue) / prevValue) * 100) 
+  const delta = prevValue !== undefined && prevValue > 0
+    ? Math.round(((value - prevValue) / prevValue) * 100)
     : 0;
-    
+
   return (
     <motion.div
       variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
       whileHover={{ y: -2, transition: { type: "spring", stiffness: 400, damping: 26 } }}
-      className="rounded-2xl border border-white/[0.03] bg-white/[0.005] p-5 relative overflow-hidden transition-all duration-200 hover:bg-white/[0.015] hover:border-white/[0.06] group/kpi shadow-sm"
+      className="rounded-2xl border border-[#E4E4E7] bg-white p-5 relative overflow-hidden transition-all duration-200 hover:bg-[#F4F4F5] hover:border-[#D4D4D8] shadow-sm"
     >
       <div className="flex items-start justify-between select-none">
-        <span className="font-mono text-[9px] tracking-[0.16em] uppercase text-white/30">
+        <span className="font-mono text-[9px] tracking-[0.16em] uppercase text-[#71717A]">
           {label}
         </span>
-        <Icon size={13} className="text-white/20" />
+        <Icon size={13} className="text-[#D4D4D8]" />
       </div>
-      <div className="mt-3 text-3xl font-bold leading-none tracking-[-0.03em] text-white">
+      <div className="mt-3 text-3xl font-bold leading-none tracking-[-0.03em] text-[#09090B]">
         <AnimatedNumber value={value} suffix={suffix} />
       </div>
-      
+
       {prevValue !== undefined && (
         <div className="mt-3 flex items-center gap-2 select-none">
-          <span 
+          <span
             className={cn(
-              "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[9px] font-bold",
-              delta > 0 ? "bg-emerald-500/10 text-emerald-400" : 
-              delta < 0 ? "bg-red-500/10 text-red-400" : 
-              "bg-white/[0.04] text-white/40"
+              "inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold",
+              delta > 0 ? "border-[#BBF7D0] bg-[#F0FDF4] text-[#166534]" :
+              delta < 0 ? "border-[#FECACA] bg-[#FFF1F2] text-[#DC2626]" :
+              "border-[#E4E4E7] bg-[#F4F4F5] text-[#A1A1AA]",
             )}
           >
             {delta > 0 ? <ArrowUpRight size={9} /> : delta < 0 ? <ArrowDownRight size={9} /> : null}
             {delta > 0 ? "+" : ""}{delta}%
           </span>
-          <span className="text-[9px] font-medium text-white/20">vs anterior</span>
+          <span className="text-[9px] font-medium text-[#A1A1AA]">vs anterior</span>
         </div>
       )}
     </motion.div>
@@ -295,37 +290,31 @@ function RoiHero({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className="relative mb-6 overflow-hidden rounded-2xl border border-white/[0.08] p-6 lg:p-8"
+      className="relative mb-6 overflow-hidden rounded-2xl border border-[#BFDBFE] p-6 lg:p-8"
       style={{
-        background: "linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(139,92,246,0.08) 50%, rgba(20,184,166,0.10) 100%)",
+        background: "linear-gradient(135deg, #EFF6FF 0%, #F5F3FF 50%, #F0FDFA 100%)",
       }}
     >
-      {/* Glow effect */}
-      <div className="pointer-events-none absolute -top-20 left-1/4 h-40 w-96 rounded-full opacity-20 blur-3xl"
-        style={{ background: "radial-gradient(circle, #3B82F6 0%, transparent 70%)" }} />
-      <div className="pointer-events-none absolute -bottom-20 right-1/4 h-40 w-96 rounded-full opacity-15 blur-3xl"
-        style={{ background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)" }} />
-
       <div className="relative">
         <div className="mb-1 flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/20">
-            <Sparkles size={12} className="text-blue-400" />
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#DBEAFE]">
+            <Sparkles size={12} className="text-[#2563EB]" />
           </div>
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-blue-300/70">ROI do Período</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#3B82F6]">ROI do Período</span>
         </div>
 
         <div className="mt-4 grid gap-6 md:grid-cols-3">
           {/* Revenue */}
           <div>
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">Receita Gerada pelo Agendra</p>
-            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-white">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[#71717A]">Receita Gerada pelo Agendra</p>
+            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-[#09090B]">
               {revenue > 0
                 ? <AnimatedNumber value={Math.round(revenue)} prefix="R$ " />
-                : <span className="text-2xl text-white/30">Sem transações ainda</span>
+                : <span className="text-2xl text-[#A1A1AA]">Sem transações ainda</span>
               }
             </div>
             {revenue > 0 && (
-              <p className="mt-2 text-[12px] text-white/50">
+              <p className="mt-2 text-[12px] text-[#71717A]">
                 em vendas fechadas automaticamente
               </p>
             )}
@@ -333,22 +322,22 @@ function RoiHero({
 
           {/* Time saved */}
           <div>
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">Horas do Time Economizadas</p>
-            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-teal-400">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[#71717A]">Horas do Time Economizadas</p>
+            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-[#0D9488]">
               <AnimatedNumber value={timeSaved} suffix="h" />
             </div>
-            <p className="mt-2 text-[12px] text-white/50">
+            <p className="mt-2 text-[12px] text-[#71717A]">
               de atendimento manual evitado
             </p>
           </div>
 
           {/* Conversion */}
           <div>
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-white/40">Taxa de Conversão Real</p>
-            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-violet-400">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[#71717A]">Taxa de Conversão Real</p>
+            <div className="text-[42px] font-bold leading-none tracking-[-0.03em] text-[#7C3AED]">
               <AnimatedNumber value={convRate} suffix="%" />
             </div>
-            <p className="mt-2 text-[12px] text-white/50">
+            <p className="mt-2 text-[12px] text-[#71717A]">
               {converted} de {totalLeads} leads convertidos
             </p>
           </div>
@@ -371,29 +360,29 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 mb-4"
+      className="border border-[#E4E4E7] bg-white rounded-xl p-5 mb-4 shadow-sm"
     >
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <BarChart3 size={14} className="text-violet-400" />
-            <h3 className="text-sm font-semibold">Simulador de Ganhos — What If?</h3>
+            <BarChart3 size={14} className="text-[#7C3AED]" />
+            <h3 className="text-sm font-semibold text-[#09090B]">Simulador de Ganhos — What If?</h3>
           </div>
-          <p className="mt-0.5 text-xs" style={{ color: "var(--color-fg-3)" }}>
+          <p className="mt-0.5 text-xs text-[#71717A]">
             Arraste o slider para simular o impacto do Follow-up Inteligente (Plano PRO)
           </p>
         </div>
-        <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-violet-300">
+        <span className="rounded-full border border-[#DDD6FE] bg-[#EDE9FE] px-2.5 py-0.5 text-[10px] font-semibold text-[#6D28D9]">
           PRO
         </span>
       </div>
 
       <div className="mb-5">
         <div className="mb-2 flex items-center justify-between">
-          <label className="text-xs font-medium" style={{ color: "var(--color-fg-2)" }}>
+          <label className="text-xs font-medium text-[#3F3F46]">
             Leads reativados com follow-up automático
           </label>
-          <span className="font-mono text-sm font-bold text-violet-400">{followUpRate}%</span>
+          <span className="font-mono text-sm font-bold text-[#7C3AED]">{followUpRate}%</span>
         </div>
         <input
           type="range"
@@ -404,12 +393,12 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
           onChange={(e) => setFollowUpRate(Number(e.target.value))}
           className="h-2 w-full cursor-pointer appearance-none rounded-full"
           style={{
-            background: `linear-gradient(to right, #8B5CF6 0%, #8B5CF6 ${((followUpRate - 10) / 70) * 100}%, rgba(255,255,255,0.08) ${((followUpRate - 10) / 70) * 100}%, rgba(255,255,255,0.08) 100%)`,
+            background: `linear-gradient(to right, #8B5CF6 0%, #8B5CF6 ${((followUpRate - 10) / 70) * 100}%, #E4E4E7 ${((followUpRate - 10) / 70) * 100}%, #E4E4E7 100%)`,
           }}
         />
         <div className="mt-1 flex justify-between">
-          <span className="font-mono text-[10px]" style={{ color: "var(--color-fg-3)" }}>10%</span>
-          <span className="font-mono text-[10px]" style={{ color: "var(--color-fg-3)" }}>80%</span>
+          <span className="font-mono text-[10px] text-[#A1A1AA]">10%</span>
+          <span className="font-mono text-[10px] text-[#A1A1AA]">80%</span>
         </div>
       </div>
 
@@ -418,39 +407,39 @@ function WhatIfSimulator({ avgTicket, totalLeads }: { avgTicket: number; totalLe
           key={`conversions-${extraConversions}`}
           initial={{ opacity: 0.6, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4"
+          className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-4"
         >
-          <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">Agendamentos extras</p>
-          <p className="font-mono text-2xl font-bold text-white">+{extraConversions}</p>
-          <p className="mt-1 text-[11px] text-white/50">no próximo mês</p>
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-[#71717A]">Agendamentos extras</p>
+          <p className="font-mono text-2xl font-bold text-[#09090B]">+{extraConversions}</p>
+          <p className="mt-1 text-[11px] text-[#71717A]">no próximo mês</p>
         </motion.div>
         <motion.div
           key={`revenue-${extraRevenue}`}
           initial={{ opacity: 0.6, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="rounded-xl border border-violet-500/20 bg-violet-500/[0.06] p-4"
+          className="rounded-xl border border-[#DDD6FE] bg-[#EDE9FE] p-4"
         >
-          <p className="mb-1 text-[10px] uppercase tracking-wider text-violet-300/60">Receita projetada</p>
-          <p className="font-mono text-2xl font-bold text-violet-300">+{formatBRL(extraRevenue)}</p>
-          <p className="mt-1 text-[11px] text-violet-300/50">estimativa baseada no ticket médio</p>
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-[#7C3AED]">Receita projetada</p>
+          <p className="font-mono text-2xl font-bold text-[#6D28D9]">+{formatBRL(extraRevenue)}</p>
+          <p className="mt-1 text-[11px] text-[#7C3AED]">estimativa baseada no ticket médio</p>
         </motion.div>
         <motion.div
           key={`hours-${extraHours}`}
           initial={{ opacity: 0.6, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="rounded-xl border border-teal-500/20 bg-teal-500/[0.06] p-4"
+          className="rounded-xl border border-[#99F6E4] bg-[#F0FDFA] p-4"
         >
-          <p className="mb-1 text-[10px] uppercase tracking-wider text-teal-300/60">Horas liberadas</p>
-          <p className="font-mono text-2xl font-bold text-teal-300">+{extraHours}h</p>
-          <p className="mt-1 text-[11px] text-teal-300/50">do time para foco estratégico</p>
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-[#0D9488]">Horas liberadas</p>
+          <p className="font-mono text-2xl font-bold text-[#0F766E]">+{extraHours}h</p>
+          <p className="mt-1 text-[11px] text-[#0D9488]">do time para foco estratégico</p>
         </motion.div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-3">
-        <p className="text-[12px] font-medium text-violet-200">
+      <div className="mt-4 flex items-center justify-between rounded-xl border border-[#DDD6FE] bg-[#EDE9FE] px-4 py-3">
+        <p className="text-[12px] font-medium text-[#6D28D9]">
           Ative o Follow-up Inteligente no Plano PRO e comece a ver esses resultados
         </p>
-        <button className="flex shrink-0 items-center gap-1 rounded-lg bg-violet-500 px-3 py-1.5 text-[11px] font-semibold text-white transition-opacity hover:opacity-90">
+        <button className="flex shrink-0 items-center gap-1 rounded-lg bg-[#7C3AED] px-3 py-1.5 text-[11px] font-semibold text-white transition-opacity hover:opacity-90">
           Ver Planos <ChevronRight size={12} />
         </button>
       </div>
@@ -508,29 +497,29 @@ function SalesCard({ initial, companyId }: { initial: RecentTransaction[]; compa
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 mb-4"
+      className="border border-[#E4E4E7] bg-white rounded-xl p-5 mb-4 shadow-sm"
     >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#22C55E] opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-[#22C55E]" />
           </div>
-          <h3 className="text-sm font-semibold">Vendas Realizadas</h3>
+          <h3 className="text-sm font-semibold text-[#09090B]">Vendas Realizadas</h3>
         </div>
         <div className="text-right">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">Hoje</p>
-          <p className="font-mono text-lg font-bold text-emerald-400">
-            {todayRevenue > 0 ? formatBRL(todayRevenue) : <span className="text-sm text-white/30">—</span>}
+          <p className="font-mono text-[10px] uppercase tracking-wider text-[#71717A]">Hoje</p>
+          <p className="font-mono text-lg font-bold text-[#16A34A]">
+            {todayRevenue > 0 ? formatBRL(todayRevenue) : <span className="text-sm text-[#A1A1AA]">—</span>}
           </p>
         </div>
       </div>
 
       {txs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <DollarSign size={24} className="mb-2 text-white/20" />
-          <p className="text-[13px] text-white/30">Nenhuma venda registrada ainda</p>
-          <p className="mt-1 text-[11px] text-white/20">Ative Fintech para rastrear pagamentos em tempo real</p>
+          <DollarSign size={24} className="mb-2 text-[#D4D4D8]" />
+          <p className="text-[13px] text-[#A1A1AA]">Nenhuma venda registrada ainda</p>
+          <p className="mt-1 text-[11px] text-[#D4D4D8]">Ative Fintech para rastrear pagamentos em tempo real</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -545,17 +534,17 @@ function SalesCard({ initial, companyId }: { initial: RecentTransaction[]; compa
                 className={cn(
                   "flex items-center justify-between rounded-xl px-4 py-3 transition-colors duration-500",
                   flashId === tx.id
-                    ? "border border-emerald-500/40 bg-emerald-500/15"
-                    : "border border-white/[0.06] bg-white/[0.03]"
+                    ? "border border-[#BBF7D0] bg-[#F0FDF4]"
+                    : "border border-[#E4E4E7] bg-[#F4F4F5]",
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-500/10 text-emerald-400">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#F0FDF4] border border-[#BBF7D0] text-[#16A34A]">
                     <DollarSign size={14} />
                   </div>
                   <div>
-                    <p className="text-[13px] font-medium">{tx.lead?.name ?? 'Lead'}</p>
-                    <p className="text-[11px] text-white/40">
+                    <p className="text-[13px] font-medium text-[#09090B]">{tx.lead?.name ?? 'Lead'}</p>
+                    <p className="text-[11px] text-[#A1A1AA]">
                       {fmtTime(tx.paid_at)}
                       {tx.paid_at && tx.paid_at.slice(0, 10) !== today && (
                         <> · {fmtDay(tx.paid_at)}</>
@@ -563,7 +552,7 @@ function SalesCard({ initial, companyId }: { initial: RecentTransaction[]; compa
                     </p>
                   </div>
                 </div>
-                <span className="font-mono text-sm font-bold text-emerald-400">
+                <span className="font-mono text-sm font-bold text-[#16A34A]">
                   {formatBRL(Number(tx.amount))}
                 </span>
               </motion.div>
@@ -606,45 +595,43 @@ export function ReportsClient({
   const [exportPending, startExport] = useTransition();
 
   const days = PERIODS.find((p) => p.id === period)?.days || 90;
-  
-  // Current period slice
+
   const currentSeries = dailyDetails.slice(-days);
-  
-  // Previous period slice (for comparison)
   const prevSeries = dailyDetails.slice(-(days * 2), -days);
 
-  // Recompute KPIs for current period
   const totalLeads = currentSeries.reduce((s, d) => s + d.leads, 0);
   const hotLeads = currentSeries.reduce((s, d) => s + d.hot, 0);
   const converted = currentSeries.reduce((s, d) => s + d.converted, 0);
   const totalEvents = currentSeries.reduce((s, d) => s + d.events, 0);
   const totalMessages = currentSeries.reduce((s, d) => s + d.messages, 0);
   const aiMessages = currentSeries.reduce((s, d) => s + d.aiMessages, 0);
-  
+
   const aiRatio = totalMessages > 0 ? Math.round((aiMessages / totalMessages) * 100) : 0;
   const periodRevenue = currentSeries.reduce((s, d) => s + d.revenue, 0);
   const periodTransactions = currentSeries.reduce((s, d) => s + d.transactionCount, 0);
   const periodAvgTicket = periodTransactions > 0 ? periodRevenue / periodTransactions : avgTicket;
-  // 1 atendimento humano completo ≈ 12 min; IA resolve em 0 min humano
   const timeSavedHours = Math.round((aiMessages * 12) / 60);
 
-  // Recompute KPIs for previous period
   const prevLeads = prevSeries.reduce((s, d) => s + d.leads, 0);
   const prevConverted = prevSeries.reduce((s, d) => s + d.converted, 0);
   const prevEvents = prevSeries.reduce((s, d) => s + d.events, 0);
   const prevRevenue = prevSeries.reduce((s, d) => s + d.revenue, 0);
-  
-  // By Channel & Status for current period
+
   const channels = [
     { channel: "whatsapp", label: "WhatsApp", count: currentSeries.reduce((s, d) => s + d.whatsapp, 0) },
     { channel: "instagram", label: "Instagram", count: currentSeries.reduce((s, d) => s + d.instagram, 0) },
     { channel: "form", label: "Formulário", count: currentSeries.reduce((s, d) => s + d.form, 0) },
   ].filter(c => c.count > 0).sort((a, b) => b.count - a.count);
-  
+
   const totalByChannel = channels.reduce((s, c) => s + c.count, 0) || 1;
   const topChannel = channels[0];
 
   const chartData = currentSeries.map((d) => ({ ...d, date: formatDate(d.date) }));
+
+  // suppress unused lint
+  void avgHeatScore;
+  void totalRevenue90d;
+  void CHANNEL_COLORS;
 
   function handleExport() {
     startExport(async () => {
@@ -672,7 +659,7 @@ export function ReportsClient({
   if (dailyDetails.reduce((s, d) => s + d.leads, 0) === 0) {
     return (
       <div className="h-full overflow-y-auto px-4 pt-7 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:py-7 lg:px-8">
-        <h1 className="mb-2 text-[28px] font-bold tracking-[-0.02em]">Business Intelligence</h1>
+        <h1 className="mb-2 text-[28px] font-bold tracking-[-0.02em] text-[#09090B]">Business Intelligence</h1>
         <div className="mt-12 max-w-xl mx-auto">
           <EmptyState
             icon={Activity}
@@ -689,22 +676,23 @@ export function ReportsClient({
       {/* ── Header ── */}
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold tracking-[-0.02em]">Business Intelligence</h1>
-          <p className="mt-1 text-sm flex items-center gap-2" style={{ color: "var(--color-fg-2)" }}>
-            Visão de {days} dias <span className="h-1 w-1 rounded-full bg-white/20" /> {totalLeads} leads totais
+          <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[#09090B]">Business Intelligence</h1>
+          <p className="mt-1 text-sm flex items-center gap-2 text-[#3F3F46]">
+            Visão de {days} dias <span className="h-1 w-1 rounded-full bg-[#D4D4D8]" /> {totalLeads} leads totais
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+          <div className="flex gap-1 rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-1">
             {PERIODS.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setPeriod(p.id)}
                 className={cn(
                   "rounded-lg px-3 py-1 font-mono text-xs font-medium transition-colors",
-                  period === p.id ? "bg-white/[0.1] text-white" : "hover:text-white",
+                  period === p.id
+                    ? "bg-white text-[#09090B] shadow-sm"
+                    : "text-[#71717A] hover:text-[#09090B]",
                 )}
-                style={period !== p.id ? { color: "var(--color-fg-3)" } : undefined}
               >
                 {p.label}
               </button>
@@ -716,7 +704,7 @@ export function ReportsClient({
           </Button>
         </div>
       </header>
-      
+
       {/* ── ROI Hero ── */}
       <RoiHero
         revenue={periodRevenue}
@@ -728,32 +716,32 @@ export function ReportsClient({
       {/* ── Insights Top Bar ── */}
       <div className="mb-6 grid gap-3 lg:grid-cols-3">
         {topChannel && (
-          <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-lg px-4 py-3 flex items-center gap-3">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-500/10 text-blue-400">
+          <div className="border border-[#E4E4E7] bg-white rounded-lg px-4 py-3 flex items-center gap-3 shadow-sm">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#EFF6FF] text-[#2563EB]">
               <TrendingUp size={16} />
             </div>
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-white/50">Melhor Canal</p>
-              <p className="text-sm font-semibold">{topChannel.label} ({Math.round(topChannel.count / totalByChannel * 100)}%)</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-[#71717A]">Melhor Canal</p>
+              <p className="text-sm font-semibold text-[#09090B]">{topChannel.label} ({Math.round(topChannel.count / totalByChannel * 100)}%)</p>
             </div>
           </div>
         )}
-        <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-lg px-4 py-3 flex items-center gap-3">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-teal-500/10 text-teal-400">
+        <div className="border border-[#E4E4E7] bg-white rounded-lg px-4 py-3 flex items-center gap-3 shadow-sm">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#F0FDFA] text-[#14B8A6]">
             <Zap size={16} />
           </div>
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wider text-white/50">Qualificação IA</p>
-            <p className="text-sm font-semibold">{hotLeads} leads quentes identificados</p>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-[#71717A]">Qualificação IA</p>
+            <p className="text-sm font-semibold text-[#09090B]">{hotLeads} leads quentes identificados</p>
           </div>
         </div>
-        <div className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-lg px-4 py-3 flex items-center gap-3">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-500/10 text-amber-400">
+        <div className="border border-[#E4E4E7] bg-white rounded-lg px-4 py-3 flex items-center gap-3 shadow-sm">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#FFFBEB] text-[#D97706]">
             <CalendarCheck size={16} />
           </div>
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wider text-white/50">Taxa de Conversão</p>
-            <p className="text-sm font-semibold">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-[#71717A]">Taxa de Conversão</p>
+            <p className="text-sm font-semibold text-[#09090B]">
               {totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0}% de conversão real
             </p>
           </div>
@@ -766,47 +754,25 @@ export function ReportsClient({
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
         className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       >
-        <KpiCard
-          label="NOVOS LEADS"
-          value={totalLeads}
-          icon={Users}
-          color="#60A5FA"
-          prevValue={prevLeads}
-        />
-        <KpiCard
-          label="CONVERTIDOS"
-          value={converted}
-          icon={TrendingUp}
-          color="#5EEAD4"
-          prevValue={prevConverted}
-        />
-        <KpiCard
-          label="AGENDAMENTOS"
-          value={totalEvents}
-          icon={CalendarCheck}
-          color="#A78BFA"
-          prevValue={prevEvents}
-        />
-        <KpiCard
-          label="EFICIÊNCIA IA"
-          value={aiRatio}
-          suffix="%"
-          icon={Bot}
-          color="#FB923C"
-        />
+        <KpiCard label="NOVOS LEADS" value={totalLeads} icon={Users} color="#60A5FA" prevValue={prevLeads} />
+        <KpiCard label="CONVERTIDOS" value={converted} icon={TrendingUp} color="#5EEAD4" prevValue={prevConverted} />
+        <KpiCard label="AGENDAMENTOS" value={totalEvents} icon={CalendarCheck} color="#A78BFA" prevValue={prevEvents} />
+        <KpiCard label="EFICIÊNCIA IA" value={aiRatio} suffix="%" icon={Bot} color="#FB923C" />
+
+        {/* Revenue special card */}
         <motion.div
           variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
           whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 26 } }}
-          className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 sm:col-span-2 xl:col-span-1"
+          className="border border-[#E4E4E7] bg-white rounded-xl p-5 sm:col-span-2 xl:col-span-1 shadow-sm hover:bg-[#F4F4F5] transition-colors"
         >
           <div className="flex items-start justify-between">
-            <span className="font-mono text-[10px] tracking-[0.16em] text-white/40">RECEITA GERADA</span>
-            <DollarSign size={14} className="text-emerald-400/60" />
+            <span className="font-mono text-[10px] tracking-[0.16em] text-[#71717A] uppercase">RECEITA GERADA</span>
+            <DollarSign size={14} className="text-[#D4D4D8]" />
           </div>
-          <div className="mt-3 text-[28px] font-bold leading-none tracking-[-0.03em] text-emerald-400">
+          <div className="mt-3 text-[28px] font-bold leading-none tracking-[-0.03em] text-[#16A34A]">
             {periodRevenue > 0
               ? formatBRL(periodRevenue)
-              : <span className="text-base text-white/20">—</span>
+              : <span className="text-base text-[#A1A1AA]">—</span>
             }
           </div>
           {prevRevenue > 0 && periodRevenue > 0 && (() => {
@@ -814,51 +780,52 @@ export function ReportsClient({
             return (
               <div className="mt-3 flex items-center gap-2">
                 <span className={cn(
-                  "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-mono text-[10px] font-medium",
-                  delta > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400",
+                  "inline-flex items-center gap-0.5 rounded border px-2 py-0.5 font-mono text-[10px] font-medium",
+                  delta > 0 ? "border-[#BBF7D0] bg-[#F0FDF4] text-[#166534]" : "border-[#FECACA] bg-[#FFF1F2] text-[#DC2626]",
                 )}>
                   {delta > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
                   {delta > 0 ? "+" : ""}{delta}%
                 </span>
-                <span className="text-[10px] text-white/30">vs anterior</span>
+                <span className="text-[10px] text-[#A1A1AA]">vs anterior</span>
               </div>
             );
           })()}
           {periodRevenue === 0 && (
-            <p className="mt-2 text-[10px] text-white/30">Ative Fintech para rastrear</p>
+            <p className="mt-2 text-[10px] text-[#A1A1AA]">Ative Fintech para rastrear</p>
           )}
         </motion.div>
+
+        {/* Ticket médio card */}
         <motion.div
           variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
           whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 26 } }}
-          className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 sm:col-span-2 xl:col-span-1"
+          className="border border-[#E4E4E7] bg-white rounded-xl p-5 sm:col-span-2 xl:col-span-1 shadow-sm hover:bg-[#F4F4F5] transition-colors"
         >
           <div className="flex items-start justify-between">
-            <span className="font-mono text-[10px] tracking-[0.16em] text-white/40">TICKET MÉDIO</span>
-            <Banknote size={14} className="text-amber-400/60" />
+            <span className="font-mono text-[10px] tracking-[0.16em] text-[#71717A] uppercase">TICKET MÉDIO</span>
+            <Banknote size={14} className="text-[#D4D4D8]" />
           </div>
-          <div className="mt-3 text-[28px] font-bold leading-none tracking-[-0.03em] text-amber-400">
+          <div className="mt-3 text-[28px] font-bold leading-none tracking-[-0.03em] text-[#D97706]">
             {periodAvgTicket > 0
               ? formatBRL(periodAvgTicket)
-              : <span className="text-base text-white/20">—</span>
+              : <span className="text-base text-[#A1A1AA]">—</span>
             }
           </div>
-          <p className="mt-2 text-[10px] text-white/30">por venda fechada no período</p>
+          <p className="mt-2 text-[10px] text-[#A1A1AA]">por venda fechada no período</p>
         </motion.div>
       </motion.div>
 
       {/* ── Area Chart + Funnel ── */}
       <div className="mb-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
-        {/* Multi-series Area Chart */}
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 flex flex-col"
+          className="border border-[#E4E4E7] bg-white rounded-xl p-5 flex flex-col shadow-sm"
         >
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="mb-1 text-sm font-semibold">Leads vs Agendamentos</h3>
-              <p className="text-xs" style={{ color: "var(--color-fg-3)" }}>
+              <h3 className="mb-1 text-sm font-semibold text-[#09090B]">Leads vs Agendamentos</h3>
+              <p className="text-xs text-[#71717A]">
                 Volume diário ao longo de {days} dias
               </p>
             </div>
@@ -866,25 +833,24 @@ export function ReportsClient({
               {[{ color: "#3B82F6", label: "Leads" }, { color: "#14B8A6", label: "Agendamentos" }].map((l) => (
                 <div key={l.label} className="flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full" style={{ background: l.color }} />
-                  <span className="text-xs" style={{ color: "var(--color-fg-3)" }}>{l.label}</span>
+                  <span className="text-xs text-[#71717A]">{l.label}</span>
                 </div>
               ))}
             </div>
           </div>
-          
+
           <div className="flex-1 min-h-[220px]">
             <RevenueChart data={chartData} />
           </div>
         </motion.div>
 
-        {/* Conversion Funnel */}
         <motion.div
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5"
+          className="border border-[#E4E4E7] bg-white rounded-xl p-5 shadow-sm"
         >
-          <h3 className="mb-1 text-sm font-semibold">Funil Histórico</h3>
-          <p className="mb-4 text-xs" style={{ color: "var(--color-fg-3)" }}>
+          <h3 className="mb-1 text-sm font-semibold text-[#09090B]">Funil Histórico</h3>
+          <p className="mb-4 text-xs text-[#71717A]">
             Taxa de queda (all-time snapshot)
           </p>
           <ConversionFunnel stages={funnelStages} />
@@ -901,10 +867,10 @@ export function ReportsClient({
       <motion.div
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="border border-white/[0.03] bg-[rgba(15,23,42,0.15)] rounded-xl p-5 mb-4"
+        className="border border-[#E4E4E7] bg-white rounded-xl p-5 mb-4 shadow-sm"
       >
-        <h3 className="mb-1 text-sm font-semibold">Densidade de Chegada de Leads</h3>
-        <p className="mb-4 text-xs" style={{ color: "var(--color-fg-3)" }}>
+        <h3 className="mb-1 text-sm font-semibold text-[#09090B]">Densidade de Chegada de Leads</h3>
+        <p className="mb-4 text-xs text-[#71717A]">
           Concentração histórica de novos leads por dia da semana e horário. Use para otimizar plantões.
         </p>
         <LeadHeatmap data={heatmapData} />
