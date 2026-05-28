@@ -49,7 +49,6 @@ export function Topbar({ cta }: TopbarProps) {
   }, [onLeadsPage]);
 
   // Live search ONLY while user is on /leads.
-  // On other pages, typing must not yank the user away — they push on Enter.
   useEffect(() => {
     if (!onLeadsPage) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -65,7 +64,6 @@ export function Topbar({ cta }: TopbarProps) {
     };
   }, [query, router, onLeadsPage]);
 
-  // Enter to submit search from any page
   function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     e.preventDefault();
@@ -80,7 +78,7 @@ export function Topbar({ cta }: TopbarProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="flex items-center gap-3 border-b border-white/[0.06] bg-[#0f1015] px-4 py-2.5 md:gap-4 md:px-6 md:py-3"
+        className="flex items-center gap-3 border-b border-[#E4E4E7] bg-white px-4 py-2.5 md:gap-4 md:px-6 md:py-3"
       >
         {/* Mobile: logo */}
         <Link href="/inbox" className="flex-shrink-0 md:hidden">
@@ -89,14 +87,10 @@ export function Topbar({ cta }: TopbarProps) {
 
         {/* Desktop: search bar */}
         <div className="relative hidden max-w-[420px] flex-1 md:block">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: "var(--color-fg-3)" }}
-          />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A1A1AA]" />
           <input
             placeholder="Buscar leads, conversas, agendamentos…"
-            className="input !rounded-xl !py-2 !pl-9 !pr-8 !text-[13px]"
+            className="w-full h-[34px] bg-[#F4F4F5] border border-[#E4E4E7] rounded-lg pl-9 pr-8 text-[13px] text-[#09090B] placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleSearchKeyDown}
@@ -104,8 +98,7 @@ export function Topbar({ cta }: TopbarProps) {
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--color-fg-3)" }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A1A1AA] hover:text-[#71717A]"
               aria-label="Limpar busca"
             >
               <X size={14} />
@@ -114,10 +107,9 @@ export function Topbar({ cta }: TopbarProps) {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-
           {/* Notification Bell */}
           {loading ? (
-            <div className="h-9 w-9 animate-pulse rounded-full bg-white/[0.04]" />
+            <div className="h-9 w-9 animate-pulse rounded-full bg-[#F4F4F5]" />
           ) : profile?.id ? (
             <NotificationBell userId={profile.id} />
           ) : null}
@@ -132,7 +124,7 @@ export function Topbar({ cta }: TopbarProps) {
 
           {/* Mobile: profile avatar */}
           <button
-            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#3B82F6] to-[#14B8A6] text-xs font-bold text-white md:hidden"
+            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[#EFF6FF] border border-[#BFDBFE] text-xs font-bold text-[#2563EB] md:hidden"
             onClick={() => setShowProfile(true)}
             aria-label="Abrir perfil"
           >
@@ -150,7 +142,7 @@ export function Topbar({ cta }: TopbarProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[60] bg-black/60 md:hidden"
+              className="fixed inset-0 z-[60] bg-black/30 md:hidden"
               onClick={() => setShowProfile(false)}
             />
             <motion.div
@@ -159,29 +151,25 @@ export function Topbar({ cta }: TopbarProps) {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 400, damping: 40 }}
-              className="fixed bottom-0 left-0 right-0 z-[61] md:hidden rounded-t-3xl border-t border-white/[0.1] bg-[rgba(11,18,34,0.97)] p-6 backdrop-blur-2xl"
+              className="fixed bottom-0 left-0 right-0 z-[61] md:hidden rounded-t-3xl border-t border-[#E4E4E7] bg-white p-6 shadow-[0_-8px_32px_rgba(0,0,0,0.10)]"
               style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
             >
               {/* Handle */}
-              <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-white/20" />
+              <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-[#E4E4E7]" />
 
               {loading ? (
-                <div className="h-24 animate-pulse rounded-xl bg-white/[0.04]" />
+                <div className="h-24 animate-pulse rounded-xl bg-[#F4F4F5]" />
               ) : (
                 <>
                   {/* User info */}
                   <div className="mb-5 flex items-center gap-3">
-                    <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#3B82F6] to-[#14B8A6] text-sm font-bold text-white">
+                    <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-full bg-[#EFF6FF] border border-[#BFDBFE] text-sm font-bold text-[#2563EB]">
                       {initials}
                     </div>
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">{displayName}</div>
-                      <div className="truncate text-[12px]" style={{ color: "var(--color-fg-3)" }}>
-                        {companyName}
-                      </div>
-                      <div className="font-mono text-[11px]" style={{ color: "var(--color-fg-3)" }}>
-                        {displayPlan}
-                      </div>
+                      <div className="truncate text-sm font-semibold text-[#09090B]">{displayName}</div>
+                      <div className="truncate text-[12px] text-[#71717A]">{companyName}</div>
+                      <div className="font-mono text-[11px] text-[#A1A1AA]">{displayPlan}</div>
                     </div>
                   </div>
 
@@ -189,15 +177,15 @@ export function Topbar({ cta }: TopbarProps) {
                   {isTrial && (
                     <div className="mb-5 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px] font-medium">
-                        <span className="text-white/40">Trial em progresso</span>
-                        <span className="text-brand-blue-400">{remaining} dias restantes</span>
+                        <span className="text-[#A1A1AA]">Trial em progresso</span>
+                        <span className="text-[#2563EB]">{remaining} dias restantes</span>
                       </div>
-                      <div className="h-[1px] w-full overflow-hidden rounded-full bg-white/5">
+                      <div className="h-[2px] w-full overflow-hidden rounded-full bg-[#E4E4E7]">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${trialProgress}%` }}
                           transition={{ duration: 0.8 }}
-                          className="h-full bg-white/20"
+                          className="h-full bg-[#2563EB]"
                         />
                       </div>
                     </div>
@@ -206,19 +194,15 @@ export function Topbar({ cta }: TopbarProps) {
                   {/* Actions */}
                   <div className="flex gap-3">
                     <Link href="/planos" className="flex-1" onClick={() => setShowProfile(false)}>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="w-full justify-center bg-white/[0.04] text-white/70 hover:bg-white/[0.08] hover:text-white border-white/[0.08] text-[11px] h-9 rounded-xl transition-all"
-                      >
+                      <Button variant="orange" size="sm" className="w-full justify-center text-[11px] h-9 rounded-xl">
                         <Zap size={13} />
                         Upgrade
                       </Button>
                     </Link>
                     <Button
-                      variant="ghost"
+                      variant="secondary"
                       size="sm"
-                      className="flex-1 border border-white/[0.05] text-white/40 hover:bg-white/[0.04] hover:text-white/60 text-[11px] h-9 rounded-xl transition-all"
+                      className="flex-1 text-[11px] h-9 rounded-xl"
                       onClick={async () => {
                         setShowProfile(false);
                         await signOut();
