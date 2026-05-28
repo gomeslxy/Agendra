@@ -8,7 +8,7 @@ interface GlassProps extends HTMLAttributes<HTMLDivElement> {
 
 export function Glass({ children, className, strong, ...rest }: GlassProps) {
   return (
-    <div className={cn("glass", strong && "glass-strong", className)} {...rest}>
+    <div className={cn("card", strong && "card-elevated", className)} {...rest}>
       {children}
     </div>
   );
