@@ -52,15 +52,15 @@ import { createBrowserClient } from "@supabase/ssr";
 
 type TabId = "account" | "rules" | "services" | "brain" | "channels" | "automation" | "logs" | "billing";
 
-const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: "account",    label: "Conta & Empresa",   icon: Users },
-  { id: "rules",      label: "Horários & Regras", icon: Clock },
-  { id: "services",   label: "Serviços",          icon: Briefcase },
-  { id: "brain",      label: "Cérebro da IA",     icon: Cpu },
-  { id: "channels",   label: "Canais",            icon: MessageSquare },
-  { id: "automation", label: "Automação",         icon: GitBranch },
-  { id: "logs",       label: "Mente da IA",       icon: Zap },
-  { id: "billing",    label: "Assinatura",        icon: CreditCard },
+const TABS: { id: TabId; label: string; icon: LucideIcon; category: string }[] = [
+  { id: "account",    label: "Conta & Empresa",   icon: Users,      category: "Geral" },
+  { id: "rules",      label: "Horários & Regras", icon: Clock,      category: "Geral" },
+  { id: "billing",    label: "Assinatura",        icon: CreditCard, category: "Geral" },
+  { id: "brain",      label: "Cérebro da IA",     icon: Cpu,        category: "Inteligência" },
+  { id: "logs",       label: "Mente da IA",       icon: Zap,        category: "Inteligência" },
+  { id: "channels",   label: "Canais",            icon: MessageSquare, category: "Integrações" },
+  { id: "services",   label: "Serviços",          icon: Briefcase,     category: "Integrações" },
+  { id: "automation", label: "Automação",         icon: GitBranch,     category: "Integrações" },
 ];
 
 interface MemberUser {
@@ -322,33 +322,36 @@ export function SettingsShell({
         </div>
 
         {/* Desktop Sidebar (Vertical) */}
-        <div className="hidden lg:flex flex-col w-64 shrink-0 gap-1.5 sticky top-7">
-          {TABS.map((t) => {
-            const active = tab === t.id;
+        <div className="hidden lg:flex flex-col w-64 shrink-0 gap-5 sticky top-7 select-none">
+          {["Geral", "Inteligência", "Integrações"].map((cat) => {
+            const catTabs = TABS.filter((t) => t.category === cat);
             return (
-              <button
-                key={t.id}
-                onClick={() => changeTab(t.id)}
-                className={cn(
-                  "group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold tracking-tight transition-all duration-300 outline-none cursor-pointer text-left w-full",
-                  active 
-                    ? "text-white" 
-                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
-                )}
-              >
-                <t.icon size={18} className={cn(
-                  "transition-transform duration-300 group-hover:scale-110",
-                  active ? "text-brand-blue-400" : "text-white/20 group-hover:text-white/40"
-                )} />
-                <span className="relative z-10 flex-1">{t.label}</span>
-                {active && (
-                  <motion.div
-                    layoutId="active-tab-desktop-glow"
-                    className="absolute inset-0 z-0 rounded-xl border border-brand-blue-500/20 bg-brand-blue-500/5 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  />
-                )}
-              </button>
+              <div key={cat} className="flex flex-col gap-1">
+                <span className="px-4 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-white/20 mb-1">
+                  {cat}
+                </span>
+                {catTabs.map((t) => {
+                  const active = tab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => changeTab(t.id)}
+                      className={cn(
+                        "group relative flex items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-bold tracking-tight transition-all duration-150 outline-none cursor-pointer text-left w-full",
+                        active 
+                          ? "text-white bg-white/[0.04] border border-white/[0.06]" 
+                          : "text-white/40 hover:text-white/70 hover:bg-white/[0.02]"
+                      )}
+                    >
+                      <t.icon size={15} className={cn(
+                        "transition-transform duration-150 group-hover:scale-105",
+                        active ? "text-brand-blue-400" : "text-white/20 group-hover:text-white/40"
+                      )} />
+                      <span className="relative z-10 flex-1">{t.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </div>

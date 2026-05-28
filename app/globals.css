@@ -156,16 +156,10 @@
     content: "";
     position: absolute; inset: -40%;
     background: conic-gradient(from 210deg at 50% 50%,
-      transparent 0%, rgba(255,255,255,0.06) 18%, transparent 36%);
+      transparent 0%, rgba(255,255,255,0.02) 18%, transparent 36%);
     pointer-events: none;
-    animation: sheen 18s linear infinite;
     mix-blend-mode: screen;
-    opacity: 0.6;
-    will-change: transform;
-  }
-  /* Disable expensive sheen animation on mobile & tablet to save battery + GPU */
-  @media (max-width: 1024px) {
-    .glass::after { animation: none; opacity: 0.3; }
+    opacity: 0.3;
   }
   .glass-strong {
     background:
@@ -176,9 +170,9 @@
 
   .bg-aurora {
     background:
-      radial-gradient(60% 40% at 80% 0%, rgba(37,99,235,0.25), transparent 70%),
-      radial-gradient(45% 30% at 10% 30%, rgba(20,184,166,0.18), transparent 70%),
-      radial-gradient(55% 35% at 60% 100%, rgba(249,115,22,0.14), transparent 70%),
+      radial-gradient(60% 40% at 80% 0%, rgba(37,99,235,0.06), transparent 70%),
+      radial-gradient(45% 30% at 10% 30%, rgba(20,184,166,0.04), transparent 70%),
+      radial-gradient(55% 35% at 60% 100%, rgba(249,115,22,0.03), transparent 70%),
       var(--color-ink-950);
     position: relative;
   }
@@ -215,8 +209,8 @@
   .input {
     width: 100%;
     padding: 12px 14px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
     border-radius: 14px;
     color: var(--color-fg-1);
     font: 400 15px var(--font-sans);

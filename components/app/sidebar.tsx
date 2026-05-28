@@ -56,15 +56,12 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
       key="sidebar"
       className="glass hidden h-screen flex-col gap-4 !rounded-none !border-y-0 !border-l-0 border-r border-white/[0.08] bg-[rgba(11,18,34,0.35)] p-4 md:flex shadow-2xl z-20"
     >
-      <Link href="/inbox" className="flex items-center justify-between px-2 py-1.5 shrink-0">
+      <Link href="/inbox" className="flex items-center gap-2 px-2 py-1.5 shrink-0 select-none">
         <Image src="/assets/agendra-logo.svg" alt="Agendra" width={96} height={24} priority />
-        <div className="flex items-center gap-1.5 rounded-full border border-brand-teal-500/25 bg-brand-teal-500/5 px-2 py-0.5 text-[9px] font-bold text-brand-teal-400 tracking-wide">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-teal-400 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-teal-500" />
-          </span>
-          AI ACTIVE
-        </div>
+        <span className="relative flex h-1.5 w-1.5" title="AI ACTIVE">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-teal-400 opacity-75" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-teal-500" />
+        </span>
       </Link>
 
       <nav className="relative flex flex-col gap-0.5">
@@ -113,8 +110,8 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
       </nav>
 
       {/* User card */}
-      <div className="glass mt-auto rounded-xl border border-white/[0.08] bg-[rgba(255,255,255,0.02)] p-3 shadow-inner relative overflow-hidden group/user z-10 shrink-0">
-        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#2563EB]/20 to-transparent transition-opacity duration-300 group-hover/user:via-[#2563EB]/40 pointer-events-none" />
+      <div className="mt-auto rounded-xl border border-white/[0.04] bg-white/[0.01] p-3 transition-all duration-200 hover:bg-white/[0.03] hover:border-white/[0.08] relative overflow-hidden group/user z-10 shrink-0">
+        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#2563EB]/10 to-transparent transition-opacity duration-300 group-hover/user:via-[#2563EB]/30 pointer-events-none" />
         {!mounted || loading ? (
           <div className="h-16 animate-pulse rounded-lg bg-white/[0.04]" />
         ) : (
@@ -140,17 +137,17 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
               </div>
             </div>
             {(planType === "trial" || planType === "free") && (
-              <div className="mb-4 space-y-1.5 px-0.5">
-                <div className="flex items-center justify-between text-[10px] font-medium">
-                  <span className="text-white/40">Trial em progresso</span>
-                  <span className="text-brand-blue-400">
+              <div className="mb-3 space-y-1 px-0.5">
+                <div className="flex items-center justify-between text-[10px] font-medium text-white/40">
+                  <span>Trial ativo</span>
+                  <span className="font-mono text-[9px] text-brand-blue-400">
                     {(() => {
                       const { remaining } = calculateTrialStatus(profile?.companies?.created_at);
-                      return `${remaining} dias restantes`;
+                      return `${remaining}d restantes`;
                     })()}
                   </span>
                 </div>
-                <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
+                <div className="h-[2px] w-full overflow-hidden rounded-full bg-white/5">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ 
@@ -160,7 +157,7 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                       })()
                     }}
                     transition={{ duration: 1 }}
-                    className="h-full bg-gradient-to-r from-brand-blue-600 to-brand-teal-500"
+                    className="h-full bg-brand-blue-500"
                   />
                 </div>
               </div>
@@ -172,9 +169,9 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="w-full justify-center bg-brand-blue-500/10 text-brand-blue-400 hover:bg-brand-blue-500/20 border-brand-blue-500/20"
+                    className="w-full justify-center bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white border-white/[0.08] text-[11px] h-7 rounded-lg transition-all duration-200"
                   >
-                    <IconZap size={13} />
+                    <IconZap size={11} />
                     {planType === "trial" ? "Assinar" : "Upgrade"}
                   </Button>
                 </Link>
@@ -182,12 +179,12 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="px-2"
+                className="px-2 h-7 rounded-lg hover:bg-white/[0.04]"
                 aria-label="Sair"
                 onClick={signOut}
                 title="Sair"
               >
-                <IconLogout size={14} style={{ color: "var(--color-fg-3)" }} />
+                <IconLogout size={13} style={{ color: "var(--color-fg-3)" }} />
               </Button>
             </div>
           </>

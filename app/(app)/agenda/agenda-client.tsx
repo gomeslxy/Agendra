@@ -416,9 +416,9 @@ export function AgendaClient({
                   )}
                 >
                   <span className="text-[11px] font-semibold sm:text-[13px]">{c.d}</span>
-                  {/* Event chips */}
-                  <div className="flex flex-col gap-0.5 overflow-hidden">
-                    {evs.slice(0, isMobile ? 1 : 2).map((e, j) => {
+                  {/* Event status dots */}
+                  <div className="flex flex-wrap gap-1 mt-auto pb-0.5 select-none max-h-3 overflow-hidden">
+                    {evs.map((e, j) => {
                       const color =
                         e.source === "gcal"
                           ? GCAL_INDIGO
@@ -426,25 +426,15 @@ export function AgendaClient({
                       return (
                         <span
                           key={j}
-                          className="truncate rounded px-1 py-0.5 text-[8px] font-semibold leading-tight sm:text-[9px]"
+                          className="h-1.5 w-1.5 rounded-full shrink-0"
                           style={{
-                            background: color + "28",
-                            color,
-                            border: `1px solid ${color}33`,
+                            backgroundColor: color,
+                            boxShadow: `0 0 4px ${color}`
                           }}
-                        >
-                          {e.title}
-                        </span>
+                          title={e.title}
+                        />
                       );
                     })}
-                    {evs.length > (isMobile ? 1 : 2) && (
-                      <span
-                        className="text-[8px] font-medium sm:text-[9px]"
-                        style={{ color: "var(--color-fg-3)" }}
-                      >
-                        +{evs.length - (isMobile ? 1 : 2)} mais
-                      </span>
-                    )}
                   </div>
                 </motion.button>
               );
@@ -484,22 +474,22 @@ export function AgendaClient({
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2, delay: i * 0.04 }}
-                    className="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] p-3"
+                    className="flex items-start gap-3 rounded-xl border border-white/[0.03] bg-white/[0.01] p-3 hover:bg-white/[0.03] hover:border-white/[0.06] transition-all duration-200"
                   >
-                    <span className="min-w-[44px] font-mono text-xs font-semibold text-brand-teal-300">
+                    <span className="min-w-[44px] font-mono text-xs font-semibold text-brand-teal-400 shrink-0">
                       {formatTime(e.start_time)}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-[13px] font-semibold">{e.title}</span>
                         {isGcal && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/40 bg-indigo-400/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-400">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/20 bg-indigo-400/5 px-1.5 py-0.5 text-[9px] font-bold text-indigo-400">
                             <Cloud size={8} />
                             Google
                           </span>
                         )}
                         {e.gcal_sync_status === "error" && (
-                          <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                          <span className="rounded-full border border-amber-400/20 bg-amber-400/5 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">
                             Sync pendente
                           </span>
                         )}
@@ -510,20 +500,26 @@ export function AgendaClient({
                         </div>
                       )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
+                    <div className="flex shrink-0 items-center gap-2">
                       {!isGcal && e.leads && (
-                        <Badge variant={status} className="px-2 py-0.5 text-[10px]">
-                          {HEAT_LABEL[status]}
-                        </Badge>
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-white/50 select-none">
+                          <span className={cn(
+                            "h-1.5 w-1.5 rounded-full shrink-0",
+                            status === 'hot' ? 'bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.4)]' :
+                            status === 'warm' ? 'bg-yellow-500' :
+                            status === 'success' ? 'bg-teal-500' : 'bg-blue-400'
+                          )} />
+                          <span>{HEAT_LABEL[status]}</span>
+                        </div>
                       )}
                       {/* Pending/rescheduled event status badge */}
                       {e.status === "pending" && (
-                        <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                        <span className="rounded-full border border-amber-400/20 bg-amber-400/5 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">
                           Pendente
                         </span>
                       )}
                       {e.status === "rescheduled" && (
-                        <span className="rounded-full border border-blue-400/40 bg-blue-400/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
+                        <span className="rounded-full border border-blue-400/20 bg-blue-400/5 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
                           Remarcado
                         </span>
                       )}
@@ -531,16 +527,16 @@ export function AgendaClient({
                         deleteConfirm === e.id ? (
                           // P2 fix: confirmation state before irreversible delete
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-red-400">Excluir?</span>
+                            <span className="text-[10px] text-red-400 font-bold">Excluir?</span>
                             <button
                               onClick={() => handleDelete(e.id)}
-                              className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-red-400 hover:bg-red-400/10"
+                              className="rounded px-1.5 py-0.5 text-[10px] font-black text-red-400 hover:bg-red-400/10 cursor-pointer"
                             >
                               Sim
                             </button>
                             <button
                               onClick={() => setDeleteConfirm(null)}
-                              className="rounded px-1.5 py-0.5 text-[10px] text-fg-3 hover:bg-white/[0.08]"
+                              className="rounded px-1.5 py-0.5 text-[10px] text-fg-3 hover:bg-white/[0.08] cursor-pointer"
                             >
                               Não
                             </button>
@@ -548,7 +544,7 @@ export function AgendaClient({
                         ) : (
                           <button
                             onClick={() => handleDelete(e.id)}
-                            className="grid h-7 w-7 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-red-400"
+                            className="grid h-6 w-6 place-items-center rounded-lg text-fg-3 transition hover:bg-white/[0.08] hover:text-red-400 cursor-pointer shrink-0"
                             aria-label="Excluir"
                           >
                             <Trash2 size={12} />

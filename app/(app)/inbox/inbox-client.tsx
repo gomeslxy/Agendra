@@ -74,38 +74,37 @@ function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChan
         onClick={(e) => { e.stopPropagation(); setToneOpen(!toneOpen); }}
         disabled={tonePending}
         className={cn(
-          "flex items-center justify-between gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/[0.08] disabled:opacity-50 backdrop-blur-md",
-          toneOpen && "border-brand-blue-500/30 bg-white/[0.08]",
-          compact ? "h-8 px-2" : "w-full"
+          "flex items-center justify-between gap-1.5 rounded-xl border border-white/[0.05] bg-white/[0.01] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-white/[0.04] hover:border-white/[0.08] disabled:opacity-50 cursor-pointer",
+          toneOpen && "border-[#2563EB]/25 bg-white/[0.04]",
+          compact ? "h-7.5 px-2" : "w-full"
         )}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <span className={cn(
             "h-1.5 w-1.5 rounded-full",
-            selected.conversation_tone === "hot" ? "bg-orange-400 shadow-[0_0_6px_rgba(251,146,60,0.6)]" :
-            selected.conversation_tone === "warm" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.6)]" :
-            "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)]"
+            selected.conversation_tone === "hot" ? "bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.4)]" :
+            selected.conversation_tone === "warm" ? "bg-yellow-500" : "bg-blue-400"
           )} />
           <span className={cn(
-            "text-[10px] sm:text-[11px]",
+            "text-[9px] sm:text-[10px]",
             selected.conversation_tone === "hot" ? "text-orange-400" :
             selected.conversation_tone === "warm" ? "text-yellow-400" : "text-blue-400"
           )}>
             {TONE_LABEL[selected.conversation_tone ?? "warm"]}
           </span>
         </div>
-        <ChevronDown size={12} className={cn("text-white/40 transition-transform duration-300", toneOpen && "rotate-180")} />
+        <ChevronDown size={11} className={cn("text-white/20 transition-transform duration-200", toneOpen && "rotate-180")} />
       </button>
       <AnimatePresence>
         {toneOpen && (
           <>
             <div className="fixed inset-0 z-[100]" onClick={() => setToneOpen(false)} />
             <motion.div
-              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              initial={{ opacity: 0, y: -4, scale: 0.97 }}
               animate={{ opacity: 1, y: 4, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.95 }}
+              exit={{ opacity: 0, y: -4, scale: 0.97 }}
               className={cn(
-                "glass absolute z-[101] overflow-hidden rounded-xl border border-white/[0.12] bg-[#0A0A0A]/90 p-1 shadow-2xl shadow-black/60",
+                "glass absolute z-[101] overflow-hidden rounded-xl border border-white/[0.08] bg-[#0A0A0A]/95 p-1 shadow-2xl",
                 compact ? "right-0 top-full mt-1 w-32" : "left-0 top-full w-full"
               )}
             >
@@ -114,13 +113,13 @@ function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChan
                   key={t}
                   onClick={() => { onToneChange(t); setToneOpen(false); }}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide transition-colors",
-                    selected.conversation_tone === t ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                    "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors cursor-pointer",
+                    selected.conversation_tone === t ? "bg-white/[0.06] text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
                   )}
                 >
                   <span className={cn(
                     "h-1.5 w-1.5 rounded-full",
-                    t === "hot" ? "bg-orange-400" : t === "warm" ? "bg-yellow-400" : "bg-blue-400"
+                    t === "hot" ? "bg-orange-500" : t === "warm" ? "bg-yellow-500" : "bg-blue-400"
                   )} />
                   {TONE_LABEL[t]}
                 </button>
@@ -150,37 +149,37 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
         onClick={(e) => { e.stopPropagation(); setControlOpen(!controlOpen); }}
         disabled={controlPending}
         className={cn(
-          "flex items-center justify-between gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 hover:bg-white/[0.08] disabled:opacity-50 backdrop-blur-md",
-          controlOpen && "border-brand-blue-500/30 bg-white/[0.08]",
-          compact ? "h-8 px-2" : "w-full"
+          "flex items-center justify-between gap-1.5 rounded-xl border border-white/[0.05] bg-white/[0.01] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-white/[0.04] hover:border-white/[0.08] disabled:opacity-50 cursor-pointer",
+          controlOpen && "border-[#2563EB]/25 bg-white/[0.04]",
+          compact ? "h-7.5 px-2" : "w-full"
         )}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <span className={cn(
             "h-1.5 w-1.5 rounded-full",
-            currentMode === "autonomous" ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" :
-            currentMode === "shadow" ? "bg-brand-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.6)]" : "bg-white/40"
+            currentMode === "autonomous" ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.4)]" :
+            currentMode === "shadow" ? "bg-brand-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.4)]" : "bg-white/20"
           )} />
           <span className={cn(
-            "text-[10px] sm:text-[11px]",
+            "text-[9px] sm:text-[10px]",
             currentMode === "autonomous" ? "text-emerald-400" :
-            currentMode === "shadow" ? "text-brand-blue-400" : "text-white/60"
+            currentMode === "shadow" ? "text-brand-blue-400" : "text-white/50"
           )}>
             {CONTROL_LABEL[currentMode]}
           </span>
         </div>
-        <ChevronDown size={12} className={cn("text-white/40 transition-transform duration-300", controlOpen && "rotate-180")} />
+        <ChevronDown size={11} className={cn("text-white/20 transition-transform duration-200", controlOpen && "rotate-180")} />
       </button>
       <AnimatePresence>
         {controlOpen && (
           <>
             <div className="fixed inset-0 z-[100]" onClick={() => setControlOpen(false)} />
             <motion.div
-              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              initial={{ opacity: 0, y: -4, scale: 0.97 }}
               animate={{ opacity: 1, y: 4, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.95 }}
+              exit={{ opacity: 0, y: -4, scale: 0.97 }}
               className={cn(
-                "glass absolute z-[101] overflow-hidden rounded-xl border border-white/[0.12] bg-[#0A0A0A]/90 p-1 shadow-2xl shadow-black/60",
+                "glass absolute z-[101] overflow-hidden rounded-xl border border-white/[0.08] bg-[#0A0A0A]/95 p-1 shadow-2xl",
                 compact ? "right-0 top-full mt-1 w-44" : "left-0 top-full w-full"
               )}
             >
@@ -189,13 +188,13 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
                   key={m}
                   onClick={() => { onControlModeChange(m); setControlOpen(false); }}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors text-left",
-                    currentMode === m ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                    "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors text-left cursor-pointer",
+                    currentMode === m ? "bg-white/[0.06] text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
                   )}
                 >
                   <span className={cn(
                     "h-1.5 w-1.5 rounded-full",
-                    m === "autonomous" ? "bg-emerald-400" : m === "shadow" ? "bg-brand-blue-400" : "bg-white/40"
+                    m === "autonomous" ? "bg-emerald-400" : m === "shadow" ? "bg-brand-blue-400" : "bg-white/20"
                   )} />
                   <div className="flex flex-col">
                     <span>{CONTROL_LABEL[m]}</span>
@@ -231,24 +230,24 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
       whileHover={LEAD_ITEM_HOVER}
       onClick={() => onSelect(l.id)}
       className={cn(
-        "group relative flex cursor-pointer items-center gap-4 border-b border-white/[0.04] px-5 py-4 transition-all duration-200",
-        isActive && "bg-brand-blue-600/10"
+        "group relative flex cursor-pointer items-center gap-4 border-b border-white/[0.02] px-5 py-3.5 transition-all duration-200 hover:bg-white/[0.02] select-none",
+        isActive && "bg-brand-blue-600/5 hover:bg-brand-blue-600/8 border-brand-blue-500/10"
       )}
     >
       {isActive && (
         <motion.div
           layoutId="active-lead"
-          className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+          className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.4)]"
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
         />
       )}
       <div
-        className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full text-sm font-black text-white shadow-xl"
+        className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full text-xs font-black text-white shadow-lg"
         style={{ background: HEAT_GRADIENT[l.status] ?? HEAT_GRADIENT.cold }}
       >
         {initials(l.name)}
         <div className={cn(
-          "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#050505] transition-all",
+          "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#050505] transition-all",
           l.status === "hot" ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" :
           l.status === "warm" ? "bg-yellow-500" :
           l.status === "success" ? "bg-teal-500" : "bg-blue-400"
@@ -257,34 +256,34 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-brand-blue-500 border-2 border-[#050505] shadow-[0_0_8px_rgba(59,130,246,0.7)]"
+            className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-brand-blue-500 border-2 border-[#050505] shadow-[0_0_8px_rgba(59,130,246,0.7)]"
           />
         )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="truncate text-[14px] font-bold tracking-tight text-white">{l.name}</span>
+            <span className="truncate text-[13px] font-bold tracking-tight text-white">{l.name}</span>
             {l.channel === "whatsapp" && (
-              <MessageCircle size={12} className="text-teal-400 shrink-0" />
+              <MessageCircle size={11} className="text-teal-400 shrink-0" />
             )}
             {l.channel === "instagram" && (
-              <Instagram size={12} className="text-pink-400 shrink-0" />
+              <Instagram size={11} className="text-pink-400 shrink-0" />
             )}
           </div>
-          <span className="font-mono text-[10px] font-bold uppercase text-white/30 whitespace-nowrap">
+          <span className="font-mono text-[9px] font-bold uppercase text-white/20 whitespace-nowrap">
             {last ? relativeTime(last.created_at) : "—"}
           </span>
         </div>
-        <div className="mt-1 flex items-center gap-1.5 min-w-0">
+        <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
           {last && (last.metadata as any)?.is_draft && (
-            <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-brand-blue-400 bg-brand-blue-500/10 border border-brand-blue-500/20 rounded px-1 py-0.5">
+            <span className="shrink-0 text-[8px] font-black uppercase tracking-wide text-brand-blue-400 bg-brand-blue-500/10 border border-brand-blue-500/20 rounded px-1 py-0.5">
               Rascunho
             </span>
           )}
           <span className={cn(
-            "truncate text-[12px] font-medium transition-colors",
-            isActive ? "text-white/70" : "text-white/40"
+            "truncate text-[11px] font-medium transition-colors",
+            isActive ? "text-white/60" : "text-white/35"
           )}>
             {last?.content ?? "Nenhuma mensagem"}
           </span>
@@ -827,37 +826,51 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-3 py-2 text-[13px] text-white placeholder:text-white/30 focus:border-brand-blue-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-500 transition-all"
               />
             </div>
-            <div className="flex gap-1.5 overflow-x-auto custom-scrollbar pb-1">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 border-b border-white/[0.04] scrollbar-none select-none">
               {['all', 'hot', 'warm', 'cold', 'success'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
                   className={cn(
-                    "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all whitespace-nowrap",
+                    "relative pb-2 text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 whitespace-nowrap cursor-pointer",
                     statusFilter === status 
-                      ? "bg-brand-blue-500/20 border-brand-blue-500/50 text-brand-blue-400" 
-                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                      ? "text-brand-blue-400" 
+                      : "text-white/30 hover:text-white/60"
                   )}
                 >
                   {status === 'all' ? 'Todos' : status === 'hot' ? 'Quente' : status === 'warm' ? 'Morno' : status === 'cold' ? 'Frio' : 'Convertidos'}
+                  {statusFilter === status && (
+                    <motion.div
+                      layoutId="active-filter-status"
+                      className="absolute bottom-0 inset-x-0 h-[1.5px] bg-brand-blue-400"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
                 </button>
               ))}
             </div>
-            <div className="flex gap-1.5 overflow-x-auto custom-scrollbar pb-1">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 scrollbar-none select-none">
               {['all', 'whatsapp', 'instagram'].map((chan) => (
                 <button
                   key={chan}
                   onClick={() => setChannelFilter(chan)}
                   className={cn(
-                    "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all whitespace-nowrap flex items-center gap-1",
+                    "relative pb-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 whitespace-nowrap flex items-center gap-1 cursor-pointer",
                     channelFilter === chan 
-                      ? "bg-brand-blue-500/20 border-brand-blue-500/50 text-brand-blue-400" 
-                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                      ? "text-white" 
+                      : "text-white/30 hover:text-white/60"
                   )}
                 >
-                  {chan === 'whatsapp' && <MessageCircle size={10} className="text-teal-400" />}
-                  {chan === 'instagram' && <Instagram size={10} className="text-pink-400" />}
-                  {chan === 'all' ? 'Canais' : chan === 'whatsapp' ? 'WhatsApp' : 'Instagram'}
+                  {chan === 'whatsapp' && <MessageCircle size={10} className="text-teal-400 shrink-0" />}
+                  {chan === 'instagram' && <Instagram size={10} className="text-pink-400 shrink-0" />}
+                  <span>{chan === 'all' ? 'Canais' : chan === 'whatsapp' ? 'WhatsApp' : 'Instagram'}</span>
+                  {channelFilter === chan && (
+                    <motion.div
+                      layoutId="active-filter-channel"
+                      className="absolute bottom-0 inset-x-0 h-[1px] bg-white/40"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
                 </button>
               ))}
             </div>
@@ -1309,23 +1322,23 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       </section>
 
       {/* COL 3 — detail */}
-      <aside className="glass hidden flex-col gap-4 overflow-y-auto !rounded-none !border-y-0 !border-r-0 border-l border-white/[0.08] bg-[rgba(11,18,34,0.18)] p-5 w-[320px] shrink-0 custom-scrollbar xl:flex shadow-2xl z-10">
+      <aside className="hidden flex-col gap-5 overflow-y-auto border-l border-white/[0.04] bg-white/[0.005] p-5 w-[300px] shrink-0 custom-scrollbar xl:flex z-10 select-none">
         {selected && (
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex flex-col gap-6"
           >
-            <div className="flex flex-col items-center text-center gap-4 pb-4 border-b border-white/[0.06]">
+            <div className="flex flex-col items-center text-center gap-3.5 pb-4 border-b border-white/[0.04]">
               <div
-                className="grid h-20 w-20 place-items-center rounded-3xl text-2xl font-black text-white shadow-2xl rotate-3"
+                className="grid h-16 w-16 place-items-center rounded-2xl text-xl font-black text-white shadow-lg"
                 style={{ background: HEAT_GRADIENT[selected.status] ?? HEAT_GRADIENT.cold }}
               >
                 {initials(selected.name)}
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">{selected.name}</h2>
-                <p className="text-xs font-medium text-white/40">{selected.phone}</p>
+                <h2 className="text-base font-bold text-white leading-tight">{selected.name}</h2>
+                <p className="text-[11px] font-medium text-white/30 mt-0.5">{selected.phone}</p>
               </div>
             </div>
 
@@ -1393,15 +1406,15 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
       hour: "2-digit", minute: "2-digit",
     });
     return (
-      <div className="rounded-2xl border border-teal-500/30 bg-teal-500/10 p-4 relative overflow-hidden">
+      <div className="rounded-2xl border border-teal-500/15 bg-teal-500/5 p-4 relative overflow-hidden">
         <div className="flex flex-col gap-2">
-          <div className="h-8 w-8 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-400">
-            <CalendarCheck size={16} />
+          <div className="h-7 w-7 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-400">
+            <CalendarCheck size={14} />
           </div>
           <div>
-            <div className="text-xs font-bold text-teal-300">Agendamento Confirmado</div>
+            <div className="text-[11px] font-bold text-teal-300">Agendamento Confirmado</div>
             <div className="text-[12px] font-semibold text-white mt-0.5">{next.title}</div>
-            <div className="text-[11px] text-teal-400/80 mt-0.5 capitalize">{formatted}</div>
+            <div className="text-[10px] text-teal-400/80 mt-0.5 capitalize">{formatted}</div>
           </div>
         </div>
       </div>
@@ -1410,14 +1423,14 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
 
   if (lead.status === "success") {
     return (
-      <div className="rounded-2xl border border-brand-teal-500/20 bg-brand-teal-500/5 p-4">
+      <div className="rounded-2xl border border-brand-teal-500/10 bg-brand-teal-500/[0.02] p-4">
         <div className="flex flex-col gap-2">
-          <div className="h-8 w-8 rounded-lg bg-brand-teal-500/20 flex items-center justify-center text-brand-teal-400">
-            <CalendarCheck size={16} />
+          <div className="h-7 w-7 rounded-lg bg-brand-teal-500/10 flex items-center justify-center text-brand-teal-400">
+            <CalendarCheck size={14} />
           </div>
           <div>
-            <div className="text-xs font-bold text-white">Convertido</div>
-            <div className="text-[11px] text-brand-teal-400/70 mt-0.5">Agendamento concluído</div>
+            <div className="text-[11px] font-bold text-white">Convertido</div>
+            <div className="text-[10px] text-brand-teal-400/70 mt-0.5">Agendamento concluído</div>
           </div>
         </div>
       </div>
@@ -1425,14 +1438,14 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+    <div className="rounded-2xl border border-white/[0.03] bg-white/[0.005] p-4">
       <div className="flex flex-col gap-2">
-        <div className="h-8 w-8 rounded-lg bg-white/[0.05] flex items-center justify-center text-white/30">
-          <CalendarCheck size={16} />
+        <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-white/30">
+          <CalendarCheck size={14} />
         </div>
         <div>
-          <div className="text-xs font-bold text-white/50">Sem agendamento ativo</div>
-          <div className="text-[11px] text-white/30 mt-0.5">
+          <div className="text-[11px] font-bold text-white/40">Sem agendamento ativo</div>
+          <div className="text-[10px] text-white/20 mt-0.5">
             {lead.status === "hot" ? "Lead quente — IA conduzindo para agendamento" : "IA qualificando lead"}
           </div>
         </div>

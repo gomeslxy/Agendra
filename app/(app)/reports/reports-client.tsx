@@ -245,37 +245,33 @@ function KpiCard({
   return (
     <motion.div
       variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
-      whileHover={{ y: -3, transition: { type: "spring", stiffness: 400, damping: 26 } }}
-      className="glass rounded-2xl p-5 relative overflow-hidden group/kpi"
+      whileHover={{ y: -2, transition: { type: "spring", stiffness: 400, damping: 26 } }}
+      className="rounded-2xl border border-white/[0.03] bg-white/[0.005] p-5 relative overflow-hidden transition-all duration-200 hover:bg-white/[0.015] hover:border-white/[0.06] group/kpi shadow-sm"
     >
-      {/* Dynamic top highlight line */}
-      <div 
-        className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent transition-all duration-500 group-hover/kpi:via-white/30" 
-      />
-      <div className="flex items-start justify-between">
-        <span className="font-mono text-[10px] tracking-[0.16em]" style={{ color: "var(--color-fg-3)" }}>
+      <div className="flex items-start justify-between select-none">
+        <span className="font-mono text-[9px] tracking-[0.16em] uppercase text-white/30">
           {label}
         </span>
-        <Icon size={14} style={{ color: "var(--color-fg-3)" }} />
+        <Icon size={13} className="text-white/20" />
       </div>
-      <div className="mt-3 text-[34px] font-bold leading-none tracking-[-0.03em]" style={{ color }}>
+      <div className="mt-3 text-3xl font-bold leading-none tracking-[-0.03em] text-white">
         <AnimatedNumber value={value} suffix={suffix} />
       </div>
       
       {prevValue !== undefined && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2 select-none">
           <span 
             className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-mono text-[10px] font-medium",
+              "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[9px] font-bold",
               delta > 0 ? "bg-emerald-500/10 text-emerald-400" : 
               delta < 0 ? "bg-red-500/10 text-red-400" : 
-              "bg-white/[0.06] text-white/60"
+              "bg-white/[0.04] text-white/40"
             )}
           >
-            {delta > 0 ? <ArrowUpRight size={10} /> : delta < 0 ? <ArrowDownRight size={10} /> : null}
+            {delta > 0 ? <ArrowUpRight size={9} /> : delta < 0 ? <ArrowDownRight size={9} /> : null}
             {delta > 0 ? "+" : ""}{delta}%
           </span>
-          <span className="text-[10px]" style={{ color: "var(--color-fg-3)" }}>vs período anterior</span>
+          <span className="text-[9px] font-medium text-white/20">vs anterior</span>
         </div>
       )}
     </motion.div>

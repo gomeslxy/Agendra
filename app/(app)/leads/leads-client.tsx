@@ -125,32 +125,39 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
         </div>
       </header>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-6 flex gap-4 border-b border-white/[0.04] pb-1 select-none">
         {FILTERS.map((f) => {
           const count = f.id === "all" ? leads.length : (statusCounts[f.id] ?? 0);
+          const active = f.id === filter;
           return (
-            <motion.button
+            <button
               key={f.id}
-              whileTap={{ scale: 0.97 }}
               onClick={() => setFilter(f.id)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
-                f.id === filter
-                  ? "border-[#2563EB]/40 bg-[#2563EB]/14 text-white"
-                  : "border-white/[0.08] bg-white/[0.03] text-fg-2 hover:border-white/[0.14] hover:text-white",
+                "relative pb-2 text-xs font-bold uppercase tracking-wider transition-colors duration-150 flex items-center gap-1.5 cursor-pointer",
+                active
+                  ? "text-brand-blue-400"
+                  : "text-white/30 hover:text-white/60"
               )}
-              style={f.id === filter ? undefined : { color: "var(--color-fg-2)" }}
             >
-              {f.label}
-              <span className="font-mono text-[10px] opacity-60">{count}</span>
-            </motion.button>
+              <span>{f.label}</span>
+              <span className={cn(
+                "font-mono text-[9px] px-1 py-0.5 rounded bg-white/[0.04] text-white/40",
+                active && "text-brand-blue-400 bg-[#2563EB]/10 border border-[#2563EB]/25"
+              )}>{count}</span>
+              {active && (
+                <motion.div
+                  layoutId="active-leads-filter"
+                  className="absolute bottom-0 inset-x-0 h-[1.5px] bg-brand-blue-400"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+            </button>
           );
         })}
       </div>
 
-      <div className="glass overflow-x-auto rounded-2xl border border-white/[0.08] bg-white/[0.02] shadow-2xl relative">
-        {/* DNA highlight top strip */}
-        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#2563EB]/30 to-transparent" />
+      <div className="overflow-x-auto rounded-2xl border border-white/[0.04] bg-white/[0.005] shadow-xl relative">
         
         {visible.length === 0 ? (
           <div className="p-12 text-center">
@@ -211,9 +218,16 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                       </div>
                     </td>
                     <td className="px-4 py-3.5">
-                      <Badge variant={l.status as "hot" | "warm" | "cold" | "success"}>
-                        {HEAT_LABEL[l.status]} · {l.heat_score}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 text-xs font-semibold select-none">
+                        <span className={cn(
+                          "h-1.5 w-1.5 rounded-full shrink-0",
+                          l.status === 'hot' ? 'bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.4)]' :
+                          l.status === 'warm' ? 'bg-yellow-500' :
+                          l.status === 'success' ? 'bg-teal-500' : 'bg-blue-400'
+                        )} />
+                        <span>{HEAT_LABEL[l.status]}</span>
+                        <span className="font-mono text-[10px] text-white/30">({l.heat_score})</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-1.5 font-mono text-xs">

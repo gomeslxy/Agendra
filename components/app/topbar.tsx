@@ -114,18 +114,6 @@ export function Topbar({ cta }: TopbarProps) {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* IA status badge — desktop only */}
-          <div className="hidden items-center gap-1.5 rounded-full border border-[#14B8A6]/30 bg-[#14B8A6]/10 px-2.5 py-1 text-xs font-semibold text-brand-teal-300 md:flex">
-            <span className="relative flex h-1.5 w-1.5">
-              <motion.span
-                className="absolute inline-flex h-full w-full rounded-full bg-brand-teal-400"
-                animate={{ scale: [1, 2.2, 1], opacity: [0.8, 0, 0.8] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-teal-400" />
-            </span>
-            IA ativa
-          </div>
 
           {/* Notification Bell */}
           {loading ? (
@@ -221,22 +209,22 @@ export function Topbar({ cta }: TopbarProps) {
                       <Button
                         variant="secondary"
                         size="sm"
-                        className="w-full justify-center border-brand-blue-500/20 bg-brand-blue-500/10 text-brand-blue-400 hover:bg-brand-blue-500/20"
+                        className="w-full justify-center bg-white/[0.04] text-white/70 hover:bg-white/[0.08] hover:text-white border-white/[0.08] text-[11px] h-9 rounded-xl transition-all"
                       >
-                        <Zap size={14} />
+                        <Zap size={13} />
                         Upgrade
                       </Button>
                     </Link>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex-1 border border-white/[0.08] text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      className="flex-1 border border-white/[0.05] text-white/40 hover:bg-white/[0.04] hover:text-white/60 text-[11px] h-9 rounded-xl transition-all"
                       onClick={async () => {
                         setShowProfile(false);
                         await signOut();
                       }}
                     >
-                      <LogOut size={14} />
+                      <LogOut size={13} />
                       Sair
                     </Button>
                   </div>
