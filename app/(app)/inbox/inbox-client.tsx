@@ -30,10 +30,9 @@ const CONTROL_LABEL: Record<string, string> = {
   manual: "Manual",
 };
 
-// Module-level animation constants — defined outside component to avoid new object refs on each render
 const LEAD_LIST_VARIANTS = stagger(0.02, 0.03);
 const LEAD_ITEM_VARIANTS = { hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } };
-const LEAD_ITEM_HOVER = { backgroundColor: "rgba(255,255,255,0.03)" };
+const LEAD_ITEM_HOVER = { backgroundColor: "#F4F4F5" };
 
 function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -56,7 +55,7 @@ function lastMsg(lead: LeadWithMessages) {
   return msgs.length > 0 ? msgs[msgs.length - 1] : undefined;
 }
 
-// ─── Module-level components (outside InboxClient to avoid React remount on each render) ───
+// ─── Module-level components ───
 
 interface ToneDropdownProps {
   selected: LeadWithMessages;
@@ -74,26 +73,26 @@ function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChan
         onClick={(e) => { e.stopPropagation(); setToneOpen(!toneOpen); }}
         disabled={tonePending}
         className={cn(
-          "flex items-center justify-between gap-1.5 rounded-lg border border-white/[0.04] bg-white/[0.01] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-white/[0.03] disabled:opacity-50 cursor-pointer",
-          toneOpen && "bg-white/[0.04]",
-          compact ? "h-7.5 px-2" : "w-full"
+          "flex items-center justify-between gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-[#F4F4F5] disabled:opacity-50 cursor-pointer",
+          toneOpen && "bg-[#F4F4F5]",
+          compact ? "h-7 px-2" : "w-full"
         )}
       >
         <div className="flex items-center gap-1.5">
           <span className={cn(
             "h-1.5 w-1.5 rounded-full",
-            selected.conversation_tone === "hot" ? "bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.4)]" :
-            selected.conversation_tone === "warm" ? "bg-yellow-500" : "bg-blue-400"
+            selected.conversation_tone === "hot" ? "bg-[#F97316]" :
+            selected.conversation_tone === "warm" ? "bg-[#F59E0B]" : "bg-[#3B82F6]"
           )} />
           <span className={cn(
             "text-[9px] sm:text-[10px]",
-            selected.conversation_tone === "hot" ? "text-orange-400" :
-            selected.conversation_tone === "warm" ? "text-yellow-400" : "text-blue-400"
+            selected.conversation_tone === "hot" ? "text-[#EA580C]" :
+            selected.conversation_tone === "warm" ? "text-[#854D0E]" : "text-[#1D4ED8]"
           )}>
             {TONE_LABEL[selected.conversation_tone ?? "warm"]}
           </span>
         </div>
-        <ChevronDown size={11} className={cn("text-white/20 transition-transform duration-200", toneOpen && "rotate-180")} />
+        <ChevronDown size={11} className={cn("text-[#A1A1AA] transition-transform duration-200", toneOpen && "rotate-180")} />
       </button>
       <AnimatePresence>
         {toneOpen && (
@@ -104,8 +103,8 @@ function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChan
               animate={{ opacity: 1, y: 4, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.97 }}
               className={cn(
-                "glass absolute z-[101] overflow-hidden rounded-xl border border-white/[0.08] bg-[#0A0A0A]/95 p-1 shadow-2xl",
-                compact ? "right-0 top-full mt-1 w-32" : "left-0 top-full w-full"
+                "absolute z-[101] overflow-hidden rounded-xl border border-[#E4E4E7] bg-white p-1 shadow-[0_8px_24px_rgba(0,0,0,0.10)]",
+                compact ? "right-0 top-full mt-1 w-36" : "left-0 top-full w-full"
               )}
             >
               {TONE_CYCLE.map((t) => (
@@ -114,12 +113,12 @@ function ToneDropdown({ selected, toneOpen, setToneOpen, tonePending, onToneChan
                   onClick={() => { onToneChange(t); setToneOpen(false); }}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors cursor-pointer",
-                    selected.conversation_tone === t ? "bg-white/[0.06] text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                    selected.conversation_tone === t ? "bg-[#EFF6FF] text-[#1D4ED8]" : "text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
                   )}
                 >
                   <span className={cn(
                     "h-1.5 w-1.5 rounded-full",
-                    t === "hot" ? "bg-orange-500" : t === "warm" ? "bg-yellow-500" : "bg-blue-400"
+                    t === "hot" ? "bg-[#F97316]" : t === "warm" ? "bg-[#F59E0B]" : "bg-[#3B82F6]"
                   )} />
                   {TONE_LABEL[t]}
                 </button>
@@ -149,26 +148,26 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
         onClick={(e) => { e.stopPropagation(); setControlOpen(!controlOpen); }}
         disabled={controlPending}
         className={cn(
-          "flex items-center justify-between gap-1.5 rounded-lg border border-white/[0.04] bg-white/[0.01] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-white/[0.03] disabled:opacity-50 cursor-pointer",
-          controlOpen && "bg-white/[0.04]",
-          compact ? "h-7.5 px-2" : "w-full"
+          "flex items-center justify-between gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-150 hover:bg-[#F4F4F5] disabled:opacity-50 cursor-pointer",
+          controlOpen && "bg-[#F4F4F5]",
+          compact ? "h-7 px-2" : "w-full"
         )}
       >
         <div className="flex items-center gap-1.5">
           <span className={cn(
             "h-1.5 w-1.5 rounded-full",
-            currentMode === "autonomous" ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.4)]" :
-            currentMode === "shadow" ? "bg-brand-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.4)]" : "bg-white/20"
+            currentMode === "autonomous" ? "bg-[#22C55E]" :
+            currentMode === "shadow" ? "bg-[#3B82F6]" : "bg-[#D4D4D8]"
           )} />
           <span className={cn(
             "text-[9px] sm:text-[10px]",
-            currentMode === "autonomous" ? "text-emerald-400" :
-            currentMode === "shadow" ? "text-brand-blue-400" : "text-white/50"
+            currentMode === "autonomous" ? "text-[#166534]" :
+            currentMode === "shadow" ? "text-[#1D4ED8]" : "text-[#71717A]"
           )}>
             {CONTROL_LABEL[currentMode]}
           </span>
         </div>
-        <ChevronDown size={11} className={cn("text-white/20 transition-transform duration-200", controlOpen && "rotate-180")} />
+        <ChevronDown size={11} className={cn("text-[#A1A1AA] transition-transform duration-200", controlOpen && "rotate-180")} />
       </button>
       <AnimatePresence>
         {controlOpen && (
@@ -179,7 +178,7 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
               animate={{ opacity: 1, y: 4, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.97 }}
               className={cn(
-                "glass absolute z-[101] overflow-hidden rounded-xl border border-white/[0.08] bg-[#0A0A0A]/95 p-1 shadow-2xl",
+                "absolute z-[101] overflow-hidden rounded-xl border border-[#E4E4E7] bg-white p-1 shadow-[0_8px_24px_rgba(0,0,0,0.10)]",
                 compact ? "right-0 top-full mt-1 w-44" : "left-0 top-full w-full"
               )}
             >
@@ -189,16 +188,16 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
                   onClick={() => { onControlModeChange(m); setControlOpen(false); }}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors text-left cursor-pointer",
-                    currentMode === m ? "bg-white/[0.06] text-white" : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                    currentMode === m ? "bg-[#EFF6FF] text-[#1D4ED8]" : "text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#3F3F46]"
                   )}
                 >
                   <span className={cn(
                     "h-1.5 w-1.5 rounded-full",
-                    m === "autonomous" ? "bg-emerald-400" : m === "shadow" ? "bg-brand-blue-400" : "bg-white/20"
+                    m === "autonomous" ? "bg-[#22C55E]" : m === "shadow" ? "bg-[#3B82F6]" : "bg-[#D4D4D8]"
                   )} />
                   <div className="flex flex-col">
                     <span>{CONTROL_LABEL[m]}</span>
-                    <span className="text-[8px] font-medium text-white/20 tracking-normal normal-case">
+                    <span className="text-[8px] font-medium text-[#A1A1AA] tracking-normal normal-case">
                       {m === "autonomous" ? "IA responde automaticamente" :
                        m === "shadow" ? "Gera rascunhos para aprovar" : "IA desativada para este lead"}
                     </span>
@@ -213,7 +212,7 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
   );
 }
 
-// ─── LeadListItem — memoized to prevent full-list re-render on every realtime message ───
+// ─── LeadListItem ───
 
 interface LeadListItemProps {
   lead: LeadWithMessages;
@@ -230,59 +229,53 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
       whileHover={LEAD_ITEM_HOVER}
       onClick={() => onSelect(l.id)}
       className={cn(
-        "group relative flex cursor-pointer items-center gap-4 border-b border-white/[0.02] px-5 py-3.5 transition-all duration-200 hover:bg-white/[0.02] select-none",
-        isActive && "bg-brand-blue-600/5 hover:bg-brand-blue-600/8 border-brand-blue-500/10"
+        "group relative flex cursor-pointer items-center gap-4 border-b border-[#F4F4F5] px-5 py-3.5 transition-all duration-150 select-none",
+        isActive && "bg-[#EFF6FF] border-l-2 border-l-[#2563EB] pl-[18px] border-b-[#DBEAFE]"
       )}
     >
       {isActive && (
         <motion.div
           layoutId="active-lead"
-          className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.4)]"
+          className="absolute inset-y-2 left-0 w-[2px] rounded-r-full bg-[#2563EB]"
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
         />
       )}
-      <div
-        className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[10px] font-bold text-white/80"
-      >
+      <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#F4F4F5] border border-[#E4E4E7] text-[10px] font-bold text-[#3F3F46]">
         {initials(l.name)}
         <div className={cn(
-          "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#050505] transition-all",
-          l.status === "hot" ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" :
-          l.status === "warm" ? "bg-yellow-500" :
-          l.status === "success" ? "bg-teal-500" : "bg-blue-400"
+          "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white transition-all",
+          l.status === "hot" ? "bg-[#F97316]" :
+          l.status === "warm" ? "bg-[#F59E0B]" :
+          l.status === "success" ? "bg-[#22C55E]" : "bg-[#3B82F6]"
         )} />
         {isUnread && (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-brand-blue-500 border-2 border-[#050505] shadow-[0_0_8px_rgba(59,130,246,0.7)]"
+            className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#2563EB] border-2 border-white"
           />
         )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="truncate text-[13px] font-bold tracking-tight text-white">{l.name}</span>
-            {l.channel === "whatsapp" && (
-              <MessageCircle size={11} className="text-teal-400 shrink-0" />
-            )}
-            {l.channel === "instagram" && (
-              <Instagram size={11} className="text-pink-400 shrink-0" />
-            )}
+            <span className="truncate text-[13px] font-semibold text-[#09090B]">{l.name}</span>
+            {l.channel === "whatsapp" && <MessageCircle size={11} className="text-[#14B8A6] shrink-0" />}
+            {l.channel === "instagram" && <Instagram size={11} className="text-pink-400 shrink-0" />}
           </div>
-          <span className="font-mono text-[9px] font-bold uppercase text-white/20 whitespace-nowrap">
+          <span className="font-mono text-[9px] font-medium text-[#A1A1AA] whitespace-nowrap">
             {last ? relativeTime(last.created_at) : "—"}
           </span>
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
           {last && (last.metadata as any)?.is_draft && (
-            <span className="shrink-0 text-[8px] font-black uppercase tracking-wide text-brand-blue-400 bg-brand-blue-500/10 border border-brand-blue-500/20 rounded px-1 py-0.5">
+            <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide text-[#1D4ED8] bg-[#EFF6FF] border border-[#BFDBFE] rounded px-1 py-0.5">
               Rascunho
             </span>
           )}
           <span className={cn(
-            "truncate text-[11px] font-medium transition-colors",
-            isActive ? "text-white/60" : "text-white/35"
+            "truncate text-[11px] transition-colors",
+            isActive ? "text-[#71717A]" : "text-[#A1A1AA]"
           )}>
             {last?.content ?? "Nenhuma mensagem"}
           </span>
@@ -314,22 +307,19 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const [isConnected, setIsConnected] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachPreview, setAttachPreview] = useState<string | null>(null);
-  // Track leads that received new messages while not being viewed
   const [unreadLeadIds, setUnreadLeadIds] = useState<Set<string>>(new Set());
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Ref to latest selectedId for use inside realtime callbacks (avoids stale closure)
   const selectedIdRef = useRef<string | null>(selectedId);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
-  // Stable callback so LeadListItem memo never breaks on re-render
   const handleLeadSelect = useCallback((id: string) => {
     setSelectedId(id);
     setShowChatOnMobile(true);
     setUnreadLeadIds((prev) => {
-      if (!prev.has(id)) return prev; // avoid state update if nothing to clear
+      if (!prev.has(id)) return prev;
       const next = new Set(prev);
       next.delete(id);
       return next;
@@ -345,23 +335,17 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selectedMessageCount, showChatOnMobile]);
 
-  // Clear typing indicator when switching leads
   useEffect(() => {
     setIsTyping(false);
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
   }, [selectedId]);
 
   useEffect(() => {
-    if (!companyId) return; // Cannot subscribe without a tenant filter
+    if (!companyId) return;
 
     const supabase = browserSupabase;
-
     const companyFilter = `company_id=eq.${companyId}`;
 
-    // [FIX] When a message arrives for a lead not in our local state (e.g. lead was
-    // created after the initial 30-lead window, or lead INSERT realtime event hasn't
-    // landed yet), fetch the lead from the server and prepend it instead of dropping
-    // the message silently.
     const fetchLeadById = async (leadId: string): Promise<LeadWithMessages | null> => {
       const { data, error } = await supabase
         .from("leads")
@@ -386,7 +370,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         { event: "INSERT", schema: "public", table: "messages", filter: companyFilter },
         (payload) => {
           const newMsg = payload.new as Message;
-          // Only show typing indicator for the lead currently being viewed
           if (newMsg.role === "user" && newMsg.lead_id === selectedIdRef.current) {
             setIsTyping(true);
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
@@ -396,7 +379,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
             if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
           }
 
-          // Track unread: messages from other leads mark that lead as unread
           if (newMsg.role === "user" && newMsg.lead_id !== selectedIdRef.current) {
             setUnreadLeadIds((prev) => new Set(prev).add(newMsg.lead_id));
           }
@@ -404,14 +386,11 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           setLeads((prev) => {
             const leadExists = prev.some((l) => l.id === newMsg.lead_id);
             if (!leadExists) {
-              // Lead not in local cache — fetch it from server in the background.
-              // Message will be re-attached when the lead lands.
               console.warn(`[Inbox] message ${newMsg.id} for unknown lead ${newMsg.lead_id} — fetching lead`);
               void fetchLeadById(newMsg.lead_id).then((lead) => {
                 if (!lead) return;
                 setLeads((p) => {
                   if (p.some((l) => l.id === lead.id)) {
-                    // Lead arrived through another path — just attach the message.
                     return p.map((l) =>
                       l.id === lead.id && !l.messages.some((m) => m.id === newMsg.id)
                         ? { ...l, messages: [...l.messages, newMsg] }
@@ -474,7 +453,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "messages", filter: companyFilter },
         (payload) => {
-          // Handles realtime draft deletion visible to multiple sessions (e.g. two agents)
           const deletedId = (payload.old as { id?: string })?.id;
           if (!deletedId) return;
           setLeads((prev) =>
@@ -516,7 +494,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     });
   }, [leads, normalizedSearch, statusFilter, channelFilter]);
 
-  // Restore focus after sending message or taking over
   useEffect(() => {
     if (!sendPending && !takePending && selected) {
       inputRef.current?.focus();
@@ -539,13 +516,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       const isFirst = !prevIsSame || timeGapPrev > GAP_LIMIT;
       const isLast = !nextIsSame || timeGapNext > GAP_LIMIT;
 
-      return {
-        ...msg,
-        isFirst,
-        isLast,
-        hideLabel: !isFirst,
-        hideTime: !isLast,
-      };
+      return { ...msg, isFirst, isLast, hideLabel: !isFirst, hideTime: !isLast };
     });
   }, [selected?.messages]);
 
@@ -568,7 +539,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const handleSend = useCallback(() => {
     if (!selected) return;
 
-    // ── File attachment path ──────────────────────────────────────
     if (attachedFile) {
       setInboxError(null);
       const file = attachedFile;
@@ -592,9 +562,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     if (!noteText.trim()) return;
     const content = noteText.trim();
     setInboxError(null);
-    setNoteText(""); // Clear immediately for better UX
+    setNoteText("");
 
-    // Optimistic update
     const tempId = crypto.randomUUID();
     const tempMsg: Message = {
       id: tempId,
@@ -618,14 +587,12 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           trackEvent("message_sent", { lead_id: selected.id });
         } else if (result?.error) {
           setInboxError(result.error);
-          setNoteText(content); // Restore text
+          setNoteText(content);
         }
       } catch (e) {
         setInboxError((e as Error).message);
-        setNoteText(content); // Restore text
+        setNoteText(content);
       } finally {
-        // Remove optimistic message ALWAYS after completion
-        // The real message will be added by the Realtime listener
         setLeads((prev) =>
           prev.map((l) =>
             l.id === selected.id
@@ -640,8 +607,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const handleTakeOver = useCallback(() => {
     if (!selected) return;
     setInboxError(null);
-    
-    // optimistic
+
     const tempId = crypto.randomUUID();
     const tempNote: Message = {
       id: tempId,
@@ -661,7 +627,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         await takeOverLead(selected.id);
         trackEvent("lead_takeover", { lead_id: selected.id });
       } catch (e) {
-        // revert
         setLeads((prev) =>
           prev.map((l) => (l.id === selected.id ? { ...l, is_paused: false, messages: l.messages.filter(m => m.id !== tempId) } : l)),
         );
@@ -692,7 +657,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const handleToneChange = useCallback((tone: "cold" | "warm" | "hot") => {
     if (!selected || selected.conversation_tone === tone) return;
     const current = selected.conversation_tone ?? "warm";
-    // optimistic
     setLeads((prev) =>
       prev.map((l) => (l.id === selected.id ? { ...l, conversation_tone: tone } : l)),
     );
@@ -701,7 +665,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         await setConversationTone(selected.id, tone);
         trackEvent("tone_changed", { lead_id: selected.id, tone });
       } catch (e) {
-        // revert
         setLeads((prev) =>
           prev.map((l) => (l.id === selected.id ? { ...l, conversation_tone: current } : l)),
         );
@@ -715,7 +678,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     const current = selected.control_mode ?? (selected.is_paused ? "manual" : "autonomous");
     if (current === mode) return;
 
-    // optimistic update
     setLeads((prev) =>
       prev.map((l) => (l.id === selected.id ? { ...l, control_mode: mode, is_paused: mode === 'manual' } : l)),
     );
@@ -725,7 +687,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         await setControlMode(selected.id, mode);
         trackEvent("control_mode_changed", { lead_id: selected.id, mode });
       } catch (e) {
-        // revert
         setLeads((prev) =>
           prev.map((l) => (l.id === selected.id ? { ...l, control_mode: current, is_paused: current === 'manual' } : l)),
         );
@@ -760,7 +721,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
   const handleDeleteDraft = useCallback((messageId: string) => {
     setInboxError(null);
-    // Optimistic remove
     setLeads((prev) =>
       prev.map((l) =>
         l.id === selectedId
@@ -780,68 +740,59 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const sortedMessages = selected ? selected.messages : [];
   const isPaused = selected?.is_paused ?? false;
   const isShadowMode = selected?.control_mode === 'shadow';
-  // Shadow mode: IA gera rascunhos mas humano pode também enviar notas diretas
   const inputBlocked = (!isPaused && !isShadowMode) || sendPending;
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
       {/* COL 1 — list */}
       <section className={cn(
-        "flex flex-col border-r border-white/[0.08] transition-all duration-300 lg:w-[320px] lg:flex-shrink-0",
+        "flex flex-col border-r border-[#E4E4E7] bg-white transition-all duration-300 lg:w-[320px] lg:flex-shrink-0",
         showChatOnMobile ? "hidden lg:flex" : "flex w-full"
       )}>
         <div className="px-5 pb-3 pt-5 shrink-0">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-black tracking-tight bg-gradient-to-r from-white to-white/50 bg-clip-text text-transparent">Inbox</h2>
+            <h2 className="text-xl font-black tracking-tight text-[#09090B]">Inbox</h2>
             <div className="flex items-center gap-2">
-              <div
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all duration-500",
-                  isConnected
-                    ? "bg-teal-500/10 text-teal-400 border border-teal-500/20"
-                    : "bg-white/5 text-white/30 border border-white/5"
-                )}
-              >
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full transition-all duration-500",
-                    isConnected
-                      ? "bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)] animate-pulse"
-                      : "bg-white/20"
-                  )}
-                />
+              <div className={cn(
+                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all duration-500",
+                isConnected
+                  ? "bg-[#F0FDFA] text-[#0F766E] border border-[#CCFBF1]"
+                  : "bg-[#F4F4F5] text-[#A1A1AA] border border-[#E4E4E7]"
+              )}>
+                <span className={cn(
+                  "h-1.5 w-1.5 rounded-full transition-all duration-500",
+                  isConnected ? "bg-[#14B8A6] animate-pulse" : "bg-[#D4D4D8]"
+                )} />
                 {isConnected ? "LIVE" : "OFFLINE"}
               </div>
             </div>
           </div>
           <div className="mt-4 flex flex-col gap-3 px-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A1A1AA]" size={14} />
               <input
                 type="text"
                 placeholder="Buscar por nome ou telefone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-3 py-2 text-[13px] text-white placeholder:text-white/30 focus:border-brand-blue-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-500 transition-all"
+                className="w-full rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] pl-9 pr-3 py-2 text-[13px] text-[#09090B] placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
               />
             </div>
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 border-b border-white/[0.04] scrollbar-none select-none">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 border-b border-[#E4E4E7] scrollbar-none select-none">
               {['all', 'hot', 'warm', 'cold', 'success'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
                   className={cn(
                     "relative pb-2 text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 whitespace-nowrap cursor-pointer",
-                    statusFilter === status 
-                      ? "text-brand-blue-400" 
-                      : "text-white/30 hover:text-white/60"
+                    statusFilter === status ? "text-[#2563EB]" : "text-[#A1A1AA] hover:text-[#71717A]"
                   )}
                 >
                   {status === 'all' ? 'Todos' : status === 'hot' ? 'Quente' : status === 'warm' ? 'Morno' : status === 'cold' ? 'Frio' : 'Convertidos'}
                   {statusFilter === status && (
                     <motion.div
                       layoutId="active-filter-status"
-                      className="absolute bottom-0 inset-x-0 h-[1.5px] bg-brand-blue-400"
+                      className="absolute bottom-0 inset-x-0 h-[1.5px] bg-[#2563EB]"
                       transition={{ type: "spring", stiffness: 400, damping: 30 }}
                     />
                   )}
@@ -855,18 +806,16 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   onClick={() => setChannelFilter(chan)}
                   className={cn(
                     "relative pb-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 whitespace-nowrap flex items-center gap-1 cursor-pointer",
-                    channelFilter === chan 
-                      ? "text-white" 
-                      : "text-white/30 hover:text-white/60"
+                    channelFilter === chan ? "text-[#09090B]" : "text-[#A1A1AA] hover:text-[#71717A]"
                   )}
                 >
-                  {chan === 'whatsapp' && <MessageCircle size={10} className="text-teal-400 shrink-0" />}
+                  {chan === 'whatsapp' && <MessageCircle size={10} className="text-[#14B8A6] shrink-0" />}
                   {chan === 'instagram' && <Instagram size={10} className="text-pink-400 shrink-0" />}
                   <span>{chan === 'all' ? 'Canais' : chan === 'whatsapp' ? 'WhatsApp' : 'Instagram'}</span>
                   {channelFilter === chan && (
                     <motion.div
                       layoutId="active-filter-channel"
-                      className="absolute bottom-0 inset-x-0 h-[1px] bg-white/40"
+                      className="absolute bottom-0 inset-x-0 h-[1px] bg-[#D4D4D8]"
                       transition={{ type: "spring", stiffness: 400, damping: 30 }}
                     />
                   )}
@@ -878,13 +827,11 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-0">
           {inboxError && (
-            <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2">
-              <p className="text-[12px] font-medium text-red-400 leading-tight">
-                {inboxError}
-              </p>
+            <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-xl border border-[#FECACA] bg-[#FFF1F2] px-3 py-2">
+              <p className="text-[12px] font-medium text-[#DC2626] leading-tight">{inboxError}</p>
               <button
                 onClick={() => router.refresh()}
-                className="shrink-0 text-[11px] font-black uppercase tracking-wider text-red-400 hover:text-red-300 transition-colors"
+                className="shrink-0 text-[11px] font-black uppercase tracking-wider text-[#DC2626] hover:text-[#991B1B] transition-colors"
               >
                 Tentar novamente
               </button>
@@ -892,10 +839,10 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           )}
           {filteredLeads.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 px-5 text-center gap-2">
-              <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center">
-                <Zap size={20} className="text-white/20" />
+              <div className="h-12 w-12 rounded-full bg-[#F4F4F5] flex items-center justify-center">
+                <Zap size={20} className="text-[#D4D4D8]" />
               </div>
-              <p className="text-xs font-medium text-white/30 italic">Nenhum lead encontrado.</p>
+              <p className="text-xs font-medium text-[#A1A1AA]">Nenhum lead encontrado.</p>
             </div>
           ) : (
             <motion.div variants={LEAD_LIST_VARIANTS} initial="hidden" animate="show" className="flex flex-col">
@@ -929,7 +876,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         ) : (
           <>
             {/* Chat Header */}
-            <div className="flex items-center justify-between border-b border-white/[0.08] bg-background/80 backdrop-blur-xl px-4 py-3 sm:px-6 z-10 shadow-lg shadow-black/20">
+            <div className="flex items-center justify-between border-b border-[#E4E4E7] bg-white px-4 py-3 sm:px-6 z-10 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
               <div className="flex items-center gap-3 overflow-hidden">
                 <Button
                   variant="ghost"
@@ -946,9 +893,9 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   {initials(selected.name)}
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-bold text-white">{selected.name}</div>
-                  <div className="flex items-center gap-1.5 truncate text-[10px] font-bold uppercase tracking-wider text-white/40">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <div className="truncate text-sm font-bold text-[#09090B]">{selected.name}</div>
+                  <div className="flex items-center gap-1.5 truncate text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse" />
                     Ativo agora · {selected.channel}
                   </div>
                 </div>
@@ -983,7 +930,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col gap-3 p-4 sm:p-6"
+                className="flex flex-col gap-3 p-4 sm:p-6 bg-[#F8F8F8] min-h-full"
               >
                 {!isPaused && selected.control_mode !== 'shadow' && (
                   <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
@@ -991,13 +938,11 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 {selected.control_mode === 'shadow' && (
                   <ChatBubble variant="note">
                     <span className="flex items-center gap-1.5">
-                      <Sparkles size={11} className="text-brand-blue-400 shrink-0" />
+                      <Sparkles size={11} className="text-[#2563EB] shrink-0" />
                       Modo Copiloto ativo — IA gera rascunhos para sua aprovação
                     </span>
                   </ChatBubble>
                 )}
-
-                {/* Group messages by date could be added here */}
 
                 {groupedMessages.map((msg) => {
                   const isDraft = (msg.metadata as any)?.is_draft === true;
@@ -1010,13 +955,12 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         className="flex flex-col items-end gap-2 self-end max-w-[85%]"
                       >
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-blue-400">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#14B8A6]">
                           <Sparkles size={10} />
                           Rascunho da IA · Aguardando aprovação
                         </div>
-                        <div className="relative rounded-2xl rounded-br-sm border border-brand-blue-500/40 bg-brand-blue-500/10 backdrop-blur-sm px-4 py-3 text-[13px] leading-relaxed text-white/90 shadow-[0_0_20px_rgba(59,130,246,0.12)]">
+                        <div className="relative rounded-[14px] rounded-br-[3px] border-[1.5px] border-[#CCFBF1] bg-[#F0FDFA] px-4 py-3 text-[13px] leading-relaxed text-[#166534]">
                           {msg.content}
-                          <div className="absolute inset-0 rounded-2xl rounded-br-sm bg-gradient-to-b from-white/[0.04] to-transparent pointer-events-none" />
                         </div>
                         {editingDraftId === msg.id ? (
                           <div className="flex flex-col gap-2 w-full">
@@ -1025,19 +969,19 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                               value={editDraftText}
                               onChange={(e) => setEditDraftText(e.target.value)}
                               rows={3}
-                              className="w-full rounded-xl border border-brand-blue-500/40 bg-[#0A0A0A]/80 px-3 py-2 text-[13px] text-white/90 outline-none resize-none focus:border-brand-blue-400/60"
+                              className="w-full rounded-xl border-[1.5px] border-[#E4E4E7] bg-white px-3 py-2 text-[13px] text-[#09090B] outline-none resize-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10"
                             />
                             <div className="flex items-center gap-2 justify-end">
                               <button
                                 onClick={() => setEditingDraftId(null)}
-                                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-white/40 hover:bg-white/10 transition-all"
+                                className="rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-all"
                               >
                                 Cancelar
                               </button>
                               <button
                                 onClick={() => handleEditAndSendDraft(msg.id, editDraftText)}
                                 disabled={draftPending || !editDraftText.trim()}
-                                className="flex items-center gap-1.5 rounded-lg border border-brand-blue-500/40 bg-brand-blue-500/20 px-4 py-1.5 text-[11px] font-bold text-brand-blue-300 hover:bg-brand-blue-500/30 transition-all disabled:opacity-50"
+                                className="flex items-center gap-1.5 rounded-lg border border-[#BFDBFE] bg-[#2563EB] px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-[#1D4ED8] transition-all disabled:opacity-50"
                               >
                                 <Send size={10} />
                                 Enviar Editado
@@ -1049,25 +993,23 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                             <button
                               onClick={() => handleDeleteDraft(msg.id)}
                               disabled={draftPending}
-                              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-white/40 hover:bg-white/10 hover:text-white/70 transition-all disabled:opacity-50"
+                              className="flex items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-all disabled:opacity-50"
                             >
-                              <Trash size={10} />
-                              Descartar
+                              <Trash size={10} /> Descartar
                             </button>
                             <button
                               onClick={() => { setEditingDraftId(msg.id); setEditDraftText(msg.content); }}
                               disabled={draftPending}
-                              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold text-white/40 hover:bg-white/10 hover:text-white/70 transition-all disabled:opacity-50"
+                              className="flex items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-all disabled:opacity-50"
                             >
                               ✏️ Editar
                             </button>
                             <button
                               onClick={() => handleApproveDraft(msg.id)}
                               disabled={draftPending}
-                              className="flex items-center gap-1.5 rounded-lg border border-brand-blue-500/40 bg-brand-blue-500/20 px-4 py-1.5 text-[11px] font-bold text-brand-blue-300 hover:bg-brand-blue-500/30 transition-all shadow-[0_0_12px_rgba(59,130,246,0.15)] disabled:opacity-50"
+                              className="flex items-center gap-1.5 rounded-lg border border-[#BFDBFE] bg-[#2563EB] px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-[#1D4ED8] transition-all shadow-[0_2px_8px_rgba(37,99,235,0.22)] disabled:opacity-50"
                             >
-                              <Check size={10} />
-                              ✨ Aprovar e Enviar
+                              <Check size={10} /> ✓ Aprovar e Enviar
                             </button>
                           </div>
                         )}
@@ -1108,9 +1050,9 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                               href={mediaMeta.media_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-[12px] hover:bg-white/20 transition-colors"
+                              className="flex items-center gap-2 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2 text-[12px] hover:bg-[#EBEBEC] transition-colors text-[#09090B]"
                             >
-                              <FileText size={14} className="shrink-0" />
+                              <FileText size={14} className="shrink-0 text-[#71717A]" />
                               <span className="truncate max-w-[180px]">{mediaMeta.filename ?? 'documento'}</span>
                             </a>
                           )}
@@ -1125,8 +1067,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
                 {sortedMessages.length === 0 && (
                   <div className="my-12 text-center flex flex-col items-center gap-2">
-                    <div className="h-1 w-8 bg-white/10 rounded-full" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/20">Início da conversa</span>
+                    <div className="h-1 w-8 bg-[#E4E4E7] rounded-full" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A1A1AA]">Início da conversa</span>
                   </div>
                 )}
 
@@ -1136,19 +1078,14 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     className="flex items-center gap-2 self-start mt-2"
                   >
-                    <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm border border-white/[0.08] bg-white/[0.05] px-4 py-2.5 backdrop-blur-sm">
+                    <div className="flex items-center gap-2 rounded-[14px] rounded-bl-[3px] border border-[#E4E4E7] bg-white px-4 py-2.5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
                       <div className="flex gap-1">
                         {[0, 1, 2].map((i) => (
                           <motion.span
                             key={i}
-                            className="h-1.5 w-1.5 rounded-full bg-brand-blue-400"
+                            className="h-1.5 w-1.5 rounded-full bg-[#3B82F6]"
                             animate={{ y: [0, -3, 0] }}
-                            transition={{
-                              duration: 0.8,
-                              repeat: Infinity,
-                              delay: i * 0.15,
-                              ease: "easeInOut",
-                            }}
+                            transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
                           />
                         ))}
                       </div>
@@ -1160,18 +1097,18 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
             </div>
 
             {/* Input Area */}
-            <div className="relative bg-background/95 backdrop-blur-2xl border-t border-white/[0.08] p-3 sm:p-4 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-[env(safe-area-inset-bottom,16px)] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+            <div className="relative bg-white border-t border-[#E4E4E7] p-3 sm:p-4 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-[env(safe-area-inset-bottom,16px)]">
               <div className="max-w-5xl mx-auto relative group">
                 {!isPaused && !isShadowMode && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl"
+                    className="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl"
                   >
                     <Button
-                      variant="blue"
+                      variant="orange"
                       size="sm"
-                      className="gap-2 px-6 h-10 rounded-full font-black uppercase tracking-wider shadow-glow-blue"
+                      className="gap-2 px-6 h-10 rounded-full font-black uppercase tracking-wider"
                       onClick={handleTakeOver}
                       disabled={takePending}
                     >
@@ -1195,125 +1132,112 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
                 <div className={cn(
                   "flex items-center gap-2 sm:gap-3 transition-all duration-300",
-                  !isPaused && !isShadowMode && "blur-[2px] scale-[0.98] opacity-50"
+                  !isPaused && !isShadowMode && "blur-[2px] scale-[0-98] opacity-50"
                 )}>
-                  <div className="flex-1 relative flex flex-col gap-0 bg-white/[0.03] border border-white/[0.08] rounded-2xl px-3 py-1.5 transition-all focus-within:border-brand-blue-500/50 focus-within:bg-white/[0.06] focus-within:shadow-glow-blue/5">
-                    {/* Attachment preview chip */}
+                  <div className="flex-1 relative flex flex-col gap-0 bg-[#F4F4F5] border border-[#E4E4E7] rounded-2xl px-3 py-1.5 transition-all focus-within:border-[#2563EB] focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.10)]">
                     {attachedFile && (
                       <div className="flex items-center gap-2 pt-2 pb-1">
-                        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] max-w-[220px]">
+                        <div className="flex items-center gap-2 rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-[11px] max-w-[220px]">
                           {attachPreview ? (
                             <img src={attachPreview} alt="" className="h-5 w-5 rounded object-cover shrink-0" />
                           ) : (
-                            <FileText size={13} className="shrink-0 text-white/50" />
+                            <FileText size={13} className="shrink-0 text-[#71717A]" />
                           )}
-                          <span className="truncate text-white/70">{attachedFile.name}</span>
-                          <span className="shrink-0 text-white/30">
+                          <span className="truncate text-[#3F3F46]">{attachedFile.name}</span>
+                          <span className="shrink-0 text-[#A1A1AA]">
                             {(attachedFile.size / 1024).toFixed(0)}KB
                           </span>
                         </div>
                         <button
                           onClick={clearAttachment}
-                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#F4F4F5] hover:bg-[#E4E4E7] transition-colors"
                         >
-                          <X size={10} className="text-white/60" />
+                          <X size={10} className="text-[#71717A]" />
                         </button>
                       </div>
                     )}
                     <div className="flex items-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={cn(
-                        "h-9 w-9 rounded-xl p-0 hover:bg-white/5 shrink-0 mb-0.5 transition-colors",
-                        attachedFile && "bg-brand-blue-500/20 text-brand-blue-400 hover:bg-brand-blue-500/30"
-                      )}
-                      disabled={inputBlocked}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Paperclip size={18} className={cn(attachedFile ? "text-brand-blue-400" : "text-white/30")} />
-                    </Button>
-                    <textarea
-                      ref={inputRef}
-                      rows={1}
-                      placeholder={attachedFile ? "Legenda (opcional)..." : "Escreva uma mensagem..."}
-                      className="flex-1 bg-transparent py-2.5 text-[14px] outline-none placeholder:text-white/20 disabled:cursor-not-allowed resize-none max-h-32 custom-scrollbar"
-                      value={noteText}
-                      onChange={(e) => {
-                        setNoteText(e.target.value);
-                        e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          if (!inputBlocked && noteText.trim()) handleSend();
-                        }
-                      }}
-                      disabled={inputBlocked}
-                    />
-                    </div>{/* end flex items-end row */}
-                  </div>{/* end flex-col input container */}
-
-                  <div className="relative group/send shrink-0 flex items-center justify-center h-12 w-12">
-                    <div className={cn(
-                      "absolute inset-0 rounded-full blur-md transition-all duration-500 opacity-0 group-hover/send:opacity-40 bg-brand-blue-500",
-                      noteText.trim() && !sendPending && "group-hover/send:opacity-60"
-                    )} />
-                    <Button
-                      variant="blue"
-                      size="sm"
-                      className={cn(
-                        "relative h-11 w-11 rounded-full shrink-0 transition-all duration-500 overflow-hidden shadow-2xl z-10",
-                        (noteText.trim() || attachedFile) ? "scale-100 opacity-100 shadow-glow-blue/40" : "scale-90 opacity-40 grayscale"
-                      )}
-                      disabled={inputBlocked || (!noteText.trim() && !attachedFile)}
-                      onClick={handleSend}
-                    >
-                      <AnimatePresence mode="wait">
-                        {sendPending ? (
-                          <motion.div
-                            key="pending"
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.5, opacity: 0 }}
-                          >
-                            <Zap size={18} className="animate-spin" />
-                          </motion.div>
-                        ) : (
-                          <motion.div
-                            key="idle"
-                            initial={{ x: -10, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            whileHover={{ x: [0, 5, 0], transition: { repeat: Infinity, duration: 1 } }}
-                          >
-                            <Send size={18} className={cn(
-                              "transition-transform duration-300",
-                              noteText.trim() && "group-hover/send:translate-x-0.5 group-hover/send:-translate-y-0.5 group-hover/send:scale-110"
-                            )} />
-                          </motion.div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-9 w-9 rounded-xl p-0 shrink-0 mb-0.5 transition-colors",
+                          attachedFile && "bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE]"
                         )}
-                      </AnimatePresence>
-                    </Button>
+                        disabled={inputBlocked}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Paperclip size={18} className={cn(attachedFile ? "text-[#2563EB]" : "text-[#A1A1AA]")} />
+                      </Button>
+                      <textarea
+                        ref={inputRef}
+                        rows={1}
+                        placeholder={attachedFile ? "Legenda (opcional)..." : "Escreva uma mensagem..."}
+                        className="flex-1 bg-transparent py-2.5 text-[14px] text-[#09090B] outline-none placeholder:text-[#A1A1AA] disabled:cursor-not-allowed resize-none max-h-32 custom-scrollbar"
+                        value={noteText}
+                        onChange={(e) => {
+                          setNoteText(e.target.value);
+                          e.target.style.height = 'auto';
+                          e.target.style.height = e.target.scrollHeight + 'px';
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            if (!inputBlocked && noteText.trim()) handleSend();
+                          }
+                        }}
+                        disabled={inputBlocked}
+                      />
+                    </div>
                   </div>
+
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className={cn(
+                      "h-11 w-11 rounded-full shrink-0 transition-all duration-200 overflow-hidden z-10",
+                      (noteText.trim() || attachedFile) ? "scale-100 opacity-100" : "scale-90 opacity-40"
+                    )}
+                    disabled={inputBlocked || (!noteText.trim() && !attachedFile)}
+                    onClick={handleSend}
+                  >
+                    <AnimatePresence mode="wait">
+                      {sendPending ? (
+                        <motion.div
+                          key="pending"
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                        >
+                          <Zap size={18} className="animate-spin" />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="idle"
+                          initial={{ x: -10, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                        >
+                          <Send size={18} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </Button>
                 </div>
               </div>
 
               {!isPaused && selected.control_mode !== 'shadow' && (
-                <p className="mt-3 text-center text-[9px] font-black uppercase tracking-[0.2em] text-brand-blue-400 animate-pulse">
+                <p className="mt-3 text-center text-[9px] font-bold uppercase tracking-[0.2em] text-[#14B8A6]">
                   Modo Automático Ativo · Agendra IA está no controle
                 </p>
               )}
               {selected.control_mode === 'shadow' && (
-                <p className="mt-3 text-center text-[9px] font-black uppercase tracking-[0.2em] text-brand-blue-400">
+                <p className="mt-3 text-center text-[9px] font-bold uppercase tracking-[0.2em] text-[#2563EB]">
                   <Sparkles className="inline mr-1" size={9} />
                   Modo Copiloto · Aprove rascunhos acima ou escreva diretamente
                 </p>
               )}
               {inboxError && (
-                <p className="mt-2 text-center text-[11px] font-bold text-red-400">
-                   Erro: {inboxError}
-                </p>
+                <p className="mt-2 text-center text-[11px] font-bold text-[#DC2626]">Erro: {inboxError}</p>
               )}
             </div>
           </>
@@ -1321,31 +1245,29 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       </section>
 
       {/* COL 3 — detail */}
-      <aside className="hidden flex-col gap-5 overflow-y-auto border-l border-white/[0.04] bg-white/[0.005] p-5 w-[300px] shrink-0 custom-scrollbar xl:flex z-10 select-none">
+      <aside className="hidden flex-col gap-5 overflow-y-auto border-l border-[#E4E4E7] bg-white p-5 w-[280px] shrink-0 custom-scrollbar xl:flex z-10 select-none">
         {selected && (
           <motion.div
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex flex-col gap-6"
           >
-            <div className="flex flex-col items-center text-center gap-3.5 pb-4 border-b border-white/[0.04]">
-              <div
-                className="grid h-16 w-16 place-items-center rounded-2xl bg-white/[0.06] border border-white/[0.08] text-base font-bold text-white/80"
-              >
+            <div className="flex flex-col items-center text-center gap-3.5 pb-4 border-b border-[#F4F4F5]">
+              <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#F4F4F5] border border-[#E4E4E7] text-base font-bold text-[#3F3F46]">
                 {initials(selected.name)}
               </div>
               <div>
-                <h2 className="text-base font-bold text-white leading-tight">{selected.name}</h2>
-                <p className="text-[11px] font-medium text-white/30 mt-0.5">{selected.phone}</p>
+                <h2 className="text-base font-bold text-[#09090B] leading-tight">{selected.name}</h2>
+                <p className="text-[11px] font-medium text-[#A1A1AA] mt-0.5">{selected.phone}</p>
               </div>
             </div>
 
             <div className="space-y-6">
               <section>
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-3">Inteligência Artificial</h4>
+                <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A1A1AA] mb-3">Inteligência Artificial</h4>
                 <div className="space-y-4">
                   <div>
-                    <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-2">Tom da Conversa</span>
+                    <span className="text-[11px] font-bold text-[#A1A1AA] uppercase tracking-wider block mb-2">Tom da Conversa</span>
                     <ToneDropdown
                       selected={selected}
                       toneOpen={toneOpen}
@@ -1355,7 +1277,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-2">Modo de Operação</span>
+                    <span className="text-[11px] font-bold text-[#A1A1AA] uppercase tracking-wider block mb-2">Modo de Operação</span>
                     <ControlModeDropdown
                       selected={selected}
                       controlOpen={controlOpen}
@@ -1365,21 +1287,21 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                     />
                   </div>
                   {selected.summary && (
-                    <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
-                      <span className="text-[11px] font-bold text-white/30 uppercase tracking-wider block mb-1.5">Resumo IA</span>
-                      <p className="text-[12px] leading-relaxed text-white/70 italic">"{selected.summary}"</p>
+                    <div className="rounded-xl bg-[#F0FDFA] border border-[#CCFBF1] p-3">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#14B8A6] block mb-1.5">✦ Resumo IA</span>
+                      <p className="text-[12px] leading-relaxed text-[#166534] italic">"{selected.summary}"</p>
                     </div>
                   )}
                 </div>
               </section>
 
               <section>
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-3">Dados do Lead</h4>
+                <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A1A1AA] mb-3">Dados do Lead</h4>
                 <div className="space-y-3">
-                   <KV k="Status" v={HEAT_LABEL[selected.status]} color={selected.status === 'hot' ? 'text-orange-400' : 'text-blue-400'} />
-                   <KV k="Canal" v={selected.channel} />
-                   <KV k="Origem" v={selected.source ?? "Direto"} />
-                   {selected.city && <KV k="Cidade" v={selected.city} />}
+                  <KV k="Status" v={HEAT_LABEL[selected.status]} color={selected.status === 'hot' ? 'text-[#EA580C]' : 'text-[#1D4ED8]'} />
+                  <KV k="Canal" v={selected.channel} />
+                  <KV k="Origem" v={selected.source ?? "Direto"} />
+                  {selected.city && <KV k="Cidade" v={selected.city} />}
                 </div>
               </section>
 
@@ -1404,15 +1326,15 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
       hour: "2-digit", minute: "2-digit",
     });
     return (
-      <div className="rounded-xl border border-white/[0.03] bg-white/[0.005] p-4">
+      <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4">
         <div className="flex flex-col gap-2">
-          <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-teal-400">
+          <div className="h-7 w-7 rounded-lg bg-[#F0FDFA] flex items-center justify-center text-[#14B8A6]">
             <CalendarCheck size={14} />
           </div>
           <div>
-            <div className="text-[11px] font-bold text-white/40">Agendamento Confirmado</div>
-            <div className="text-[12px] font-semibold text-white mt-0.5">{next.title}</div>
-            <div className="text-[10px] text-white/30 mt-0.5 capitalize">{formatted}</div>
+            <div className="text-[11px] font-bold text-[#71717A]">Agendamento Confirmado</div>
+            <div className="text-[12px] font-semibold text-[#09090B] mt-0.5">{next.title}</div>
+            <div className="text-[10px] text-[#A1A1AA] mt-0.5 capitalize">{formatted}</div>
           </div>
         </div>
       </div>
@@ -1421,14 +1343,14 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
 
   if (lead.status === "success") {
     return (
-      <div className="rounded-xl border border-white/[0.03] bg-white/[0.005] p-4">
+      <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4">
         <div className="flex flex-col gap-2">
-          <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-teal-400">
+          <div className="h-7 w-7 rounded-lg bg-[#F0FDFA] flex items-center justify-center text-[#14B8A6]">
             <CalendarCheck size={14} />
           </div>
           <div>
-            <div className="text-[11px] font-bold text-white/40">Convertido</div>
-            <div className="text-[10px] text-white/30 mt-0.5">Agendamento concluído</div>
+            <div className="text-[11px] font-bold text-[#71717A]">Convertido</div>
+            <div className="text-[10px] text-[#A1A1AA] mt-0.5">Agendamento concluído</div>
           </div>
         </div>
       </div>
@@ -1436,14 +1358,14 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.03] bg-white/[0.005] p-4">
+    <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4">
       <div className="flex flex-col gap-2">
-        <div className="h-7 w-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-white/20">
+        <div className="h-7 w-7 rounded-lg bg-[#F4F4F5] flex items-center justify-center text-[#A1A1AA]">
           <CalendarCheck size={14} />
         </div>
         <div>
-          <div className="text-[11px] font-bold text-white/40">Sem agendamento ativo</div>
-          <div className="text-[10px] text-white/20 mt-0.5">
+          <div className="text-[11px] font-bold text-[#71717A]">Sem agendamento ativo</div>
+          <div className="text-[10px] text-[#A1A1AA] mt-0.5">
             {lead.status === "hot" ? "Lead quente — IA conduzindo para agendamento" : "IA qualificando lead"}
           </div>
         </div>
@@ -1452,11 +1374,11 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
   );
 }
 
-function KV({ k, v, color = "text-white/60" }: { k: string; v: string; color?: string }) {
+function KV({ k, v, color = "text-[#3F3F46]" }: { k: string; v: string; color?: string }) {
   return (
     <div className="flex items-center justify-between gap-2 text-[12px]">
-      <span className="font-bold text-white/20 uppercase tracking-widest text-[10px]">{k}</span>
-      <span className={cn("font-bold truncate max-w-[140px]", color)}>{v}</span>
+      <span className="font-bold text-[#A1A1AA] uppercase tracking-widest text-[10px]">{k}</span>
+      <span className={cn("font-semibold truncate max-w-[140px]", color)}>{v}</span>
     </div>
   );
 }
