@@ -299,20 +299,20 @@ export function SettingsShell({
                 className={cn(
                   "group relative flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-bold tracking-tight transition-all duration-300 outline-none cursor-pointer shrink-0",
                   active 
-                    ? "text-[#09090B]" 
-                    : "text-[#71717A] hover:text-[#3F3F46] hover:bg-[#F4F4F5]"
+                    ? "text-[#2563EB]" 
+                    : "text-[#52525B] hover:text-[#18181B] hover:bg-[#F4F4F5]"
                 )}
               >
                 <t.icon size={16} className={cn(
-                  "transition-transform duration-300 group-hover:scale-110",
-                  active ? "text-[#2563EB]" : "text-[#D4D4D8] group-hover:text-[#71717A]"
+                  "relative z-10 transition-transform duration-300 group-hover:scale-110",
+                  active ? "text-[#2563EB]" : "text-[#71717A] group-hover:text-[#3F3F46]"
                 )} />
                 <span className="relative z-10">{t.label}</span>
                 {active && (
                   <motion.div
                     layoutId="active-tab-mobile-glow"
-                    className="absolute inset-0 z-0 rounded-xl border border-brand-blue-500/20 bg-brand-blue-500/5 shadow-[0_0_20px_rgba(59,130,246,0.05)]"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    className="absolute inset-0 z-0 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   />
                 )}
               </button>
@@ -326,7 +326,7 @@ export function SettingsShell({
             const catTabs = TABS.filter((t) => t.category === cat);
             return (
               <div key={cat} className="flex flex-col gap-1">
-                <span className="px-4 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#D4D4D8] mb-1">
+                <span className="px-4 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-[#71717A] mb-1.5">
                   {cat}
                 </span>
                 {catTabs.map((t) => {
@@ -336,15 +336,22 @@ export function SettingsShell({
                       key={t.id}
                       onClick={() => changeTab(t.id)}
                       className={cn(
-                        "group relative flex items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-bold tracking-tight transition-all duration-150 outline-none cursor-pointer text-left w-full",
+                        "group relative flex items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-semibold tracking-tight transition-all duration-150 outline-none cursor-pointer text-left w-full",
                         active 
-                          ? "text-[#09090B] bg-[#F4F4F5] border border-[#E4E4E7]" 
-                          : "text-[#A1A1AA] hover:text-[#3F3F46] hover:bg-white"
+                          ? "text-[#09090B] font-bold" 
+                          : "text-[#52525B] hover:text-[#18181B] hover:bg-white/50"
                       )}
                     >
+                      {active && (
+                        <motion.div
+                          layoutId="active-tab-desktop-glow"
+                          className="absolute inset-0 z-0 rounded-xl border border-[#E4E4E7] bg-white shadow-sm"
+                          transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                        />
+                      )}
                       <t.icon size={15} className={cn(
-                        "transition-transform duration-150 group-hover:scale-105",
-                        active ? "text-[#2563EB]" : "text-[#D4D4D8] group-hover:text-[#71717A]"
+                        "relative z-10 transition-transform duration-150 group-hover:scale-105",
+                        active ? "text-[#2563EB]" : "text-[#71717A] group-hover:text-[#3F3F46]"
                       )} />
                       <span className="relative z-10 flex-1">{t.label}</span>
                     </button>
@@ -856,7 +863,7 @@ function Persona({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {isReadOnly && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+        <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5 text-xs text-[#92400E] shadow-sm">
           ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
         </div>
       )}
@@ -1095,7 +1102,7 @@ function Channels({
   return (
     <div className="flex flex-col gap-6">
       {isReadOnly && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+        <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5 text-xs text-[#92400E] shadow-sm">
           ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
         </div>
       )}
@@ -1642,20 +1649,20 @@ function GoogleCalendarCard({
   return (
     <motion.div layout className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] backdrop-blur-sm">
       <div className="flex items-center gap-3 p-4">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-400">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-blue-50 text-[#2563EB]">
           <Calendar size={20} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-semibold">Google Calendar</div>
           <div className="mt-0.5 font-mono text-[11px] font-medium flex items-center gap-1.5">
             {connected ? (
-              <span className="flex items-center gap-1.5 text-blue-300">
-                <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+              <span className="flex items-center gap-1.5 text-[#1D4ED8] font-semibold">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-[#2563EB] animate-pulse" />
                 Conectado
               </span>
             ) : (
               <span className="flex items-center gap-1.5 text-[#71717A]">
-                <span className="flex h-1.5 w-1.5 rounded-full bg-white/20" />
+                <span className="flex h-1.5 w-1.5 rounded-full bg-[#A1A1AA]" />
                 Não conectado
               </span>
             )}
@@ -1692,7 +1699,7 @@ function GoogleCalendarCard({
             className="border-t border-[#E4E4E7] bg-[#FAFAFA] p-4 flex flex-col gap-3"
           >
             <div className="flex items-center gap-2 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2">
-              <Calendar size={13} className="text-blue-300" />
+              <Calendar size={13} className="text-[#2563EB]" />
               <span className="font-mono text-[12px] text-[#3F3F46]">
                 {company?.google_calendar_email}
               </span>
@@ -1856,7 +1863,7 @@ function Flows({
   return (
     <div className="flex flex-col gap-5">
       {isReadOnly && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+        <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5 text-xs text-[#92400E] shadow-sm">
           ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
         </div>
       )}
@@ -2386,7 +2393,7 @@ function Flows({
       {automationEvents.length > 0 && (
         <div className="flex flex-col gap-2.5">
           <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA] px-0.5">Atividade Recente</h4>
-          <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] divide-y divide-white/[0.04] overflow-hidden">
+          <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] divide-y divide-[#E4E4E7] overflow-hidden">
             {automationEvents.slice(0, 10).map(ev => {
               const Icon = ev.type === "reminder_sent" ? Bell : ev.type === "followup_sent" ? MessageCircle : RefreshCw;
               const color = ev.type === "reminder_sent"
@@ -2395,10 +2402,10 @@ function Flows({
                 ? "text-[#2563EB]"
                 : "text-[#F97316]";
               return (
-                <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#FAFAFA] transition-colors">
+                <div key={ev.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#F4F4F5] transition-colors">
                   <Icon size={13} className={cn("shrink-0", color)} />
                   <span className="flex-1 text-[12px] text-[#3F3F46] truncate">{ev.detail ?? ev.type}</span>
-                  <span className="text-[10px] text-[#D4D4D8] shrink-0 tabular-nums">{formatTimeAgo(ev.created_at)}</span>
+                  <span className="text-[10px] text-[#71717A] shrink-0 tabular-nums">{formatTimeAgo(ev.created_at)}</span>
                 </div>
               );
             })}
@@ -2519,7 +2526,7 @@ function Team({
   return (
     <div className="flex flex-col gap-5">
       {isReadOnly && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+        <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5 text-xs text-[#92400E] shadow-sm">
           ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
         </div>
       )}
@@ -2755,23 +2762,23 @@ function Team({
 }
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
-  "persona.update": { label: "Instruções de IA Atualizadas", color: "bg-purple-500/10 text-purple-300 border-purple-500/20" },
-  "channel.connect": { label: "Canal Conectado", color: "bg-teal-500/10 text-teal-300 border-teal-500/20" },
-  "channel.disconnect": { label: "Canal Desconectado", color: "bg-red-500/10 text-red-300 border-red-500/20" },
-  "company.update": { label: "Dados da Empresa Alterados", color: "bg-blue-500/10 text-blue-300 border-blue-500/20" },
-  "automation.update": { label: "Regras de Automação Salvas", color: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20" },
-  "member.invite": { label: "Convite Enviado", color: "bg-yellow-500/10 text-yellow-300 border-yellow-500/20" },
-  "member.accept_invite": { label: "Convite Aceito", color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" },
-  "member.decline_invite": { label: "Convite Recusado", color: "bg-orange-500/10 text-orange-300 border-orange-500/20" },
-  "member.cancel_invite": { label: "Convite Cancelado", color: "bg-gray-500/10 text-gray-300 border-gray-500/20" },
-  "member.resend_invite": { label: "Convite Reenviado", color: "bg-pink-500/10 text-[#DB2777] border-pink-500/20" },
-  "webhook.save": { label: "Webhook Configurado", color: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20" },
-  "webhook.delete": { label: "Webhook Excluído", color: "bg-red-500/10 text-red-300 border-red-500/20" },
-  "reactivation.update": { label: "Reativação de Leads Salva", color: "bg-violet-500/10 text-violet-300 border-violet-500/20" },
-  "service.create": { label: "Serviço Criado", color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" },
-  "service.update": { label: "Serviço Editado", color: "bg-blue-500/10 text-blue-300 border-blue-500/20" },
-  "service.delete": { label: "Serviço Removido", color: "bg-red-500/10 text-red-300 border-red-500/20" },
-  "service.toggle": { label: "Pausa de Serviço Alterada", color: "bg-amber-500/10 text-amber-300 border-amber-500/20" },
+  "persona.update": { label: "Instruções de IA Atualizadas", color: "bg-purple-50 text-purple-700 border-purple-200" },
+  "channel.connect": { label: "Canal Conectado", color: "bg-teal-50 text-teal-700 border-teal-200" },
+  "channel.disconnect": { label: "Canal Desconectado", color: "bg-red-50 text-red-700 border-red-200" },
+  "company.update": { label: "Dados da Empresa Alterados", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  "automation.update": { label: "Regras de Automação Salvas", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  "member.invite": { label: "Convite Enviado", color: "bg-amber-50 text-amber-700 border-amber-200" },
+  "member.accept_invite": { label: "Convite Aceito", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  "member.decline_invite": { label: "Convite Recusado", color: "bg-orange-50 text-orange-700 border-orange-200" },
+  "member.cancel_invite": { label: "Convite Cancelado", color: "bg-zinc-50 text-zinc-700 border-zinc-200" },
+  "member.resend_invite": { label: "Convite Reenviado", color: "bg-pink-50 text-pink-700 border-pink-200" },
+  "webhook.save": { label: "Webhook Configurado", color: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+  "webhook.delete": { label: "Webhook Excluído", color: "bg-red-50 text-red-700 border-red-200" },
+  "reactivation.update": { label: "Reativação de Leads Salva", color: "bg-violet-50 text-violet-700 border-violet-200" },
+  "service.create": { label: "Serviço Criado", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  "service.update": { label: "Serviço Editado", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  "service.delete": { label: "Serviço Removido", color: "bg-red-50 text-red-700 border-red-200" },
+  "service.toggle": { label: "Pausa de Serviço Alterada", color: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
 function AuditLogsSection({ auditLogs = [] }: { auditLogs: any[] }) {
@@ -3005,27 +3012,26 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
   return (
     <div className="flex flex-col gap-6 pb-12">
       {isReadOnly && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+        <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5 text-xs text-[#92400E] shadow-sm">
           ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
         </div>
       )}
       {/* Banner de Trial */}
       {isOnTrial && (
         <Card className={cn(
-          "border-brand-blue-500/30",
-          trialDaysRemaining === 0 ? "bg-red-500/5 border-red-500/30" : "bg-brand-blue-500/5"
+          trialDaysRemaining === 0 ? "border-[#FECACA] bg-[#FFF1F2]" : "border-[#BFDBFE] bg-[#EFF6FF]"
         )}>
           <CardContent className="p-4 flex items-center gap-3">
             <div className={cn(
               "p-2 rounded-full",
-              trialDaysRemaining === 0 ? "bg-red-500/20 text-red-400" : "bg-brand-blue-500/20 text-[#2563EB]"
+              trialDaysRemaining === 0 ? "bg-[#FEE2E2] text-[#DC2626]" : "bg-[#DBEAFE] text-[#2563EB]"
             )}>
               <Clock size={16} />
             </div>
             <div className="flex-1">
               <p className={cn(
                 "text-sm font-semibold",
-                trialDaysRemaining === 0 ? "text-red-300" : "text-[#1D4ED8]"
+                trialDaysRemaining === 0 ? "text-[#DC2626]" : "text-[#1D4ED8]"
               )}>
                 {trialDaysRemaining === 0
                   ? "Período de teste expirado"
@@ -3035,7 +3041,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
               </p>
               <p className={cn(
                 "text-xs mt-0.5",
-                trialDaysRemaining === 0 ? "text-red-300/60" : "text-[#1D4ED8]/70"
+                trialDaysRemaining === 0 ? "text-[#DC2626]/70" : "text-[#1D4ED8]/70"
               )}>
                 {trialDaysRemaining === 0
                   ? "Assine agora para reativar a IA."
@@ -3156,7 +3162,7 @@ function Billing({ company, usage, isReadOnly = false }: { company: Company | nu
             >
               {p.recommended && (
                 <div className="absolute top-0 right-0 left-0 flex justify-center transform -translate-y-px">
-                  <div className="bg-brand-blue-500 text-[#09090B] text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-b-lg">
+                  <div className="bg-[#2563EB] text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-b-lg">
                     Recomendado
                   </div>
                 </div>
@@ -3295,7 +3301,7 @@ function Services({
   return (
     <div className="flex flex-col gap-6">
       {isReadOnly && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+        <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5 text-xs text-[#92400E] shadow-sm">
           ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
         </div>
       )}
@@ -3512,7 +3518,7 @@ function Rules({ company, isReadOnly = false }: { company: Company | null; isRea
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {isReadOnly && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 text-xs text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+        <div className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3.5 text-xs text-[#92400E] shadow-sm">
           ⚠️ <strong>Apenas Leitura:</strong> Você não possui permissões administrativas. As configurações estão em modo de visualização.
         </div>
       )}

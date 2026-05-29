@@ -35,6 +35,22 @@ function NovaSenhaContent() {
     }
   }
 
+  function handlePaste(e: React.ClipboardEvent) {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text/plain").replace(/\D/g, "").slice(0, 6);
+    if (!pastedData) return;
+
+    const next = [...code];
+    pastedData.split("").forEach((char, i) => {
+      if (i < 6) next[i] = char;
+    });
+    setCode(next);
+
+    // Focus last filled or next empty slot
+    const lastIdx = Math.min(pastedData.length, 5);
+    inputRefs.current[lastIdx]?.focus();
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -85,11 +101,11 @@ function NovaSenhaContent() {
           </p>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <span className="mb-1.5 block font-mono text-xs uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
+            <div className="flex flex-col gap-2">
+              <span className="mb-1 block font-mono text-xs uppercase tracking-wider" style={{ color: "var(--color-fg-3)" }}>
                 Código de verificação
               </span>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-6 gap-2.5 max-w-sm w-full mx-auto">
                 {code.map((digit, i) => (
                   <input
                     key={i}
@@ -100,8 +116,9 @@ function NovaSenhaContent() {
                     value={digit}
                     onChange={(e) => handleDigit(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
+                    onPaste={handlePaste}
                     disabled={loading}
-                    className="input h-12 w-10 text-center text-lg font-bold disabled:opacity-50"
+                    className="input h-14 w-full text-center text-xl font-bold rounded-xl disabled:opacity-50"
                   />
                 ))}
               </div>

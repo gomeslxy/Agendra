@@ -263,7 +263,7 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
             {l.channel === "whatsapp" && <MessageCircle size={11} className="text-[#14B8A6] shrink-0" />}
             {l.channel === "instagram" && <Instagram size={11} className="text-pink-400 shrink-0" />}
           </div>
-          <span className="font-mono text-[9px] font-medium text-[#71717A] whitespace-nowrap">
+          <span className="font-mono text-[9px] font-medium text-[#71717A] whitespace-nowrap" suppressHydrationWarning>
             {last ? relativeTime(last.created_at) : "—"}
           </span>
         </div>
@@ -901,7 +901,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 xl:hidden">
                 <ControlModeDropdown
                   compact
                   selected={selected}
@@ -1334,7 +1334,7 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
           <div>
             <div className="text-[11px] font-bold text-[#71717A]">Agendamento Confirmado</div>
             <div className="text-[12px] font-semibold text-[#09090B] mt-0.5">{next.title}</div>
-            <div className="text-[10px] text-[#A1A1AA] mt-0.5 capitalize">{formatted}</div>
+            <div className="text-[10px] text-[#A1A1AA] mt-0.5 capitalize" suppressHydrationWarning>{formatted}</div>
           </div>
         </div>
       </div>
