@@ -3,6 +3,7 @@ import { GroqAdapter } from './groq-adapter';
 import { SambaNovaAdapter } from './sambanova-adapter';
 import { GeminiAdapter } from './gemini-adapter';
 import { canAttempt, recordSuccess, recordFailure, getCircuitStatus } from './circuit-breaker';
+import { assertCanAttempt, usableBudgetMs } from '../deadline';
 import type {
   AIProviderAdapter, ChatParams, GenerateParams,
   ProviderName, ProviderRouteResult, ProviderGenerateResult, RouteOptions,
@@ -42,26 +43,50 @@ async function runChain<T>(
 
   for (let i = 0; i < chain.length; i++) {
     const provider = chain[i];
-    if (!canAttempt(provider.name)) {
+
+    // ── Active Deadline Supervisor ──────────────────────────────────────────
+    // Bail out BEFORE spending the budget if there isn't enough time left to
+    // both run an attempt AND let the engine clean up (release lock, handoff).
+    // Throwing here (not returning a provider error) lets the engine run its
+    // graceful human-handoff path instead of being abruptly killed by Vercel.
+    try {
+      assertCanAttempt();
+    } catch (deadlineErr) {
+      console.error(`[Router] ⏱️ deadline reached, skipping remaining providers trace=${traceId} (${errors.join('; ')})`);
+      throw deadlineErr;
+    }
+
+    if (!(await canAttempt(provider.name))) {
       errors.push(`${provider.name}: circuit_${getCircuitStatus(provider.name)}`);
       continue;
     }
     if (!first) first = provider.name;
-    const t = i === chain.length - 1 ? DEGRADED_TIMEOUT_MS : baseTimeout;
+
+    // Per-attempt timeout = min(configured timeout, time we can actually afford).
+    const configured = i === chain.length - 1 ? DEGRADED_TIMEOUT_MS : baseTimeout;
+    const t = Math.max(1_000, Math.min(configured, Math.floor(usableBudgetMs())));
+
     const controller = new AbortController();
+    // Real socket cancellation: aborting the controller closes the underlying
+    // fetch, preventing leaked in-flight requests when we time out / fall over.
+    const timer = setTimeout(
+      () => controller.abort(new Error(`timeout_${t}ms`)),
+      t,
+    );
     const start = Date.now();
     try {
-      const timeout = new Promise<never>((_, rej) =>
-        setTimeout(() => { controller.abort(); rej(new Error(`timeout_${t}ms`)); }, t));
-      const result = await Promise.race([exec(provider, controller.signal), timeout]);
+      const result = await exec(provider, controller.signal);
       recordSuccess(provider.name);
       console.log(`[Router] ✅ ${provider.name} ${Date.now() - start}ms trace=${traceId}`);
       return { result, provider: provider.name, fallbackUsed: provider.name !== first };
     } catch (err: any) {
-      const { kind } = classifyError(err);
+      const timedOut = controller.signal.aborted;
+      const { kind } = timedOut ? { kind: 'timeout' } : classifyError(err);
       recordFailure(provider.name);
       console.warn(`[Router] ❌ ${provider.name} ${kind} ${Date.now() - start}ms: ${err.message} trace=${traceId}`);
       errors.push(`${provider.name}:${kind}`);
+    } finally {
+      clearTimeout(timer);
     }
   }
   throw new Error(`AI_ALL_PROVIDERS_FAILED: ${errors.join('; ')}`);

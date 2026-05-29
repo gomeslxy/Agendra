@@ -2,9 +2,13 @@ import crypto from 'crypto';
 import { redis } from '@/lib/infra/redis';
 import { handleIncomingMessage } from './engine';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { logDebug, logInfo, logError, isDebug } from "@/lib/logging";
+import { logError } from "@/lib/logging";
+import { qstashEnabled, scheduleDelayed } from '@/lib/infra/qstash';
+import { runWithDeadline } from './deadline';
+
 const DEBOUNCE_MS = 4_000;
 const BUF_TTL_SEC = 60;
+export const FLUSH_PATH = '/api/internal/flush';
 
 interface Buffered {
   body: string;
@@ -12,6 +16,15 @@ interface Buffered {
   provider_message_id: string;
   type: string;
   metadata?: Record<string, any>;
+}
+
+/** Payload QStash delivers to the flush endpoint after the debounce delay. */
+export interface FlushJob {
+  companyId: string;
+  leadPhone: string;
+  leadName: string;
+  gen: string;
+  usage?: any;
 }
 
 export async function bufferAndDebounce(args: {
@@ -67,13 +80,55 @@ export async function bufferAndDebounce(args: {
   }
 
   const dbgTag = `${args.companyId.slice(0, 6)}:${args.leadPhone.slice(-4)}`;
-  console.log(`[Debounce][${dbgTag}] ⏲️  waiting ${DEBOUNCE_MS}ms (gen=${gen.slice(0, 6)})`);
-  await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
 
-  // FIX B2: outro flusher mais recente assume
+  const job: FlushJob = {
+    companyId: args.companyId,
+    leadPhone: args.leadPhone,
+    leadName: args.leadName,
+    gen,
+    usage: args.usage,
+  };
+
+  // Serverless-native debounce: schedule a delayed flush via QStash instead of
+  // blocking the instance with setTimeout. Each new burst message overwrites the
+  // gen token (above) and schedules its own delayed flush; only the delivery
+  // whose gen still matches the token at fire time wins — debounce + race-safe.
+  if (qstashEnabled()) {
+    try {
+      await scheduleDelayed(FLUSH_PATH, job, Math.ceil(DEBOUNCE_MS / 1000));
+      console.log(`[Debounce][${dbgTag}] 📨 scheduled flush via QStash (gen=${gen.slice(0, 6)}, +${DEBOUNCE_MS}ms)`);
+    } catch (e) {
+      logError('[debounce] QStash publish failed, falling back to DB buffer:', e);
+      await bufferInDB({
+        companyId: args.companyId, leadPhone: args.leadPhone, leadName: args.leadName,
+        body: args.body, providerMessageId: args.providerMessageId,
+        msgType: args.msgType, metadata: args.metadata,
+      });
+    }
+    return;
+  }
+
+  // Dev/local fallback (no QStash configured): inline wait then flush directly.
+  console.log(`[Debounce][${dbgTag}] ⏲️  (no QStash) waiting ${DEBOUNCE_MS}ms inline (gen=${gen.slice(0, 6)})`);
+  await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
+  await runWithDeadline(() => flushBuffer(job));
+}
+
+/**
+ * Consolidates the buffered burst into one merged message and hands it to the
+ * engine. Idempotent / race-safe via the gen token: only the caller whose gen
+ * still owns the token proceeds; everyone else is a no-op. Invoked either by the
+ * QStash flush endpoint (production) or inline (dev).
+ */
+export async function flushBuffer(job: FlushJob): Promise<void> {
+  const bufKey = `ch:buf:${job.companyId}:${job.leadPhone}`;
+  const tokenKey = `ch:bufgen:${job.companyId}:${job.leadPhone}`;
+  const dbgTag = `${job.companyId.slice(0, 6)}:${job.leadPhone.slice(-4)}`;
+
+  // FIX B2: only the newest scheduled flusher (matching gen) consolidates.
   const winner = await redis.get(tokenKey);
-  if (winner !== gen) {
-    console.log(`[Debounce][${dbgTag}] 🪂 superseded by newer flusher, exiting`);
+  if (winner !== job.gen) {
+    console.log(`[Debounce][${dbgTag}] 🪂 superseded by newer flusher, exiting (gen=${job.gen.slice(0, 6)})`);
     return;
   }
 
@@ -81,7 +136,7 @@ export async function bufferAndDebounce(args: {
   await redis.del(bufKey);
   await redis.del(tokenKey);
   if (raw.length === 0) {
-    console.warn(`[Debounce][${dbgTag}] ⚠️  empty buffer after wait — race lost`);
+    console.warn(`[Debounce][${dbgTag}] ⚠️  empty buffer at flush — race lost`);
     return;
   }
 
@@ -103,10 +158,10 @@ export async function bufferAndDebounce(args: {
     : items[0].body;
 
   await handleIncomingMessage(
-    args.companyId, args.leadPhone, args.leadName,
+    job.companyId, job.leadPhone, job.leadName,
     mergedBody,
     lastItem.provider_message_id,
-    args.usage,
+    job.usage,
     { ...mergedMetadata, debounce_batch_size: items.length,
       debounce_message_ids: items.map((i) => i.provider_message_id) }
   );

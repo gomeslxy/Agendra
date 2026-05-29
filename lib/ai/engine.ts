@@ -662,15 +662,34 @@ export async function handleIncomingMessage(
       .maybeSingle();
 
     if (!locked) {
-      console.warn(`[Engine][${tag}] 🔒 lead lock contention — another worker holds it (phone=${phone.slice(0, 6)}***)`);
-      if (providerMessageId) {
-        await admin
-          .from('processed_messages')
-          .update({ status: 'error', error_message: 'lead lock contention' })
-          .eq('provider_message_id', providerMessageId);
+      // Inline stale-lock reclaim: if the holder crashed/was killed mid-turn, its
+      // processing_started_at is old. Reclaim atomically so this lead isn't stuck
+      // until the pg_cron reaper runs. Complements `agendra_unlock_stale_leads`
+      // (migration 024) which covers leads that go silent after a crash.
+      const STALE_LOCK_MS = 120_000;
+      const staleBefore = new Date(Date.now() - STALE_LOCK_MS).toISOString();
+      const { data: reclaimed } = await admin
+        .from('leads')
+        .update(updatePayload)
+        .eq('id', activeLead.id)
+        .eq('company_id', companyId)
+        .eq('is_processing', true)
+        .lt('processing_started_at', staleBefore)
+        .select('id')
+        .maybeSingle();
+
+      if (!reclaimed) {
+        console.warn(`[Engine][${tag}] 🔒 lead lock contention — another worker holds a fresh lock (phone=${phone.slice(0, 6)}***)`);
+        if (providerMessageId) {
+          await admin
+            .from('processed_messages')
+            .update({ status: 'error', error_message: 'lead lock contention' })
+            .eq('provider_message_id', providerMessageId);
+        }
+        // No lock acquired, exit early
+        return;
       }
-      // No lock acquired, exit early
-      return;
+      console.warn(`[Engine][${tag}] 🩹 reclaimed STALE lock (held >${STALE_LOCK_MS}ms, phone=${phone.slice(0, 6)}***)`);
     }
   } else {
     const { data: created } = await admin
@@ -958,8 +977,11 @@ export async function handleIncomingMessage(
 
   } catch (err: any) {
     const errMsg = String(err?.message ?? '');
-    const isAllProvidersFailed = errMsg.includes('AI_ALL_PROVIDERS_FAILED');
-    console.error(`[Engine][${tag}] 💥 turn failed (allProvidersFailed=${isAllProvidersFailed}): ${errMsg.slice(0, 300)}`);
+    // A deadline bail is treated like a total provider failure: hand off to a
+    // human gracefully (and release locks below) BEFORE the platform kills us.
+    const isDeadline = errMsg.includes('AI_DEADLINE_EXCEEDED') || err?.name === 'DeadlineExceededError';
+    const isAllProvidersFailed = errMsg.includes('AI_ALL_PROVIDERS_FAILED') || isDeadline;
+    console.error(`[Engine][${tag}] 💥 turn failed (allProvidersFailed=${isAllProvidersFailed} deadline=${isDeadline}): ${errMsg.slice(0, 300)}`);
 
     if (isAllProvidersFailed) {
       const hours = (company.persona_config as any)?.fallback_takeover_hours ?? 2;

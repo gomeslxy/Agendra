@@ -25,6 +25,7 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "2.105.3",
     "@types/pdf-parse": "^1.1.5",
+    "@upstash/qstash": "^2.11.0",
     "@vercel/speed-insights": "^2.0.0",
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
