@@ -254,6 +254,13 @@ async function processWebhookPayload(rawBody: string, headers: Headers): Promise
     const msgLogId = `${webId}:${msg.providerMessageId.slice(-8)}`;
     console.log(`[Meta Webhook][${msgLogId}] 📨 incoming message [${msg.type}] from=${msg.senderIdentifier.substring(0, 6)}***`);
 
+    // 5.0.1 Fine-grained Per-Lead Flood Protection (prevent financial DoS from single malicious lead)
+    const isLeadAllowed = await checkRateLimitAsync(`flood:${companyId}:${msg.senderIdentifier}`, 5, 10000);
+    if (!isLeadAllowed) {
+      console.error(`[Meta Webhook][${msgLogId}] 🚫 Lead-level flood protection triggered for sender ${msg.senderIdentifier}. Message ignored.`);
+      continue;
+    }
+
     // 5.1 Deduplication (Unique check)
     const { claimMessage, bufferAndDebounce, bufferInDB } = await import('@/lib/ai/debounce');
     const claimed = await claimMessage(msg.providerMessageId);

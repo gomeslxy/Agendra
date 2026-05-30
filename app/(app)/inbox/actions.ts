@@ -338,13 +338,9 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
   await requireOnboarding(company_id);
 
   const admin = createAdminClient();
-  await admin.storage.createBucket('inbox-media', { public: true }).catch(() => {});
+  await admin.storage.createBucket('inbox-media', { public: false }).catch(() => {});
 
   const ext = file.name.split('.').pop() ?? 'bin';
-  // Unguessable object key: the bucket is public, so a predictable path
-  // (company_id/leadId/timestamp) is enumerable across tenants. A random segment
-  // makes the URL effectively a capability token. (Follow-up: move to a private
-  // bucket + signed read URLs — tracked in backlog.)
   const rand = crypto.randomBytes(12).toString('hex');
   const path = `${company_id}/${leadId}/${Date.now()}-${rand}.${ext}`;
   const bytes = await file.arrayBuffer();
@@ -357,18 +353,34 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
     return { success: false, error: `Upload falhou: ${uploadError?.message}` };
   }
 
-  const { data: { publicUrl } } = admin.storage.from('inbox-media').getPublicUrl(uploadData.path);
+  // Generate a signed URL valid for 24 hours so channels can fetch the file immediately
+  // and the message payload is hydrated on-creation for instant feedback.
+  const { data: signedData, error: signedError } = await admin.storage
+    .from('inbox-media')
+    .createSignedUrl(uploadData.path, 86400);
+
+  if (signedError || !signedData?.signedUrl) {
+    return { success: false, error: `Falha ao gerar link assinado: ${signedError?.message}` };
+  }
+
+  const mediaUrl = signedData.signedUrl;
 
   const { error: dbError } = await supabase.from('messages').insert({
     lead_id: leadId,
     company_id,
     content: caption || file.name,
     role: 'agent',
-    metadata: { media_url: publicUrl, media_type: waType, filename: file.name, file_size: file.size },
+    metadata: {
+      media_path: uploadData.path,
+      media_url: mediaUrl,
+      media_type: waType,
+      filename: file.name,
+      file_size: file.size
+    },
   });
   if (dbError) return { success: false, error: `DB: ${dbError.message}` };
 
-  await sendChannelMedia(phone, publicUrl, waType, file.name, caption, company_id);
+  await sendChannelMedia(phone, mediaUrl, waType, file.name, caption, company_id);
 
   revalidatePath('/inbox');
   return { success: true };

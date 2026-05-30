@@ -10,24 +10,67 @@ import {
   CheckCircle2,
   ArrowLeft,
   ArrowRight,
+  Headphones,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+const TOPIC_OPTIONS = [
+  { value: "", label: "Selecione um assunto..." },
+  { value: "demo", label: "Solicitar demonstração gratuita" },
+  { value: "preco", label: "Dúvidas sobre preços e planos" },
+  { value: "suporte", label: "Suporte técnico" },
+  { value: "parceria", label: "Parceria ou revenda" },
+  { value: "outro", label: "Outro assunto" },
+];
+
+const CONTACT_ITEMS = [
+  {
+    icon: Mail,
+    title: "E-mail",
+    value: "la181009@gmail.com",
+    href: "mailto:la181009@gmail.com",
+    iconBg: "bg-[#EFF6FF] border-[#BFDBFE]",
+    iconColor: "text-[#2563EB]",
+  },
+  {
+    icon: MessageCircle,
+    title: "WhatsApp",
+    value: "+55 (11) 98994-0080",
+    href: "https://wa.me/5511989940080",
+    iconBg: "bg-[#F0FDFA] border-[#99F6E4]",
+    iconColor: "text-[#0D9488]",
+  },
+  {
+    icon: Clock,
+    title: "Horário de Atendimento",
+    value: "Seg–Sex · 09h às 18h",
+    href: null,
+    iconBg: "bg-[#FFF7ED] border-[#FED7AA]",
+    iconColor: "text-[#EA580C]",
+  },
+] as const;
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.07, delayChildren: 0.1 } },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
 
 export function ContatoForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSent, setIsSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -65,7 +108,9 @@ export function ContatoForm() {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -73,168 +118,187 @@ export function ContatoForm() {
 
   return (
     <div className="mx-auto max-w-[1200px]">
-      {/* Back Button */}
+      {/* Back button */}
       <motion.div
-        initial={{ opacity: 0, x: -10 }}
+        initial={{ opacity: 0, x: -8 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        className="mb-8"
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="mb-10"
       >
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-fg-3 hover:text-white transition-colors group"
+          className="inline-flex items-center gap-2 text-sm font-medium text-[#71717A] hover:text-[#09090B] transition-colors group"
         >
-          <div className="h-8 w-8 rounded-full border border-white/10 bg-white/[0.04] grid place-items-center group-hover:bg-white/10 group-hover:border-white/20 transition-all">
-            <ArrowLeft size={14} />
+          <div className="h-7 w-7 rounded-lg border border-[#E4E4E7] bg-white shadow-sm grid place-items-center group-hover:border-[#D4D4D8] group-hover:bg-[#F4F4F5] transition-all">
+            <ArrowLeft size={13} />
           </div>
           Voltar para o início
         </Link>
       </motion.div>
 
-      {/* Hero Section */}
-      <section className="text-center mb-16">
+      {/* Hero */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        className="text-center mb-14"
+      >
+        <Badge
+          variant="cold"
+          withDot={false}
+          className="mb-5 text-[10px] font-bold uppercase tracking-widest rounded-full px-3.5 py-1.5"
+        >
+          Fale Conosco
+        </Badge>
+
+        <h1 className="text-[clamp(36px,5vw,56px)] font-bold tracking-tight text-[#09090B] leading-[1.1] mb-4">
+          Como podemos{" "}
+          <span className="text-[#2563EB]">te ajudar?</span>
+        </h1>
+
+        <p className="text-base md:text-lg text-[#3F3F46] max-w-lg mx-auto leading-relaxed">
+          Nossa equipe responde em até 4 horas em dias úteis. Para suporte
+          técnico urgente, acesse o dashboard diretamente.
+        </p>
+      </motion.section>
+
+      {/* Two-column layout */}
+      <div className="grid lg:grid-cols-[1fr_1.6fr] gap-8 items-start">
+        {/* Left: contact info + support CTA */}
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="space-y-3"
+        >
+          {CONTACT_ITEMS.map((item) => (
+            <motion.div key={item.title} variants={fadeUp}>
+              <div className="flex items-center gap-4 rounded-2xl border border-[#E4E4E7] bg-white p-5 shadow-sm hover:border-[#D4D4D8] hover:shadow-md transition-all duration-200">
+                <div
+                  className={`h-11 w-11 rounded-xl border grid place-items-center shrink-0 ${item.iconBg}`}
+                >
+                  <item.icon size={19} className={item.iconColor} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#71717A] mb-0.5">
+                    {item.title}
+                  </p>
+                  {item.href ? (
+                    <a
+                      href={item.href}
+                      target={
+                        item.href.startsWith("http") ? "_blank" : undefined
+                      }
+                      rel={
+                        item.href.startsWith("http")
+                          ? "noopener noreferrer"
+                          : undefined
+                      }
+                      className="text-sm font-semibold text-[#09090B] hover:text-[#2563EB] transition-colors truncate block"
+                    >
+                      {item.value}
+                    </a>
+                  ) : (
+                    <p className="text-sm font-semibold text-[#09090B]">
+                      {item.value}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+
+          {/* Priority support */}
+          <motion.div variants={fadeUp}>
+            <div className="rounded-2xl border border-[#E4E4E7] bg-gradient-to-br from-[#EFF6FF] via-white to-[#F0FDFA] p-6 shadow-sm">
+              <div className="flex items-start gap-3 mb-5">
+                <div className="h-10 w-10 rounded-xl bg-white border border-[#BFDBFE] shadow-sm grid place-items-center shrink-0">
+                  <Headphones size={17} className="text-[#2563EB]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#09090B] mb-1">
+                    Suporte Prioritário
+                  </h3>
+                  <p className="text-xs text-[#71717A] leading-relaxed">
+                    Clientes Pro têm acesso a chat em tempo real dentro do
+                    dashboard — sem fila.
+                  </p>
+                </div>
+              </div>
+              <Link href="/login" className="block">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full justify-center text-xs"
+                >
+                  Ir para o Dashboard <ArrowRight size={13} />
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Right: form */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
         >
-          <Badge
-            variant="cold"
-            className="mb-4 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest rounded-full"
-          >
-            Fale Conosco
-          </Badge>
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white mb-6">
-            Estamos aqui para{" "}
-            <span className="text-gradient">te ajudar</span>
-          </h1>
-          <p className="text-lg text-fg-2 max-w-2xl mx-auto leading-relaxed">
-            Tem alguma dúvida sobre como a Agendra pode transformar seu
-            negócio? Nossa equipe está pronta para responder suas perguntas.
-          </p>
-        </motion.div>
-      </section>
-
-      <div className="grid lg:grid-cols-[1fr_1.5fr] gap-8 items-start">
-        {/* Contact Info Cards */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="space-y-4"
-        >
-          <Card className="border-white/[0.06] hover:border-white/10 transition-all">
-            <CardHeader className="flex-row items-center gap-4 p-6">
-              <div className="h-12 w-12 rounded-2xl bg-brand-blue-500/10 grid place-items-center shrink-0 border border-brand-blue-500/20">
-                <Mail className="text-brand-blue-400" size={24} />
-              </div>
-              <div>
-                <CardTitle className="text-base">E-mail</CardTitle>
-                <CardDescription className="font-medium text-white/80 hover:text-white transition-colors">
-                  <a href="mailto:la181009@gmail.com">la181009@gmail.com</a>
-                </CardDescription>
-              </div>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-white/[0.06] hover:border-white/10 transition-all">
-            <CardHeader className="flex-row items-center gap-4 p-6">
-              <div className="h-12 w-12 rounded-2xl bg-brand-teal-500/10 grid place-items-center shrink-0 border border-brand-teal-500/20">
-                <MessageCircle className="text-brand-teal-400" size={24} />
-              </div>
-              <div>
-                <CardTitle className="text-base">WhatsApp</CardTitle>
-                <CardDescription className="font-medium text-white/80 hover:text-white transition-colors">
-                  <a href="https://wa.me/5511989940080" target="_blank" rel="noopener noreferrer">
-                    +55 (11) 98994-0080
-                  </a>
-                </CardDescription>
-              </div>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-white/[0.06] hover:border-white/10 transition-all">
-            <CardHeader className="flex-row items-center gap-4 p-6">
-              <div className="h-12 w-12 rounded-2xl bg-orange-spark/10 grid place-items-center shrink-0 border border-orange-spark/20">
-                <Clock className="text-orange-spark" size={24} />
-              </div>
-              <div>
-                <CardTitle className="text-base">Horário</CardTitle>
-                <CardDescription className="font-medium text-white/80 text-xs">
-                  Segunda a Sexta · 09h às 18h
-                </CardDescription>
-              </div>
-            </CardHeader>
-          </Card>
-
-          <div className="mt-8 p-6 rounded-3xl border border-white/[0.06] bg-white/[0.02] relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-              <CheckCircle2 size={120} />
+          <div className="rounded-2xl border border-[#E4E4E7] bg-white shadow-[0_4px_32px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+            {/* Card header */}
+            <div className="px-8 pt-8 pb-6 border-b border-[#E4E4E7]">
+              <h2 className="text-base font-bold text-[#09090B]">
+                Enviar mensagem
+              </h2>
+              <p className="text-sm text-[#71717A] mt-0.5">
+                Preencha o formulário e entraremos em contato em breve.
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">
-              Suporte Prioritário
-            </h3>
-            <p className="text-sm text-fg-3 leading-relaxed mb-4">
-              Já é cliente Pro? Acesse seu dashboard para suporte prioritário
-              em tempo real via chat.
-            </p>
-            <Link href="/login" className="inline-block">
-              <Button
-                variant="ghost"
-                className="p-0 h-auto hover:bg-transparent text-brand-blue-400 group-hover:text-brand-blue-300 transition-colors"
-              >
-                Ir para Dashboard <ArrowRight size={16} className="ml-2" />
-              </Button>
-            </Link>
-          </div>
-        </motion.div>
 
-        {/* Contact Form */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
-          <Card className="border-white/[0.08] shadow-2xl shadow-black/40 overflow-visible">
-            <CardContent className="p-8 md:p-10">
+            <div className="p-8">
               {isSent ? (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-12"
+                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  className="text-center py-10"
                 >
-                  <div className="h-20 w-20 bg-brand-teal-500/20 rounded-full grid place-items-center mx-auto mb-6 border border-brand-teal-500/30">
-                    <CheckCircle2 size={40} className="text-brand-teal-400" />
+                  <div className="h-16 w-16 rounded-full bg-[#F0FDF4] border border-[#BBF7D0] grid place-items-center mx-auto mb-5">
+                    <CheckCircle2 size={30} className="text-[#16A34A]" />
                   </div>
-                  <h2 className="text-2xl font-bold text-white mb-3">
+                  <h3 className="text-xl font-bold text-[#09090B] mb-2">
                     Mensagem enviada!
-                  </h2>
-                  <p className="text-fg-2 mb-8 max-w-sm mx-auto">
-                    Obrigado por entrar em contato. Nossa equipe responderá
-                    sua mensagem em breve.
+                  </h3>
+                  <p className="text-sm text-[#71717A] mb-8 max-w-xs mx-auto leading-relaxed">
+                    Obrigado por entrar em contato. Nossa equipe responderá em
+                    até 4 horas em dias úteis.
                   </p>
-                  <Button variant="secondary" onClick={() => setIsSent(false)}>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setIsSent(false)}
+                  >
                     Enviar outra mensagem
                   </Button>
                 </motion.div>
               ) : (
-                <form onSubmit={handleSubmit} className="grid gap-6">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold uppercase tracking-widest text-fg-3 ml-1">
-                        Nome
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-[#3F3F46]">
+                        Nome completo
                       </label>
                       <Input
                         name="name"
                         value={formData.name}
                         onChange={handleChange}
-                        placeholder="Seu nome completo"
+                        placeholder="Lucas Gomes"
                         required
-                        className="bg-white/[0.03] border-white/[0.08] focus:bg-white/[0.05]"
+                        autoComplete="name"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold uppercase tracking-widest text-fg-3 ml-1">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-[#3F3F46]">
                         E-mail
                       </label>
                       <Input
@@ -244,66 +308,116 @@ export function ContatoForm() {
                         type="email"
                         placeholder="voce@empresa.com"
                         required
-                        className="bg-white/[0.03] border-white/[0.08] focus:bg-white/[0.05]"
+                        autoComplete="email"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-bold uppercase tracking-widest text-fg-3 ml-1">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-[#3F3F46]">
                       Assunto
                     </label>
-                    <Input
-                      name="subject"
-                      value={formData.subject}
-                      onChange={handleChange}
-                      placeholder="Como podemos ajudar?"
-                      required
-                      className="bg-white/[0.03] border-white/[0.08] focus:bg-white/[0.05]"
-                    />
+                    <div className="relative">
+                      <select
+                        name="subject"
+                        value={formData.subject}
+                        onChange={handleChange}
+                        required
+                        className="input w-full appearance-none cursor-pointer pr-9"
+                      >
+                        {TOPIC_OPTIONS.map((opt) => (
+                          <option
+                            key={opt.value}
+                            value={opt.value}
+                            disabled={opt.value === ""}
+                          >
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                        >
+                          <path
+                            d="M2 4l4 4 4-4"
+                            stroke="#A1A1AA"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-bold uppercase tracking-widest text-fg-3 ml-1">
-                      Mensagem
-                    </label>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-[#3F3F46]">
+                        Mensagem
+                      </label>
+                      <span className="text-[11px] text-[#A1A1AA] tabular-nums">
+                        {formData.message.length}/1000
+                      </span>
+                    </div>
                     <textarea
                       name="message"
                       value={formData.message}
                       onChange={handleChange}
                       rows={5}
                       required
-                      placeholder="Descreva seu projeto ou dúvida..."
-                      className="w-full rounded-2xl bg-white/[0.03] border border-white/[0.08] px-4 py-3 text-sm text-white outline-none focus:border-brand-blue-500/50 focus:bg-white/[0.05] focus:shadow-glow-blue/10 transition-all placeholder:text-fg-3/60"
+                      maxLength={1000}
+                      placeholder="Descreva seu projeto, dúvida ou solicitação..."
+                      className="input w-full resize-none"
+                      style={{ minHeight: "140px" }}
                     />
                   </div>
 
                   {error && (
-                    <p className="text-xs text-red-400 mt-1">{error}</p>
+                    <div className="rounded-lg border border-[#FECACA] bg-[#FFF1F2] px-4 py-3">
+                      <p className="text-xs font-medium text-[#DC2626]">
+                        {error}
+                      </p>
+                    </div>
                   )}
 
                   <Button
                     type="submit"
-                    variant="blue"
+                    variant="orange"
                     size="lg"
-                    className="w-full h-12 text-sm font-bold shadow-lg shadow-brand-blue-500/20"
+                    className="w-full justify-center"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
-                      <span className="flex items-center gap-2">
-                        <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <>
+                        <span className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                         Enviando...
-                      </span>
+                      </>
                     ) : (
-                      <span className="flex items-center gap-2">
-                        Enviar Mensagem <Send size={16} />
-                      </span>
+                      <>
+                        Enviar Mensagem
+                        <Send size={15} />
+                      </>
                     )}
                   </Button>
+
+                  <p className="text-center text-[11px] text-[#A1A1AA]">
+                    Ao enviar, você concorda com nossa{" "}
+                    <Link
+                      href="/privacidade"
+                      className="underline underline-offset-2 hover:text-[#71717A] transition-colors"
+                    >
+                      Política de Privacidade
+                    </Link>
+                    .
+                  </p>
                 </form>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </motion.div>
       </div>
     </div>

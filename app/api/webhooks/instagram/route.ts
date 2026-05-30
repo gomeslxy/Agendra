@@ -217,6 +217,13 @@ async function processPayload(rawBody: string): Promise<void> {
     const msgLogId = `${webId}:${msg.providerMessageId.slice(-8)}`;
     console.log(`[Instagram Webhook][${msgLogId}] 📨 [${msg.type}] from=${msg.senderIdentifier.substring(0, 6)}***`);
 
+    // Fine-grained Per-Lead Flood Protection (prevent financial DoS from single malicious lead)
+    const isLeadAllowed = await checkRateLimitAsync(`flood:${companyId}:${msg.senderIdentifier}`, 5, 10000);
+    if (!isLeadAllowed) {
+      console.error(`[Instagram Webhook][${msgLogId}] 🚫 Lead-level flood protection triggered for sender ${msg.senderIdentifier}. Message ignored.`);
+      continue;
+    }
+
     const { claimMessage, bufferAndDebounce, bufferInDB } = await import("@/lib/ai/debounce");
     const claimed = await claimMessage(msg.providerMessageId);
     if (!claimed) {

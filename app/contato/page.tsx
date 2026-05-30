@@ -35,9 +35,9 @@ const Footer = nextDynamic(
 // ── Page ────────────────────────────────────────────────────────
 export default function ContatoPage() {
   return (
-    <div className="bg-aurora min-h-screen selection:bg-brand-blue-500/30">
+    <div className="bg-[#FAFAFA] min-h-screen selection:bg-[#2563EB]/10">
       <Header isLoggedIn={false} />
-      <main className="pt-24 pb-20 px-6">
+      <main className="pt-28 pb-24 px-6">
         <ContatoForm />
       </main>
       <Footer />

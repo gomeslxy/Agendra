@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getUser, getCachedUserProfile, createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { InboxClient } from "./inbox-client";
 import type { Lead, Message, Event } from "@/lib/types/database";
 
@@ -36,7 +37,32 @@ export default async function InboxPage() {
       .limit(200),
   ]);
 
-  // Forward any fetch error to the client UI
+  // Dynamically sign media URLs on the server so that the private storage bucket
+  // files are securely accessible to authenticated agents.
+  const admin = createAdminClient();
+  const signingPromises: Promise<void>[] = [];
+
+  for (const l of data ?? []) {
+    for (const msg of l.messages ?? []) {
+      const meta = msg.metadata as any;
+      if (meta?.media_path) {
+        signingPromises.push(
+          (async () => {
+            const { data: signedData } = await admin.storage
+              .from("inbox-media")
+              .createSignedUrl(meta.media_path, 86400); // 24 hours
+            if (signedData?.signedUrl) {
+              meta.media_url = signedData.signedUrl;
+            }
+          })()
+        );
+      }
+    }
+  }
+
+  if (signingPromises.length > 0) {
+    await Promise.allSettled(signingPromises);
+  }
 
   // Index upcoming events by lead_id (first/nearest one per lead)
   const eventByLead = new Map<string, { id: string; title: string; start_time: string; end_time: string }>();
