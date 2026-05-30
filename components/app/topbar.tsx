@@ -81,8 +81,9 @@ export function Topbar({ cta }: TopbarProps) {
         className="flex items-center gap-3 border-b border-[#E4E4E7] bg-white px-4 py-2.5 md:gap-4 md:px-6 md:py-3"
       >
         {/* Mobile: logo */}
-        <Link href="/inbox" className="flex-shrink-0 md:hidden">
-          <Image src="/assets/agendra-logo.svg" alt="Agendra" width={88} height={22} priority />
+        <Link href="/inbox" className="flex items-center gap-2 flex-shrink-0 md:hidden select-none">
+          <Image src="/assets/agendra-glyph.svg" alt="Agendra" width={22} height={22} priority />
+          <span className="font-sans text-[15px] font-extrabold tracking-[-0.03em] text-[#09090B]">Agendra</span>
         </Link>
 
         {/* Desktop: search bar */}

@@ -57,7 +57,8 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
       className="hidden h-screen flex-col gap-4 border-r border-[#E4E4E7] bg-white p-4 md:flex z-20"
     >
       <Link href="/inbox" className="flex items-center gap-2 px-2 py-1.5 shrink-0 select-none">
-        <Image src="/assets/agendra-logo.svg" alt="Agendra" width={96} height={24} priority />
+        <Image src="/assets/agendra-glyph.svg" alt="Agendra" width={24} height={24} priority />
+        <span className="font-sans text-[16px] font-extrabold tracking-[-0.03em] text-[#09090B]">Agendra</span>
         <span className="relative flex h-1.5 w-1.5" title="AI ACTIVE">
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#14B8A6] animate-pulse" />
         </span>
