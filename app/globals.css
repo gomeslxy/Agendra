@@ -263,10 +263,21 @@
   animation: hero-left-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* App route transition — pure-CSS fade so framer-motion stays off the critical
+   path of every in-app navigation, with no JS state (no hydration mismatch). */
+@keyframes app-route-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-route-fade {
+  animation: app-route-fade 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .float, .pulse-cta { animation: none; }
   .animate-hero-left { animation: none; }
+  .animate-route-fade { animation: none; }
   .glass::after { animation: none; opacity: 0.3; }
 }
 
