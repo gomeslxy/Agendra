@@ -42,11 +42,24 @@ export async function bufferAndDebounce(args: {
   const tokenKey = `ch:bufgen:${args.companyId}:${args.leadPhone}`;
   const gen = crypto.randomBytes(8).toString('hex');
 
-  await redis.rpush(bufKey, JSON.stringify({
+  // Guard the buffer write: if rpush fails (Redis blip / timeout) it returns null.
+  // Without this guard the code would still schedule a flush whose buffer is empty
+  // → the message is silently lost ("empty buffer at flush"). On a failed push we
+  // divert straight to the durable DB buffer (drained within ~1min by pg_cron).
+  const pushed = await redis.rpush(bufKey, JSON.stringify({
     body: args.body, ts: Date.now(),
     provider_message_id: args.providerMessageId,
     type: args.msgType, metadata: args.metadata ?? {},
   } satisfies Buffered));
+  if (pushed === null) {
+    logError('[debounce] Redis rpush failed — diverting to DB buffer fallback');
+    await bufferInDB({
+      companyId: args.companyId, leadPhone: args.leadPhone, leadName: args.leadName,
+      body: args.body, providerMessageId: args.providerMessageId,
+      msgType: args.msgType, metadata: args.metadata,
+    });
+    return;
+  }
   await redis.expire(bufKey, BUF_TTL_SEC);
 
   let okSet: boolean | null = null;
