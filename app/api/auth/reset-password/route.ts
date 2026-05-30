@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimitAsync } from "@/lib/rate-limit";
+import { isPasswordCompromised, COMPROMISED_PASSWORD_MESSAGE } from "@/lib/auth/password-security";
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -29,6 +30,11 @@ export async function POST(req: NextRequest) {
 
   if (password.length < 8) {
     return NextResponse.json({ error: "A senha deve ter ao menos 8 caracteres" }, { status: 400 });
+  }
+
+  // Leaked-password protection (HIBP). Reject known-compromised passwords on reset.
+  if (await isPasswordCompromised(password)) {
+    return NextResponse.json({ error: COMPROMISED_PASSWORD_MESSAGE }, { status: 400 });
   }
 
   const admin = createAdminClient();

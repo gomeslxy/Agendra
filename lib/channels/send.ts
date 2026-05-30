@@ -9,10 +9,35 @@ import { logInfo, logError } from '@/lib/logging';
  * 2. Fallbacks to the first active channel for the company.
  * 3. Fallbacks to environment variables in development.
  */
+// Builds a ChannelConfig from a channels row, resolving the token from the Vault
+// (channel_get_access_token) with a plaintext fallback. Returns null if no usable token
+// so the caller can keep looking instead of crashing on `.trim()` of a null token.
+async function buildConfigFromChannel(
+  admin: ReturnType<typeof createAdminClient>,
+  channel: any,
+): Promise<ChannelConfig | null> {
+  const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: channel.id });
+  const rawToken = (tokenData as string | null) ?? channel.access_token;
+  if (!rawToken) {
+    logError(`[Channel Send] Channel ${channel.id} (${channel.provider}) has no usable access token`);
+    return null;
+  }
+  return {
+    id: channel.id,
+    companyId: channel.company_id,
+    provider: channel.provider,
+    providerId: channel.provider_id,
+    accessToken: rawToken.trim(),
+    meta: channel.meta || {},
+    status: channel.status,
+  };
+}
+
 async function resolveChannelConfig(companyId: string, to: string): Promise<ChannelConfig> {
   const admin = createAdminClient();
 
-  // 1. Try to find the lead to check if they have a preferred channel_id
+  // 1. Try to find the lead to learn its preferred channel (by channel_id, else by provider).
+  let preferredProvider: string | null = null;
   if (to) {
     try {
       const { data: lead } = await admin
@@ -21,6 +46,8 @@ async function resolveChannelConfig(companyId: string, to: string): Promise<Chan
         .eq('company_id', companyId)
         .eq('phone', to)
         .maybeSingle();
+
+      preferredProvider = lead?.channel ?? null;
 
       if (lead?.channel_id) {
         const { data: channel } = await admin
@@ -31,17 +58,8 @@ async function resolveChannelConfig(companyId: string, to: string): Promise<Chan
           .maybeSingle();
 
         if (channel) {
-          const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: channel.id });
-          const accessToken = (tokenData as string) || channel.access_token;
-          return {
-            id: channel.id,
-            companyId: channel.company_id,
-            provider: channel.provider,
-            providerId: channel.provider_id,
-            accessToken: accessToken.trim(),
-            meta: channel.meta || {},
-            status: channel.status,
-          };
+          const config = await buildConfigFromChannel(admin, channel);
+          if (config) return config;
         }
       }
     } catch (err: any) {
@@ -49,7 +67,9 @@ async function resolveChannelConfig(companyId: string, to: string): Promise<Chan
     }
   }
 
-  // 2. Fallback: query active channels for the company
+  // 2. Fallback: pick an active channel for the company. Prefer the lead's own provider
+  //    (so an Instagram lead is never answered on the WhatsApp channel), then whatsapp,
+  //    then instagram, then any. channel_id is the ideal link but may be null for legacy leads.
   try {
     const { data: channels } = await admin
       .from('channels')
@@ -57,23 +77,15 @@ async function resolveChannelConfig(companyId: string, to: string): Promise<Chan
       .eq('company_id', companyId)
       .eq('status', 'active');
 
-    // Prefer whatsapp, then instagram, then any
-    const channel = channels?.find(c => c.provider === 'whatsapp') || 
-                    channels?.find(c => c.provider === 'instagram') || 
-                    channels?.[0];
+    const channel =
+      (preferredProvider && channels?.find(c => c.provider === preferredProvider)) ||
+      channels?.find(c => c.provider === 'whatsapp') ||
+      channels?.find(c => c.provider === 'instagram') ||
+      channels?.[0];
 
     if (channel) {
-      const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: channel.id });
-      const accessToken = (tokenData as string) || channel.access_token;
-      return {
-        id: channel.id,
-        companyId: channel.company_id,
-        provider: channel.provider,
-        providerId: channel.provider_id,
-        accessToken: accessToken.trim(),
-        meta: channel.meta || {},
-        status: channel.status,
-      };
+      const config = await buildConfigFromChannel(admin, channel);
+      if (config) return config;
     }
   } catch (err: any) {
     logError('[Channel Send] Error querying active company channels:', err.message);
