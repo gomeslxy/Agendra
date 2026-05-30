@@ -455,6 +455,78 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       )
       .on(
         "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: companyFilter },
+        (payload) => {
+          const updatedMsg = payload.new as Message;
+          if (updatedMsg.role !== "user") {
+            setIsTyping(false);
+            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+          }
+
+          setLeads((prev) => {
+            return prev.map((lead) => {
+              if (lead.id !== updatedMsg.lead_id) return lead;
+              return {
+                ...lead,
+                messages: lead.messages.map((m) =>
+                  m.id === updatedMsg.id ? updatedMsg : m
+                ),
+              };
+            });
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "events", filter: companyFilter },
+        (payload) => {
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            const newEvent = payload.new as any;
+            if (!newEvent.lead_id) return;
+            const isFuture = new Date(newEvent.start_time).getTime() >= Date.now();
+            setLeads((prev) => {
+              return prev.map((lead) => {
+                if (lead.id !== newEvent.lead_id) return lead;
+                if (isFuture) {
+                  if (
+                    !lead.next_event ||
+                    lead.next_event.id === newEvent.id ||
+                    new Date(newEvent.start_time).getTime() < new Date(lead.next_event.start_time).getTime()
+                  ) {
+                    return {
+                      ...lead,
+                      next_event: {
+                        id: newEvent.id,
+                        title: newEvent.title,
+                        start_time: newEvent.start_time,
+                        end_time: newEvent.end_time,
+                      },
+                    };
+                  }
+                } else {
+                  if (lead.next_event?.id === newEvent.id) {
+                    return { ...lead, next_event: null };
+                  }
+                }
+                return lead;
+              });
+            });
+          } else if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as { id?: string })?.id;
+            if (!oldId) return;
+            setLeads((prev) => {
+              return prev.map((lead) => {
+                if (lead.next_event?.id === oldId) {
+                  return { ...lead, next_event: null };
+                }
+                return lead;
+              });
+            });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
         { event: "DELETE", schema: "public", table: "messages", filter: companyFilter },
         (payload) => {
           const deletedId = (payload.old as { id?: string })?.id;
@@ -634,9 +706,17 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         trackEvent("lead_takeover", { lead_id: selected.id });
       } catch (e) {
         setLeads((prev) =>
-          prev.map((l) => (l.id === selected.id ? { ...l, is_paused: false, messages: l.messages.filter(m => m.id !== tempId) } : l)),
+          prev.map((l) => (l.id === selected.id ? { ...l, is_paused: false } : l)),
         );
         setInboxError((e as Error).message);
+      } finally {
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === selected.id
+              ? { ...l, messages: l.messages.filter((m) => m.id !== tempId) }
+              : l
+          )
+        );
       }
     });
   }, [selected]);
@@ -702,31 +782,132 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   }, [selected]);
 
   const handleApproveDraft = useCallback((messageId: string) => {
+    if (!selectedId) return;
     setInboxError(null);
+
+    // Optimistic update: remove is_draft from message metadata
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id !== selectedId) return l;
+        return {
+          ...l,
+          messages: l.messages.map((m) => {
+            if (m.id !== messageId) return m;
+            const newMeta = m.metadata ? { ...m.metadata as any } : {};
+            delete newMeta.is_draft;
+            return { ...m, metadata: newMeta };
+          }),
+        };
+      })
+    );
+
     startDraft(async () => {
       try {
-        await approveDraftMessage(messageId);
+        const result = await approveDraftMessage(messageId);
+        if (!result?.success) {
+          // Revert optimistic
+          setLeads((prev) =>
+            prev.map((l) => {
+              if (l.id !== selectedId) return l;
+              return {
+                ...l,
+                messages: l.messages.map((m) => {
+                  if (m.id !== messageId) return m;
+                  return { ...m, metadata: { ...(m.metadata as any), is_draft: true } };
+                }),
+              };
+            })
+          );
+        }
       } catch (e) {
         setInboxError((e as Error).message);
+        // Revert optimistic
+        setLeads((prev) =>
+          prev.map((l) => {
+            if (l.id !== selectedId) return l;
+            return {
+              ...l,
+              messages: l.messages.map((m) => {
+                if (m.id !== messageId) return m;
+                return { ...m, metadata: { ...(m.metadata as any), is_draft: true } };
+              }),
+            };
+          })
+        );
       }
     });
-  }, []);
+  }, [selectedId]);
 
   const handleEditAndSendDraft = useCallback((messageId: string, text: string) => {
-    if (!text.trim()) return;
+    if (!selectedId || !text.trim()) return;
     setInboxError(null);
     setEditingDraftId(null);
+
+    // Save original content for potential rollback
+    let originalContent = "";
+    let originalMetadata: any = null;
+
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id !== selectedId) return l;
+        return {
+          ...l,
+          messages: l.messages.map((m) => {
+            if (m.id !== messageId) return m;
+            originalContent = m.content;
+            originalMetadata = m.metadata;
+            const newMeta = m.metadata ? { ...m.metadata as any } : {};
+            delete newMeta.is_draft;
+            return { ...m, content: text.trim(), metadata: newMeta };
+          }),
+        };
+      })
+    );
+
     startDraft(async () => {
       try {
-        await editAndSendDraft(messageId, text);
+        const result = await editAndSendDraft(messageId, text);
+        if (!result?.success) {
+          // Rollback
+          setLeads((prev) =>
+            prev.map((l) => {
+              if (l.id !== selectedId) return l;
+              return {
+                ...l,
+                messages: l.messages.map((m) => {
+                  if (m.id !== messageId) return m;
+                  return { ...m, content: originalContent, metadata: originalMetadata };
+                }),
+              };
+            })
+          );
+        }
       } catch (e) {
         setInboxError((e as Error).message);
+        // Rollback
+        setLeads((prev) =>
+          prev.map((l) => {
+            if (l.id !== selectedId) return l;
+            return {
+              ...l,
+              messages: l.messages.map((m) => {
+                if (m.id !== messageId) return m;
+                return { ...m, content: originalContent, metadata: originalMetadata };
+              }),
+            };
+          })
+        );
       }
     });
-  }, []);
+  }, [selectedId]);
 
   const handleDeleteDraft = useCallback((messageId: string) => {
+    if (!selectedId) return;
     setInboxError(null);
+
+    // Save original messages for rollback
+    const originalMessages = leads.find((l) => l.id === selectedId)?.messages ?? [];
+
     setLeads((prev) =>
       prev.map((l) =>
         l.id === selectedId
@@ -734,14 +915,29 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           : l
       )
     );
+
     startDraft(async () => {
       try {
-        await deleteDraftMessage(messageId);
+        const result = await deleteDraftMessage(messageId);
+        if (!result?.success) {
+          // Rollback
+          setLeads((prev) =>
+            prev.map((l) =>
+              l.id === selectedId ? { ...l, messages: originalMessages } : l
+            )
+          );
+        }
       } catch (e) {
         setInboxError((e as Error).message);
+        // Rollback
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === selectedId ? { ...l, messages: originalMessages } : l
+          )
+        );
       }
     });
-  }, [selectedId]);
+  }, [selectedId, leads]);
 
   const sortedMessages = selected ? selected.messages : [];
   const isPaused = selected?.is_paused ?? false;
