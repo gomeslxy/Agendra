@@ -1,26 +1,31 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 
 /**
  * Per-route template — re-mounts on every navigation inside (app).
- * Replaces the prior AnimatePresence wrapper in AppShell, which used
- * `mode="wait"` and could block new content from appearing while the
- * old route's exit animation was running.
+ * Pure-CSS opacity fade (replaces the former framer-motion wrapper) so
+ * framer is no longer on the critical path of EVERY app navigation —
+ * cuts main-thread work and improves INP across the whole dashboard.
  *
- * No `exit` variant here on purpose: with templates, Next unmounts
- * the previous tree as soon as navigation commits, so we only animate
- * the entrance of the new route.
+ * No exit variant: with templates, Next unmounts the previous tree as soon
+ * as navigation commits, so we only animate the entrance of the new route.
  */
 export default function AppTemplate({ children }: { children: React.ReactNode }) {
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
-      className="absolute inset-0 overflow-hidden"
+    <div
+      className={`absolute inset-0 overflow-hidden transition-opacity duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        shown ? "opacity-100" : "opacity-0"
+      }`}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
