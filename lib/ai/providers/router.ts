@@ -110,7 +110,7 @@ export async function routeGenerate(
 ): Promise<ProviderGenerateResult> {
   const chain = opts.chain === 'bg' ? BG_CHAIN : CONV_CHAIN;
   const { result, provider, fallbackUsed } = await runChain(
-    chain, (p) => p.generateText(params), GEN_TIMEOUT_MS, opts.traceId
+    chain, (p, signal) => p.generateText({ ...params, signal }), GEN_TIMEOUT_MS, opts.traceId
   );
   return { text: result, provider, fallbackUsed };
 }

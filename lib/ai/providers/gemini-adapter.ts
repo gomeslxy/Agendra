@@ -169,7 +169,8 @@ export class GeminiAdapter implements AIProviderAdapter {
         ? { generationConfig: { responseMimeType: 'application/json' } }
         : {}),
     });
-    const result = await model.generateContent(params.prompt);
+    const reqOpts = params.signal ? { signal: params.signal } : undefined;
+    const result = await model.generateContent(params.prompt, reqOpts);
     return result.response.text();
   }
 }

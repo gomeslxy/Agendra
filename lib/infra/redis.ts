@@ -80,4 +80,40 @@ export const redis = {
   async incr(key: string): Promise<number | null> {
     return call<number>(`incr/${encodeURIComponent(key)}`);
   },
+
+  /**
+   * Atomic claim-and-drain for the debounce flush.
+   *
+   * Executes atomically via Lua eval:
+   *   1. Read tokenKey — if value ≠ expectedGen, return null (superseded or Redis offline).
+   *   2. Read all items from bufKey.
+   *   3. DEL both keys.
+   *   4. Return the buffer items.
+   *
+   * Returns:
+   *   string[]  — this caller won the race; items are the buffer contents (may be empty).
+   *   null      — genuinely superseded by a newer flusher (token mismatch).
+   *
+   * Throws on Redis unavailable OR transient HTTP error, so the caller can let the
+   * delivery be retried (QStash) instead of fabricating a placeholder or silently
+   * dropping the lead's message. Distinguishing "superseded" (null) from "couldn't
+   * reach Redis" (throw) is what prevents the silent message-loss path.
+   */
+  async claimAndFlush(tokenKey: string, bufKey: string, expectedGen: string): Promise<string[] | null> {
+    if (!isAvailable()) throw new Error('redis_unavailable');
+    const script = `
+local token = redis.call('GET', KEYS[1])
+if token ~= ARGV[1] then return nil end
+local buf = redis.call('LRANGE', KEYS[2], 0, -1)
+redis.call('DEL', KEYS[1])
+redis.call('DEL', KEYS[2])
+return buf
+`.trim();
+    // callRaw throws on connection/HTTP failure — let it propagate (transient).
+    const res = await callRaw<string[] | null>(
+      `eval/${encodeURIComponent(script)}/2/${encodeURIComponent(tokenKey)}/${encodeURIComponent(bufKey)}/${encodeURIComponent(expectedGen)}`,
+    );
+    if (res.result === null) return null; // Lua `return nil` = token mismatch = superseded
+    return Array.isArray(res.result) ? res.result : null;
+  },
 };

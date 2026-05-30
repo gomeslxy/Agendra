@@ -22,6 +22,7 @@ import { getCompanyUsage, type CompanyUsage } from '@/lib/billing/limits';
 import type { PlanLimits, PlanType } from '@/lib/billing/plans';
 import { getPlanLimits } from '@/lib/billing/plans';
 import { persistAILog, createTimer } from '@/lib/ai/observability';
+import { runWithDeadline, getDeadline, TURN_BUDGET_MS } from '@/lib/ai/deadline';
 import { EMPTY_MEMORY, mountContext, processBackgroundAnalytics, appendScoreHistory } from './memory';
 import { validateAndNormalizeScore } from './scoring';
 import { routeChat, routeGenerate } from './providers/router';
@@ -77,6 +78,22 @@ Se o cliente perguntar sobre um recurso bloqueado, informe de forma direta, educ
 Se houver upgrade disponível, sugira de forma natural e sem insistência. Nunca invente permissões.`;
 }
 
+// Intl.DateTimeFormat construction is non-trivial; cache one formatter per timezone
+// instead of rebuilding it on every system-prompt assembly (one per AI turn).
+const _dtfCache = new Map<string, Intl.DateTimeFormat>();
+function nowFormatterFor(timezone: string): Intl.DateTimeFormat {
+  let fmt = _dtfCache.get(timezone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: timezone,
+      weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+    _dtfCache.set(timezone, fmt);
+  }
+  return fmt;
+}
+
 function formatTimeElapsed(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
@@ -113,11 +130,7 @@ function buildSystemPrompt(
   const tone = toneMap[selectedToneKey] ?? (persona.tone || 'amigavel, profissional e objetivo');
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
-  const nowInTz = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: timezone,
-    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(new Date());
+  const nowInTz = nowFormatterFor(timezone).format(new Date());
 
   let servicesDisplay = persona.services?.length ? persona.services.join(', ') : 'nossos servicos';
   if (persona.realServices?.length) {
@@ -497,13 +510,24 @@ async function getSemanticKnowledge(
     if (!process.env.GOOGLE_AI_API_KEY) return { text: '', status: 'empty' };
     const embedModel = getEmbeddingClient().getGenerativeModel({ model: 'text-embedding-005' });
 
-    // 4-second timeout using Promise.race (W2.2)
-    const embeddingPromise = embedModel.embedContent(query);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), 4000)
-    );
-
-    const result = await Promise.race([embeddingPromise, timeoutPromise]);
+    // 4s budget with real cancellation: abort the embedding request on timeout and
+    // always clear the timer (no dangling timer keeping the event loop warm, no
+    // leaked in-flight request when we give up). Replaces the old Promise.race that
+    // left both the timer and the socket pending.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    let result: Awaited<ReturnType<typeof embedModel.embedContent>>;
+    try {
+      result = await embedModel.embedContent(query, { signal: controller.signal } as any);
+    } catch (err: any) {
+      if (controller.signal.aborted) {
+        console.error('[RAG] Semantic search timed out after 4000ms');
+        return { text: '', status: 'timeout' };
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
     const values = result.embedding?.values;
     if (!values || values.length === 0) return { text: '', status: 'empty' };
 
@@ -548,6 +572,17 @@ export async function handleIncomingMessage(
   preloadedUsage?: CompanyUsage,
   incomingMetadata?: Record<string, any>
 ): Promise<void> {
+  // Auto-initialize the deadline supervisor when called without an active context
+  // (cron routes, direct calls). The flush endpoint establishes it explicitly via
+  // runWithDeadline before calling flushBuffer → handleIncomingMessage, so those
+  // paths are already covered. This makes the supervisor opt-out instead of opt-in.
+  if (!getDeadline()) {
+    return runWithDeadline(() => handleIncomingMessage(
+      companyId, phone, senderName, messageText,
+      providerMessageId, preloadedUsage, incomingMetadata
+    ));
+  }
+
   const admin = createAdminClient();
   const timer = createTimer();
   const traceId = crypto.randomUUID(); // W2.6 Trace ID generation
@@ -665,8 +700,16 @@ export async function handleIncomingMessage(
       // Inline stale-lock reclaim: if the holder crashed/was killed mid-turn, its
       // processing_started_at is old. Reclaim atomically so this lead isn't stuck
       // until the pg_cron reaper runs. Complements `agendra_unlock_stale_leads`
-      // (migration 024) which covers leads that go silent after a crash.
-      const STALE_LOCK_MS = 120_000;
+      // (migration 024/055) which covers leads that go silent after a crash.
+      //
+      // CRITICAL: this threshold MUST exceed the max wall-clock a healthy turn can
+      // hold the lock (TURN_BUDGET_MS), otherwise a slow-but-alive worker gets its
+      // lock reclaimed mid-turn and TWO workers process the same lead turn in
+      // parallel (duplicate reply + concurrent state writes). The deadline
+      // supervisor bails + releases the lock at ~TURN_BUDGET_MS, so anything older
+      // than TURN_BUDGET_MS + margin is genuinely dead. Keep the pg_cron reaper
+      // (migration 055) aligned to the same window.
+      const STALE_LOCK_MS = TURN_BUDGET_MS + 30_000;
       const staleBefore = new Date(Date.now() - STALE_LOCK_MS).toISOString();
       const { data: reclaimed } = await admin
         .from('leads')
@@ -1047,7 +1090,6 @@ export async function handleIncomingMessage(
         .eq('lead_id', activeLead.id).eq('company_id', companyId).eq('role', 'assistant');
 
       const safeCount = countErr || assistantCount == null ? 0 : assistantCount;
-      const cadence = usage.limits.hasAdvancedModel === false ? 10 : 5; // (defensive — hasAnalytics implies advanced, but stays robust)
       const businessTier = usage.planType === 'business';
       const cadenceN = businessTier ? 5 : 10;
 
@@ -1068,8 +1110,6 @@ export async function handleIncomingMessage(
       const isComplexTurn = isLongMessage || containsCriticalKeywords;
 
       const eventTrigger = isFirstAssistantMsg || statusChanged || calledMeaningfulTool || isComplexTurn;
-
-      void cadence; // silence unused — kept for backwards-compat comment
 
       if (cadenceTrigger || eventTrigger) {
         const reason = eventTrigger

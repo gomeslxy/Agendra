@@ -4,6 +4,7 @@ import { handleIncomingMessage } from './engine';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logError } from "@/lib/logging";
 import { qstashEnabled, scheduleDelayed } from '@/lib/infra/qstash';
+import type { CompanyUsage } from '@/lib/billing/limits';
 import { runWithDeadline } from './deadline';
 
 const DEBOUNCE_MS = 4_000;
@@ -24,7 +25,7 @@ export interface FlushJob {
   leadPhone: string;
   leadName: string;
   gen: string;
-  usage?: any;
+  usage?: CompanyUsage;
 }
 
 export async function bufferAndDebounce(args: {
@@ -34,7 +35,7 @@ export async function bufferAndDebounce(args: {
   body: string;
   providerMessageId: string;
   msgType: string;
-  usage?: any;
+  usage?: CompanyUsage;
   metadata?: Record<string, any>;
 }): Promise<void> {
   const bufKey = `ch:buf:${args.companyId}:${args.leadPhone}`;
@@ -125,16 +126,29 @@ export async function flushBuffer(job: FlushJob): Promise<void> {
   const tokenKey = `ch:bufgen:${job.companyId}:${job.leadPhone}`;
   const dbgTag = `${job.companyId.slice(0, 6)}:${job.leadPhone.slice(-4)}`;
 
-  // FIX B2: only the newest scheduled flusher (matching gen) consolidates.
-  const winner = await redis.get(tokenKey);
-  if (winner !== job.gen) {
+  // Atomic claim-and-drain: single Lua script atomically checks the gen token,
+  // drains the buffer, and deletes both keys. Eliminates the TOCTOU race where
+  // two concurrent QStash deliveries (retry storm) both pass a non-atomic GET
+  // guard and double-fire the engine for the same lead turn.
+  //
+  // claimAndFlush returns null ONLY on a genuine token mismatch (superseded) and
+  // THROWS when Redis is unreachable. On a throw we must NOT fabricate a recovered
+  // placeholder (that used to send "(recovered from flush)" to the lead) nor drop
+  // the message: we rethrow so the flush route returns 500 and QStash retries —
+  // the burst stays in Redis for the retry to drain, and the gen-token guard +
+  // processed_messages dedup keep the retry idempotent.
+  let raw: string[] | null;
+  try {
+    raw = await redis.claimAndFlush(tokenKey, bufKey, job.gen);
+  } catch (e) {
+    logError(`[Debounce][${dbgTag}] Redis unreachable during flush — rethrowing for QStash retry:`, e);
+    throw e;
+  }
+
+  if (raw === null) {
     console.log(`[Debounce][${dbgTag}] 🪂 superseded by newer flusher, exiting (gen=${job.gen.slice(0, 6)})`);
     return;
   }
-
-  const raw = await redis.lrange(bufKey, 0, -1);
-  await redis.del(bufKey);
-  await redis.del(tokenKey);
   if (raw.length === 0) {
     console.warn(`[Debounce][${dbgTag}] ⚠️  empty buffer at flush — race lost`);
     return;

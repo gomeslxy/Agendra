@@ -7,6 +7,7 @@ import { activateTakeover, deactivateTakeover } from "@/lib/ai/takeover";
 import { sendChannelMessage, sendChannelMedia } from "@/lib/channels/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { persistAITrace } from "@/lib/ai/observability";
+import crypto from "crypto";
 
 async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string, companyId: string) {
   const { data, error } = await supabase
@@ -340,7 +341,12 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
   await admin.storage.createBucket('inbox-media', { public: true }).catch(() => {});
 
   const ext = file.name.split('.').pop() ?? 'bin';
-  const path = `${company_id}/${leadId}/${Date.now()}.${ext}`;
+  // Unguessable object key: the bucket is public, so a predictable path
+  // (company_id/leadId/timestamp) is enumerable across tenants. A random segment
+  // makes the URL effectively a capability token. (Follow-up: move to a private
+  // bucket + signed read URLs — tracked in backlog.)
+  const rand = crypto.randomBytes(12).toString('hex');
+  const path = `${company_id}/${leadId}/${Date.now()}-${rand}.${ext}`;
   const bytes = await file.arrayBuffer();
 
   const { data: uploadData, error: uploadError } = await admin.storage

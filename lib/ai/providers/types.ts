@@ -61,6 +61,8 @@ export interface GenerateParams {
   prompt: string;
   jsonMode?: boolean;
   preferredModel?: string;
+  /** AbortSignal injected by the router per-attempt (deadline/timeout). */
+  signal?: AbortSignal;
 }
 
 export interface AIProviderAdapter {

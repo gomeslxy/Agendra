@@ -72,6 +72,16 @@ async function getState(provider: string): Promise<CircuitState> {
   } catch {
     parsed = DEFAULT_STATE;
   }
+  // Shape guard: a corrupted/foreign value in the Redis key must not poison the
+  // breaker (e.g. NaN openUntil would make `Date.now() >= openUntil` undefined).
+  if (
+    !parsed ||
+    (parsed.status !== 'open' && parsed.status !== 'closed') ||
+    typeof parsed.failureCount !== 'number' ||
+    typeof parsed.openUntil !== 'number'
+  ) {
+    parsed = DEFAULT_STATE;
+  }
   setLocal(provider, parsed);
   return parsed;
 }
@@ -122,7 +132,11 @@ export function recordSuccess(provider: string): void {
 }
 
 export function recordFailure(provider: string): void {
-  // Read from local cache only (no await) to keep the failure path fast.
+  // Read from local cache only (no await) — intentional trade-off.
+  // If the cache is expired (>4s since last read), localState returns the default
+  // (closed, failureCount=0), meaning a failed half-open probe may take 2 failures
+  // instead of 1 to re-open the circuit. Acceptable: the alternative is making
+  // this async and adding a Redis round-trip on every failure, degrading the hot path.
   const prev = localState(provider);
   const wasHalfOpen = deriveStatus(prev) === 'half-open';
   // A failed half-open probe must immediately re-open the circuit.

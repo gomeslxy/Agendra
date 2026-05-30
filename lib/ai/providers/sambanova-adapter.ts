@@ -106,7 +106,7 @@ export class SambaNovaAdapter implements AIProviderAdapter {
       model: this.defaultGenerateModel,
       messages: [{ role: 'user', content: params.prompt }],
       ...(params.jsonMode ? { response_format: { type: 'json_object' } } : {}),
-    });
+    }, params.signal);
     return resp.choices?.[0]?.message?.content ?? '';
   }
 }

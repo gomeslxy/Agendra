@@ -124,11 +124,12 @@ export class CerebrasAdapter implements AIProviderAdapter {
 
   async generateText(params: GenerateParams): Promise<string> {
     const modelName = this.defaultGenerateModel;
+    const reqOpts = params.signal ? { signal: params.signal } : undefined;
     const response = await this.client.chat.completions.create({
       model: modelName,
       messages: [{ role: 'user', content: params.prompt }],
       ...(params.jsonMode ? { response_format: { type: 'json_object' } } : {}),
-    });
+    }, reqOpts);
     return response.choices[0].message.content || '';
   }
 }

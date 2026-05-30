@@ -30,7 +30,12 @@ export function Topbar({ cta }: TopbarProps) {
   const { profile, signOut, loading } = useAuth();
   const [query, setQuery] = useState("");
   const [showProfile, setShowProfile] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const onLeadsPage = pathname.startsWith("/leads");
 
@@ -39,8 +44,13 @@ export function Topbar({ cta }: TopbarProps) {
   const planType = profile?.companies?.plan_type ?? "trial";
   const displayPlan = PLAN_LABEL[planType] ?? "Teste Grátis";
   const initials = getInitials(displayName);
-  const { remaining, elapsed } = calculateTrialStatus(profile?.companies?.created_at);
-  const trialProgress = calculateTrialProgress(elapsed);
+  // Gate time-dependent trial math behind `mounted`: calculateTrialStatus reads the
+  // current date, so computing it during SSR/first render would diverge from the
+  // client and risk a hydration mismatch. Pre-mount we render neutral zeros.
+  const { remaining, elapsed } = mounted
+    ? calculateTrialStatus(profile?.companies?.created_at)
+    : { remaining: 0, elapsed: 0 };
+  const trialProgress = mounted ? calculateTrialProgress(elapsed) : 0;
   const isTrial = planType === "trial" || planType === "free";
 
   // Reset search when leaving /leads
