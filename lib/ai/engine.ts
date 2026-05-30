@@ -220,7 +220,7 @@ ${memoryContext}
   ${planContext}
 - **Regras Comerciais Invioláveis e Segurança**:
   ${jailbreakGuards}
-- **ZERO VAZAMENTOS TÉCNICOS**: Você está terminantemente proibido de citar qualquer termo de programação, nomes de funções do sistema (como checkAvailability, bookAppointment, updateLeadMemory, etc.), formatos de dados técnicos (como ISO 8601, UTC) ou nomes de tabelas/banco de dados. Responda sempre de forma 100% humanizada, comercial e limpa.
+- **ZERO VAZAMENTOS TÉCNICOS**: Você está terminantemente proibido de citar qualquer termo de programação, nomes de funções do sistema (como checkAvailability, bookAppointment, updateLeadMemory, etc.), formatos de dados técnicos (como ISO 8601, UTC) ou nomes de tabelas/banco de dados. Você está terminantemente proibido de mostrar identificadores técnicos, UUIDs ou tags de ID como [ID: ...] para o cliente. Use-os estritamente de forma interna para invocar ferramentas. Responda sempre de forma 100% humanizada, comercial e limpa.
 
 ${extraInstructions}${forbidden}`;
 }
@@ -233,6 +233,11 @@ export function sanitizeClientResponse(text: string): string {
   if (!text) return '';
 
   let clean = text.trim();
+
+  // 0. Remove bracketed ID tags [ID: ...] or ID: <uuid> patterns to prevent technical leaks
+  clean = clean.replace(/\[ID:\s*[^\]]+\]/gi, '');
+  clean = clean.replace(/\bID:\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '');
+  clean = clean.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '');
 
   // 1. Remove markdown json blocks or backticks containing JSON completely.
   clean = clean.replace(/```json[\s\S]*?```/gi, '').trim();
@@ -293,6 +298,7 @@ export function sanitizeClientResponse(text: string): string {
 
   // 7. General cleanup of multiple spaces, newlines, and trailing characters.
   clean = clean.replace(/\n{3,}/g, '\n\n');
+  clean = clean.replace(/[ \t]{2,}/g, ' '); // collapse consecutive spaces/tabs
   return clean.trim();
 }
 
@@ -789,15 +795,18 @@ export async function handleIncomingMessage(
   };
 
   // 4. Persist incoming message (must happen before any early return so inbox always shows it)
-  await admin
+  // NOTE: the `messages` table has no `channel_id` column (the lead row already tracks the
+  // channel). Inserting it makes PostgREST reject the whole row; the error used to be
+  // swallowed, so neither the lead's message nor the AI reply ever reached the inbox.
+  const { error: userMsgErr } = await admin
     .from('messages')
     .insert({
       lead_id: activeLead.id,
       company_id: companyId,
       role: 'user',
       content: messageText,
-      channel_id: incomingMetadata?.channelId || activeLead.channel_id || null,
     });
+  if (userMsgErr) logError(`[Engine][${tag}] 💥 failed to persist user message:`, userMsgErr);
 
   // 5. Billing gate
   const usage = preloadedUsage ?? await getCompanyUsage(companyId);
@@ -896,18 +905,18 @@ export async function handleIncomingMessage(
 
     const isShadowMode = activeLead.control_mode === 'shadow';
 
-    const { data: insertedMsg } = await admin
+    const { data: insertedMsg, error: aiMsgErr } = await admin
       .from('messages')
       .insert({
         lead_id: activeLead.id,
         company_id: companyId,
         role: 'assistant',
         content: finalReply,
-        channel_id: activeLead.channel_id || incomingMetadata?.channelId || null,
         metadata: isShadowMode ? { is_draft: true } : null,
       })
       .select()
       .single();
+    if (aiMsgErr) logError(`[Engine][${tag}] 💥 failed to persist assistant message:`, aiMsgErr);
     sentMessage = insertedMsg;
 
     if (!isShadowMode) {
