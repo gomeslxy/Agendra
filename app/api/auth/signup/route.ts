@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/send";
 import { verificationEmail } from "@/lib/email/templates/verification";
 import { checkRateLimitAsync } from "@/lib/rate-limit";
+import { isPasswordCompromised, COMPROMISED_PASSWORD_MESSAGE } from "@/lib/auth/password-security";
 
 function generateOtp(): string {
   // crypto.randomInt is CSPRNG — Math.random() is not safe for security tokens
@@ -30,6 +31,11 @@ export async function POST(req: NextRequest) {
 
   if (!email || !password || password.length < 8) {
     return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
+  }
+
+  // Leaked-password protection (HIBP). Reject known-compromised passwords at signup.
+  if (await isPasswordCompromised(password)) {
+    return NextResponse.json({ error: COMPROMISED_PASSWORD_MESSAGE }, { status: 400 });
   }
 
   const admin = createAdminClient();
