@@ -50,6 +50,13 @@ const config: NextConfig = {
         ],
       },
       {
+        // Landing root is force-static — instruct CDN to cache it at the edge
+        source: "/",
+        headers: [
+          { key: "Cache-Control", value: "public, s-maxage=3600, stale-while-revalidate=86400" },
+        ],
+      },
+      {
         // /contato is force-static — instruct CDN to cache it at the edge
         source: "/contato",
         headers: [

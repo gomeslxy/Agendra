@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { EmptyState } from "@/components/ui/empty-state";
 import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
-import { stagger } from "@/components/motion/variants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import type { LeadWithMessages } from "./page";
@@ -29,10 +28,6 @@ const CONTROL_LABEL: Record<string, string> = {
   shadow: "Copiloto (Shadow)",
   manual: "Manual",
 };
-
-const LEAD_LIST_VARIANTS = stagger(0.02, 0.03);
-const LEAD_ITEM_VARIANTS = { hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } };
-const LEAD_ITEM_HOVER = { backgroundColor: "#F4F4F5" };
 
 function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -224,21 +219,15 @@ interface LeadListItemProps {
 const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, onSelect }: LeadListItemProps) {
   const last = lastMsg(l);
   return (
-    <motion.div
-      variants={LEAD_ITEM_VARIANTS}
-      whileHover={LEAD_ITEM_HOVER}
+    <div
       onClick={() => onSelect(l.id)}
       className={cn(
-        "group relative flex cursor-pointer items-center gap-4 border-b border-[#F4F4F5] px-5 py-3.5 transition-all duration-150 select-none",
-        isActive && "bg-[#EFF6FF] border-b-[#DBEAFE]"
+        "group relative flex cursor-pointer items-center gap-4 border-b border-[#F4F4F5] px-5 py-3.5 transition-colors duration-150 select-none hover:bg-[#F4F4F5]",
+        isActive && "bg-[#EFF6FF] border-b-[#DBEAFE] hover:bg-[#EFF6FF]"
       )}
     >
       {isActive && (
-        <motion.div
-          layoutId="active-lead"
-          className="absolute inset-y-2 left-0 w-[2px] rounded-r-full bg-[#2563EB]"
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
-        />
+        <div className="absolute inset-y-2 left-0 w-[2px] rounded-r-full bg-[#2563EB]" />
       )}
       <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#F4F4F5] border border-[#E4E4E7] text-[10px] font-bold text-[#3F3F46]">
         {initials(l.name)}
@@ -249,11 +238,7 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
           l.status === "success" ? "bg-[#22C55E]" : "bg-[#3B82F6]"
         )} />
         {isUnread && (
-          <motion.span
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#2563EB] border-2 border-white"
-          />
+          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#2563EB] border-2 border-white" />
         )}
       </div>
       <div className="min-w-0 flex-1">
@@ -281,7 +266,7 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
           </span>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 });
 
@@ -292,6 +277,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id ?? null);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [sendPending, startSend] = useTransition();
   const [takePending, startTake] = useTransition();
@@ -314,6 +300,19 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedIdRef = useRef<string | null>(selectedId);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+
+  // Track viewport so the chat/detail columns can be skipped from the DOM on
+  // mobile while the lead list is showing (lg breakpoint = 1024px).
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // On mobile, only mount the chat + detail columns once the user opens a lead.
+  const showChatColumns = !isMobile || showChatOnMobile;
 
   const handleLeadSelect = useCallback((id: string) => {
     setSelectedId(id);
@@ -363,7 +362,12 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       return { ...(data as Lead), messages, next_event: null };
     };
 
-    const channel = supabase
+    // Defer realtime subscription past the initial paint/hydration cycle.
+    // The websocket handshake competes for the main thread during mount —
+    // a 200ms delay frees that window and improves FCP/INP on first load.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const subscribeTimer = setTimeout(() => {
+    channel = supabase
       .channel(`inbox-realtime-${companyId}`)
       .on(
         "postgres_changes",
@@ -467,10 +471,12 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         console.log(`[Inbox] realtime status: ${status}`);
         setIsConnected(status === "SUBSCRIBED");
       });
+    }, 200);
 
     return () => {
+      clearTimeout(subscribeTimer);
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [companyId]);
 
@@ -845,7 +851,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
               <p className="text-xs font-medium text-[#A1A1AA]">Nenhum lead encontrado.</p>
             </div>
           ) : (
-            <motion.div variants={LEAD_LIST_VARIANTS} initial="hidden" animate="show" className="flex flex-col">
+            <div className="flex flex-col">
               {filteredLeads.map((l) => (
                 <LeadListItem
                   key={l.id}
@@ -855,12 +861,13 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   onSelect={handleLeadSelect}
                 />
               ))}
-            </motion.div>
+            </div>
           )}
         </div>
       </section>
 
-      {/* COL 2 — chat */}
+      {/* COL 2 — chat (skipped from DOM on mobile while the lead list is active) */}
+      {showChatColumns && (
       <section className={cn(
         "flex flex-col transition-all duration-300",
         !showChatOnMobile ? "hidden lg:flex lg:flex-1" : "flex w-full lg:flex-1"
@@ -1243,8 +1250,10 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           </>
         )}
       </section>
+      )}
 
-      {/* COL 3 — detail */}
+      {/* COL 3 — detail (skipped from DOM on mobile while the lead list is active) */}
+      {showChatColumns && (
       <aside className="hidden flex-col gap-5 overflow-y-auto border-l border-[#E4E4E7] bg-white p-5 w-[280px] shrink-0 custom-scrollbar xl:flex z-10 select-none">
         {selected && (
           <motion.div
@@ -1312,6 +1321,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           </motion.div>
         )}
       </aside>
+      )}
     </div>
   );
 }

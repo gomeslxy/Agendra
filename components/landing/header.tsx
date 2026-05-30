@@ -3,14 +3,18 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
 
-const NAV = [
+// Lazy-loaded: keeps framer-motion (AnimatePresence) out of the header's
+// primary render bundle. Only fetched once the user opens the mobile menu.
+const HeaderMobileMenu = dynamic(() => import("./header-mobile-menu"), { ssr: false });
+
+export const NAV = [
   { href: "/#como-funciona", label: "Como funciona" },
   { href: "/#demo",          label: "Produto" },
   { href: "/#casos",         label: "Casos" },
@@ -26,7 +30,7 @@ function smoothScrollTo(id: string) {
   window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 }
 
-function NavLink({
+export function NavLink({
   href,
   children,
   onClick,
@@ -77,7 +81,20 @@ interface HeaderProps {
 export function Header({ isLoggedIn = false }: HeaderProps = {}) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  // Mount-on-first-open: framer-motion chunk loads only after the user taps the
+  // menu, while AnimatePresence exit animation is preserved across toggles.
+  const [menuMounted, setMenuMounted] = useState(false);
+  // Drives the pure-CSS entry animation (replaces motion.header initial/animate).
+  const [entered, setEntered] = useState(false);
 
+  useEffect(() => {
+    setEntered(true);
+  }, []);
+
+  function toggleMenu() {
+    setMenuMounted(true);
+    setOpen((v) => !v);
+  }
 
   useEffect(() => {
     let ticking = false;
@@ -100,12 +117,11 @@ export function Header({ isLoggedIn = false }: HeaderProps = {}) {
   }, []);
 
   return (
-    <motion.header
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+    <header
       className={cn(
-        "fixed inset-x-0 top-0 z-50 border-b backdrop-blur-xl backdrop-saturate-150 transition-colors duration-300",
+        "fixed inset-x-0 top-0 z-50 border-b backdrop-blur-xl backdrop-saturate-150",
+        "transition-[colors,transform,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
+        entered ? "translate-y-0 opacity-100" : "-translate-y-5 opacity-0",
         scrolled
           ? "border-[#E4E4E7] bg-white/80"
           : "border-zinc-200/50 bg-white/50",
@@ -155,53 +171,16 @@ export function Header({ isLoggedIn = false }: HeaderProps = {}) {
 
         <button
           aria-label={open ? "Fechar menu" : "Abrir menu"}
-          onClick={() => setOpen((v) => !v)}
+          onClick={toggleMenu}
           className="grid h-10 w-10 place-items-center rounded-xl border border-[#E4E4E7] bg-white text-[#09090B] hover:bg-[#F4F4F5] transition-colors md:hidden"
         >
           {open ? <X size={18} /> : <Menu size={18} />}
         </button>
       </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden border-t border-[#E4E4E7] bg-white md:hidden"
-          >
-            <div className="flex flex-col gap-1 px-6 py-4">
-              {NAV.map((n) => (
-                <NavLink
-                  key={n.href}
-                  href={n.href}
-                  onClick={() => setOpen(false)}
-                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-[#3F3F46] transition-colors hover:bg-[#F4F4F5]"
-                >
-                  {n.label}
-                </NavLink>
-              ))}
-              <div className="mt-3 flex gap-2">
-                {isLoggedIn ? (
-                  <Link href="/inbox" className="flex-1">
-                    <Button variant="primary" size="sm" className="w-full justify-center">Ir para o Dashboard</Button>
-                  </Link>
-                ) : (
-                  <>
-                    <Link href="/login" className="flex-1">
-                      <Button variant="secondary" size="sm" className="w-full justify-center">Entrar</Button>
-                    </Link>
-                    <Link href="/signup" className="flex-1">
-                      <Button variant="primary" size="sm" className="w-full justify-center">Começar grátis</Button>
-                    </Link>
-                  </>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.header>
+      {menuMounted && (
+        <HeaderMobileMenu open={open} isLoggedIn={isLoggedIn} onClose={() => setOpen(false)} />
+      )}
+    </header>
   );
 }
