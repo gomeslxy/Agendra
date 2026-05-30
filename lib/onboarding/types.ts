@@ -9,7 +9,8 @@ export type OnboardingStatus =
 export type BusinessSize = 'solo' | 'small' | 'medium' | 'large';
 export type BusinessGoal = 'capture' | 'nurture' | 'qualify' | 'convert' | 'follow';
 export type BusinessMaturity = 'beginner' | 'intermediate' | 'advanced';
-export type AiTone = 'formal' | 'friendly' | 'direct' | 'warm';
+// Aligned with engine TONE_BLUEPRINTS keys (cold/warm/hot)
+export type AiTone = 'cold' | 'warm' | 'hot';
 export type PrimaryMetric = 'leads' | 'appointments' | 'conversions' | 'revenue';
 
 export interface OnboardingData {
@@ -17,6 +18,8 @@ export interface OnboardingData {
   company_name?: string;
   niche?: string;
   size?: BusinessSize;
+  phone?: string;
+  city?: string;
 
   // Step 2 — Objetivo
   goal?: BusinessGoal;
@@ -26,6 +29,7 @@ export interface OnboardingData {
   channels?: Array<'whatsapp' | 'instagram' | 'form'>;
   uses_crm?: boolean;
   crm_name?: string;
+  volume_leads_month?: number;
 
   // Step 4 — Persona da IA
   ai_name?: string;
@@ -33,11 +37,19 @@ export interface OnboardingData {
   ai_language?: string;
   timezone?: string;
   working_hours?: Record<string, [string, string]>;
+  slot_duration_minutes?: number;
+  buffer_minutes?: number;
+  extra_instructions?: string;
+  ai_forbidden?: string;
+  reminder_advance_hours?: number;
 
   // Step 5 — Metas
   team_size?: number;
   primary_metric?: PrimaryMetric;
   desired_integrations?: string[];
+  enable_followup?: boolean;
+  followup_delay_hours?: number;
+  followup_max_retries?: number;
 }
 
 export interface OnboardingState {

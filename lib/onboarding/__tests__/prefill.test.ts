@@ -40,9 +40,14 @@ describe('buildPrefillFromLegacy', () => {
     expect(result.ai_name).toBe('Sofia');
   });
 
-  it('maps valid ai_tone', () => {
+  it('maps valid ai_tone (migrates legacy friendly→warm)', () => {
     const result = buildPrefillFromLegacy({ ai_tone: 'friendly' });
-    expect(result.ai_tone).toBe('friendly');
+    expect(result.ai_tone).toBe('warm');
+  });
+
+  it('maps legacy formal→cold', () => {
+    const result = buildPrefillFromLegacy({ ai_tone: 'formal' });
+    expect(result.ai_tone).toBe('cold');
   });
 
   it('ignores invalid ai_tone strings', () => {

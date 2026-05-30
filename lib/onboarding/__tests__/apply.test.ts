@@ -20,11 +20,17 @@ const fullData: OnboardingData = {
   channels: ['whatsapp'],
   uses_crm: false,
   ai_name: 'Sofia',
-  ai_tone: 'friendly',
+  ai_tone: 'warm',       // aligned with engine TONE_BLUEPRINTS keys
   timezone: 'America/Sao_Paulo',
   working_hours: { mon: ['09:00', '18:00'] },
+  slot_duration_minutes: 60,
+  buffer_minutes: 0,
+  reminder_advance_hours: 2,
   team_size: 3,
   primary_metric: 'appointments',
+  enable_followup: true,
+  followup_delay_hours: 24,
+  followup_max_retries: 2,
 };
 
 describe('buildPersonaConfig', () => {
@@ -33,9 +39,13 @@ describe('buildPersonaConfig', () => {
     expect(config.name).toBe('Sofia');
     expect(config.business_name).toBe('Studio Bella');
     expect(config.business_type).toBe('salão de beleza');
-    expect(config.tone).toBe('friendly');
+    expect(config.tone).toBe('warm');
     expect(config.timezone).toBe('America/Sao_Paulo');
     expect(config.slot_duration_minutes).toBe(60);
+    expect(config.buffer_minutes).toBe(0);
+    expect(config.reminder_advance_hours).toBe(2);
+    expect(config.followup_delay_hours).toBe(24);
+    expect(config.followup_max_retries).toBe(2);
     expect(config.working_hours).toEqual({ mon: ['09:00', '18:00'] });
   });
 
@@ -43,8 +53,13 @@ describe('buildPersonaConfig', () => {
     const config = buildPersonaConfig({});
     expect(config.name).toBe('Assistente');
     expect(config.business_name).toBe('');
-    expect(config.tone).toBe('friendly');
+    expect(config.tone).toBe('warm');        // new default
     expect(config.timezone).toBe('America/Sao_Paulo');
+    expect(config.slot_duration_minutes).toBe(60);
+    expect(config.buffer_minutes).toBe(0);
+    expect(config.reminder_advance_hours).toBe(2);
+    expect(config.followup_delay_hours).toBe(24);
+    expect(config.followup_max_retries).toBe(2);
     expect(config.working_hours).toMatchObject({ mon: ['09:00', '18:00'] });
   });
 });
@@ -92,14 +107,22 @@ describe('applyOnboardingConfig', () => {
     expect(result.error).toBe('DB error');
   });
 
-  it('updates companies table with correct onboarding fields', async () => {
+  it('updates companies table with correct onboarding fields including new config', async () => {
     await applyOnboardingConfig('company-123', fullData);
     expect(mockFrom).toHaveBeenCalledWith('companies');
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         onboarding_status: 'completed',
         ai_name: 'Sofia',
-        ai_tone: 'friendly',
+        ai_tone: 'warm',
+        persona_config: expect.objectContaining({
+          tone: 'warm',
+          slot_duration_minutes: 60,
+          buffer_minutes: 0,
+          reminder_advance_hours: 2,
+          followup_delay_hours: 24,
+          followup_max_retries: 2,
+        }),
       })
     );
     expect(mockEq).toHaveBeenCalledWith('id', 'company-123');

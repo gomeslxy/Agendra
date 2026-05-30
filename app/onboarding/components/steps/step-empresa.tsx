@@ -18,6 +18,7 @@ const SIZES: { value: BusinessSize; label: string; desc: string }[] = [
 const NICHES = [
   "Clínica / Saúde",
   "Salão de Beleza",
+  "Barbearia",
   "Imobiliária",
   "Consultoria",
   "Educação",
@@ -25,8 +26,15 @@ const NICHES = [
   "E-commerce",
   "Agência",
   "Academia / Fitness",
+  "Psicologia",
+  "Odontologia",
+  "Nutrição",
+  "Personal Trainer",
   "Outro",
 ];
+
+const inputCls =
+  "w-full rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-sm text-[#09090B] placeholder:text-[#A1A1AA] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all";
 
 export function StepEmpresa({ data, onChange }: StepProps) {
   return (
@@ -34,32 +42,60 @@ export function StepEmpresa({ data, onChange }: StepProps) {
       {/* Nome */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
-          Nome da empresa
+          Nome da empresa <span className="text-[#DC2626]">*</span>
         </label>
         <input
           type="text"
           placeholder="Ex: Studio Bella"
           value={data.company_name ?? ""}
           onChange={(e) => onChange({ company_name: e.target.value })}
-          className="w-full rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-sm text-[#09090B] placeholder:text-[#A1A1AA] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
+          className={inputCls}
         />
       </div>
 
       {/* Nicho */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
-          Segmento / Nicho
+          Segmento / Nicho <span className="text-[#DC2626]">*</span>
         </label>
         <select
           value={data.niche ?? ""}
           onChange={(e) => onChange({ niche: e.target.value })}
-          className="w-full rounded-xl border border-[#E4E4E7] bg-white px-4 py-3 text-sm text-[#09090B] outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
+          className={inputCls}
         >
           <option value="" disabled>Selecione...</option>
           {NICHES.map((n) => (
             <option key={n} value={n.toLowerCase()}>{n}</option>
           ))}
         </select>
+      </div>
+
+      {/* Cidade + Telefone */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
+            Cidade
+          </label>
+          <input
+            type="text"
+            placeholder="São Paulo"
+            value={data.city ?? ""}
+            onChange={(e) => onChange({ city: e.target.value })}
+            className={inputCls}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-[#3F3F46] uppercase tracking-widest">
+            Telefone
+          </label>
+          <input
+            type="tel"
+            placeholder="(11) 91234-5678"
+            value={data.phone ?? ""}
+            onChange={(e) => onChange({ phone: e.target.value })}
+            className={inputCls}
+          />
+        </div>
       </div>
 
       {/* Porte */}
