@@ -82,6 +82,24 @@ describe('Conversational Sales Engine Simulation', () => {
       const output = sanitizeClientResponse(input);
       expect(output).toBe('Entendido! Como posso ajudar você hoje?');
     });
+
+    it('removes internal UUID brackets [ID: ...] or ID formatters', () => {
+      const input = 'Corte (30min) - R$35 [ID: 2c125df9-1a4f-45b9-b33c-389f41de6001] e Barba (30min) - R$25 [ID: internal-barba-id]';
+      const output = sanitizeClientResponse(input);
+      expect(output).not.toContain('[ID:');
+      expect(output).not.toContain('2c125df9');
+      expect(output).not.toContain('internal-barba-id');
+      expect(output).toContain('Corte (30min) - R$35');
+      expect(output).toContain('Barba (30min) - R$25');
+    });
+
+    it('removes loose raw UUIDs and technical ID prefix patterns', () => {
+      const input = 'Seu agendamento tem ID: 2c125df9-1a4f-45b9-b33c-389f41de6001. O UUID dele é 123e4567-e89b-12d3-a456-426614174000.';
+      const output = sanitizeClientResponse(input);
+      expect(output).not.toContain('2c125df9');
+      expect(output).not.toContain('123e4567');
+      expect(output).toContain('Seu agendamento tem');
+    });
   });
 
   describe('processLeadMessage - Prompt Compilation & Rules', () => {
