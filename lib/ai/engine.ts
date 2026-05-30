@@ -29,6 +29,7 @@ import { routeChat, routeGenerate } from './providers/router';
 import { neutralToolDefinitions } from './tool-schemas';
 import type { NormalizedMessage } from './providers/types';
 import { isUnderHumanTakeover } from './takeover';
+import { classifyIntent, type Intent } from './intent';
 
 // Gemini SDK kept ONLY for text-embedding-005 (RAG) — lazy to avoid crashing if key absent at module load
 let _embeddingGenAI: GoogleGenerativeAI | null = null;
@@ -120,14 +121,36 @@ function buildSystemPrompt(
   const businessName = persona.business_name ?? 'nossa empresa';
   const businessType = persona.business_type ?? 'negocio';
 
-  const toneMap: Record<string, string> = {
-    cold: 'Formal: Profissional, breve e direto ao ponto. Evite emojis ou intimidade.',
-    warm: 'Amigavel: Atencioso, profissional e equilibrado. Pode usar emojis moderadamente.',
-    hot: 'Persuasivo: Entusiasta, agil e proximo. Use emojis e linguagem persuasiva para converter.',
+  // Hiper-fidelidade de persona: blueprints comportamentais ricos (vocabulário,
+  // estrutura de frase, restrições) em vez de uma linha descritiva genérica.
+  // A IA INCORPORA o tom em cada frase em vez de só "saber" qual é o tom.
+  const TONE_BLUEPRINTS: Record<string, string> = {
+    cold: `TOM DE VOZ: FORMAL / DIRETO (Assertividade Corporativa)
+- Vocabulário enxuto, técnico-comercial, preciso. Tratamento por "você" respeitoso.
+- Frases declarativas e curtas: sujeito → ação → resultado. Sem aquecimento social.
+- ZERO emojis. ZERO interjeições ("nossa!", "que legal!"). ZERO diminutivos ("horarinho", "rapidinho").
+- Faça afirmações, não perguntas abertas: "Tenho terça às 14h ou quinta às 10h. Qual prefere?".
+- CTA seco e funcional: "Confirmo para terça às 14h?".
+- Proibido: gírias, exclamações múltiplas, validação emocional prolongada.`,
+    warm: `TOM DE VOZ: ACOLHEDOR / SIMPÁTICO (Parceria)
+- Vocabulário caloroso e próximo. Trate como parceiro(a): "vou te ajudar com isso", "deixa comigo".
+- Valide a emoção/contexto ANTES de agir ("Entendo, faz sentido!" / "Imagino a correria") e então conduza.
+- Emojis acolhedores com moderação (no máx. 1 por mensagem): 😊 🙌 ✨.
+- Demonstre escuta: reflita em poucas palavras o que o lead disse antes de prosseguir.
+- CTA gentil e convidativo: "Que tal a gente garantir um horário pra você essa semana? 😊".
+- Proibido: frieza robótica, resposta sem nenhum calor humano, pressão agressiva.`,
+    hot: `TOM DE VOZ: PERSUASIVO / VENDAS (Fechamento Rápido)
+- Vocabulário energético e orientado a ação. Imperativo suave: "garanta", "aproveite", "vamos marcar".
+- Use urgência/escassez SOMENTE quando REAL ("tenho só 2 horários hoje") — NUNCA invente escassez.
+- Foque no benefício/transformação, não no recurso. Crie momentum ("perfeito!", "ótima escolha!").
+- Emojis expressivos pontuais: 🔥 ⚡ 🚀 ✅ (reforçam, não poluem).
+- CTA forte com fechamento assumido: "Fechado! Já garanto a sua terça às 14h? ⚡".
+- Cada mensagem empurra o lead 1 passo para o agendamento.
+- Proibido: passividade, deixar a conversa esfriar, terminar sem CTA, prometer condição inexistente.`,
   };
 
   const selectedToneKey = (lead.conversation_tone || persona.tone) as string;
-  const tone = toneMap[selectedToneKey] ?? (persona.tone || 'amigavel, profissional e objetivo');
+  const tone = TONE_BLUEPRINTS[selectedToneKey] ?? (persona.tone || 'Amigável, profissional e objetivo.');
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
   const nowInTz = nowFormatterFor(timezone).format(new Date());
@@ -192,9 +215,12 @@ function buildSystemPrompt(
 - Nome: ${aiName}
 - Empresa: ${businessName} (${businessType})
 - Fuso Horário: ${timezone} (Data e hora atual: ${nowInTz})
-- Tom de Voz: ${tone}. Use sempre o primeiro nome do lead: "${firstName}". Seja conciso, simpático, acolhedor e focado em conversão.
 - Serviços Disponíveis no Catálogo:
 ${servicesDisplay}
+
+### TOM DE VOZ OBRIGATÓRIO (respeite em CADA frase)
+${tone}
+Use sempre o primeiro nome do lead: "${firstName}". Máximo 2 a 3 frases por resposta.
 
 Sua MISSÃO principal e absoluta é qualificar o lead com humanidade e conduzi-lo de forma natural e eficiente para agendar uma reunião ou atendimento. Se o lead demonstrar real interesse e estiver pronto, use as ferramentas adequadas para verificar horários e agendar.
 
@@ -335,6 +361,7 @@ export async function processLeadMessage(
   planType: PlanType = 'trial',
   planLimits: PlanLimits = {} as PlanLimits,
   traceId?: string,
+  intent?: Intent,
 ): Promise<AIResult> {
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
 
@@ -414,6 +441,12 @@ export async function processLeadMessage(
     }
   }
 
+  // Chain selection por intenção: turns que não precisam de ferramentas (saudação,
+  // dúvida informativa) usam a chain conversacional (Cerebras-first, mais rápida e
+  // barata). Turns de agenda/compra/reclamação usam a chain de tools (Groq-first).
+  // Fallback seguro: na dúvida, usa tools (as ferramentas seguem disponíveis em ambas).
+  const useToolsChain = intent ? intent.needsTools : true;
+
   const result = await routeChat(
     {
       systemPrompt,
@@ -425,7 +458,7 @@ export async function processLeadMessage(
       preferredModel: geminiModelOverride,
       toolMode: 'AUTO',
     },
-    { chain: 'tools', traceId }
+    { chain: useToolsChain ? 'tools' : 'conv', traceId }
   );
 
   const fullText = result.text;
@@ -498,6 +531,16 @@ export async function processLeadMessage(
   reply = reply.replace(/```json[\s\S]*?```/gi, '').trim();
   reply = reply.replace(/\n\s*\{\s*"heat_score"[\s\S]*\}\s*$/i, '').trim();
   reply = sanitizeClientResponse(reply);
+
+  // Hard cap de concisão (2-3 frases): enforcement no código, não só no prompt.
+  // PULA quando slots foram consultados — apresentar faixas de horário pode exigir
+  // mais de 3 frases e o corte regrediria a UX de agendamento.
+  if (!calledCheck) {
+    const sentences = reply.match(/[^.!?…]+[.!?…]+(\s|$)/g);
+    if (sentences && sentences.length > 3) {
+      reply = sentences.slice(0, 3).join('').trim();
+    }
+  }
 
   return {
     reply,
@@ -626,16 +669,17 @@ export async function handleIncomingMessage(
     }
   }
 
-  // 2. Context loading
-  const { data: company } = await admin.from('companies').select('*').eq('id', companyId).single();
+  // 2. Context loading — company e services são independentes, carregam em paralelo.
+  const [{ data: company }, { data: services }] = await Promise.all([
+    admin.from('companies').select('*').eq('id', companyId).single(),
+    admin
+      .from('services')
+      .select('id, name, duration, price')
+      .eq('company_id', companyId)
+      .eq('active', true)
+      .neq('is_paused', true),
+  ]);
   if (!company) throw new Error('Empresa nao encontrada');
-
-  const { data: services } = await admin
-    .from('services')
-    .select('id, name, duration, price')
-    .eq('company_id', companyId)
-    .eq('active', true)
-    .neq('is_paused', true);
 
   const persona: PersonaConfig = {
     ...((company.persona_config as any) ?? {}),
@@ -773,9 +817,15 @@ export async function handleIncomingMessage(
   // Required here because RAG runs before the billing gate's usage object is fully available.
   const earlyPlanLimits = preloadedUsage?.limits ?? getPlanLimits(company.plan_type as PlanType);
 
+  // Intent classifier (heurístico, 0ms): gateia RAG e escolhe a chain de providers.
+  const intent = classifyIntent(messageText);
+
   let ragStatus: 'ok' | 'empty' | 'failed' | 'timeout' | null = null;
 
-  if (earlyPlanLimits.hasRAG) {
+  // RAG gate por intenção: saudação e agendamento puro NÃO embeam (corta o embedding
+  // bloqueante de ~4s no caminho mais comum). Só dúvidas informativas/reclamações/compra
+  // consultam a base de conhecimento.
+  if (earlyPlanLimits.hasRAG && intent.needsRAG) {
     // RAG guard: skip embedding if company has no knowledge documents (avoids quota burn on empty corpus)
     const { count: knowledgeCount } = await admin
       .from('company_knowledge')
@@ -795,6 +845,10 @@ export async function handleIncomingMessage(
         ragStatus = 'failed';
       }
     }
+  } else if (earlyPlanLimits.hasRAG && !intent.needsRAG) {
+    // Plano tem RAG, mas a intenção (saudação/agendamento) não se beneficia — skip rápido.
+    ragStatus = 'empty';
+    logInfo(`[AI Engine] RAG skipped por intenção=${intent.type} (sem embedding).`);
   } else {
     logInfo(`[AI Engine] RAG skipped — plano ${earlyPlanLimits.hasAdvancedModel === false ? 'trial/starter' : 'unknown'} não inclui busca semântica.`);
   }
@@ -890,9 +944,10 @@ export async function handleIncomingMessage(
         isNewConversation,
         usage.planType,
         usage.limits,
-        traceId
+        traceId,
+        intent
       );
-      console.log(`[Engine][${tag}] 🎯 AI replied in ${Date.now() - aiStart}ms via ${aiResult.provider_used}/${aiResult.model_used} tools=${aiResult.tools_called?.length ?? 0} fallback=${aiResult.fallback_used} replyLen=${aiResult.reply?.length ?? 0}`);
+      console.log(`[Engine][${tag}] 🎯 AI replied in ${Date.now() - aiStart}ms via ${aiResult.provider_used}/${aiResult.model_used} tools=${aiResult.tools_called?.length ?? 0} fallback=${aiResult.fallback_used} replyLen=${aiResult.reply?.length ?? 0} intent=${intent.type}`);
     } catch (aiErr: any) {
       console.error(`[Engine][${tag}] 💥 processLeadMessage failed after ${Date.now() - aiStart}ms:`, aiErr?.message ?? aiErr);
       throw aiErr;

@@ -7,9 +7,21 @@ import { qstashEnabled, scheduleDelayed } from '@/lib/infra/qstash';
 import type { CompanyUsage } from '@/lib/billing/limits';
 import { runWithDeadline } from './deadline';
 
-const DEBOUNCE_MS = 4_000;
+// Adaptive debounce: mensagens curtas e sem pontuação final costumam ser
+// fragmentos de um burst (lead digitando em várias bolhas) → espera mais longa
+// para consolidar. Frases completas respondem quase imediatamente. Reduz a
+// latência percebida no caso comum sem perder o merge de mensagens picotadas.
+const DEBOUNCE_FAST_MS = 1_200;
+const DEBOUNCE_BURST_MS = 4_000;
 const BUF_TTL_SEC = 60;
 export const FLUSH_PATH = '/api/internal/flush';
+
+/** Heurística de fragmentação: msg curta que não termina em pontuação. */
+function debounceDelayFor(body: string): number {
+  const t = (body ?? '').trim();
+  const looksFragmented = t.length < 25 && !/[.?!]$/.test(t);
+  return looksFragmented ? DEBOUNCE_BURST_MS : DEBOUNCE_FAST_MS;
+}
 
 interface Buffered {
   body: string;
@@ -94,6 +106,7 @@ export async function bufferAndDebounce(args: {
   }
 
   const dbgTag = `${args.companyId.slice(0, 6)}:${args.leadPhone.slice(-4)}`;
+  const delayMs = debounceDelayFor(args.body);
 
   const job: FlushJob = {
     companyId: args.companyId,
@@ -109,8 +122,8 @@ export async function bufferAndDebounce(args: {
   // whose gen still matches the token at fire time wins — debounce + race-safe.
   if (qstashEnabled()) {
     try {
-      await scheduleDelayed(FLUSH_PATH, job, Math.ceil(DEBOUNCE_MS / 1000));
-      console.log(`[Debounce][${dbgTag}] 📨 scheduled flush via QStash (gen=${gen.slice(0, 6)}, +${DEBOUNCE_MS}ms)`);
+      await scheduleDelayed(FLUSH_PATH, job, Math.ceil(delayMs / 1000));
+      console.log(`[Debounce][${dbgTag}] 📨 scheduled flush via QStash (gen=${gen.slice(0, 6)}, +${delayMs}ms)`);
     } catch (e) {
       logError('[debounce] QStash publish failed, falling back to DB buffer:', e);
       await bufferInDB({
@@ -123,8 +136,8 @@ export async function bufferAndDebounce(args: {
   }
 
   // Dev/local fallback (no QStash configured): inline wait then flush directly.
-  console.log(`[Debounce][${dbgTag}] ⏲️  (no QStash) waiting ${DEBOUNCE_MS}ms inline (gen=${gen.slice(0, 6)})`);
-  await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
+  console.log(`[Debounce][${dbgTag}] ⏲️  (no QStash) waiting ${delayMs}ms inline (gen=${gen.slice(0, 6)})`);
+  await new Promise((r) => setTimeout(r, delayMs));
   await runWithDeadline(() => flushBuffer(job));
 }
 

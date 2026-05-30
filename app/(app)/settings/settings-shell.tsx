@@ -245,9 +245,16 @@ export function SettingsShell({
 
   function changeTab(newTab: TabId) {
     setTab(newTab);
-    // Update URL without triggering RSC re-fetch (no router.replace here).
-    window.history.replaceState({}, "", `/settings?tab=${newTab}`);
+    router.replace(`/settings?tab=${newTab}`, { scroll: false });
   }
+
+  // Sync tab state with URL search parameter when it changes (back/forward navigation)
+  useEffect(() => {
+    if (rawTab && TABS.some((t) => t.id === rawTab) && rawTab !== tab) {
+      setTab(rawTab);
+    }
+  }, [rawTab, tab]);
+
 
   // OAuth callback toast (gcal=success|error|denied in searchParams after redirect).
   // router.replace here is intentional: cleans the gcal param from the URL.

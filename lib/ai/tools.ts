@@ -309,8 +309,59 @@ export async function handleCheckAvailability(
     return { slots: [], message: 'Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.' };
   }
 
-  const message = `Encontrei ${slots.length} horários disponíveis para este serviço.`;
-  return { slots, message };
+  // UX Conversacional Premium: agrupa os slots por dia/período (manhã/tarde/noite)
+  // ANTES de entregar à IA. Assim o modelo fala em FAIXAS ("manhã, das 09h às 12h")
+  // em vez de dumpar 20 horários de 30 em 30 min. Os ISO exatos seguem em `slots`
+  // para o bookAppointment usar o campo "start" sem reconstruir horário.
+  const tz = persona.timezone ?? 'America/Sao_Paulo';
+  const availabilitySummary = buildAvailabilitySummary(slots, tz);
+
+  console.log(`[Tools] checkAvailability summary: ${availabilitySummary}`);
+  return {
+    availability_summary: availabilitySummary,
+    slots,
+    message: `Disponibilidade agrupada por período (apresente ao lead em faixas, NUNCA liste slot a slot): ${availabilitySummary}`,
+  };
+}
+
+type DayPeriod = 'manhã' | 'tarde' | 'noite';
+
+function periodOf(d: Date, tz: string): DayPeriod {
+  const hour = Number(
+    new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hour: '2-digit', hour12: false }).format(d)
+  );
+  return hour < 12 ? 'manhã' : hour < 18 ? 'tarde' : 'noite';
+}
+
+/**
+ * Condensa uma lista de slots ISO em um resumo legível por dia e período, ex.:
+ * "segunda-feira 02/06: manhã (09:00–11:30), tarde (14:00–17:00) | terça-feira 03/06: tarde (14:00–16:30)".
+ */
+function buildAvailabilitySummary(slots: { start: string }[], tz: string): string {
+  const dayFmt = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, weekday: 'long', day: '2-digit', month: '2-digit' });
+  const timeFmt = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+
+  // dia -> período -> { first, last } (slots já chegam ordenados por start)
+  const byDay = new Map<string, Map<DayPeriod, { first: string; last: string }>>();
+  for (const s of slots) {
+    const d = new Date(s.start);
+    const dayKey = dayFmt.format(d);
+    const p = periodOf(d, tz);
+    const hhmm = timeFmt.format(d);
+    let periods = byDay.get(dayKey);
+    if (!periods) { periods = new Map(); byDay.set(dayKey, periods); }
+    const bucket = periods.get(p);
+    if (!bucket) periods.set(p, { first: hhmm, last: hhmm });
+    else bucket.last = hhmm;
+  }
+
+  return [...byDay.entries()]
+    .map(([day, periods]) =>
+      `${day}: ` + [...periods.entries()]
+        .map(([p, { first, last }]) => first === last ? `${p} (${first})` : `${p} (${first}–${last})`)
+        .join(', ')
+    )
+    .join(' | ');
 }
 
 export async function handleBookAppointment(
