@@ -18,7 +18,7 @@ function SidebarFallback() {
   return (
     <aside
       key="sidebar-fallback"
-      className="hidden h-screen flex-col gap-4 border-r border-[#E4E4E7] bg-[#F4F4F5] p-4 md:flex z-20"
+      className="hidden h-screen flex-col gap-4 border-r border-[#E4E4E7] bg-white p-4 md:flex z-20"
     >
       <div className="h-7 w-28 animate-pulse rounded-lg bg-[#F4F4F5]" />
       <div className="flex flex-col gap-1">
@@ -38,7 +38,7 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <>
-      <div className="bg-[#F4F4F5] grid overflow-hidden md:grid-cols-[240px_1fr] h-[calc(100dvh-3.5rem)] md:h-screen">
+      <div className="bg-[#FAFAFA] grid overflow-hidden md:grid-cols-[240px_1fr] h-[calc(100dvh-3.5rem)] md:h-screen">
         <Suspense fallback={<SidebarFallback />}>
           <Sidebar hotCount={hotCount} />
         </Suspense>

@@ -89,8 +89,13 @@ export class GeminiAdapter implements AIProviderAdapter {
         : undefined,
     });
 
+    // Forward the router's AbortSignal so a deadline/timeout closes the request.
+    // NOTE: per the Google SDK, AbortSignal is client-side only — it stops us
+    // waiting but does not cancel server-side usage. Still prevents leaked waits.
+    const reqOpts = params.signal ? { signal: params.signal } : undefined;
+
     const chat = model.startChat({ history: toGeminiHistory(params.history) });
-    let response = await chat.sendMessage(params.userMessage);
+    let response = await chat.sendMessage(params.userMessage, reqOpts);
 
     const toolsCalled: ChatResult['toolsCalled'] = [];
     let totalInput = response.response.usageMetadata?.promptTokenCount ?? 0;
@@ -142,7 +147,7 @@ export class GeminiAdapter implements AIProviderAdapter {
         })
       );
 
-      response = await chat.sendMessage(toolResults);
+      response = await chat.sendMessage(toolResults, reqOpts);
       totalInput += response.response.usageMetadata?.promptTokenCount ?? 0;
       totalOutput += response.response.usageMetadata?.candidatesTokenCount ?? 0;
     }

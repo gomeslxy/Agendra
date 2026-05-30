@@ -10,7 +10,7 @@ export default function RootLoading() {
           alt="Agendra"
           width={32}
           height={32}
-          className="opacity-90 grayscale brightness-0"
+          className="opacity-90 animate-pulse"
         />
         <div className="h-1 w-24 overflow-hidden rounded-full bg-[#E4E4E7]">
           <div

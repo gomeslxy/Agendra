@@ -1161,7 +1161,7 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
       onClick={() => onSelect(l.id)}
       className={cn(
         "group relative flex cursor-pointer items-center gap-4 border-b border-[#F4F4F5] px-5 py-3.5 transition-all duration-150 select-none",
-        isActive && "bg-[#EFF6FF] border-l-2 border-l-[#2563EB] pl-[18px] border-b-[#DBEAFE]"
+        isActive && "bg-[#EFF6FF] border-b-[#DBEAFE]"
       )}
     >
       {isActive && (

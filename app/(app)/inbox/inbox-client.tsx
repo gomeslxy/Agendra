@@ -746,7 +746,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     <div className="flex h-full min-h-0 w-full overflow-hidden">
       {/* COL 1 — list */}
       <section className={cn(
-        "flex flex-col border-r border-[#E4E4E7] bg-[#FAFAFA] transition-all duration-300 lg:w-[320px] lg:flex-shrink-0",
+        "flex flex-col border-r border-[#E4E4E7] bg-white transition-all duration-300 lg:w-[320px] lg:flex-shrink-0",
         showChatOnMobile ? "hidden lg:flex" : "flex w-full"
       )}>
         <div className="px-5 pb-3 pt-5 shrink-0">
@@ -930,7 +930,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col gap-3 p-4 sm:p-6 bg-white min-h-full"
+                className="flex flex-col gap-3 p-4 sm:p-6 bg-[#F8F8F8] min-h-full"
               >
                 {!isPaused && selected.control_mode !== 'shadow' && (
                   <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
@@ -1245,7 +1245,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       </section>
 
       {/* COL 3 — detail */}
-      <aside className="hidden flex-col gap-5 overflow-y-auto border-l border-[#E4E4E7] bg-[#FAFAFA] p-5 w-[280px] shrink-0 custom-scrollbar xl:flex z-10 select-none">
+      <aside className="hidden flex-col gap-5 overflow-y-auto border-l border-[#E4E4E7] bg-white p-5 w-[280px] shrink-0 custom-scrollbar xl:flex z-10 select-none">
         {selected && (
           <motion.div
             initial={{ opacity: 0, x: 12 }}
