@@ -28,11 +28,11 @@ export interface Intent {
 const RE = {
   // Saudação isolada (linha inteira) — nada além do cumprimento.
   greetingOnly: /^\s*(oi+|ol[áa]+|bom dia|boa tarde|boa noite|e a[íi]|suave|opa+|hey|tudo bem\??|tudo bom\??|de boa|voltei|cheguei)[\s!.,]*$/i,
-  scheduling: /\b(agend|hor[áa]rio|marcar|marca[rç]|dispon[íi]v|vaga|hoje|amanh[ãa]|depois de amanh[ãa]|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|de manh[ãa]|[àa] tarde|[àa] noite|que dia|que horas|reagend|remarc|desmarc|cancel)\b/i,
-  complaint: /\b(reclama|p[ée]ssimo|horr[íi]vel|p[ée]ssima|ruim|odiei|n[ãa]o funcion|n[ãa]o gostei|problema|errad|enganad|absurdo|inaceit|processar|procon|reembols|estorno|me engan)\b/i,
-  purchase: /\b(quero|fechar|fechado|comprar|contratar|pagar|quanto fica|quanto custa|bora|vamos marcar|topo|aceito|pode marcar|me v[êe])\b/i,
-  info: /\b(pre[çc]o|valor|quanto|onde fica|endere[çc]o|localiza|funciona|hor[áa]rio de func|como|qual|quais|tem|voc[êe]s fazem|d[úu]vida)\b/i,
-  urgent: /\b(urgente|agora|r[áa]pid|press|com pressa|j[áa]|imediat|hoje mesmo|o quanto antes|sem tempo)\b/i,
+  scheduling: /\b(agend|hor[áa]rio|marcar|marca[rç]|dispon[íi]v|vaga|hoje|amanh[ãa]|depois de amanh[ãa]|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|de manh[ãa]|[àa] tarde|[àa] noite|que dia|que horas|reagend|remarc|desmarc|cancel)/i,
+  complaint: /\b(reclama|p[ée]ssimo|horr[íi]vel|p[ée]ssima|ruim|odiei|n[ãa]o funcion|n[ãa]o gostei|problema|errad|enganad|absurdo|inaceit|processar|procon|reembols|estorno|me engan)/i,
+  purchase: /\b(quero|fechar|fechado|comprar|contratar|pagar|quanto fica|quanto custa|bora|vamos marcar|topo|aceito|pode marcar|me v[êe])/i,
+  info: /\b(pre[çc]o|valor|quanto|onde fica|endere[çc]o|localiza|funciona|hor[áa]rio de func|como|qual|quais|tem|voc[êe]s fazem|d[úu]vida)/i,
+  urgent: /\b(urgente|agora|r[áa]pid|press|com pressa|j[áa]|imediat|hoje mesmo|o quanto antes|sem tempo)/i,
 };
 
 export function classifyIntent(msg: string): Intent {

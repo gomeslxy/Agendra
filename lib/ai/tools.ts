@@ -305,22 +305,74 @@ export async function handleCheckAvailability(
     console.log(`[Tools] busyIntervals count: ${busyIntervals.length}`);
   }
 
-  if (!slots.length) {
-    return { slots: [], message: 'Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.' };
+  const tz = persona.timezone ?? 'America/Sao_Paulo';
+  const workingHours = persona.working_hours ?? {
+    mon: ['09:00', '18:00'], tue: ['09:00', '18:00'], wed: ['09:00', '18:00'],
+    thu: ['09:00', '18:00'], fri: ['09:00', '18:00']
+  };
+
+  // Diagnóstico diário para diferenciar dias fechados vs lotados
+  const dayBreakdown: { date: string; weekday: string; status: 'disponivel' | 'fechado' | 'lotado'; working_hours?: string[] }[] = [];
+  const ptDaysLong: Record<string, string> = {
+    mon: 'segunda-feira', tue: 'terça-feira', wed: 'quarta-feira', thu: 'quinta-feira',
+    fri: 'sexta-feira', sat: 'sábado', sun: 'domingo'
+  };
+
+  for (let i = 0; i < daysAhead; i++) {
+    const checkDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+    const dayName = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(checkDate).toLowerCase();
+    const dateStr = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit' }).format(checkDate);
+    const weekdayPt = ptDaysLong[dayName] || dayName;
+
+    const hours = workingHours[dayName];
+    if (!hours) {
+      dayBreakdown.push({
+        date: dateStr,
+        weekday: weekdayPt,
+        status: 'fechado'
+      });
+    } else {
+      const hasSlot = slots.some(slot => {
+        const slotDate = new Date(slot.start);
+        const slotDayStr = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit' }).format(slotDate);
+        return slotDayStr === dateStr;
+      });
+
+      dayBreakdown.push({
+        date: dateStr,
+        weekday: weekdayPt,
+        status: hasSlot ? 'disponivel' : 'lotado',
+        working_hours: hours
+      });
+    }
   }
 
-  // UX Conversacional Premium: agrupa os slots por dia/período (manhã/tarde/noite)
-  // ANTES de entregar à IA. Assim o modelo fala em FAIXAS ("manhã, das 09h às 12h")
-  // em vez de dumpar 20 horários de 30 em 30 min. Os ISO exatos seguem em `slots`
-  // para o bookAppointment usar o campo "start" sem reconstruir horário.
-  const tz = persona.timezone ?? 'America/Sao_Paulo';
+  const breakdownSummary = dayBreakdown.map(d => {
+    if (d.status === 'fechado') {
+      return `- ${d.weekday} (${d.date}): FECHADO (Sem expediente comercial).`;
+    } else if (d.status === 'lotado') {
+      return `- ${d.weekday} (${d.date}): LOTADO (Todos os horários preenchidos).`;
+    } else {
+      return `- ${d.weekday} (${d.date}): DISPONÍVEL (Temos horários livres).`;
+    }
+  }).join('\n');
+
+  if (!slots.length) {
+    return {
+      slots: [],
+      day_breakdown: dayBreakdown,
+      message: `Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}`
+    };
+  }
+
   const availabilitySummary = buildAvailabilitySummary(slots, tz);
 
   console.log(`[Tools] checkAvailability summary: ${availabilitySummary}`);
   return {
+    day_breakdown: dayBreakdown,
     availability_summary: availabilitySummary,
     slots,
-    message: `Disponibilidade agrupada por período (apresente ao lead em faixas, NUNCA liste slot a slot): ${availabilitySummary}`,
+    message: `Disponibilidade agrupada por período (apresente ao lead em faixas, NUNCA liste slot a slot): ${availabilitySummary}\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}`,
   };
 }
 
