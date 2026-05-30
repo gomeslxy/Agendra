@@ -13,9 +13,10 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendChannelMessage } from '@/lib/channels/send';
 import { syncCompanyCalendar } from '@/lib/calendar/sync';
 import { validateWhatsAppToken } from '@/lib/whatsapp/validate';
-import { triggerAutoFollowUp, handleIncomingMessage } from '@/lib/ai/engine';
+import { triggerAutoFollowUp } from '@/lib/ai/engine';
 import { getPlanLimits } from '@/lib/billing/plans';
 import { getCompanyUsage } from '@/lib/billing/limits';
+import { flushMessageBuffer } from '@/lib/ai/buffer-flush';
 import { ACTIVE_SUBSCRIPTION_STATUSES } from '@/lib/billing/active-statuses';
 
 function isAuthorized(req: NextRequest): boolean {
@@ -305,46 +306,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.error('[morning-cron] channel_health failed:', err.message);
   }
 
-  // ── 5. Flush Buffer ──────────────────────────────────────────────────────────
+  // ── 5. Flush Buffer (safety sweep — primary drain is the 1-min /api/cron/flush-buffer) ──
   try {
-    const { data: rows } = await admin.from('message_buffer')
-      .select('*').eq('flushed', false).lte('flush_after', new Date().toISOString())
-      .order('created_at', { ascending: true }).limit(100);
-
-    if (!rows?.length) {
-      summary.flush_buffer = { flushed: 0 };
-    } else {
-      const groups = new Map<string, typeof rows>();
-      for (const r of rows) {
-        const k = `${r.company_id}:${r.lead_phone}`;
-        if (!groups.has(k)) groups.set(k, []);
-        groups.get(k)!.push(r);
-      }
-
-      let flushed = 0;
-      for (const items of groups.values()) {
-        try {
-          const usage = await getCompanyUsage(items[0].company_id);
-          const consolidated = items.map(i => i.body).join('\n');
-          const mergedMetadata = items.reduce((acc, i) => ({ ...acc, ...(i.metadata ?? {}) }), {});
-
-          await handleIncomingMessage(
-            items[0].company_id, items[0].lead_phone,
-            items[0].lead_name ?? '', consolidated,
-            items[0].provider_message_id, usage,
-            { ...mergedMetadata, debounce_batch_size: items.length, via_sql_fallback: true }
-          );
-
-          await admin.from('message_buffer').update({ flushed: true })
-            .in('provider_message_id', items.map(i => i.provider_message_id));
-          flushed += items.length;
-        } catch (err: any) {
-          console.error('[morning-cron] [flush-buffer] err:', err.message);
-        }
-      }
-      summary.flush_buffer = { flushed };
-      console.log('[morning-cron] flush_buffer:', summary.flush_buffer);
-    }
+    summary.flush_buffer = await flushMessageBuffer(admin);
+    console.log('[morning-cron] flush_buffer:', summary.flush_buffer);
   } catch (err: any) {
     summary.flush_buffer = { error: err.message };
     console.error('[morning-cron] flush_buffer failed:', err.message);
