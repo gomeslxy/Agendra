@@ -88,12 +88,19 @@ const baseFunctionDeclarations: FunctionDeclaration[] = [
       name: 'cancelAppointment',
       description:
         'Cancela um agendamento futuro existente do lead. ' +
-        'Use quando o lead solicitar expressamente o cancelamento de um horário agendado.',
+        'FLUXO OBRIGATÓRIO: (1) Chame myAppointments para obter a lista de agendamentos futuros. ' +
+        '(2) Identifique o agendamento correto usando o contexto da conversa (data, serviço, horário). ' +
+        '(3) Se houver apenas 1 agendamento, confirme com o lead antes de cancelar. ' +
+        '(4) Se houver múltiplos, faça uma pergunta natural para identificar qual o lead deseja cancelar. ' +
+        'NUNCA solicite ou mencione o event_id ao cliente — use-o apenas internamente após identificá-lo via myAppointments.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          event_id: { type: SchemaType.STRING, description: 'ID do agendamento (do myAppointments)' },
-          reason: { type: SchemaType.STRING, description: 'Motivo do cancelamento' },
+          event_id: { type: SchemaType.STRING, description: 'ID interno do agendamento — obtido de myAppointments, NUNCA solicitado ao cliente' },
+          reason: { type: SchemaType.STRING, description: 'Motivo do cancelamento (opcional, inferido da conversa)' },
+          date_hint: { type: SchemaType.STRING, description: 'Data mencionada pelo cliente para ajudar a identificar o agendamento (ex: "amanhã", "sexta")' },
+          service_hint: { type: SchemaType.STRING, description: 'Serviço mencionado pelo cliente (ex: "corte", "barba")' },
+          time_hint: { type: SchemaType.STRING, description: 'Horário mencionado pelo cliente (ex: "14h", "manhã")' },
         },
         required: ['event_id'],
       },
@@ -103,12 +110,18 @@ const baseFunctionDeclarations: FunctionDeclaration[] = [
       description:
         'Altera o horário de um agendamento futuro existente do lead. ' +
         'Use quando o lead pedir para mudar, remarcar ou reagendar o seu horário atual. ' +
-        'Exige o event_id e o novo horário (new_start_time).',
+        'FLUXO OBRIGATÓRIO: (1) Chame myAppointments para obter a lista de agendamentos futuros. ' +
+        '(2) Identifique o agendamento correto usando o contexto da conversa. ' +
+        '(3) Se houver apenas 1 agendamento, confirme qual é e pergunte o novo horário desejado. ' +
+        '(4) Use checkAvailability para verificar disponibilidade do novo horário. ' +
+        'NUNCA solicite ou mencione o event_id ao cliente — use-o apenas internamente após identificá-lo via myAppointments.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          event_id: { type: SchemaType.STRING, description: 'ID do agendamento' },
-          new_start_time: { type: SchemaType.STRING, description: 'Novo ISO 8601 de início' },
+          event_id: { type: SchemaType.STRING, description: 'ID interno do agendamento — obtido de myAppointments, NUNCA solicitado ao cliente' },
+          new_start_time: { type: SchemaType.STRING, description: 'Novo ISO 8601 de início — use o campo "start" exato retornado por checkAvailability' },
+          date_hint: { type: SchemaType.STRING, description: 'Data mencionada pelo cliente para ajudar a identificar o agendamento' },
+          service_hint: { type: SchemaType.STRING, description: 'Serviço mencionado pelo cliente' },
         },
         required: ['event_id', 'new_start_time'],
       },
@@ -710,7 +723,9 @@ export async function handleMyAppointments(_args: any, ctx: ToolContext) {
     const localStart = new Intl.DateTimeFormat('pt-BR', {
       timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
     }).format(new Date(e.start_time));
-    return `- ${e.title} em ${localStart} [ID: ${e.id}]`;
+    // ID is NOT included in the human-readable text to prevent leaks,
+    // but is available in the structured appointments array for the AI to use internally.
+    return `- ${e.title} em ${localStart}`;
   }).join('\n');
   return { message: `Seus agendamentos:\n${list}`, appointments: events };
 }

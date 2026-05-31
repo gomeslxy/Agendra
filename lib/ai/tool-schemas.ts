@@ -48,12 +48,19 @@ const baseDefs: NeutralToolDefinition[] = [
     name: 'cancelAppointment',
     description:
       'Cancela um agendamento futuro existente do lead. ' +
-      'Use quando o lead solicitar expressamente o cancelamento de um horário agendado.',
+      'FLUXO OBRIGATÓRIO: (1) Chame myAppointments para obter a lista de agendamentos futuros. ' +
+      '(2) Identifique o agendamento correto usando o contexto da conversa (data, serviço, horário). ' +
+      '(3) Se houver apenas 1 agendamento, confirme com o lead antes de cancelar. ' +
+      '(4) Se houver múltiplos, faça uma pergunta natural para identificar qual o lead deseja cancelar. ' +
+      'NUNCA solicite ou mencione o event_id ao cliente — use-o apenas internamente após identificá-lo via myAppointments.',
     parameters: {
       type: 'object',
       properties: {
-        event_id: { type: 'string', description: 'ID do agendamento (do myAppointments)' },
-        reason: { type: 'string', description: 'Motivo do cancelamento' },
+        event_id: { type: 'string', description: 'ID interno do agendamento — obtido de myAppointments, NUNCA solicitado ao cliente' },
+        reason: { type: 'string', description: 'Motivo do cancelamento (opcional, inferido da conversa)' },
+        date_hint: { type: 'string', description: 'Data mencionada pelo cliente para ajudar a identificar o agendamento (ex: "amanhã", "sexta")' },
+        service_hint: { type: 'string', description: 'Serviço mencionado pelo cliente (ex: "corte", "barba")' },
+        time_hint: { type: 'string', description: 'Horário mencionado pelo cliente (ex: "14h", "manhã")' },
       },
       required: ['event_id'],
     },
@@ -63,12 +70,18 @@ const baseDefs: NeutralToolDefinition[] = [
     description:
       'Altera o horário de um agendamento futuro existente do lead. ' +
       'Use quando o lead pedir para mudar, remarcar ou reagendar o seu horário atual. ' +
-      'Exige o event_id e o novo horário (new_start_time).',
+      'FLUXO OBRIGATÓRIO: (1) Chame myAppointments para obter a lista de agendamentos futuros. ' +
+      '(2) Identifique o agendamento correto usando o contexto da conversa. ' +
+      '(3) Se houver apenas 1 agendamento, confirme qual é e pergunte o novo horário desejado. ' +
+      '(4) Use checkAvailability para verificar disponibilidade do novo horário. ' +
+      'NUNCA solicite ou mencione o event_id ao cliente — use-o apenas internamente após identificá-lo via myAppointments.',
     parameters: {
       type: 'object',
       properties: {
-        event_id: { type: 'string', description: 'ID do agendamento' },
-        new_start_time: { type: 'string', description: 'Novo ISO 8601 de início' },
+        event_id: { type: 'string', description: 'ID interno do agendamento — obtido de myAppointments, NUNCA solicitado ao cliente' },
+        new_start_time: { type: 'string', description: 'Novo ISO 8601 de início — use o campo "start" exato retornado por checkAvailability' },
+        date_hint: { type: 'string', description: 'Data mencionada pelo cliente para ajudar a identificar o agendamento' },
+        service_hint: { type: 'string', description: 'Serviço mencionado pelo cliente' },
       },
       required: ['event_id', 'new_start_time'],
     },

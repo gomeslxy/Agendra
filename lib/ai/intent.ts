@@ -28,7 +28,9 @@ export interface Intent {
 const RE = {
   // Saudação isolada (linha inteira) — nada além do cumprimento.
   greetingOnly: /^\s*(oi+|ol[áa]+|bom dia|boa tarde|boa noite|e a[íi]|suave|opa+|hey|tudo bem\??|tudo bom\??|de boa|voltei|cheguei)[\s!.,]*$/i,
-  scheduling: /\b(agend|hor[áa]rio|marcar|marca[rç]|dispon[íi]v|vaga|hoje|amanh[ãa]|depois de amanh[ãa]|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|de manh[ãa]|[àa] tarde|[àa] noite|que dia|que horas|reagend|remarc|desmarc|cancel)/i,
+  // Inclui pedidos de cancelamento/não-comparecimento em linguagem natural
+  // NOTA: padrões de não-comparecimento ficam fora do \b pois 'ã' em 'não' pode quebrar word boundary em alguns engines
+  scheduling: /(\b(agend|hor[áa]rio|marcar|marca[rç]|dispon[íi]v|vaga|hoje|amanh[ãa]|depois de amanh[ãa]|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|de manh[ãa]|[àa] tarde|[àa] noite|que dia|que horas|reagend|remarc|desmarc|cancel|n[ãa]o vou conseguir|n[ãa]o consigo ir|precisei? desmarc|quero desmarc|meu hor[áa]rio|minha consulta|meu agendamento|meu corte|minha barba)\b|n[ãa]o (vou|vai|consigo|posso|pode|consegue|poder) (ir|comparecer|aparecer))/i,
   complaint: /\b(reclama|p[ée]ssimo|horr[íi]vel|p[ée]ssima|ruim|odiei|n[ãa]o funcion|n[ãa]o gostei|problema|errad|enganad|absurdo|inaceit|processar|procon|reembols|estorno|me engan)/i,
   purchase: /\b(quero|fechar|fechado|comprar|contratar|pagar|quanto fica|quanto custa|bora|vamos marcar|topo|aceito|pode marcar|me v[êe])/i,
   info: /\b(pre[çc]o|valor|quanto|onde fica|endere[çc]o|localiza|funciona|hor[áa]rio de func|como|qual|quais|tem|voc[êe]s fazem|d[úu]vida)/i,

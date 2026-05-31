@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mountContext } from '../memory';
 import { sanitizeClientResponse, processLeadMessage } from '../engine';
 import { handleCheckAvailability } from '../tools';
+import { classifyIntent } from '../intent';
 import { routeChat } from '../providers/router';
 import type { Lead, Message } from '@/lib/types/database';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -482,6 +483,152 @@ describe('Conversational Sales Engine Simulation', () => {
       expect(systemPrompt).toContain('DIFERENCIAÇÃO DE DIAS SEM EXPEDIENTE VS. AGENDA LOTADA');
       expect(systemPrompt).toContain('Dias Fechados/Sem Expediente');
       expect(systemPrompt).toContain('Dias Genuinamente Lotados');
+    });
+  });
+
+  describe('Cancellation Flow — ID Protection & Intelligent Identification', () => {
+    const mockLead = {
+      id: 'lead-cancel-123',
+      company_id: 'company-123',
+      name: 'Ana Lima',
+      phone: '5511888888888',
+      channel: 'whatsapp' as const,
+      status: 'warm' as const,
+      summary: 'Lead com agendamento ativo.',
+      heat_score: 60,
+      conversation_tone: 'warm' as const,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_paused: false,
+      is_processing: false,
+      last_message_id: null,
+      followup_count: 0,
+      lead_memory: {
+        timeline: [],
+        objections_raised: [],
+        services_mentioned: ['Corte'],
+        score_history: [],
+        last_intent_signal: 'booked',
+        qualification_answers: {},
+      },
+    } as any as Lead;
+
+    const mockPersona = {
+      name: 'Gabi',
+      business_name: 'Barbearia Premium',
+      business_type: 'Barbearia',
+      services: ['Corte - R$60', 'Barba - R$40'],
+    };
+
+    it('system prompt contains intelligent cancellation rules (no ID requests)', async () => {
+      (routeChat as any).mockResolvedValue({
+        text: 'Claro! Deixa eu verificar seus agendamentos.',
+        tokensInput: 10,
+        tokensOutput: 5,
+        toolsCalled: [],
+        modelUsed: 'gemini',
+        provider: 'gemini',
+        fallbackUsed: false,
+      });
+
+      await processLeadMessage(
+        mockLead,
+        [],
+        'quero cancelar meu horário',
+        'company-123',
+        mockPersona,
+        false,
+        'trial',
+        { maxLeads: 100, maxChannels: 1, maxCalendars: 1 } as any
+      );
+
+      const systemPrompt = (routeChat as any).mock.calls[0][0].systemPrompt;
+
+      // Must contain the cancellation intelligence rules
+      expect(systemPrompt).toContain('Cancelamento e Reagendamento Inteligente');
+      expect(systemPrompt).toContain('IDs são exclusivamente internos');
+      expect(systemPrompt).toContain('NUNCA cite, exiba, mencione, peça ou pergunte o ID');
+      expect(systemPrompt).toContain('myAppointments');
+      expect(systemPrompt).toContain('Confirmação obrigatória antes de cancelar');
+
+      // Must NOT instruct asking for IDs
+      expect(systemPrompt).not.toContain('informe o ID');
+      expect(systemPrompt).not.toContain('qual é o ID');
+      expect(systemPrompt).not.toContain('peça o event_id');
+    });
+
+    it('sanitizeClientResponse strips any UUID that leaks into cancellation response', () => {
+      // Simulates the AI accidentally including an appointment ID in its response
+      const leakyResponse = 'Vou cancelar seu agendamento abc12345-1234-1234-1234-abcdef123456. Confirmado!';
+      const clean = sanitizeClientResponse(leakyResponse);
+
+      expect(clean).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      expect(clean).toContain('cancelar seu agendamento');
+    });
+
+    it('sanitizeClientResponse strips [ID: ...] pattern from appointment display', () => {
+      const leakyList = 'Seus agendamentos:\n- Corte em 02/06 às 14:00 [ID: abc12345-1234-1234-1234-abcdef123456]';
+      const clean = sanitizeClientResponse(leakyList);
+
+      expect(clean).not.toContain('[ID:');
+      expect(clean).not.toContain('abc12345');
+      expect(clean).toContain('Corte em 02/06');
+    });
+
+    it('intent classifier detects vague cancellation requests as scheduling (needsTools=true)', () => {
+      const vagueRequests = [
+        'não vou conseguir ir amanhã',
+        'não vou poder comparecer',
+        'preciso desmarcar',
+        'quero cancelar meu horário',
+        'cancela meu corte',
+        'precisa desmarcar minha consulta',
+        'não consigo ir',
+      ];
+
+      for (const msg of vagueRequests) {
+        const result = classifyIntent(msg);
+        expect(result.needsTools).toBe(true);
+        // Must not fall through as greeting
+        expect(result.type).not.toBe('greeting');
+      }
+    });
+
+    it('processLeadMessage passes cancellation intent to tools chain', async () => {
+      (routeChat as any).mockResolvedValue({
+        text: 'Vou verificar seus agendamentos.',
+        tokensInput: 10,
+        tokensOutput: 5,
+        toolsCalled: ['myAppointments'],
+        modelUsed: 'gemini',
+        provider: 'gemini',
+        fallbackUsed: false,
+      });
+
+      await processLeadMessage(
+        mockLead,
+        [],
+        'preciso desmarcar minha consulta',
+        'company-123',
+        mockPersona,
+        false,
+        'trial',
+        { maxLeads: 100, maxChannels: 1, maxCalendars: 1 } as any
+      );
+
+      // The router must have been called (not short-circuited)
+      expect(routeChat).toHaveBeenCalled();
+
+      // Verify tools are included in the call (cancellation needs tools chain)
+      const calledArgs = (routeChat as any).mock.calls[0][0];
+      expect(calledArgs.tools).toBeDefined();
+      expect(calledArgs.tools.length).toBeGreaterThan(0);
+
+      // Verify the tool definitions do NOT require the client to provide event_id
+      const cancelTool = calledArgs.tools.find((t: any) => t.name === 'cancelAppointment');
+      expect(cancelTool).toBeDefined();
+      expect(cancelTool.description).toContain('NUNCA solicite ou mencione o event_id ao cliente');
+      expect(cancelTool.description).toContain('myAppointments');
     });
   });
 });
