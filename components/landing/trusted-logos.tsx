@@ -6,12 +6,9 @@ import { InfiniteSlider } from "@/components/ui/infinite-slider";
 
 const LOGOS = [
   { name: "WhatsApp",        url: "/logos/whatsapp.svg" },
+  { name: "Instagram",       url: "/logos/instagram.svg" },
   { name: "Google Calendar", url: "/logos/google-calendar.svg" },
   { name: "Stripe",          url: "/logos/stripe.svg" },
-  { name: "HubSpot",         url: "/logos/hubspot.svg" },
-  { name: "Salesforce",      url: "/logos/salesforce.svg" },
-  { name: "Zapier",          url: "/logos/zapier.svg" },
-  { name: "Instagram",       url: "/logos/instagram.svg" },
 ];
 
 export function TrustedLogos() {

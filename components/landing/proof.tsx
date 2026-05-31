@@ -6,9 +6,9 @@ import { StaggerGroup } from "@/components/motion/stagger-group";
 import { fadeUp } from "@/components/motion/variants";
 
 const STATS = [
-  { v: "3.2", s: "×", l: "MAIS AGENDAMENTOS", color: "#F97316" }, // brand-orange-500
+  { v: "100", s: "%", l: "SINC. COM AGENDA", color: "#F97316" }, // brand-orange-500
   { v: "4",   s: "s", l: "RESPOSTA MÉDIA",    color: "#14B8A6" }, // brand-teal-500
-  { v: "38",  s: "%", l: "CONVERSÃO FINAL",   color: "#2563EB" }, // brand-blue-600
+  { v: "15",  s: "min", l: "SETUP INICIAL",   color: "#2563EB" }, // brand-blue-600
   { v: "24/7", s: "", l: "DISPONIBILIDADE",   color: "#09090B" }, // fg-1
 ];
 

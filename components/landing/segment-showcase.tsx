@@ -24,10 +24,10 @@ interface SegmentData {
   Icon: React.ElementType;
   roiTitle: string;
   roiSub: string;
-  testimonial: {
-    quote: string;
-    author: string;
-    role: string;
+  scenario: {
+    description: string;
+    highlight: string;
+    target: string;
   };
   aiInstructions: {
     systemPrompt: string;
@@ -43,10 +43,10 @@ const SEGMENTS: SegmentData[] = [
     Icon: Stethoscope,
     roiTitle: "3.2× mais consultas agendadas",
     roiSub: "Respostas imediatas impedem que leads comprem do concorrente enquanto esperam atendimento.",
-    testimonial: {
-      quote: "A Agendra se pagou no primeiro dia de uso. Três leads do Instagram viraram consultas em menos de 10 minutos, sem eu precisar encostar no celular. Perfeito para preencher a agenda.",
-      author: "Dra. Ana Ferreira",
-      role: "Clínica de Estética · São Paulo",
+    scenario: {
+      description: "A IA qualifica leads do Instagram que procuram sobre procedimentos estéticos e responde dúvidas frequentes (preços, recuperação) de imediato. Em seguida, encontra um horário vago no calendário e agenda o paciente automaticamente.",
+      highlight: "Otimização de tempo útil",
+      target: "Recepção · Gestão de Clínicas",
     },
     aiInstructions: {
       systemPrompt: "Você é a secretária virtual inteligente da Clínica BellaPelle. Seu objetivo é qualificar leads interessados em procedimentos estéticos (Toxina Botulínica, Clareamento, Bioestimuladores) e agendar uma avaliação inicial gratuita diretamente na agenda da Dra. Ana. Seja extremamente acolhedora e educada.",
@@ -64,10 +64,10 @@ const SEGMENTS: SegmentData[] = [
     Icon: Dumbbell,
     roiTitle: "Filtro inteligente de curiosos",
     roiSub: "Atendimento imediato a novos inscritos de anúncios, filtrando quem realmente quer treinar.",
-    testimonial: {
-      quote: "Antes perdíamos muitos alunos porque demorávamos para responder no WhatsApp. Agora, a IA responde em 4 segundos e nos entrega apenas os alunos quentes. Nossa agenda de aulas experimentais está lotada há semanas.",
-      author: "Rodrigo Melo",
-      role: "Academia Fit Prime · Curitiba",
+    scenario: {
+      description: "Ao rodar anúncios para novos alunos, a Agendra assume o primeiro contato. Ela apresenta os planos (Musculação, Crossfit, etc.) e já conclui marcando a aula experimental na grade horária do dia.",
+      highlight: "Redução de lead ocioso",
+      target: "Atendimento · Gerência de Vendas",
     },
     aiInstructions: {
       systemPrompt: "Você é o atendente virtual dinâmico da Academia FitPrime. Ajude novos interessados a escolher o plano ideal (Musculação, Crossfit, Funcional) e agende uma aula experimental gratuita. Mantenha um tom motivador e enérgico.",
@@ -85,10 +85,10 @@ const SEGMENTS: SegmentData[] = [
     Icon: HomeIcon,
     roiTitle: "Visitas qualificadas no automático",
     roiSub: "Qualifique orçamento, localização e número de quartos antes de enviar o lead ao corretor.",
-    testimonial: {
-      quote: "A integração com o Google Calendar é perfeita. A IA qualifica o lead, entende o que ele procura e já agenda a visita física no imóvel de forma autônoma. Zero conflitos, zero trabalho manual.",
-      author: "Juliana Costa",
-      role: "Imobiliária Costa & Silva · Rio de Janeiro",
+    scenario: {
+      description: "A IA atua como uma pré-venda eficiente. Quando o lead solicita informações sobre um imóvel, ela valida o interesse, pergunta a disponibilidade financeira e sugere o agendamento de uma visita presencial sincronizada com os corretores.",
+      highlight: "Visitas pré-qualificadas",
+      target: "Corretores · Diretoria Comercial",
     },
     aiInstructions: {
       systemPrompt: "Você é a assessora imobiliária inteligente da Costa & Silva Imóveis. Seu objetivo é entender se o lead deseja alugar ou comprar, qual o orçamento disponível, a região de interesse e agendar uma visita física aos imóveis do catálogo.",
@@ -106,10 +106,10 @@ const SEGMENTS: SegmentData[] = [
     Icon: Briefcase,
     roiTitle: "SQLs quentes para seus vendedores",
     roiSub: "Filtre leads sem fit e garanta que seus vendedores só façam reuniões com tomadores de decisão.",
-    testimonial: {
-      quote: "Nossa equipe comercial gastava 70% do tempo qualificando leads frios. Com a Agendra, os leads chegam já triados, com orçamento validado e reunião agendada na conta do SDR correspondente.",
-      author: "Juliana Mendes",
-      role: "CEO da GrowthLabs · Belo Horizonte",
+    scenario: {
+      description: "Ideal para captar inscrições em materiais ricos ou inbound marketing. A assistente atua como um SDR virtual, extraindo dados da empresa, tamanho do time e dor principal, marcando a Discovery Call direto na agenda do vendedor.",
+      highlight: "Automação de Sales Development",
+      target: "SDRs · Closers · Times de Growth",
     },
     aiInstructions: {
       systemPrompt: "Você é a assistente de qualificação comercial (SDR virtual) da GrowthLabs. Qualifique os leads que baixaram materiais ricos. Identifique o cargo, faturamento da empresa e dores comerciais antes de oferecer a call de diagnóstico de 15 min.",
@@ -207,22 +207,22 @@ export function SegmentShowcase() {
                     {activeSegment.roiSub}
                   </p>
 
-                  {/* Testimonial Block */}
-                  <div className="border-l-2 border-brand-orange-500 pl-4 py-1 mb-8">
-                    <div className="flex gap-0.5 mb-2.5">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={14} className="fill-[#F97316] text-[#F97316]" />
-                      ))}
+                  {/* Scenario Block */}
+                  <div className="border-l-2 border-brand-orange-500 bg-[#FFF7ED] rounded-r-lg pl-4 pr-3 py-3 mb-8">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-[10px] font-bold text-brand-orange-500 uppercase tracking-widest bg-brand-orange-100 px-2 py-0.5 rounded-sm">
+                        Cenário de Aplicação
+                      </span>
                     </div>
-                    <blockquote className="text-sm text-[#3F3F46] leading-relaxed italic mb-3">
-                      &ldquo;{activeSegment.testimonial.quote}&rdquo;
-                    </blockquote>
-                    <div>
-                      <cite className="not-italic text-xs font-bold text-[#09090B] block">
-                        {activeSegment.testimonial.author}
-                      </cite>
-                      <span className="text-[11px] text-[#71717A]">
-                        {activeSegment.testimonial.role}
+                    <p className="text-sm text-[#3F3F46] leading-relaxed mb-3 font-medium">
+                      {activeSegment.scenario.description}
+                    </p>
+                    <div className="flex flex-col border-t border-brand-orange-500/20 pt-2.5 mt-2">
+                      <span className="text-[11px] font-bold text-[#09090B]">
+                        Benefício Chave: <span className="font-medium text-[#3F3F46]">{activeSegment.scenario.highlight}</span>
+                      </span>
+                      <span className="text-[10px] text-[#71717A] mt-0.5">
+                        Ideal para: {activeSegment.scenario.target}
                       </span>
                     </div>
                   </div>
