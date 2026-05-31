@@ -2,12 +2,12 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldAlert, Lock, Zap, Cpu } from "lucide-react";
+import { ShieldAlert, Lock, Zap, Cpu, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { forceUnlockStaleLead } from "../actions";
-import type { ProviderStat, RecentAiError, StaleLead, StaleMessage, TokenConsumer } from "../types";
+import type { ProviderStat, RecentAiError, StaleLead, StaleMessage, TokenConsumer, DailyPoint } from "../types";
 
 interface Props {
   providerStats: ProviderStat[];
@@ -15,6 +15,7 @@ interface Props {
   staleLeads: StaleLead[];
   staleMessages: StaleMessage[];
   topTokenConsumers: TokenConsumer[];
+  aiErrorDaily: DailyPoint[];
 }
 
 function LatencyBar({ value, max, color }: { value: number; max: number; color: string }) {
@@ -30,10 +31,14 @@ function LatencyBar({ value, max, color }: { value: number; max: number; color: 
 }
 
 export function SystemHealthTab({
-  providerStats, recentAiErrors, staleLeads, staleMessages, topTokenConsumers,
+  providerStats, recentAiErrors, staleLeads, staleMessages, topTokenConsumers, aiErrorDaily,
 }: Props) {
   const router = useRouter();
   const maxP99 = Math.max(...providerStats.map((p) => p.p99_ms), 1);
+  const maxDayTotal = Math.max(...aiErrorDaily.map((d) => d.total), 1);
+  const totalReq7d = aiErrorDaily.reduce((s, d) => s + d.total, 0);
+  const totalErr7d = aiErrorDaily.reduce((s, d) => s + d.errors, 0);
+  const errRate7d = totalReq7d > 0 ? Math.round((totalErr7d / totalReq7d) * 1000) / 10 : 0;
 
   async function handleUnlock(lead: StaleLead) {
     const res = await forceUnlockStaleLead(lead.id, lead.company_id);
@@ -101,8 +106,43 @@ export function SystemHealthTab({
         </div>
       </div>
 
+      {/* AI error rate trend (7d) */}
+      <div className="border border-[#E4E4E7] bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#E4E4E7] bg-[#F4F4F5] flex items-center gap-2">
+          <Activity size={15} className="text-[#2563EB]" />
+          <h2 className="text-sm font-semibold text-[#09090B]">Taxa de Erro de IA (7d)</h2>
+          <span className={`ml-auto text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${errRate7d >= 5 ? "bg-[#DC2626] text-white" : "bg-[#F0FDF4] text-[#166534]"}`}>
+            {errRate7d}% ({totalErr7d}/{totalReq7d})
+          </span>
+        </div>
+        {aiErrorDaily.length === 0 ? (
+          <div className="px-5 py-6 text-xs text-[#71717A] text-center">Sem requisições de IA no período.</div>
+        ) : (
+          <div className="p-4 flex items-end gap-1.5 h-32">
+            {aiErrorDaily.map((d) => {
+              const totalH = Math.max(4, (d.total / maxDayTotal) * 100);
+              const errH = d.total > 0 ? (d.errors / d.total) * totalH : 0;
+              const dayErrRate = d.total > 0 ? Math.round((d.errors / d.total) * 100) : 0;
+              return (
+                <div key={d.day} className="flex-1 flex flex-col items-center gap-1 group relative">
+                  <div className="w-full flex flex-col justify-end rounded-t bg-[#E4E4E7] overflow-hidden" style={{ height: `${totalH}%` }}>
+                    <div className="w-full bg-[#DC2626]" style={{ height: `${(errH / totalH) * 100}%` }} />
+                  </div>
+                  <span className="text-[8px] font-mono text-[#A1A1AA]">
+                    {new Date(d.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                  </span>
+                  <div className="absolute -top-8 hidden group-hover:block bg-[#09090B] text-white text-[9px] font-mono px-2 py-1 rounded whitespace-nowrap z-10">
+                    {d.total} reqs · {d.errors} erros ({dayErrRate}%)
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Stale processing locks */}
-      <div className="border border-[staleLeads.length > 0 ? '#FECACA' : '#E4E4E7'] bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className={`border bg-white rounded-2xl shadow-sm overflow-hidden ${staleLeads.length > 0 ? "border-[#FECACA]" : "border-[#E4E4E7]"}`}>
         <div className={`px-5 py-4 border-b flex items-center gap-2 ${staleLeads.length > 0 ? "border-[#FECACA] bg-[#FFF1F2]" : "border-[#E4E4E7] bg-[#F4F4F5]"}`}>
           <Lock size={15} className={staleLeads.length > 0 ? "text-[#DC2626]" : "text-[#71717A]"} />
           <h2 className="text-sm font-semibold text-[#09090B]">

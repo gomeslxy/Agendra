@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
   TrendingUp, Building2, Activity, FileText, LogOut,
-  Brain, DollarSign, Command, Search, X,
+  Brain, DollarSign, Command, Search, X, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logoutAdmin, updateTenantPlan, toggleCompanyAI } from "./actions";
@@ -23,7 +23,7 @@ import { SecurityLogsTab }   from "./tabs/security-logs-tab";
 import type {
   Company, User, UnhealthyChannel, ProviderStat, RecentAiError,
   AuditLog, StaleLead, StaleMessage, TokenConsumer, IntentItem,
-  SummaryData, Tab,
+  SummaryData, Tab, DailyPoint,
 } from "./types";
 
 interface AdminDashboardClientProps {
@@ -37,6 +37,7 @@ interface AdminDashboardClientProps {
   staleMessages: StaleMessage[];
   topTokenConsumers: TokenConsumer[];
   intentDistribution: IntentItem[];
+  aiErrorDaily: DailyPoint[];
   churnRiskCompanies: string[];
   summary: SummaryData;
 }
@@ -70,9 +71,13 @@ function CommandPalette({
   useEffect(() => { if (!open) setQ(""); }, [open]);
 
   const planActions = companies.slice(0, 5).map((c) => ({
-    label: `Pausar IA — ${c.name}`,
+    label: `${c.ai_paused ? "Reativar" : "Pausar"} IA — ${c.name}`,
     group: "Ações Rápidas",
-    action: async () => { await toggleCompanyAI(c.id, !c.ai_paused); toast.success("IA alternada"); router.refresh(); },
+    action: async () => {
+      const res = await toggleCompanyAI(c.id, !c.ai_paused);
+      if (res.success) { toast.success(c.ai_paused ? "IA reativada" : "IA pausada"); router.refresh(); }
+      else toast.error(res.error || "Erro ao alternar IA");
+    },
   }));
 
   const tabActions: { label: string; group: string; action: () => void }[] = TABS.map((t) => ({
@@ -188,12 +193,14 @@ export function AdminDashboardClient({
   staleMessages,
   topTokenConsumers,
   intentDistribution,
+  aiErrorDaily,
   churnRiskCompanies,
   summary,
 }: AdminDashboardClientProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("executive");
   const [cmdOpen, setCmdOpen]     = useState(false);
+  const [refreshing, startRefresh] = useTransition();
 
   // Cmd+K / Ctrl+K shortcut
   useEffect(() => {
@@ -248,9 +255,21 @@ export function AdminDashboardClient({
             <kbd className="hidden sm:inline font-mono text-[9px] bg-[#F4F4F5] border border-[#E4E4E7] px-1.5 py-0.5 rounded">⌘K</kbd>
           </button>
 
+          <button
+            onClick={() => startRefresh(() => router.refresh())}
+            disabled={refreshing}
+            title="Atualizar dados"
+            className="flex items-center gap-2 bg-white border border-[#E4E4E7] rounded-xl px-3 py-2 text-xs text-[#71717A] hover:border-[#D4D4D8] hover:text-[#09090B] transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
+            <span className="hidden sm:inline">{refreshing ? "Atualizando…" : "Atualizar"}</span>
+          </button>
+
           <div className="text-right hidden sm:block">
             <p className="text-xs font-semibold text-[#09090B]">Super Admin</p>
-            <p className="text-[10px] font-mono text-[#71717A]">Sessão 2h</p>
+            <p className="text-[10px] font-mono text-[#71717A]">
+              {new Date(summary.generatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </p>
           </div>
 
           <Button
@@ -356,6 +375,7 @@ export function AdminDashboardClient({
                   staleLeads={staleLeads}
                   staleMessages={staleMessages}
                   topTokenConsumers={topTokenConsumers}
+                  aiErrorDaily={aiErrorDaily}
                 />
               )}
               {activeTab === "ai_engine" && (

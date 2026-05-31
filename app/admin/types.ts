@@ -10,6 +10,9 @@ export interface Company {
   channel_status: string; // 'active'|'paused'|'error'|'none'
   created_at: string;
   mrr: number;
+  /** True when MRR is recognized (Stripe subscription active), false when the
+   *  plan was set manually by an admin without a Stripe subscription. */
+  mrr_real: boolean;
   msgs_7d: number;
   leads_active: number;
   last_activity: string | null;
@@ -94,16 +97,33 @@ export interface IntentItem {
   count: number;
 }
 
+export interface DailyPoint {
+  day: string;
+  total: number;
+  errors: number;
+}
+
 export interface SummaryData {
   totalCompanies: number;
   totalUsers: number;
   totalLeads: number;
   totalMessages: number;
   newCompanies7d: number;
+  newToday: number;
   estimatedMRR: number;
+  /** MRR counted from manually-set plans without a Stripe subscription (not
+   *  recognized revenue — surfaced separately so the headline MRR stays honest). */
+  unverifiedMRR: number;
+  unverifiedMRRCount: number;
   churnRiskCount: number;
+  /** Subscriptions actually canceled/expired. */
+  canceledCount: number;
+  /** Active subscriptions flagged to cancel at period end. */
+  pendingCancelCount: number;
   growthWoW: number;
+  /** 30d cohort conversion: companies created in 30d now paying (Stripe). */
   trialConversionRate: number;
+  generatedAt: string;
 }
 
 export type Tab = "executive" | "tenants" | "system_health" | "ai_engine" | "billing" | "security_logs";

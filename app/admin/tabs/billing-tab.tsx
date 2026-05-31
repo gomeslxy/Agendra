@@ -17,7 +17,8 @@ interface Props {
 export function BillingTab({ companies, summary }: Props) {
   const router = useRouter();
 
-  const payingCompanies = companies.filter((c) => c.subscription_status === "active");
+  // Only Stripe-backed active subscriptions count as recognized revenue (M1).
+  const payingCompanies = companies.filter((c) => c.mrr_real);
   const mrrByPlan = ["starter", "pro", "business"].map((plan) => {
     const cos = payingCompanies.filter((c) => c.plan_type === plan);
     return {

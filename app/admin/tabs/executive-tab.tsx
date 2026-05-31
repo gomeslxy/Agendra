@@ -1,7 +1,7 @@
 // app/admin/tabs/executive-tab.tsx
 "use client";
 
-import { TrendingUp, TrendingDown, Users, MessageSquare, DollarSign, AlertTriangle, BarChart3, Repeat } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, UserMinus, CalendarPlus, DollarSign, AlertTriangle, BarChart3, Repeat } from "lucide-react";
 import type { Company, SummaryData, UnhealthyChannel } from "../types";
 
 interface Props {
@@ -61,9 +61,13 @@ export function ExecutiveTab({ companies, summary, churnRiskCompanyIds, unhealth
       {/* KPI grid — row 1 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
-          label="MRR Estimado"
+          label="MRR Reconhecido"
           value={`R$ ${summary.estimatedMRR.toLocaleString("pt-BR")}`}
-          sub="Clientes pagantes ativos"
+          sub={
+            summary.unverifiedMRRCount > 0
+              ? `+R$ ${summary.unverifiedMRR.toLocaleString("pt-BR")} manual (sem Stripe)`
+              : "Assinaturas Stripe ativas"
+          }
           icon={DollarSign}
           iconColor="text-[#16A34A]"
           highlight="green"
@@ -71,52 +75,91 @@ export function ExecutiveTab({ companies, summary, churnRiskCompanyIds, unhealth
         <MetricCard
           label="Crescimento WoW"
           value={`${growthPositive ? "+" : ""}${summary.growthWoW}%`}
-          sub="vs semana anterior"
+          sub="novos tenants vs semana anterior"
           icon={growthPositive ? TrendingUp : TrendingDown}
           iconColor={growthPositive ? "text-[#16A34A]" : "text-[#DC2626]"}
           highlight={growthPositive ? "green" : "red"}
         />
         <MetricCard
-          label="Conversão Trial→Paid"
+          label="Conversão (coorte 30d)"
           value={`${summary.trialConversionRate}%`}
-          sub="Últimos 30 dias"
+          sub="cadastros 30d que viraram pagantes"
           icon={Repeat}
           iconColor="text-[#2563EB]"
           highlight="blue"
         />
         <MetricCard
-          label="Risco de Churn"
-          value={summary.churnRiskCount}
-          sub="0 mensagens em 7d"
-          icon={AlertTriangle}
-          iconColor="text-[#EA580C]"
-          highlight={summary.churnRiskCount > 0 ? "orange" : undefined}
+          label="Cancelamentos"
+          value={summary.canceledCount}
+          sub={summary.pendingCancelCount > 0 ? `+${summary.pendingCancelCount} cancelam no fim do ciclo` : "canceladas / past due"}
+          icon={UserMinus}
+          iconColor="text-[#DC2626]"
+          highlight={summary.canceledCount + summary.pendingCancelCount > 0 ? "red" : undefined}
         />
       </div>
 
       {/* KPI grid — row 2 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
-          label="Novos Clientes (7d)"
+          label="Novos Hoje"
+          value={`+${summary.newToday}`}
+          sub="cadastros desde 00h"
+          icon={CalendarPlus}
+          iconColor="text-[#16A34A]"
+          highlight={summary.newToday > 0 ? "green" : undefined}
+        />
+        <MetricCard
+          label="Novos (7d)"
           value={`+${summary.newCompanies7d}`}
-          sub="Cadastros recentes"
+          sub="cadastros recentes"
           icon={TrendingUp}
           iconColor="text-[#16A34A]"
         />
         <MetricCard
+          label="Risco de Churn"
+          value={summary.churnRiskCount}
+          sub="ativos com 0 msgs em 7d"
+          icon={AlertTriangle}
+          iconColor="text-[#EA580C]"
+          highlight={summary.churnRiskCount > 0 ? "orange" : undefined}
+        />
+        <MetricCard
           label="Total de Leads"
           value={summary.totalLeads.toLocaleString("pt-BR")}
-          sub="Todos os tenants"
+          sub="todos os tenants"
           icon={Users}
           iconColor="text-[#2563EB]"
         />
-        <MetricCard
-          label="Conversas (total)"
-          value={summary.totalMessages.toLocaleString("pt-BR")}
-          sub="Turnos processados pela IA"
-          icon={MessageSquare}
-          iconColor="text-[#14B8A6]"
-        />
+      </div>
+
+      {/* Onboarding funnel */}
+      <div className="border border-[#E4E4E7] bg-white rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart3 size={16} className="text-[#2563EB]" />
+          <h2 className="text-sm font-semibold text-[#09090B]">Funil de Onboarding</h2>
+          <span className="ml-auto text-[10px] font-mono text-[#71717A]">{companies.length} tenants</span>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          {(() => {
+            const done = companies.filter((c) => c.onboarding_status === "completed").length;
+            const inProgress = companies.filter((c) => ["in_progress", "pending"].includes(c.onboarding_status)).length;
+            const notStarted = companies.length - done - inProgress;
+            const steps: [string, number, string][] = [
+              ["Não iniciado", notStarted, "text-[#DC2626]"],
+              ["Em progresso", inProgress, "text-[#EA580C]"],
+              ["Concluído", done, "text-[#16A34A]"],
+            ];
+            return steps.map(([label, count, color]) => (
+              <div key={label} className="bg-[#F4F4F5] rounded-xl p-4 border border-[#E4E4E7]">
+                <div className="text-[10px] font-mono font-bold uppercase text-[#71717A] mb-1">{label}</div>
+                <div className={`text-2xl font-bold font-mono ${color}`}>{count}</div>
+                <div className="text-[10px] text-[#71717A] mt-0.5">
+                  {companies.length > 0 ? Math.round((count / companies.length) * 100) : 0}%
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
       </div>
 
       {/* Plan distribution with MRR breakdown */}

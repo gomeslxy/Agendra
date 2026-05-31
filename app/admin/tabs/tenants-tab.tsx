@@ -1,7 +1,7 @@
 // app/admin/tabs/tenants-tab.tsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, Fragment } from "react";
 import { Search, Power, ChevronUp, ChevronDown, Download, Trash2, RefreshCw, Bell, Wand2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -35,6 +35,8 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
 
   // Modal state
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
+  const [impersonateTarget, setImpersonateTarget] = useState<Company | null>(null);
+  const [exportTarget, setExportTarget] = useState<Company | null>(null);
   const [notifTarget,  setNotifTarget]  = useState<Company | null>(null);
   const [notifTitle,   setNotifTitle]   = useState("");
   const [notifBody,    setNotifBody]    = useState("");
@@ -245,9 +247,8 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
                   const isChurnRisk = churnRiskIds.includes(c.id);
                   const expanded = expandedId === c.id;
                   return (
-                    <>
+                    <Fragment key={c.id}>
                       <tr
-                        key={c.id}
                         className={`transition-colors cursor-pointer ${expanded ? "bg-[#F4F4F5]" : "hover:bg-[#FAFAFA]"} ${isChurnRisk ? "border-l-2 border-l-[#EA580C]" : ""}`}
                         onClick={() => setExpandedId(expanded ? null : c.id)}
                       >
@@ -308,11 +309,11 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
 
                       {/* Expanded row: actions */}
                       {expanded && (
-                        <tr key={`${c.id}-exp`} className="bg-[#F4F4F5] border-t border-[#E4E4E7]">
+                        <tr className="bg-[#F4F4F5] border-t border-[#E4E4E7]">
                           <td colSpan={8} className="px-4 py-3">
                             <div className="flex flex-wrap gap-2 items-center">
                               <span className="text-[10px] font-mono text-[#71717A] mr-1">Ações rápidas →</span>
-                              <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => handleMagicLink(c)}>
+                              <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => setImpersonateTarget(c)}>
                                 <Wand2 size={11} /> Impersonar
                               </Button>
                               <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => handleResetOnboarding(c)}>
@@ -324,7 +325,7 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
                               <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => handleExtend(c)}>
                                 <Plus size={11} /> +500 leads
                               </Button>
-                              <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => handleExport(c)}>
+                              <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => setExportTarget(c)}>
                                 <Download size={11} /> Exportar CSV
                               </Button>
                               <Button
@@ -344,7 +345,7 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })
               )}
@@ -363,6 +364,27 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
         danger
         onConfirm={handleDelete}
         onClose={() => setDeleteTarget(null)}
+      />
+
+      {/* Impersonate confirm modal — generates a login link as the tenant owner */}
+      <ConfirmModal
+        open={!!impersonateTarget}
+        title={`Impersonar ${impersonateTarget?.name}`}
+        description="Gera um magic link de login como o DONO desta empresa, dando acesso total aos dados dele. A ação é auditada. Use apenas para suporte legítimo."
+        confirmLabel="Gerar link de acesso"
+        danger
+        onConfirm={() => { if (impersonateTarget) handleMagicLink(impersonateTarget); setImpersonateTarget(null); }}
+        onClose={() => setImpersonateTarget(null)}
+      />
+
+      {/* Export confirm modal — exfiltrates lead PII */}
+      <ConfirmModal
+        open={!!exportTarget}
+        title={`Exportar leads de ${exportTarget?.name}`}
+        description="Exporta dados pessoais (nome, telefone, email) dos leads em CSV. Trate o arquivo conforme a LGPD. A ação é auditada."
+        confirmLabel="Exportar CSV"
+        onConfirm={() => { if (exportTarget) handleExport(exportTarget); setExportTarget(null); }}
+        onClose={() => setExportTarget(null)}
       />
 
       {/* Send notification modal */}

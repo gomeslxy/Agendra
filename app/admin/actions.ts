@@ -1,31 +1,17 @@
 // app/admin/actions.ts
 "use server";
 
-import { cookies, headers } from "next/headers";
 import { getUser, getCachedUserProfile } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import crypto from "crypto";
-
-const DEFAULT_ADMIN_PASSWORD = "agendra-proprietario-2026";
-const ADMIN_EMAILS = ["gmlucazz1@gmail.com", "la181009@gmail.com"];
-
-// ── Session token helpers (with session fingerprinting) ──────────────────────
-
-function computeAdminToken(password: string, ip: string, ua: string): string {
-  // Fingerprint binds session to the specific IP + User-Agent combo
-  const fingerprint = `${ip}:${ua.substring(0, 128)}`;
-  return crypto
-    .createHmac("sha256", "agendra-admin-salt-2026")
-    .update(`${password}:${fingerprint}`)
-    .digest("hex");
-}
-
-async function getRequestMeta(): Promise<{ ip: string; ua: string }> {
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "127.0.0.1";
-  const ua = h.get("user-agent") || "unknown";
-  return { ip, ua };
-}
+import {
+  getRequestMeta,
+  isAllowedAdminEmail,
+  hasValidAdminCookie,
+  computeAdminToken,
+  checkAdminPassword,
+  setAdminCookie,
+  clearAdminCookie,
+} from "@/lib/admin/auth";
 
 // ── Core auth validation ─────────────────────────────────────────────────────
 
@@ -33,24 +19,12 @@ export async function validateAdminSessionOrThrow(): Promise<void> {
   const user = await getUser();
   if (!user) throw new Error("Acesso negado: não autenticado");
 
-  const allowedEmails = [
-    ...(process.env.ADMIN_EMAIL ? [process.env.ADMIN_EMAIL] : []),
-    ...ADMIN_EMAILS,
-  ];
-  if (!user.email || !allowedEmails.includes(user.email)) {
+  if (!isAllowedAdminEmail(user.email)) {
     throw new Error("Acesso negado: privilégios insuficientes");
   }
 
-  const cookieStore = await cookies();
-  const storedToken = cookieStore.get("agendra_admin_session")?.value;
-  if (!storedToken) throw new Error("Acesso negado: sessão administrativa inválida ou expirada");
-
-  const { ip, ua } = await getRequestMeta();
-  const adminPassword = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
-  const expectedToken = computeAdminToken(adminPassword, ip, ua);
-
-  if (storedToken !== expectedToken) {
-    throw new Error("Acesso negado: fingerprint de sessão inválido");
+  if (!(await hasValidAdminCookie())) {
+    throw new Error("Acesso negado: sessão administrativa inválida ou expirada");
   }
 }
 
@@ -63,39 +37,38 @@ export async function verifyAdminPassword(
     const user = await getUser();
     if (!user) return { success: false, error: "Usuário não está logado no Supabase" };
 
-    const allowedEmails = [
-      ...(process.env.ADMIN_EMAIL ? [process.env.ADMIN_EMAIL] : []),
-      ...ADMIN_EMAILS,
-    ];
-    if (!user.email || !allowedEmails.includes(user.email)) {
+    if (!isAllowedAdminEmail(user.email)) {
       return { success: false, error: "Privilégios insuficientes" };
     }
 
     const { ip, ua } = await getRequestMeta();
     const adminClient = createAdminClient();
 
-    // Rate limit: block IP after 5 failures in 15 min
+    // Rate limit: block IP after 5 failures in 15 min. Fail CLOSED — a failed
+    // count query must block, never silently allow (audit S3).
     const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    const { count: recentFailures } = await adminClient
+    const { count: recentFailures, error: rlErr } = await adminClient
       .from("admin_login_attempts")
       .select("id", { count: "exact", head: true })
       .eq("ip_address", ip)
       .eq("success", false)
       .gte("attempted_at", fifteenMinAgo);
 
-    if ((recentFailures ?? 0) >= 5) {
+    if (rlErr) {
+      return { success: false, error: "Falha ao verificar limite de tentativas. Tente novamente." };
+    }
+    if ((recentFailures ?? 99) >= 5) {
       return {
         success: false,
         error: "IP bloqueado por excesso de tentativas. Aguarde 15 minutos.",
       };
     }
 
-    const adminPassword = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
     const profile = await getCachedUserProfile(user.id);
     const companyId = profile?.memberships?.[0]?.company_id;
 
     // Record attempt before checking password (prevents timing oracle)
-    const isCorrect = password === adminPassword;
+    const isCorrect = checkAdminPassword(password);
     await adminClient.from("admin_login_attempts").insert({
       ip_address: ip,
       success: isCorrect,
@@ -116,16 +89,7 @@ export async function verifyAdminPassword(
       return { success: false, error: "Chave de segurança admin incorreta" };
     }
 
-    // Set fingerprinted HttpOnly session cookie
-    const token = computeAdminToken(adminPassword, ip, ua);
-    const cookieStore = await cookies();
-    cookieStore.set("agendra_admin_session", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/",
-      maxAge: 60 * 60 * 2, // 2 hours
-    });
+    await setAdminCookie();
 
     if (companyId) {
       await adminClient.from("audit_logs").insert({
@@ -146,15 +110,17 @@ export async function verifyAdminPassword(
 }
 
 export async function logoutAdmin(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete("agendra_admin_session");
+  await clearAdminCookie();
 }
 
 // ── Shared audit helper ──────────────────────────────────────────────────────
+// Logs are written under the ADMIN's own company_id (not the target tenant) so
+// the audit trail survives a tenant deletion (cascade). The target tenant is
+// recorded inside the payload as `target_company_id` (audit fix).
 
 async function insertAudit(
   adminClient: ReturnType<typeof createAdminClient>,
-  companyId: string,
+  targetCompanyId: string,
   userId: string,
   email: string | undefined,
   ip: string,
@@ -162,14 +128,22 @@ async function insertAudit(
   action: string,
   payload: object
 ) {
+  let auditCompanyId = targetCompanyId;
+  try {
+    const adminProfile = await getCachedUserProfile(userId);
+    const adminCompanyId = adminProfile?.memberships?.[0]?.company_id;
+    if (adminCompanyId) auditCompanyId = adminCompanyId;
+  } catch {
+    /* fall back to target company if admin company can't be resolved */
+  }
   await adminClient.from("audit_logs").insert({
-    company_id: companyId,
+    company_id: auditCompanyId,
     user_id: userId,
     actor_email: email ?? "admin@agendra.site",
     action,
     ip_address: ip,
     user_agent: ua,
-    payload,
+    payload: { ...payload, target_company_id: targetCompanyId },
   });
 }
 
@@ -583,15 +557,12 @@ export async function deleteTenant(
       throw new Error("Nome de confirmação não corresponde ao nome da empresa");
     }
 
-    // Log before deleting (cascade will remove the log too, so log to admin company)
-    const adminProfile = await getCachedUserProfile(user.id);
-    const adminCompanyId = adminProfile?.memberships?.[0]?.company_id;
-    if (adminCompanyId) {
-      await insertAudit(adminClient, adminCompanyId, user.id, user.email, ip, ua, "admin_delete_tenant", {
-        deleted_company_id: companyId,
-        deleted_company_name: company.name,
-      });
-    }
+    // Log before deleting. insertAudit writes under the admin's own company, so
+    // the record survives the tenant cascade.
+    await insertAudit(adminClient, companyId, user.id, user.email, ip, ua, "admin_delete_tenant", {
+      deleted_company_id: companyId,
+      deleted_company_name: company.name,
+    });
 
     const { error: deleteErr } = await adminClient
       .from("companies")

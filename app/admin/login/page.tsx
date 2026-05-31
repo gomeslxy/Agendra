@@ -1,46 +1,19 @@
 // app/admin/login/page.tsx
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
-import { cookies, headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
-import crypto from "crypto";
+import { isAllowedAdminEmail, hasValidAdminCookie } from "@/lib/admin/auth";
 import { AdminLoginForm } from "./login-form";
-
-const DEFAULT_ADMIN_PASSWORD = "agendra-proprietario-2026";
-const ADMIN_EMAILS = ["gmlucazz1@gmail.com", "la181009@gmail.com"];
-
-function computeAdminToken(password: string, ip: string, ua: string): string {
-  const fingerprint = `${ip}:${ua.substring(0, 128)}`;
-  return crypto
-    .createHmac("sha256", "agendra-admin-salt-2026")
-    .update(`${password}:${fingerprint}`)
-    .digest("hex");
-}
 
 export default async function AdminLoginPage() {
   const user = await getUser();
   if (!user) redirect("/login?next=/admin");
 
-  const allowedEmails = [
-    ...(process.env.ADMIN_EMAIL ? [process.env.ADMIN_EMAIL] : []),
-    ...ADMIN_EMAILS,
-  ];
-  if (!user.email || !allowedEmails.includes(user.email)) redirect("/inbox");
+  if (!isAllowedAdminEmail(user.email)) redirect("/inbox");
 
-  // Use same fingerprinted token as page.tsx — prevents redirect loop
-  const cookieStore = await cookies();
-  const storedToken = cookieStore.get("agendra_admin_session")?.value;
-
-  if (storedToken) {
-    const headersList = await headers();
-    const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() || headersList.get("x-real-ip") || "127.0.0.1";
-    const ua = headersList.get("user-agent") || "unknown";
-    const adminPassword = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
-    const expectedToken = computeAdminToken(adminPassword, ip, ua);
-    // Only redirect if fingerprint matches — stale/non-fingerprinted cookies are silently ignored
-    if (storedToken === expectedToken) redirect("/admin");
-  }
+  // Already holds a valid fingerprinted session → skip the second-factor screen.
+  if (await hasValidAdminCookie()) redirect("/admin");
 
   return (
     <div className="grid min-h-screen place-items-center bg-[#FAFAFA] px-6 py-12">
