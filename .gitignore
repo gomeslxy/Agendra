@@ -44,6 +44,15 @@ rules.md
 pnpm.bat
 supabase.bat
 
+# Agent & IDE Configuration (local only)
+.clauderules
+.cursorrules
+
+# Agent AI Brainstorm/Session Cache
+.superpowers/
+.copilot/
+.gemini/
+
 # Project Specific Exclusions
 _design/
 _prototype/
@@ -51,6 +60,10 @@ _scripts/
 scratch/
 omnirepo.config.json
 omnirepo.db*
+
+# One-off Scripts & Debug Files
+supabase/fix_*.sql
+supabase/schema_v*.sql
 
 # Temporary & Debug
 check_db*.mjs
