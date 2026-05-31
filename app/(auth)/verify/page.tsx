@@ -88,6 +88,10 @@ function VerifyContent() {
     const storedEmail = sessionStorage.getItem("agendra_signup_email");
     const storedPassword = sessionStorage.getItem("agendra_signup_password");
 
+    // Limpar imediatamente para não deixar credenciais na memória do browser
+    sessionStorage.removeItem("agendra_signup_email");
+    sessionStorage.removeItem("agendra_signup_password");
+
     if (storedEmail && storedPassword) {
       const { error: loginError } = await supabase.auth.signInWithPassword({
         email: storedEmail,
@@ -95,8 +99,6 @@ function VerifyContent() {
       });
 
       if (!loginError) {
-        sessionStorage.removeItem("agendra_signup_email");
-        sessionStorage.removeItem("agendra_signup_password");
         router.push("/inbox");
         router.refresh();
         return;
