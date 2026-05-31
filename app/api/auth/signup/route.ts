@@ -52,10 +52,48 @@ export async function POST(req: NextRequest) {
   });
 
   if (createError) {
-    // If user already exists, we might still want to send a new OTP if they are not confirmed
-    if (createError.message.includes("already registered")) {
-      // Logic for existing unconfirmed user could go here
-      // For now, let's just return the error to be safe
+    // If user already exists, check if they are unconfirmed and allow OTP recovery
+    if (createError.message.includes("already registered") || createError.message.includes("already been registered")) {
+      const { data: listData, error: listError } = await admin.auth.admin.listUsers();
+      if (!listError && listData?.users) {
+        const existingUser = listData.users.find(
+          (u) => u.email?.toLowerCase() === email.toLowerCase()
+        );
+        // If the user's email is not confirmed, allow them to re-verify
+        if (existingUser && !existingUser.email_confirmed_at) {
+          const code = generateOtp();
+          await admin
+            .from("otp_codes")
+            .update({ used: true })
+            .eq("email", email)
+            .eq("purpose", "signup")
+            .eq("used", false);
+
+          const { error: insertError } = await admin.from("otp_codes").insert({
+            email,
+            code,
+            purpose: "signup",
+          });
+
+          if (insertError) {
+            console.error("[api/auth/register] DB error for unconfirmed user:", insertError.message);
+            return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+          }
+
+          try {
+            await sendEmail({
+              to: email,
+              subject: "Seu código de verificação Agendra",
+              html: verificationEmail({ code, companyName }),
+            });
+          } catch (err) {
+            console.error("[api/auth/register] Email error for unconfirmed user:", err);
+            return NextResponse.json({ error: "Erro ao enviar email de verificação." }, { status: 500 });
+          }
+
+          return NextResponse.json({ ok: true, unconfirmed: true });
+        }
+      }
       return NextResponse.json({ error: "Este email já está cadastrado." }, { status: 400 });
     }
     console.error("[api/auth/register] Create user error:", createError.message);
