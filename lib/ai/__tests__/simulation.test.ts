@@ -253,4 +253,24 @@ describe('Conversational Sales Engine Simulation', () => {
       expect(systemPrompt).toContain('ponte sutil e comercial resgatando o assunto anterior');
     });
   });
+
+  describe('Multiple Messages Splitting & Degradation', () => {
+    it('correctly splits response with ---MSG--- delimiter into exactly two parts', () => {
+      const reply = 'Olá, Carlos! Tudo bem? assistente da Barbearia Premium. ---MSG--- Como posso te ajudar hoje?';
+      const parts = reply.split(/---MSG---/gi).map(p => p.trim()).filter(Boolean);
+      expect(parts).toHaveLength(2);
+      expect(parts[0]).toBe('Olá, Carlos! Tudo bem? assistente da Barbearia Premium.');
+      expect(parts[1]).toBe('Como posso te ajudar hoje?');
+    });
+
+    it('degrades and consolidates response into one part if 3 or more parts are generated', () => {
+      const reply = 'Olá, Carlos! ---MSG--- Sou a Gabi. ---MSG--- Vamos agendar?';
+      let parts = reply.split(/---MSG---/gi).map(p => p.trim()).filter(Boolean);
+      if (parts.length > 2) {
+        parts = [parts.join('\n\n')];
+      }
+      expect(parts).toHaveLength(1);
+      expect(parts[0]).toBe('Olá, Carlos!\n\nSou a Gabi.\n\nVamos agendar?');
+    });
+  });
 });

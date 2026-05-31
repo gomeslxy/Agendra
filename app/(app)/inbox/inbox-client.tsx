@@ -1160,7 +1160,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                       >
                         <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#14B8A6]">
                           <Sparkles size={10} />
-                          Rascunho da IA · Aguardando aprovação
+                          Rascunho da IA{(msg.metadata as any)?.part ? ` (Parte ${(msg.metadata as any).part}/${(msg.metadata as any).total_parts})` : ''} · Aguardando aprovação
                         </div>
                         <div className="relative rounded-[14px] rounded-br-[3px] border-[1.5px] border-[#CCFBF1] bg-[#F0FDFA] px-4 py-3 text-[13px] leading-relaxed text-[#166534]">
                           {msg.content}

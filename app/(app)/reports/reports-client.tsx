@@ -23,6 +23,7 @@ import { exportReportsXlsx } from "./actions";
 import { createClient } from "@/lib/supabase/client";
 import { ProviderHealthSection } from "./components/ProviderHealthSection";
 import { EmptyState } from "@/components/ui/empty-state";
+import { computeFunnel, type FunnelStage } from "./funnel";
 
 /* ─── helpers ─────────────────────────────────────────────── */
 function AnimatedNumber({ value, suffix = "", prefix = "" }: { value: number; suffix?: string; prefix?: string }) {
@@ -58,9 +59,9 @@ interface DayBucket {
   messages: number; aiMessages: number;
   whatsapp: number; instagram: number; form: number;
   revenue: number; transactionCount: number;
+  fInteragiu: number; fAgendou: number;
 }
 interface HeatCell     { weekday: number; hour: number; value: number }
-interface FunnelStage  { label: string; value: number; color: string }
 interface RecentTransaction {
   id: string;
   amount: number;
@@ -86,7 +87,6 @@ export interface ChainStat {
 
 interface ReportsClientProps {
   dailyDetails: DayBucket[];
-  funnelStages: FunnelStage[];
   heatmapData: HeatCell[];
   avgHeatScore: number;
   totalRevenue90d: number;
@@ -580,7 +580,6 @@ const CHANNEL_COLORS: Record<string, string> = {
 
 export function ReportsClient({
   dailyDetails,
-  funnelStages,
   heatmapData,
   avgHeatScore,
   totalRevenue90d,
@@ -598,6 +597,12 @@ export function ReportsClient({
 
   const currentSeries = dailyDetails.slice(-days);
   const prevSeries = dailyDetails.slice(-(days * 2), -days);
+  // No prior window exists once the period reaches the 90d data horizon (Trimestre).
+  // Without this guard KpiCard renders a phantom "0% vs anterior".
+  const hasPrev = prevSeries.length > 0;
+
+  // Period-aware funnel — stays aligned with the KPI cards below.
+  const funnelStages: FunnelStage[] = computeFunnel(currentSeries);
 
   const totalLeads = currentSeries.reduce((s, d) => s + d.leads, 0);
   const hotLeads = currentSeries.reduce((s, d) => s + d.hot, 0);
@@ -610,7 +615,10 @@ export function ReportsClient({
   const periodRevenue = currentSeries.reduce((s, d) => s + d.revenue, 0);
   const periodTransactions = currentSeries.reduce((s, d) => s + d.transactionCount, 0);
   const periodAvgTicket = periodTransactions > 0 ? periodRevenue / periodTransactions : avgTicket;
-  const timeSavedHours = Math.round((aiMessages * 12) / 60);
+  // Conservative, defensible estimate: each AI-handled message offsets ~2 min of human
+  // attention (read + type + context-switch). Previous 12 min/msg overstated by ~6×.
+  const MIN_SAVED_PER_AI_MSG = 2;
+  const timeSavedHours = Math.round((aiMessages * MIN_SAVED_PER_AI_MSG) / 60);
 
   const prevLeads = prevSeries.reduce((s, d) => s + d.leads, 0);
   const prevConverted = prevSeries.reduce((s, d) => s + d.converted, 0);
@@ -754,9 +762,9 @@ export function ReportsClient({
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
         className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       >
-        <KpiCard label="NOVOS LEADS" value={totalLeads} icon={Users} color="#60A5FA" prevValue={prevLeads} />
-        <KpiCard label="CONVERTIDOS" value={converted} icon={TrendingUp} color="#5EEAD4" prevValue={prevConverted} />
-        <KpiCard label="AGENDAMENTOS" value={totalEvents} icon={CalendarCheck} color="#A78BFA" prevValue={prevEvents} />
+        <KpiCard label="NOVOS LEADS" value={totalLeads} icon={Users} color="#60A5FA" prevValue={hasPrev ? prevLeads : undefined} />
+        <KpiCard label="CONVERTIDOS" value={converted} icon={TrendingUp} color="#5EEAD4" prevValue={hasPrev ? prevConverted : undefined} />
+        <KpiCard label="AGENDAMENTOS" value={totalEvents} icon={CalendarCheck} color="#A78BFA" prevValue={hasPrev ? prevEvents : undefined} />
         <KpiCard label="EFICIÊNCIA IA" value={aiRatio} suffix="%" icon={Bot} color="#FB923C" />
 
         {/* Revenue special card */}
@@ -849,9 +857,9 @@ export function ReportsClient({
           transition={{ delay: 0.15 }}
           className="border border-[#E4E4E7] bg-white rounded-xl p-5 shadow-sm"
         >
-          <h3 className="mb-1 text-sm font-semibold text-[#09090B]">Funil Histórico</h3>
+          <h3 className="mb-1 text-sm font-semibold text-[#09090B]">Funil de Conversão</h3>
           <p className="mb-4 text-xs text-[#71717A]">
-            Taxa de queda (all-time snapshot)
+            Taxa de queda nos últimos {days} dias
           </p>
           <ConversionFunnel stages={funnelStages} />
         </motion.div>

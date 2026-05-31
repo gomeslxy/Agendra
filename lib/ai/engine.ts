@@ -202,7 +202,13 @@ ${memoryContext}
 
 ## 2. FLUXO CONVERSACIONAL E REGRAS DE AGENDA (MÉDIA PRIORIDADE)
 - **Condução Premium e Humanizada**: Aja como um atendente humano premium e acolhedor, não como um robô mecânico.
-  - **MÁXIMA CONCISÃO E SIMPLICIDADE (CONCISENESS CAP)**: Suas respostas devem ser curtas, naturais e conter **no máximo 2 a 3 frases**. Nunca envie blocos de texto grandes ou explicações complexas. Pessoas no WhatsApp e Instagram não leem textos gigantes!
+  - **MÁXIMA CONCISÃO E SIMPLICIDADE (CONCISENESS CAP)**: Suas respostas devem ser curtas, naturais e amigáveis.
+    * Você pode optar por responder em **uma única mensagem curta** (comportamento padrão e recomendado para a maioria dos turnos).
+    * Ou, em situações específicas onde fizer sentido natural de chat (como uma saudação inicial seguida de uma apresentação/pergunta clara, ou após uma confirmação detalhada para separar os dados finais do agendamento), você pode dividir sua resposta em **exatamente duas mensagens separadas** usando o delimitador especial *---MSG---* no ponto de quebra.
+    * NUNCA envie 3 ou mais mensagens. Nunca use mais de um delimitador *---MSG---*.
+    * Nunca divida a resposta em duas se a primeira parte parecer incompleta ou depender de uma continuação que não exista. Ambas devem fazer sentido ou ter uma transição humana suave.
+    * Se estiver em dúvida, responda sempre em uma única mensagem completa sem usar o delimitador.
+    * Cada mensagem individual deve ser extremamente concisa (máximo de 2 a 3 frases curtas por mensagem).
   - **Conversação Direta**: Seja extremamente direto, simpático, conciso e empático. Converse como se estivesse batendo um papo rápido no chat de mensagens, nunca como se estivesse enviando um e-mail ou documento formal.${clientProfileRule}
 - **Saudação & Contexto de Sessão**:
   ${greetingRule}
@@ -907,57 +913,173 @@ export async function handleIncomingMessage(
     );
 
     // 8. Watermark — only on truly first assistant response, never repeated
-    finalReply = sanitizeClientResponse(aiResult!.reply);
-    if (usage.limits.hasWatermark && isNewConversation) {
-      // Single-fire: isNewConversation = assistantTotal === 0 (db-level check, not history window)
-      finalReply += '\n\n_Atendimento via Agendra_ ✦';
+    const rawReply = aiResult!.reply || '';
+    let parts = rawReply.split(/---MSG---/gi).map(p => p.trim()).filter(Boolean);
+
+    // Defesa: se por algum motivo houver 3+ partes, consolida tudo em 1 parte para respeitar o cap
+    if (parts.length > 2) {
+      parts = [parts.join('\n\n')];
     }
+
+    // Sanitiza cada parte de forma independente
+    let sanitizedParts = parts.map(p => sanitizeClientResponse(p)).filter(Boolean);
+
+    // Se sanitizou e não sobrou nada, define fallback padrão
+    if (sanitizedParts.length === 0) {
+      sanitizedParts = ['Entendido! Como posso ajudar você hoje?'];
+    }
+
+    // Adiciona marca d'água se aplicável na última parte
+    if (usage.limits.hasWatermark && isNewConversation) {
+      sanitizedParts[sanitizedParts.length - 1] += '\n\n_Atendimento via Agendra_ ✦';
+    }
+
+    // Consolida para fins de compatibilidade de logs e analytics
+    finalReply = sanitizedParts.join('\n\n');
 
     const isShadowMode = activeLead.control_mode === 'shadow';
 
-    const { data: insertedMsg, error: aiMsgErr } = await admin
-      .from('messages')
-      .insert({
-        lead_id: activeLead.id,
-        company_id: companyId,
-        role: 'assistant',
-        content: finalReply,
-        metadata: isShadowMode ? { is_draft: true } : null,
-      })
-      .select()
-      .single();
-    if (aiMsgErr) logError(`[Engine][${tag}] 💥 failed to persist assistant message:`, aiMsgErr);
-    sentMessage = insertedMsg;
+    if (isShadowMode) {
+      // Inserir parte 1 como rascunho
+      const { data: insertedMsg1, error: aiMsgErr1 } = await admin
+        .from('messages')
+        .insert({
+          lead_id: activeLead.id,
+          company_id: companyId,
+          role: 'assistant',
+          content: sanitizedParts[0],
+          metadata: { is_draft: true, part: 1, total_parts: sanitizedParts.length },
+        })
+        .select()
+        .single();
+      
+      if (aiMsgErr1) logError(`[Engine][${tag}] 💥 failed to persist assistant message 1 (shadow):`, aiMsgErr1);
+      sentMessage = insertedMsg1;
 
-    if (!isShadowMode) {
+      // Se houver parte 2, inserir como rascunho
+      if (sanitizedParts.length > 1) {
+        const { data: insertedMsg2, error: aiMsgErr2 } = await admin
+          .from('messages')
+          .insert({
+            lead_id: activeLead.id,
+            company_id: companyId,
+            role: 'assistant',
+            content: sanitizedParts[1],
+            metadata: { is_draft: true, part: 2, total_parts: sanitizedParts.length },
+          })
+          .select()
+          .single();
+        if (aiMsgErr2) logError(`[Engine][${tag}] 💥 failed to persist assistant message 2 (shadow):`, aiMsgErr2);
+      }
+      console.log(`[AI Engine] Modo Shadow ativo para lead ${phone}. ${sanitizedParts.length} rascunhos persistidos.`);
+    } else {
       const personaConfig = (company.persona_config as any) ?? {};
       const ttsEnabled = personaConfig.tts_enabled === true;
       const replyInAudio = ttsEnabled && incomingMetadata?.is_audio === true;
 
-      let sentAudio = false;
-      if (replyInAudio && finalReply) {
+      let message1Success = false;
+      let sentMessage1: any = null;
+      let sentMessage2: any = null;
+
+      // Inserção da parte 1
+      const { data: insertedMsg1, error: aiMsgErr1 } = await admin
+        .from('messages')
+        .insert({
+          lead_id: activeLead.id,
+          company_id: companyId,
+          role: 'assistant',
+          content: sanitizedParts[0],
+          metadata: null,
+        })
+        .select()
+        .single();
+      
+      if (aiMsgErr1) logError(`[Engine][${tag}] 💥 failed to persist assistant message 1:`, aiMsgErr1);
+      sentMessage = insertedMsg1;
+      sentMessage1 = insertedMsg1;
+
+      let sentAudio1 = false;
+      if (replyInAudio && sanitizedParts[0]) {
         const { synthesizeSpeech } = await import('@/lib/whatsapp/tts');
-        const audio = await synthesizeSpeech(finalReply);
+        const audio = await synthesizeSpeech(sanitizedParts[0]);
         if (audio) {
           const { sendChannelMedia } = await import('@/lib/channels/send');
           const result = await sendChannelMedia(phone, '', 'audio', 'tts.mp3', '', company.id, audio);
           if (result.ok) {
-            sentAudio = true;
-            await admin.from('messages').update({ metadata: { tts: true } }).eq('id', sentMessage.id);
+            sentAudio1 = true;
+            message1Success = true;
+            await admin.from('messages').update({ metadata: { tts: true } }).eq('id', sentMessage1.id);
           }
         }
       }
 
-      if (!sentAudio) {
+      if (!sentAudio1) {
         try {
-          await sendChannelMessage(phone, finalReply, companyId);
-          console.log(`[Engine][${tag}] 📤 reply sent to ${phone.substring(0, 6)}*** (text, ${finalReply.length} chars)`);
+          const sendRes1 = await sendChannelMessage(phone, sanitizedParts[0], companyId);
+          if (sendRes1.ok) {
+            message1Success = true;
+            if (sendRes1.providerMessageId && sentMessage1) {
+              await admin.from('messages').update({
+                metadata: { provider_message_id: sendRes1.providerMessageId }
+              }).eq('id', sentMessage1.id);
+            }
+            console.log(`[Engine][${tag}] 📤 reply part 1 sent to ${phone.substring(0, 6)}***`);
+          }
         } catch (sendErr: any) {
-          console.error(`[Engine][${tag}] 💥 sendChannelMessage failed:`, sendErr?.message ?? sendErr);
+          console.error(`[Engine][${tag}] 💥 sendChannelMessage 1 failed:`, sendErr?.message ?? sendErr);
         }
       }
-    } else {
-      console.log(`[AI Engine] Modo Shadow ativo para lead ${phone}. Mensagem persistida como rascunho (is_draft: true).`);
+
+      // Se houver parte 2 e parte 1 foi enviada com sucesso, envia a parte 2
+      if (sanitizedParts.length > 1 && message1Success) {
+        // Pausa simulada de 1.2 segundos para simular digitação e manter ordem correta no WhatsApp
+        await new Promise(resolve => setTimeout(resolve, 1200));
+
+        const { data: insertedMsg2, error: aiMsgErr2 } = await admin
+          .from('messages')
+          .insert({
+            lead_id: activeLead.id,
+            company_id: companyId,
+            role: 'assistant',
+            content: sanitizedParts[1],
+            metadata: null,
+          })
+          .select()
+          .single();
+        
+        if (aiMsgErr2) logError(`[Engine][${tag}] 💥 failed to persist assistant message 2:`, aiMsgErr2);
+        sentMessage2 = insertedMsg2;
+
+        let sentAudio2 = false;
+        if (replyInAudio && sanitizedParts[1]) {
+          const { synthesizeSpeech } = await import('@/lib/whatsapp/tts');
+          const audio = await synthesizeSpeech(sanitizedParts[1]);
+          if (audio) {
+            const { sendChannelMedia } = await import('@/lib/channels/send');
+            const result = await sendChannelMedia(phone, '', 'audio', 'tts.mp3', '', company.id, audio);
+            if (result.ok) {
+              sentAudio2 = true;
+              await admin.from('messages').update({ metadata: { tts: true } }).eq('id', sentMessage2.id);
+            }
+          }
+        }
+
+        if (!sentAudio2) {
+          try {
+            const sendRes2 = await sendChannelMessage(phone, sanitizedParts[1], companyId);
+            if (sendRes2.ok) {
+              if (sendRes2.providerMessageId && sentMessage2) {
+                await admin.from('messages').update({
+                  metadata: { provider_message_id: sendRes2.providerMessageId }
+                }).eq('id', sentMessage2.id);
+              }
+              console.log(`[Engine][${tag}] 📤 reply part 2 sent to ${phone.substring(0, 6)}***`);
+            }
+          } catch (sendErr: any) {
+            console.error(`[Engine][${tag}] 💥 sendChannelMessage 2 failed:`, sendErr?.message ?? sendErr);
+          }
+        }
+      }
     }
 
     // 9. Update lead state
