@@ -44,7 +44,7 @@ export function FinalCTA() {
                   </Button>
                 </Link>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   className="h-12 px-8 rounded-full font-semibold text-[#3F3F46] border-[#E4E4E7] hover:bg-[#F4F4F5] hover:text-[#09090B] transition-colors"
                   onClick={() => {
                     trackEvent("cta_click", { location: "final_cta", target: "demo" });
