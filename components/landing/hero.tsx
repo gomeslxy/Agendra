@@ -2,17 +2,14 @@ import React from "react";
 import { CalendarCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Glass } from "@/components/ui/glass";
-import { SpotlightCSS } from "@/components/ui/spotlight";
-import { GridBeam } from "@/components/ui/grid-beam";
+
 import { CounterClient } from "@/components/landing/counter-client";
 import { HeroLeftAnimation, HeroRightAnimation, HeroButtons } from "./hero-animations";
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pb-24 pt-40 sm:pt-48" aria-label="Hero — proposta de valor">
-      <SpotlightCSS className="-top-40 left-0 md:left-60 md:-top-20" />
-      <GridBeam className="absolute inset-0 pointer-events-none" />
-      
+    <section className="relative overflow-hidden pb-24 pt-28 sm:pt-32" aria-label="Hero — proposta de valor">
+
       <div className="mx-auto grid max-w-[1200px] items-center gap-12 px-6 lg:grid-cols-[1.05fr_1fr]">
         {/* Left column - text content */}
         <HeroLeftAnimation>
