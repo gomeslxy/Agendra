@@ -113,7 +113,6 @@ interface Company {
   plan_type?: PlanType | null;
   subscription_status?: string | null;
   stripe_customer_id?: string | null;
-  stripe_subscription_id?: string | null;
   google_calendar_email?: string | null;
 }
 
@@ -1061,11 +1060,11 @@ function Persona({
               defaultValue={pc.extra_instructions ?? ""}
               placeholder={"Ex.: Sempre mencionar que a consulta inicial é gratuita.\nNunca citar concorrentes pelo nome.\nSe cliente perguntar sobre preço antes de agendar, dizer que depende da avaliação."}
               rows={4}
-              maxLength={800}
+              maxLength={3000}
               className="w-full rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none resize-none transition placeholder:text-[#D4D4D8] focus:border-[#2563EB] focus:bg-[#F4F4F5]"
             />
             <p className="text-[10px] mt-1" style={{ color: "var(--color-fg-3)" }}>
-              Essas instruções são injetadas diretamente no contexto da IA. Máx. 800 caracteres.
+              Essas instruções são injetadas diretamente no contexto da IA. Máx. 3.000 caracteres.
             </p>
           </Field>
           <Field label="Frases proibidas">
