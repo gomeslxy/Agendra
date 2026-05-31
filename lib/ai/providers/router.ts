@@ -20,7 +20,10 @@ const sambanova = new SambaNovaAdapter();
 const gemini = new GeminiAdapter();
 
 const CONV_CHAIN: AIProviderAdapter[] = [cerebras, groq, gemini];
-const TOOLS_CHAIN: AIProviderAdapter[] = [sambanova, cerebras, groq, gemini];
+// Latency-first ordering: Groq (70B em LPU, ~280 tok/s, tool-calling confiável) lidera.
+// Cerebras (8B, ultra-rápido mas fraco p/ tools) é fallback rápido. SambaNova 70B
+// sofre cold-start (era o 1º hop e penalizava todo turn de agenda) → movido p/ trás.
+const TOOLS_CHAIN: AIProviderAdapter[] = [groq, cerebras, sambanova, gemini];
 const BG_CHAIN: AIProviderAdapter[] = [gemini, groq];
 
 function classifyError(err: any): { retryable: boolean; kind: string } {

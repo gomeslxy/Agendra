@@ -29,6 +29,7 @@ import { routeChat, routeGenerate } from './providers/router';
 import { neutralToolDefinitions } from './tool-schemas';
 import type { NormalizedMessage } from './providers/types';
 import { isUnderHumanTakeover } from './takeover';
+import { classifyIntent, type Intent } from './intent';
 
 // Gemini SDK kept ONLY for text-embedding-005 (RAG) — lazy to avoid crashing if key absent at module load
 let _embeddingGenAI: GoogleGenerativeAI | null = null;
@@ -120,14 +121,36 @@ function buildSystemPrompt(
   const businessName = persona.business_name ?? 'nossa empresa';
   const businessType = persona.business_type ?? 'negocio';
 
-  const toneMap: Record<string, string> = {
-    cold: 'Formal: Profissional, breve e direto ao ponto. Evite emojis ou intimidade.',
-    warm: 'Amigavel: Atencioso, profissional e equilibrado. Pode usar emojis moderadamente.',
-    hot: 'Persuasivo: Entusiasta, agil e proximo. Use emojis e linguagem persuasiva para converter.',
+  // Hiper-fidelidade de persona: blueprints comportamentais ricos (vocabulário,
+  // estrutura de frase, restrições) em vez de uma linha descritiva genérica.
+  // A IA INCORPORA o tom em cada frase em vez de só "saber" qual é o tom.
+  const TONE_BLUEPRINTS: Record<string, string> = {
+    cold: `TOM DE VOZ: FORMAL / DIRETO (Assertividade Corporativa)
+- Vocabulário enxuto, técnico-comercial, preciso. Tratamento por "você" respeitoso.
+- Frases declarativas e curtas: sujeito → ação → resultado. Sem aquecimento social.
+- ZERO emojis. ZERO interjeições ("nossa!", "que legal!"). ZERO diminutivos ("horarinho", "rapidinho").
+- Faça afirmações, não perguntas abertas: "Tenho terça às 14h ou quinta às 10h. Qual prefere?".
+- CTA seco e funcional: "Confirmo para terça às 14h?".
+- Proibido: gírias, exclamações múltiplas, validação emocional prolongada.`,
+    warm: `TOM DE VOZ: ACOLHEDOR / SIMPÁTICO (Parceria)
+- Vocabulário caloroso e próximo. Trate como parceiro(a): "vou te ajudar com isso", "deixa comigo".
+- Valide a emoção/contexto ANTES de agir ("Entendo, faz sentido!" / "Imagino a correria") e então conduza.
+- Emojis acolhedores com moderação (no máx. 1 por mensagem): 😊 🙌 ✨.
+- Demonstre escuta: reflita em poucas palavras o que o lead disse antes de prosseguir.
+- CTA gentil e convidativo: "Que tal a gente garantir um horário pra você essa semana? 😊".
+- Proibido: frieza robótica, resposta sem nenhum calor humano, pressão agressiva.`,
+    hot: `TOM DE VOZ: PERSUASIVO / VENDAS (Fechamento Rápido)
+- Vocabulário energético e orientado a ação. Imperativo suave: "garanta", "aproveite", "vamos marcar".
+- Use urgência/escassez SOMENTE quando REAL ("tenho só 2 horários hoje") — NUNCA invente escassez.
+- Foque no benefício/transformação, não no recurso. Crie momentum ("perfeito!", "ótima escolha!").
+- Emojis expressivos pontuais: 🔥 ⚡ 🚀 ✅ (reforçam, não poluem).
+- CTA forte com fechamento assumido: "Fechado! Já garanto a sua terça às 14h? ⚡".
+- Cada mensagem empurra o lead 1 passo para o agendamento.
+- Proibido: passividade, deixar a conversa esfriar, terminar sem CTA, prometer condição inexistente.`,
   };
 
   const selectedToneKey = (lead.conversation_tone || persona.tone) as string;
-  const tone = toneMap[selectedToneKey] ?? (persona.tone || 'amigavel, profissional e objetivo');
+  const tone = TONE_BLUEPRINTS[selectedToneKey] ?? (persona.tone || 'Amigável, profissional e objetivo.');
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
   const nowInTz = nowFormatterFor(timezone).format(new Date());
@@ -192,9 +215,12 @@ function buildSystemPrompt(
 - Nome: ${aiName}
 - Empresa: ${businessName} (${businessType})
 - Fuso Horário: ${timezone} (Data e hora atual: ${nowInTz})
-- Tom de Voz: ${tone}. Use sempre o primeiro nome do lead: "${firstName}". Seja conciso, simpático, acolhedor e focado em conversão.
 - Serviços Disponíveis no Catálogo:
 ${servicesDisplay}
+
+### TOM DE VOZ OBRIGATÓRIO (respeite em CADA frase)
+${tone}
+Use sempre o primeiro nome do lead: "${firstName}". Máximo 2 a 3 frases por resposta.
 
 Sua MISSÃO principal e absoluta é qualificar o lead com humanidade e conduzi-lo de forma natural e eficiente para agendar uma reunião ou atendimento. Se o lead demonstrar real interesse e estiver pronto, use as ferramentas adequadas para verificar horários e agendar.
 
@@ -212,10 +238,14 @@ ${memoryContext}
   - **Conversação Direta**: Seja extremamente direto, simpático, conciso e empático. Converse como se estivesse batendo um papo rápido no chat de mensagens, nunca como se estivesse enviando um e-mail ou documento formal.${clientProfileRule}
 - **Saudação & Contexto de Sessão**:
   ${greetingRule}
-- **Instruções de Agendamento**:
+- **Instruções de Agendamento (REGRAS INVIOLÁVEIS)**:
   1. Identifique o serviço de interesse do lead. Se não estiver claro, pergunte ou chame listServices. Use SEMPRE o UUID [ID: ...] do catálogo.
-  2. SEMPRE consulte a disponibilidade real com checkAvailability usando o ID do serviço. NUNCA invente horários ou assuma que a agenda está cheia sem consultar. A agenda muda a cada minuto; nunca diga "sem horários" baseado apenas no resumo ou histórico.
-  3. **PROIBIDO DUMP DE HORÁRIOS (UX Conversacional Premium)**: Quando checkAvailability retornar os slots livres, você está TERMINANTEMENTE PROIBIDO de listar horários individuais sequenciais como uma lista ou texto corrido de múltiplos slots (ex: "Temos segunda-feira às 09:00, 09:30, 10:00, 10:30..." é expressamente proibido e considerado falha grave!). Isso assusta o cliente e causa cansaço visual.
+  2. **CONSULTA PRÉVIA OBRIGATÓRIA (Zero Alucinação de Vagas)**: Você está TERMINANTEMENTE PROIBIDO de afirmar, sugerir, insinuar ou chutar que possui horários livres ou que "tem vaga para hoje/amanhã/à tarde" sem antes ter efetuado com sucesso a chamada da ferramenta checkAvailability para o serviço correspondente. Qualquer intenção de agendamento por parte do lead (ex: "quero marcar", "tem vaga amanhã?", "pode ser à tarde?") deve disparar IMEDIATAMENTE a ferramenta checkAvailability em background antes de formular sua resposta final. NUNCA invente disponibilidade ou diga que não há horários baseando-se apenas em histórico ou resumos.
+  3. **DIFERENCIAÇÃO DE DIAS SEM EXPEDIENTE VS. AGENDA LOTADA**:
+     - Analise atentamente o diagnóstico do status diário retornado no campo "message" ou "day_breakdown" de checkAvailability.
+     - **Dias Fechados/Sem Expediente**: Se o lead solicitar ou demonstrar interesse em um dia classificado como FECHADO (dia de folga ou sem funcionamento), NUNCA responda secamente que "não há horários disponíveis". Você deve explicar de forma muito simpática e atenciosa que o local não abre/funciona naquele dia e sugerir alternativas inteligentes (ex: "Nós não funcionamos aos domingos! Que tal darmos uma olhada na segunda-feira pela manhã ou na terça à tarde?").
+     - **Dias Genuinamente Lotados**: Se o lead solicitar um dia de funcionamento normal que está classificado como LOTADO (agenda cheia), explique com simpatia que os horários para essa data já estão totalmente preenchidos e sugira verificar o dia seguinte (ex: "Para este dia os horários já estão totalmente preenchidos. Vamos dar uma olhada no dia seguinte?").
+  4. **PROIBIDO DUMP DE HORÁRIOS (UX Conversacional Premium)**: Quando checkAvailability retornar os slots livres, você está TERMINANTEMENTE PROIBIDO de listar horários individuais sequenciais como uma lista ou texto corrido de múltiplos slots (ex: "Temos segunda-feira às 09:00, 09:30, 10:00, 10:30..." é expressamente proibido e considerado falha grave!). Isso assusta o cliente e causa cansaço visual.
      - **Como Apresentar Horários**:
        a) Primeiro, quando o cliente quiser agendar, pergunte qual dia e período (manhã, tarde ou noite) ele prefere (ex: "Qual dia e período fica melhor para você?").
        b) Ao sugerir horários disponíveis de checkAvailability, use **faixas de horários/períodos gerais** em vez de listar cada slot individual de 30 em 30 minutos.
@@ -223,8 +253,8 @@ ${memoryContext}
           * Exemplo correto: "Na terça-feira temos horários livres à tarde, entre 14:00 e 17:30. Algum momento nesse intervalo funciona para você?"
           * Exemplo correto: "Para o corte, temos disponibilidade na quarta-feira das 14:00 às 16:30. Qual horário você gostaria de marcar dentro desse período?"
        c) Use no máximo 2 opções de períodos/dias diferentes por vez para simplificar a escolha do lead.
-  4. **Confirmação Obrigatória**: Antes de efetivamente agendar (bookAppointment), confirme de forma explícita com o lead o serviço desejado, a data e o horário (ex: "Perfeito! Então podemos confirmar o [Serviço] para segunda-feira, [Data], às [Horário]?").
-  5. **Agendamento no Calendário**: Chame bookAppointment SOMENTE após a confirmation clara e explícita do lead. Para bookAppointment, use SEMPRE o campo "start" ISO 8601 exato retornado pelo slot de checkAvailability, NUNCA tente reconstruir o horário manualmente nem assuma fuso horário de forma incorreta.
+  5. **Confirmação Obrigatória**: Antes de efetivamente agendar (bookAppointment), confirme de forma explícita com o lead o serviço desejado, a data e o horário (ex: "Perfeito! Então podemos confirmar o [Serviço] para segunda-feira, [Data], às [Horário]?").
+  6. **Agendamento no Calendário**: Chame bookAppointment SOMENTE após a confirmation clara e explícita do lead. Para bookAppointment, use SEMPRE o campo "start" ISO 8601 exato retornado pelo slot de checkAvailability, NUNCA tente reconstruir o horário manualmente nem assuma fuso horário de forma incorreta.
 - **Regra de Ouro da Proatividade Comercial (Sempre Fechar com CTA)**: NUNCA responda a uma pergunta informativa do lead (como preço, localização, políticas, funcionamento) de forma puramente passiva ou inerte. Toda resposta informativa DEVE terminar com um convite proativo, gentil e sutil para o agendamento (ex: respondendo ao valor de um serviço e imediatamente sugerindo: "Inclusive, tenho algumas vagas para amanhã ou quinta-feira. Gostaria de garantir um horário?").
 - **Atalho de Agendamento (Fim de Loops Redundantes)**: Se o lead indicar qualquer parâmetro de tempo ou dia na conversa (ex: "segunda-feira", "amanhã", "à tarde", "quarta de manhã"), NÃO faça novas perguntas de qualificação nem repita perguntas pendentes. Considere isso como intenção clara de agendar, chame a ferramenta checkAvailability imediatamente para o serviço desejado e ofereça os slots correspondentes para o lead escolher. Guie-o ativamente.
 - **Atualização de Memória**: Use updateLeadMemory para registrar interesses reais, objeções ou respostas de qualificação. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".
@@ -341,6 +371,7 @@ export async function processLeadMessage(
   planType: PlanType = 'trial',
   planLimits: PlanLimits = {} as PlanLimits,
   traceId?: string,
+  intent?: Intent,
 ): Promise<AIResult> {
   const memoryContext = mountContext(lead.lead_memory, lead.summary);
 
@@ -420,6 +451,12 @@ export async function processLeadMessage(
     }
   }
 
+  // Chain selection por intenção: turns que não precisam de ferramentas (saudação,
+  // dúvida informativa) usam a chain conversacional (Cerebras-first, mais rápida e
+  // barata). Turns de agenda/compra/reclamação usam a chain de tools (Groq-first).
+  // Fallback seguro: na dúvida, usa tools (as ferramentas seguem disponíveis em ambas).
+  const useToolsChain = intent ? intent.needsTools : true;
+
   const result = await routeChat(
     {
       systemPrompt,
@@ -431,7 +468,7 @@ export async function processLeadMessage(
       preferredModel: geminiModelOverride,
       toolMode: 'AUTO',
     },
-    { chain: 'tools', traceId }
+    { chain: useToolsChain ? 'tools' : 'conv', traceId }
   );
 
   const fullText = result.text;
@@ -504,6 +541,16 @@ export async function processLeadMessage(
   reply = reply.replace(/```json[\s\S]*?```/gi, '').trim();
   reply = reply.replace(/\n\s*\{\s*"heat_score"[\s\S]*\}\s*$/i, '').trim();
   reply = sanitizeClientResponse(reply);
+
+  // Hard cap de concisão (2-3 frases): enforcement no código, não só no prompt.
+  // PULA quando slots foram consultados — apresentar faixas de horário pode exigir
+  // mais de 3 frases e o corte regrediria a UX de agendamento.
+  if (!calledCheck) {
+    const sentences = reply.match(/[^.!?…]+[.!?…]+(\s|$)/g);
+    if (sentences && sentences.length > 3) {
+      reply = sentences.slice(0, 3).join('').trim();
+    }
+  }
 
   return {
     reply,
@@ -632,16 +679,17 @@ export async function handleIncomingMessage(
     }
   }
 
-  // 2. Context loading
-  const { data: company } = await admin.from('companies').select('*').eq('id', companyId).single();
+  // 2. Context loading — company e services são independentes, carregam em paralelo.
+  const [{ data: company }, { data: services }] = await Promise.all([
+    admin.from('companies').select('*').eq('id', companyId).single(),
+    admin
+      .from('services')
+      .select('id, name, duration, price')
+      .eq('company_id', companyId)
+      .eq('active', true)
+      .neq('is_paused', true),
+  ]);
   if (!company) throw new Error('Empresa nao encontrada');
-
-  const { data: services } = await admin
-    .from('services')
-    .select('id, name, duration, price')
-    .eq('company_id', companyId)
-    .eq('active', true)
-    .neq('is_paused', true);
 
   const persona: PersonaConfig = {
     ...((company.persona_config as any) ?? {}),
@@ -779,9 +827,15 @@ export async function handleIncomingMessage(
   // Required here because RAG runs before the billing gate's usage object is fully available.
   const earlyPlanLimits = preloadedUsage?.limits ?? getPlanLimits(company.plan_type as PlanType);
 
+  // Intent classifier (heurístico, 0ms): gateia RAG e escolhe a chain de providers.
+  const intent = classifyIntent(messageText);
+
   let ragStatus: 'ok' | 'empty' | 'failed' | 'timeout' | null = null;
 
-  if (earlyPlanLimits.hasRAG) {
+  // RAG gate por intenção: saudação e agendamento puro NÃO embeam (corta o embedding
+  // bloqueante de ~4s no caminho mais comum). Só dúvidas informativas/reclamações/compra
+  // consultam a base de conhecimento.
+  if (earlyPlanLimits.hasRAG && intent.needsRAG) {
     // RAG guard: skip embedding if company has no knowledge documents (avoids quota burn on empty corpus)
     const { count: knowledgeCount } = await admin
       .from('company_knowledge')
@@ -801,6 +855,10 @@ export async function handleIncomingMessage(
         ragStatus = 'failed';
       }
     }
+  } else if (earlyPlanLimits.hasRAG && !intent.needsRAG) {
+    // Plano tem RAG, mas a intenção (saudação/agendamento) não se beneficia — skip rápido.
+    ragStatus = 'empty';
+    logInfo(`[AI Engine] RAG skipped por intenção=${intent.type} (sem embedding).`);
   } else {
     logInfo(`[AI Engine] RAG skipped — plano ${earlyPlanLimits.hasAdvancedModel === false ? 'trial/starter' : 'unknown'} não inclui busca semântica.`);
   }
@@ -896,9 +954,10 @@ export async function handleIncomingMessage(
         isNewConversation,
         usage.planType,
         usage.limits,
-        traceId
+        traceId,
+        intent
       );
-      console.log(`[Engine][${tag}] 🎯 AI replied in ${Date.now() - aiStart}ms via ${aiResult.provider_used}/${aiResult.model_used} tools=${aiResult.tools_called?.length ?? 0} fallback=${aiResult.fallback_used} replyLen=${aiResult.reply?.length ?? 0}`);
+      console.log(`[Engine][${tag}] 🎯 AI replied in ${Date.now() - aiStart}ms via ${aiResult.provider_used}/${aiResult.model_used} tools=${aiResult.tools_called?.length ?? 0} fallback=${aiResult.fallback_used} replyLen=${aiResult.reply?.length ?? 0} intent=${intent.type}`);
     } catch (aiErr: any) {
       console.error(`[Engine][${tag}] 💥 processLeadMessage failed after ${Date.now() - aiStart}ms:`, aiErr?.message ?? aiErr);
       throw aiErr;

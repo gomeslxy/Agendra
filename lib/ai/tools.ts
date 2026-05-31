@@ -305,12 +305,115 @@ export async function handleCheckAvailability(
     console.log(`[Tools] busyIntervals count: ${busyIntervals.length}`);
   }
 
-  if (!slots.length) {
-    return { slots: [], message: 'Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.' };
+  const tz = persona.timezone ?? 'America/Sao_Paulo';
+  const workingHours = persona.working_hours ?? {
+    mon: ['09:00', '18:00'], tue: ['09:00', '18:00'], wed: ['09:00', '18:00'],
+    thu: ['09:00', '18:00'], fri: ['09:00', '18:00']
+  };
+
+  // Diagnóstico diário para diferenciar dias fechados vs lotados
+  const dayBreakdown: { date: string; weekday: string; status: 'disponivel' | 'fechado' | 'lotado'; working_hours?: string[] }[] = [];
+  const ptDaysLong: Record<string, string> = {
+    mon: 'segunda-feira', tue: 'terça-feira', wed: 'quarta-feira', thu: 'quinta-feira',
+    fri: 'sexta-feira', sat: 'sábado', sun: 'domingo'
+  };
+
+  for (let i = 0; i < daysAhead; i++) {
+    const checkDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+    const dayName = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(checkDate).toLowerCase();
+    const dateStr = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit' }).format(checkDate);
+    const weekdayPt = ptDaysLong[dayName] || dayName;
+
+    const hours = workingHours[dayName];
+    if (!hours) {
+      dayBreakdown.push({
+        date: dateStr,
+        weekday: weekdayPt,
+        status: 'fechado'
+      });
+    } else {
+      const hasSlot = slots.some(slot => {
+        const slotDate = new Date(slot.start);
+        const slotDayStr = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit' }).format(slotDate);
+        return slotDayStr === dateStr;
+      });
+
+      dayBreakdown.push({
+        date: dateStr,
+        weekday: weekdayPt,
+        status: hasSlot ? 'disponivel' : 'lotado',
+        working_hours: hours
+      });
+    }
   }
 
-  const message = `Encontrei ${slots.length} horários disponíveis para este serviço.`;
-  return { slots, message };
+  const breakdownSummary = dayBreakdown.map(d => {
+    if (d.status === 'fechado') {
+      return `- ${d.weekday} (${d.date}): FECHADO (Sem expediente comercial).`;
+    } else if (d.status === 'lotado') {
+      return `- ${d.weekday} (${d.date}): LOTADO (Todos os horários preenchidos).`;
+    } else {
+      return `- ${d.weekday} (${d.date}): DISPONÍVEL (Temos horários livres).`;
+    }
+  }).join('\n');
+
+  if (!slots.length) {
+    return {
+      slots: [],
+      day_breakdown: dayBreakdown,
+      message: `Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}`
+    };
+  }
+
+  const availabilitySummary = buildAvailabilitySummary(slots, tz);
+
+  console.log(`[Tools] checkAvailability summary: ${availabilitySummary}`);
+  return {
+    day_breakdown: dayBreakdown,
+    availability_summary: availabilitySummary,
+    slots,
+    message: `Disponibilidade agrupada por período (apresente ao lead em faixas, NUNCA liste slot a slot): ${availabilitySummary}\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}`,
+  };
+}
+
+type DayPeriod = 'manhã' | 'tarde' | 'noite';
+
+function periodOf(d: Date, tz: string): DayPeriod {
+  const hour = Number(
+    new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hour: '2-digit', hour12: false }).format(d)
+  );
+  return hour < 12 ? 'manhã' : hour < 18 ? 'tarde' : 'noite';
+}
+
+/**
+ * Condensa uma lista de slots ISO em um resumo legível por dia e período, ex.:
+ * "segunda-feira 02/06: manhã (09:00–11:30), tarde (14:00–17:00) | terça-feira 03/06: tarde (14:00–16:30)".
+ */
+function buildAvailabilitySummary(slots: { start: string }[], tz: string): string {
+  const dayFmt = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, weekday: 'long', day: '2-digit', month: '2-digit' });
+  const timeFmt = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+
+  // dia -> período -> { first, last } (slots já chegam ordenados por start)
+  const byDay = new Map<string, Map<DayPeriod, { first: string; last: string }>>();
+  for (const s of slots) {
+    const d = new Date(s.start);
+    const dayKey = dayFmt.format(d);
+    const p = periodOf(d, tz);
+    const hhmm = timeFmt.format(d);
+    let periods = byDay.get(dayKey);
+    if (!periods) { periods = new Map(); byDay.set(dayKey, periods); }
+    const bucket = periods.get(p);
+    if (!bucket) periods.set(p, { first: hhmm, last: hhmm });
+    else bucket.last = hhmm;
+  }
+
+  return [...byDay.entries()]
+    .map(([day, periods]) =>
+      `${day}: ` + [...periods.entries()]
+        .map(([p, { first, last }]) => first === last ? `${p} (${first})` : `${p} (${first}–${last})`)
+        .join(', ')
+    )
+    .join(' | ');
 }
 
 export async function handleBookAppointment(
