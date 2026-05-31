@@ -1305,6 +1305,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 <AnimatePresence>
                   {isAutonomous && (
                     <motion.div
+                      suppressHydrationWarning
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -1337,7 +1338,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   onChange={handleFileSelect}
                 />
 
-                <div className={cn(
+                <div suppressHydrationWarning className={cn(
                   "flex items-center gap-2 sm:gap-3 transition-all duration-250 ease-[0.22,1,0.36,1]",
                   isAutonomous && "blur-[1px] opacity-40 scale-[0.99] pointer-events-none"
                 )}>
