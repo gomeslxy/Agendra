@@ -1,7 +1,7 @@
 // app/admin/login/page.tsx
 import { redirect } from "next/navigation";
-import { getUser, getCachedUserProfile } from "@/lib/supabase/server";
-import { cookies } from "next/headers";
+import { getUser } from "@/lib/supabase/server";
+import { cookies, headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import crypto from "crypto";
@@ -10,37 +10,36 @@ import { AdminLoginForm } from "./login-form";
 const DEFAULT_ADMIN_PASSWORD = "agendra-proprietario-2026";
 const ADMIN_EMAILS = ["gmlucazz1@gmail.com", "la181009@gmail.com"];
 
-function getExpectedToken(): string {
-  const password = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
-  return crypto.createHmac("sha256", "agendra-admin-salt-2026")
-    .update(password)
+function computeAdminToken(password: string, ip: string, ua: string): string {
+  const fingerprint = `${ip}:${ua.substring(0, 128)}`;
+  return crypto
+    .createHmac("sha256", "agendra-admin-salt-2026")
+    .update(`${password}:${fingerprint}`)
     .digest("hex");
 }
 
 export default async function AdminLoginPage() {
-  // Layer 1: Supabase Authentication check
   const user = await getUser();
-  if (!user) {
-    redirect("/login?next=/admin");
-  }
+  if (!user) redirect("/login?next=/admin");
 
-  // Layer 2: Whitelist Email verification
   const allowedEmails = [
     ...(process.env.ADMIN_EMAIL ? [process.env.ADMIN_EMAIL] : []),
-    ...ADMIN_EMAILS
+    ...ADMIN_EMAILS,
   ];
-  if (!user.email || !allowedEmails.includes(user.email)) {
-    // If authenticated user is NOT an admin, redirect back to home/dashboard
-    redirect("/inbox");
-  }
+  if (!user.email || !allowedEmails.includes(user.email)) redirect("/inbox");
 
-  // Check if admin session cookie is already valid
+  // Use same fingerprinted token as page.tsx — prevents redirect loop
   const cookieStore = await cookies();
-  const token = cookieStore.get("agendra_admin_session")?.value;
-  const expectedToken = getExpectedToken();
+  const storedToken = cookieStore.get("agendra_admin_session")?.value;
 
-  if (token && token === expectedToken) {
-    redirect("/admin");
+  if (storedToken) {
+    const headersList = await headers();
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() || headersList.get("x-real-ip") || "127.0.0.1";
+    const ua = headersList.get("user-agent") || "unknown";
+    const adminPassword = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+    const expectedToken = computeAdminToken(adminPassword, ip, ua);
+    // Only redirect if fingerprint matches — stale/non-fingerprinted cookies are silently ignored
+    if (storedToken === expectedToken) redirect("/admin");
   }
 
   return (
