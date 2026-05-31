@@ -444,7 +444,6 @@ export async function injectTestMessage(
       channel_id: channel.id,
       content: message,
       role: "user",
-      direction: "inbound",
       metadata: { injected_by_admin: true, injected_at: new Date().toISOString() },
     });
     if (msgErr) throw new Error(msgErr.message);

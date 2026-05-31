@@ -84,13 +84,17 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> 
   // [FIX A2] past_due = sem acesso imediato (inadimplente).
   // [FIX A1] canceled = sem acesso imediato.
   const isTrialExpired  = isOnTrial && trialDaysRemaining === 0;
-  const isLeadsExceeded = leadsUsed >= limits.maxLeads;
+  // Admin-granted overage (migration 072) lifts the plan cap without a plan change.
+  const extraLeads        = Math.max(0, Number(company.extra_leads) || 0);
+  const effectiveMaxLeads = limits.maxLeads + extraLeads;
+  const isLeadsExceeded   = leadsUsed >= effectiveMaxLeads;
   const isLimitReached  = isLeadsExceeded || isTrialExpired || isPastDue || isCanceled;
 
   return {
     planType,
     status: (company.subscription_status || 'trial') as 'active' | 'past_due' | 'canceled' | 'trial',
-    limits,
+    // Spread (not mutate) — getPlanLimits returns the shared PLAN_LIMITS constant.
+    limits: extraLeads > 0 ? { ...limits, maxLeads: effectiveMaxLeads } : limits,
     usage: { leads: leadsUsed },
     isLimitReached,
     trialStartedAt,
