@@ -8,24 +8,28 @@ import {
 
 const FAQS = [
   {
-    q: "A Agendra funciona em quais canais?",
-    a: "Atualmente, a Agendra integra-se nativamente com WhatsApp e Instagram (Direct). Também fornecemos widgets para sites e suporte a formulários de captura de leads.",
+    q: "Preciso de um número de WhatsApp novo para usar o Agendra?",
+    a: "Não. Você pode utilizar o seu número comercial atual normalmente. A nossa integração utiliza conexões seguras oficiais da Meta que mantêm suas conversas ativas e não interferem no uso cotidiano.",
   },
   {
-    q: "Como a IA sabe os horários disponíveis?",
-    a: "Nós nos conectamos diretamente ao seu calendário (Google Calendar ou Outlook). A IA verifica a disponibilidade em tempo real e nunca marca reuniões em horários ocupados.",
+    q: "Como a IA sabe quais são os horários disponíveis na minha agenda?",
+    a: "Nós nos conectamos diretamente ao seu calendário (Google Calendar ou Outlook). A IA consulta as datas e horários livres em tempo real e nunca agenda compromissos em horários já ocupados ou bloqueados por você.",
   },
   {
-    q: "A IA pode responder dúvidas técnicas sobre o meu serviço?",
-    a: "Sim. Você faz o upload do seu 'Cérebro' (documentos, manuais, lista de preços) e a Agendra usa essas informações para responder com precisão, seguindo o tom de voz da sua marca.",
+    q: "A IA pode responder dúvidas específicas do meu produto ou serviço?",
+    a: "Sim. Você faz o upload do seu 'Cérebro da IA' (arquivos PDF, regras de negócio, tabelas de preço ou links do seu site) e a IA responde as dúvidas técnicas com precisão absoluta, no tom de voz da sua marca.",
   },
   {
-    q: "O que acontece se o lead fizer uma pergunta que a IA não sabe responder?",
-    a: "A Agendra é treinada para ser honesta. Se ela encontrar algo fora do seu escopo de conhecimento, ela notifica sua equipe humana imediatamente para assumir a conversa.",
+    q: "O que acontece se a IA não souber responder uma pergunta complexa?",
+    a: "A IA é configurada para fazer o transbordo para humanos de forma natural. Ela responde educadamente ao lead (\"Vou confirmar essa informação com meu time...\") e notifica sua equipe instantaneamente pelo painel para que um atendente assuma o chat.",
   },
   {
-    q: "É difícil de configurar?",
-    a: "Não. A maioria dos nossos clientes coloca a Agendra para rodar em menos de 15 minutos. Basta conectar o WhatsApp e subir seus dados básicos.",
+    q: "É muito difícil de configurar?",
+    a: "Não. A maioria dos nossos clientes coloca o Agendra para funcionar em menos de 15 minutos. A interface é visual, simples e não exige nenhuma linha de código ou conhecimento técnico.",
+  },
+  {
+    q: "Como funcionam os 7 dias grátis? Preciso inserir cartão de crédito?",
+    a: "O teste de 7 dias é totalmente gratuito e livre de barreiras. Você não precisa inserir dados de cartão de crédito para começar a usar. Se após o período você decidir não continuar, sua conta é pausada automaticamente, sem qualquer cobrança.",
   },
 ];
 

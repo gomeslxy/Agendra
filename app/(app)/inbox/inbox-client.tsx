@@ -940,9 +940,9 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   }, [selectedId, leads]);
 
   const sortedMessages = selected ? selected.messages : [];
-  const isPaused = selected?.is_paused ?? false;
-  const isShadowMode = selected?.control_mode === 'shadow';
-  const inputBlocked = (!isPaused && !isShadowMode) || sendPending;
+  const currentMode = selected ? (selected.control_mode ?? (selected.is_paused ? "manual" : "autonomous")) : "autonomous";
+  const isAutonomous = currentMode === "autonomous";
+  const inputBlocked = isAutonomous || sendPending;
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
@@ -1135,7 +1135,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
                 className="flex flex-col gap-3 p-4 sm:p-6 bg-[#F8F8F8] min-h-full"
               >
-                {!isPaused && selected.control_mode !== 'shadow' && (
+                {isAutonomous && (
                   <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
                 )}
                 {selected.control_mode === 'shadow' && (
@@ -1302,28 +1302,32 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
             {/* Input Area */}
             <div className="relative bg-white border-t border-[#E4E4E7] p-3 sm:p-4 pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-[env(safe-area-inset-bottom,16px)]">
               <div className="max-w-5xl mx-auto relative group">
-                {!isPaused && !isShadowMode && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl"
-                  >
-                    <Button
-                      variant="orange"
-                      size="sm"
-                      className="gap-2 px-6 h-10 rounded-full font-black uppercase tracking-wider"
-                      onClick={handleTakeOver}
-                      disabled={takePending}
+                <AnimatePresence>
+                  {isAutonomous && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                      className="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-[1.5px] rounded-2xl"
                     >
-                      {takePending ? (
-                        <Zap size={16} className="animate-spin" />
-                      ) : (
-                        <Zap size={16} fill="currentColor" />
-                      )}
-                      Assumir Atendimento
-                    </Button>
-                  </motion.div>
-                )}
+                      <Button
+                        variant="orange"
+                        size="sm"
+                        className="gap-2 px-6 h-10 rounded-full font-black uppercase tracking-wider"
+                        onClick={handleTakeOver}
+                        disabled={takePending}
+                      >
+                        {takePending ? (
+                          <Zap size={16} className="animate-spin" />
+                        ) : (
+                          <Zap size={16} fill="currentColor" />
+                        )}
+                        Assumir Atendimento
+                      </Button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <input
                   ref={fileInputRef}
@@ -1334,8 +1338,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 />
 
                 <div className={cn(
-                  "flex items-center gap-2 sm:gap-3 transition-all duration-300",
-                  !isPaused && !isShadowMode && "blur-[2px] scale-[0-98] opacity-50"
+                  "flex items-center gap-2 sm:gap-3 transition-all duration-250 ease-[0.22,1,0.36,1]",
+                  isAutonomous && "blur-[1px] opacity-40 scale-[0.99] pointer-events-none"
                 )}>
                   <div className="flex-1 relative flex flex-col gap-0 bg-[#F4F4F5] border border-[#E4E4E7] rounded-2xl px-3 py-1.5 transition-all focus-within:border-[#2563EB] focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.10)]">
                     {attachedFile && (
@@ -1428,7 +1432,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 </div>
               </div>
 
-              {!isPaused && selected.control_mode !== 'shadow' && (
+              {isAutonomous && (
                 <p className="mt-3 text-center text-[9px] font-bold uppercase tracking-[0.2em] text-[#14B8A6]">
                   Modo Automático Ativo · Agendra IA está no controle
                 </p>

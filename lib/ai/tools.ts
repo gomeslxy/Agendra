@@ -756,6 +756,7 @@ export async function handleRequestHumanAgent(
     .from('leads')
     .update({ 
       is_paused: true, 
+      control_mode: 'manual',
       status: 'manual',
       summary: `[TRANSFERÊNCIA] ${args.reason || 'Lead solicitou falar com humano.'}`
     })

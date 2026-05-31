@@ -43,7 +43,7 @@ export function HeroButtons() {
         }
       >
         <ShinyButton className="px-8 group">
-          Começar grátis
+          Experimentar Grátis
           <ArrowRight
             size={18}
             className="ml-2 inline-block transition-transform group-hover:translate-x-1"

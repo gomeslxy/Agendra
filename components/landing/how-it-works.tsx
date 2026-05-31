@@ -23,8 +23,8 @@ interface Step {
 const STEPS: Step[] = [
   {
     n: 1,
-    title: "Lead chega",
-    sub: "WhatsApp, Instagram, formulário ou anúncio.",
+    title: "Captura Automática",
+    sub: "O lead clica no anúncio do WhatsApp ou Direct do Instagram e a IA assume.",
     Icon: Inbox,
     color: "#5EEAD4",
     glow: "rgba(20,184,166,0.35)",
@@ -33,8 +33,8 @@ const STEPS: Step[] = [
   },
   {
     n: 2,
-    title: "Agendra responde",
-    sub: "Em 4 segundos, com tom de marca.",
+    title: "Resposta Relâmpago",
+    sub: "A IA responde em menos de 4 segundos usando o tom de voz perfeito do seu negócio.",
     Icon: MessageCircle,
     color: "#93C5FD",
     glow: "rgba(37,99,235,0.35)",
@@ -43,8 +43,8 @@ const STEPS: Step[] = [
   },
   {
     n: 3,
-    title: "Qualifica",
-    sub: "5 perguntas-chave, classifica em quente/morno/frio.",
+    title: "Filtro Inteligente",
+    sub: "Conversa humanizada para qualificar a intenção e afastar curiosos.",
     Icon: Filter,
     color: "#FCD34D",
     glow: "rgba(245,158,11,0.35)",
@@ -53,8 +53,8 @@ const STEPS: Step[] = [
   },
   {
     n: 4,
-    title: "Agenda",
-    sub: "Cria o evento no seu calendário e confirma.",
+    title: "Venda Agendada",
+    sub: "A IA sincroniza com seu Google Calendar e marca o horário escolhido pelo cliente.",
     Icon: CalendarCheck,
     color: "#FB923C",
     glow: "rgba(249,115,22,0.35)",
@@ -141,13 +141,13 @@ export function HowItWorks() {
         <HowItWorksItemMotion>
           <div className="eyebrow mb-3">COMO FUNCIONA</div>
           <h2 className="mb-2 max-w-[720px] text-balance text-[clamp(28px,3vw,40px)] font-bold leading-tight tracking-[-0.02em]">
-            Quatro passos. Zero esforço humano.
+            Quatro passos. Zero esforço da sua equipe.
           </h2>
           <p
             className="mb-14 max-w-[580px] text-pretty text-[clamp(16px,1.3vw,19px)] leading-relaxed"
             style={{ color: "var(--color-fg-2)" }}
           >
-            Conecte os canais. A Agendra cuida do resto — do primeiro &quot;oi&quot; à reunião confirmada.
+            Conecte seus canais e sua agenda. A Agendra cuida do resto — do primeiro &quot;oi&quot; à reunião confirmada no seu calendário.
           </p>
         </HowItWorksItemMotion>
 

@@ -19,31 +19,30 @@ export function Hero() {
           <div className="inline-flex items-center gap-2 rounded-full border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-1.5 backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-teal-500 shadow-[0_0_10px_var(--color-brand-teal-500)] animate-pulse" />
             <span className="eyebrow" style={{ color: "var(--color-fg-2)" }}>
-              IA EM TEMPO REAL · WHATSAPP · INSTAGRAM
+              ⚡ IA PARA WHATSAPP & INSTAGRAM · CERTIFICADA E SEGURA
             </span>
           </div>
 
-          <h1 className="mt-5 text-[#09090B] text-balance text-[clamp(48px,6.4vw,88px)] font-bold leading-[1.05] tracking-[-0.03em]">
-            Lead novo,
+          <h1 className="mt-5 text-[#09090B] text-balance text-[clamp(40px,5.5vw,78px)] font-bold leading-[1.05] tracking-[-0.03em]">
+            Transforme leads em
             <br />
-            <span className="grad-text">reunião marcada.</span>
+            <span className="grad-text">reuniões marcadas.</span>
           </h1>
 
-          <p className="mt-5 max-w-xl text-pretty text-[clamp(17px,1.4vw,20px)] leading-relaxed text-fg-2"
+          <p className="mt-5 max-w-xl text-pretty text-[clamp(16px,1.3vw,19px)] leading-relaxed text-fg-2"
              style={{ color: "var(--color-fg-2)" }}>
-            Agendra responde, qualifica e agenda — em segundos, 24/7, em todos os canais.
-            Sem fila, sem espera, sem lead perdido.
+            A IA do Agendra atende seus leads de anúncios do WhatsApp e Instagram 24 horas por dia. Ela responde em 4 segundos, qualifica o interesse e agenda no seu calendário automaticamente. Sem esforço manual.
           </p>
 
           <HeroButtons />
 
           <div className="mt-7 flex flex-wrap items-center gap-3.5 font-mono text-xs text-fg-3"
                style={{ color: "var(--color-fg-3)" }}>
-            <span>4s resposta média</span>
+            <span>⏱️ 4s resposta média</span>
             <span className="opacity-40">·</span>
-            <span>3.2× agendamentos</span>
+            <span>📈 3.2× mais agendamentos</span>
             <span className="opacity-40">·</span>
-            <span>+1.200 negócios</span>
+            <span>🔒 Dentro das regras da Meta</span>
           </div>
         </HeroLeftAnimation>
 

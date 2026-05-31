@@ -1175,6 +1175,7 @@ export async function handleIncomingMessage(
 
     if (persona.auto_escalate && finalScore < (persona.escalation_threshold ?? 25)) {
       leadPatch.is_paused = true;
+      leadPatch.control_mode = 'manual';
       await admin.from('messages').insert({
         lead_id: activeLead.id,
         company_id: companyId,
@@ -1255,6 +1256,7 @@ export async function handleIncomingMessage(
 
       await admin.from('leads').update({
         is_paused: true,
+        control_mode: 'manual',
         human_takeover_at: alreadyInTakeover ? activeLead.human_takeover_at : new Date().toISOString(),
         human_takeover_until: new Date(Date.now() + hours * 3_600_000).toISOString(),
       }).eq('id', activeLead.id).eq('company_id', companyId);

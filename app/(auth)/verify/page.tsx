@@ -43,18 +43,21 @@ function VerifyContent() {
 
   function handlePaste(e: React.ClipboardEvent) {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData("text/plain").slice(0, 6);
-    if (!/^\d+$/.test(pastedData)) return;
+    const rawData = e.clipboardData.getData("text/plain");
+    const sanitizedData = rawData.replace(/\D/g, "").slice(0, 6);
+    if (!sanitizedData) return;
 
     const next = [...code];
-    pastedData.split("").forEach((char, i) => {
+    sanitizedData.split("").forEach((char, i) => {
       if (i < 6) next[i] = char;
     });
     setCode(next);
 
     // Focus last filled or next empty
-    const lastIdx = Math.min(pastedData.length, 5);
-    inputRefs.current[lastIdx]?.focus();
+    const lastIdx = Math.min(sanitizedData.length - 1, 5);
+    if (lastIdx >= 0) {
+      inputRefs.current[lastIdx]?.focus();
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -169,9 +172,21 @@ function VerifyContent() {
               </motion.div>
             )}
 
-            <Button type="submit" variant="primary" className="w-full justify-center" disabled={loading}>
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <>Confirmar <ArrowRight size={16} /></>}
-            </Button>
+            <div className="flex flex-col gap-2 w-full">
+              <Button type="submit" variant="primary" className="w-full justify-center" disabled={loading}>
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <>Confirmar <ArrowRight size={16} /></>}
+              </Button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full justify-center"
+                disabled={loading}
+                onClick={() => router.push("/")}
+              >
+                Cancelar
+              </Button>
+            </div>
           </form>
 
           <button

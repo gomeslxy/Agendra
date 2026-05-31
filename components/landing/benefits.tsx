@@ -1,12 +1,13 @@
 "use client";
 
 import {
-  BarChart3,
   CalendarCheck,
   Filter,
   MessageCircle,
-  ShieldCheck,
   Zap,
+  Brain,
+  Repeat,
+  LayoutDashboard,
 } from "lucide-react";
 import { FadeUp } from "@/components/motion/fade-up";
 import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
@@ -15,37 +16,37 @@ const ITEMS = [
   { 
     Icon: Zap,           
     t: "Resposta em 4 segundos",     
-    d: "O lead recebe atenção instantânea, antes mesmo de pensar em procurar a concorrência. Velocidade que converte.",
+    d: "O lead recebe atenção imediata, no momento em que está mais propenso a comprar. Velocidade que liquida a concorrência.",
     span: "md:col-span-4"
   },
   { 
-    Icon: MessageCircle, 
-    t: "Tom da sua marca",   
-    d: "Personalidade consistente em cada interação.",
+    Icon: Brain, 
+    t: "Cérebro da IA",   
+    d: "Suba PDFs, preços e dados da sua empresa. A IA responde dúvidas complexas como um especialista.",
     span: "md:col-span-2"
   },
   { 
     Icon: Filter,        
-    t: "Qualificação Automática",  
-    d: "A Agendra identifica leads prontos para fechar e descarta os curiosos.",
+    t: "Filtro de Curiosos",  
+    d: "A IA qualifica o lead de forma humanizada e direciona para o comercial apenas quem realmente tem interesse.",
     span: "md:col-span-2"
   },
   { 
     Icon: CalendarCheck, 
     t: "Agendamento Direto",
-    d: "Sincronização em tempo real com seu Google Calendar. Sem conflitos, sem trabalho manual.",
+    d: "Sincronização em tempo real com seu Google Calendar ou Outlook. Sem conflitos, sem trabalho manual.",
     span: "md:col-span-4"
   },
   { 
-    Icon: BarChart3,     
-    t: "Métricas Reais",  
-    d: "Dashboards precisos sobre conversão e performance.",
+    Icon: Repeat,     
+    t: "Follow-up Proativo",  
+    d: "O lead sumiu da conversa? A IA envia acompanhamentos inteligentes para resgatar a oportunidade de venda.",
     span: "md:col-span-3"
   },
   { 
-    Icon: ShieldCheck,   
-    t: "Segurança Bancária",         
-    d: "Criptografia de ponta a ponta e total conformidade com a LGPD.",
+    Icon: LayoutDashboard,   
+    t: "Painel de Vendas Único",         
+    d: "Monitore os agendamentos, o histórico de conversas e as estatísticas de conversão em tempo real.",
     span: "md:col-span-3"
   },
 ];

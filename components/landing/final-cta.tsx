@@ -21,18 +21,18 @@ export function FinalCTA() {
             }}
           >
             <div className="eyebrow mb-3.5" style={{ color: "var(--color-brand-teal-300)" }}>
-              14 DIAS GRÁTIS · SEM CARTÃO
+              7 DIAS GRÁTIS · SEM CARTÃO DE CRÉDITO
             </div>
-            <h2 className="mb-3.5 text-balance text-[clamp(36px,4.6vw,64px)] font-bold leading-tight tracking-[-0.03em]">
-              Lead novo, <em>reunião marcada</em> — em segundos.
+            <h2 className="mb-3.5 text-balance text-[clamp(32px,4vw,56px)] font-bold leading-tight tracking-[-0.03em]">
+              Seu primeiro lead agendado no automático em até 15 minutos.
             </h2>
-            <p className="mx-auto mb-7 max-w-[560px] text-[clamp(17px,1.4vw,20px)] leading-relaxed"
+            <p className="mx-auto mb-7 max-w-[560px] text-[clamp(16px,1.3vw,19px)] leading-relaxed"
                style={{ color: "var(--color-fg-2)" }}>
-              Conecte WhatsApp e Instagram em 2 minutos. Veja a Agendra responder no primeiro lead que chegar.
+              Conecte seu WhatsApp e Instagram hoje mesmo. Veja a IA do Agendra responder seu primeiro cliente em tempo real.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Link href="/signup" onClick={() => trackEvent("cta_click", { location: "final_cta", target: "signup" })}>
-                <Button variant="primary" pulse>Começar grátis →</Button>
+                <Button variant="primary" pulse>Experimentar Grátis →</Button>
               </Link>
               <Button
                 variant="secondary"

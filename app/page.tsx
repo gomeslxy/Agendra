@@ -29,6 +29,10 @@ import nextDynamic from "next/dynamic";
 import { SectionSkeleton } from "@/components/landing/section-skeleton";
 
 // Below-fold — SSR mantido (default ssr: true), client JS lazy
+const TrustedLogos = nextDynamic(
+  () => import("@/components/landing/trusted-logos").then((m) => m.TrustedLogos),
+  { loading: () => <SectionSkeleton minHeight={120} /> }
+);
 const ProductDemo = nextDynamic(
   () => import("@/components/landing/product-demo").then((m) => m.ProductDemo),
   { loading: () => <SectionSkeleton minHeight={600} /> }
@@ -39,15 +43,19 @@ const Benefits = nextDynamic(
 );
 const Proof = nextDynamic(
   () => import("@/components/landing/proof").then((m) => m.Proof),
-  { loading: () => <SectionSkeleton minHeight={300} /> }
+  { loading: () => <SectionSkeleton minHeight={150} /> }
 );
-const UseCases = nextDynamic(
-  () => import("@/components/landing/use-cases").then((m) => m.UseCases),
-  { loading: () => <SectionSkeleton minHeight={400} /> }
+const SegmentShowcase = nextDynamic(
+  () => import("@/components/landing/segment-showcase").then((m) => m.SegmentShowcase),
+  { loading: () => <SectionSkeleton minHeight={600} /> }
 );
 const FAQ = nextDynamic(
   () => import("@/components/landing/faq").then((m) => m.FAQ),
   { loading: () => <SectionSkeleton minHeight={450} /> }
+);
+const PricingTable = nextDynamic(
+  () => import("@/components/landing/pricing-table").then((m) => m.PricingTable),
+  { loading: () => <SectionSkeleton minHeight={500} /> }
 );
 const FinalCTA = nextDynamic(
   () => import("@/components/landing/final-cta").then((m) => m.FinalCTA),
@@ -64,11 +72,13 @@ export default function LandingPage() {
       <Header isLoggedIn={false} />
       <main className="pt-[68px]">
         <Hero />
+        <TrustedLogos />
         <HowItWorks />
         <ProductDemo />
-        <Benefits />
         <Proof />
-        <UseCases />
+        <Benefits />
+        <SegmentShowcase />
+        <PricingTable />
         <FAQ />
         <FinalCTA />
       </main>
