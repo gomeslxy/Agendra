@@ -635,24 +635,158 @@ export async function checkEnvHealth(): Promise<{
   try {
     await validateAdminSessionOrThrow();
     const required = [
-      { name: "NEXT_PUBLIC_SUPABASE_URL",     note: "Supabase project URL" },
-      { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY",note: "Supabase anon key" },
-      { name: "SUPABASE_SERVICE_ROLE_KEY",     note: "Service role key (admin)" },
-      { name: "ADMIN_PASSWORD",                note: "Admin panel 2nd-factor password" },
-      { name: "ADMIN_SESSION_SALT",            note: "Admin session HMAC salt" },
-      { name: "NEXT_PUBLIC_APP_URL",           note: "App base URL" },
-      { name: "GEMINI_API_KEY",               note: "Google Gemini AI" },
-      { name: "GROQ_API_KEY",                 note: "Groq AI (fallback)" },
-      { name: "UPSTASH_REDIS_REST_URL",        note: "Redis/debounce" },
-      { name: "UPSTASH_REDIS_REST_TOKEN",      note: "Redis auth" },
-      { name: "STRIPE_SECRET_KEY",             note: "Stripe payments" },
-      { name: "STRIPE_WEBHOOK_SECRET",         note: "Stripe webhooks" },
+      { name: "NEXT_PUBLIC_SUPABASE_URL",          note: "Supabase project URL" },
+      { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY",     note: "Supabase anon key" },
+      { name: "SUPABASE_SERVICE_ROLE_KEY",          note: "Service role key (admin)" },
+      { name: "ADMIN_PASSWORD",                     note: "Admin panel 2nd-factor password" },
+      { name: "ADMIN_SESSION_SALT",                 note: "Admin session HMAC salt" },
+      { name: "NEXT_PUBLIC_APP_URL",                note: "App base URL" },
+      { name: "GEMINI_API_KEY",                    note: "Google Gemini AI" },
+      { name: "GROQ_API_KEY",                      note: "Groq AI (fallback)" },
+      { name: "UPSTASH_REDIS_REST_URL",             note: "Redis/debounce" },
+      { name: "UPSTASH_REDIS_REST_TOKEN",           note: "Redis auth" },
+      { name: "STRIPE_SECRET_KEY",                  note: "Stripe payments" },
+      { name: "STRIPE_WEBHOOK_SECRET",              note: "Stripe webhooks" },
       { name: "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", note: "Stripe frontend" },
-      { name: "EVOLUTION_API_URL",             note: "WhatsApp Evolution API" },
-      { name: "EVOLUTION_API_KEY",             note: "Evolution API auth" },
+      { name: "EVOLUTION_API_URL",                  note: "WhatsApp Evolution API" },
+      { name: "EVOLUTION_API_KEY",                  note: "Evolution API auth" },
     ];
     const envs = required.map((e) => ({ ...e, set: !!process.env[e.name] }));
     return { success: true, envs };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ── Live dependency ping ─────────────────────────────────────────────────────
+
+export type DepStatus = "ok" | "error" | "missing_env";
+
+export interface DepResult {
+  name: string;
+  status: DepStatus;
+  latency_ms: number | null;
+  detail?: string;
+}
+
+async function ping(
+  name: string,
+  fn: () => Promise<void>
+): Promise<DepResult> {
+  const t0 = Date.now();
+  try {
+    await fn();
+    return { name, status: "ok", latency_ms: Date.now() - t0 };
+  } catch (err: any) {
+    return { name, status: "error", latency_ms: Date.now() - t0, detail: String(err?.message ?? err).slice(0, 200) };
+  }
+}
+
+export async function checkDependencyHealth(): Promise<{
+  success: boolean;
+  results?: DepResult[];
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+
+    const checks: Promise<DepResult>[] = [];
+
+    // ── Supabase (service role DB round-trip) ────────────────────────────────
+    checks.push(
+      ping("Supabase DB", async () => {
+        const { error } = await createAdminClient().from("companies").select("id").limit(1);
+        if (error) throw new Error(error.message);
+      })
+    );
+
+    // ── Redis / Upstash ──────────────────────────────────────────────────────
+    const redisUrl   = process.env.UPSTASH_REDIS_REST_URL;
+    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (!redisUrl || !redisToken) {
+      checks.push(Promise.resolve({ name: "Redis (Upstash)", status: "missing_env" as DepStatus, latency_ms: null, detail: "UPSTASH_REDIS_REST_URL / TOKEN not set" }));
+    } else {
+      checks.push(
+        ping("Redis (Upstash)", async () => {
+          const res = await fetch(`${redisUrl}/ping`, {
+            headers: { Authorization: `Bearer ${redisToken}` },
+            signal: AbortSignal.timeout(5000),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        })
+      );
+    }
+
+    // ── Gemini ───────────────────────────────────────────────────────────────
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey) {
+      checks.push(Promise.resolve({ name: "Gemini AI", status: "missing_env" as DepStatus, latency_ms: null, detail: "GEMINI_API_KEY not set" }));
+    } else {
+      checks.push(
+        ping("Gemini AI", async () => {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}&pageSize=1`,
+            { signal: AbortSignal.timeout(8000) }
+          );
+          if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`);
+          }
+        })
+      );
+    }
+
+    // ── Groq ─────────────────────────────────────────────────────────────────
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) {
+      checks.push(Promise.resolve({ name: "Groq AI", status: "missing_env" as DepStatus, latency_ms: null, detail: "GROQ_API_KEY not set" }));
+    } else {
+      checks.push(
+        ping("Groq AI", async () => {
+          const res = await fetch("https://api.groq.com/openai/v1/models", {
+            headers: { Authorization: `Bearer ${groqKey}` },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        })
+      );
+    }
+
+    // ── Stripe ───────────────────────────────────────────────────────────────
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    if (!stripeKey) {
+      checks.push(Promise.resolve({ name: "Stripe", status: "missing_env" as DepStatus, latency_ms: null, detail: "STRIPE_SECRET_KEY not set" }));
+    } else {
+      checks.push(
+        ping("Stripe", async () => {
+          const res = await fetch("https://api.stripe.com/v1/balance", {
+            headers: { Authorization: `Bearer ${stripeKey}` },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        })
+      );
+    }
+
+    // ── Evolution API ────────────────────────────────────────────────────────
+    const evoUrl = process.env.EVOLUTION_API_URL;
+    const evoKey = process.env.EVOLUTION_API_KEY;
+    if (!evoUrl || !evoKey) {
+      checks.push(Promise.resolve({ name: "Evolution API (WhatsApp)", status: "missing_env" as DepStatus, latency_ms: null, detail: "EVOLUTION_API_URL / KEY not set" }));
+    } else {
+      checks.push(
+        ping("Evolution API (WhatsApp)", async () => {
+          const res = await fetch(`${evoUrl}/instance/fetchInstances`, {
+            headers: { apikey: evoKey },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        })
+      );
+    }
+
+    const results = await Promise.all(checks);
+    return { success: true, results };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

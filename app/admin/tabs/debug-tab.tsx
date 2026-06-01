@@ -4,18 +4,121 @@
 import { useState } from "react";
 import {
   Bug, Search, Activity, Database, CheckCircle2, XCircle,
-  RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Layers,
+  RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Layers, Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  checkEnvHealth, inspectLeadByPhone, getLatestMigrations,
+  checkEnvHealth, checkDependencyHealth, inspectLeadByPhone, getLatestMigrations,
   getCompanyChannelDetails, getCompanyQuotaStatus, forceUnlockStaleLead,
 } from "../actions";
 import type { Company } from "../types";
+import type { DepResult } from "../actions";
 
 interface Props {
   companies: Company[];
+}
+
+// ── Dependency Ping ──────────────────────────────────────────────────────────
+
+function DependencyHealthCard() {
+  const [results, setResults] = useState<DepResult[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
+
+  async function run() {
+    setLoading(true);
+    const res = await checkDependencyHealth();
+    setLoading(false);
+    if (res.success && res.results) {
+      setResults(res.results);
+      setCheckedAt(new Date());
+    } else {
+      toast.error(res.error || "Erro ao verificar dependências");
+    }
+  }
+
+  const allOk = results?.every((r) => r.status === "ok");
+  const errorCount = results?.filter((r) => r.status === "error").length ?? 0;
+
+  const statusIcon = (r: DepResult) => {
+    if (r.status === "ok")          return <CheckCircle2 size={14} className="text-[#16A34A] shrink-0" />;
+    if (r.status === "missing_env") return <AlertTriangle size={14} className="text-[#D97706] shrink-0" />;
+    return <XCircle size={14} className="text-[#DC2626] shrink-0" />;
+  };
+
+  const latencyColor = (ms: number | null) => {
+    if (ms === null) return "text-[#A1A1AA]";
+    if (ms < 300)    return "text-[#16A34A]";
+    if (ms < 800)    return "text-[#D97706]";
+    return "text-[#DC2626]";
+  };
+
+  return (
+    <div className="border border-[#E4E4E7] bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-[#E4E4E7] bg-[#F4F4F5] flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Wifi size={15} className={errorCount > 0 ? "text-[#DC2626]" : allOk ? "text-[#16A34A]" : "text-[#2563EB]"} />
+          <h2 className="text-sm font-semibold text-[#09090B]">Dependências Externas — Ping Vivo</h2>
+          {checkedAt && (
+            <span className="text-[10px] font-mono text-[#A1A1AA]">
+              às {checkedAt.toLocaleTimeString("pt-BR")}
+            </span>
+          )}
+        </div>
+        <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={run} disabled={loading}>
+          {loading ? <RefreshCw size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+          {loading ? "Verificando…" : "Verificar agora"}
+        </Button>
+      </div>
+
+      {!results ? (
+        <div className="px-5 py-8 text-center text-sm text-[#A1A1AA]">
+          Clique em "Verificar agora" para pingar todas as dependências externas em tempo real.
+        </div>
+      ) : (
+        <div className="p-4">
+          {errorCount > 0 && (
+            <div className="mb-3 flex items-center gap-2 bg-[#FFF1F2] border border-[#FECACA] rounded-xl px-3 py-2 text-xs text-[#DC2626] font-semibold">
+              <XCircle size={13} />
+              {errorCount} dependência(s) com erro
+            </div>
+          )}
+          {allOk && (
+            <div className="mb-3 flex items-center gap-2 bg-[#F0FDF4] border border-[#BBF7D0] rounded-xl px-3 py-2 text-xs text-[#166534] font-semibold">
+              <CheckCircle2 size={13} />
+              Todas as dependências respondendo normalmente
+            </div>
+          )}
+          <div className="flex flex-col divide-y divide-[#F4F4F5]">
+            {results.map((r) => (
+              <div key={r.name} className="flex items-center gap-3 py-2.5 px-1">
+                {statusIcon(r)}
+                <span className="flex-1 text-xs font-semibold text-[#09090B]">{r.name}</span>
+                {r.latency_ms !== null && (
+                  <span className={`text-[10px] font-mono font-bold tabular-nums ${latencyColor(r.latency_ms)}`}>
+                    {r.latency_ms}ms
+                  </span>
+                )}
+                <span className={`text-[9px] font-bold font-mono px-2 py-0.5 rounded-full ${
+                  r.status === "ok"          ? "bg-[#F0FDF4] text-[#166534] border border-[#BBF7D0]"
+                  : r.status === "missing_env" ? "bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]"
+                  : "bg-[#FFF1F2] text-[#DC2626] border border-[#FECACA]"
+                }`}>
+                  {r.status === "ok" ? "OK" : r.status === "missing_env" ? "ENV" : "ERRO"}
+                </span>
+                {r.detail && (
+                  <span className="text-[10px] text-[#71717A] font-mono truncate max-w-[200px]" title={r.detail}>
+                    {r.detail}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Env Health ───────────────────────────────────────────────────────────────
@@ -408,6 +511,7 @@ export function DebugTab({ companies }: Props) {
         </span>
       </div>
 
+      <DependencyHealthCard />
       <EnvHealthCard />
       <LeadInspectorCard companies={companies} />
       <ChannelDebugCard companies={companies} />
