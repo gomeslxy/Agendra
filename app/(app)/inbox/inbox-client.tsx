@@ -234,7 +234,11 @@ interface LeadListItemProps {
 const LeadListItem = memo(function LeadListItem({ lead: l, isActive, unreadCount, onSelect }: LeadListItemProps) {
   const last = lastMsg(l);
   return (
-    <div
+    <motion.div
+      layout="position"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       onClick={() => onSelect(l.id)}
       className={cn(
         "group relative flex cursor-pointer items-center gap-4 border-b border-[#F4F4F5] px-5 py-3.5 transition-colors duration-150 select-none hover:bg-[#F4F4F5]",
@@ -283,7 +287,7 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, unreadCount
           </span>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 });
 
@@ -1213,8 +1217,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 key={selected.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col gap-3 p-4 sm:p-6 bg-[#F8F8F8] min-h-full"
+                transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-col gap-3 p-4 sm:p-6 bg-[#FAFAFA] min-h-full"
               >
                 {hasMore.get(selected.id) && (
                   <div className="flex justify-center pb-2">

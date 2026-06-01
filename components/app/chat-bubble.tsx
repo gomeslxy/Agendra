@@ -53,8 +53,9 @@ export function ChatBubble({
   if (variant === "note") {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 6, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
         className="flex items-center gap-3 py-3 px-4"
       >
         <div className="h-px flex-1 bg-[#E4E4E7]" />
@@ -68,9 +69,9 @@ export function ChatBubble({
 
   return (
     <motion.div
-      initial={{ opacity: 0, x, scale: 0.97 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, x, y: 4, scale: 0.98 }}
+      animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
         "flex max-w-[85%] sm:max-w-[72%] flex-col gap-1",
         align === "end" ? "self-end items-end" : "self-start items-start",
