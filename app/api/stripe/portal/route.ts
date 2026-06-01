@@ -37,9 +37,18 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient();
     const { data: membership } = await admin
       .from('memberships')
-      .select('company_id, companies(stripe_customer_id)')
+      .select('company_id, role, companies(stripe_customer_id)')
       .eq('user_id', user.id)
       .single();
+
+    // Only owner or admin may open the billing portal — a plain member could otherwise
+    // cancel the subscription for the entire company.
+    if (membership?.role !== 'owner' && membership?.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Apenas administradores podem gerenciar a assinatura.' },
+        { status: 403 }
+      );
+    }
 
     const company = Array.isArray(membership?.companies)
       ? membership?.companies[0]

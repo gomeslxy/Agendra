@@ -843,6 +843,105 @@ export async function inspectLeadByPhone(
   }
 }
 
+// ── Cron health ──────────────────────────────────────────────────────────────
+
+export interface CronJobStatus {
+  jobid: number;
+  jobname: string;
+  schedule: string;
+  active: boolean;
+  last_run: string | null;
+  last_status: string | null;
+  last_message: string | null;
+  duration_ms: number | null;
+}
+
+export async function getCronJobsHealth(): Promise<{
+  success: boolean;
+  jobs?: CronJobStatus[];
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+    const { data, error } = await createAdminClient().rpc("admin_cron_job_status");
+    if (error) throw new Error(error.message);
+    return { success: true, jobs: (data ?? []) as CronJobStatus[] };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ── Bulk / stale unlock ──────────────────────────────────────────────────────
+
+export async function forceUnlockAllStaleLeads(): Promise<{
+  success: boolean;
+  unlocked?: number;
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+    const user = await getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+    const { ip, ua } = await getRequestMeta();
+    const adminClient = createAdminClient();
+
+    const staleThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data, error } = await adminClient
+      .from("leads")
+      .update({ is_processing: false, updated_at: new Date().toISOString() })
+      .eq("is_processing", true)
+      .lt("updated_at", staleThreshold)
+      .select("id");
+    if (error) throw new Error(error.message);
+
+    const unlocked = data?.length ?? 0;
+    const profile = await getCachedUserProfile(user.id);
+    const companyId = profile?.memberships?.[0]?.company_id;
+    if (companyId) {
+      await adminClient.from("audit_logs").insert({
+        company_id: companyId,
+        user_id: user.id,
+        actor_email: user.email,
+        action: "admin_bulk_unlock_stale_leads",
+        ip_address: ip,
+        user_agent: ua,
+        payload: { unlocked_count: unlocked },
+      });
+    }
+    return { success: true, unlocked };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function forceUnlockStaleMessage(
+  messageId: string,
+  companyId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await validateAdminSessionOrThrow();
+    const user = await getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+    const { ip, ua } = await getRequestMeta();
+    const adminClient = createAdminClient();
+
+    const { error } = await adminClient
+      .from("processed_messages")
+      .update({ status: "error", error_message: "admin force-released via painel" })
+      .eq("provider_message_id", messageId)
+      .eq("company_id", companyId)
+      .eq("status", "processing");
+    if (error) throw new Error(error.message);
+
+    await insertAudit(adminClient, companyId, user.id, user.email, ip, ua, "admin_force_unlock_message", {
+      message_id: messageId,
+    });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 export async function getLatestMigrations(): Promise<{
   success: boolean;
   migrations?: { name: string; executed_at: string }[];

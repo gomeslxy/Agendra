@@ -69,10 +69,27 @@ export async function POST() {
       });
 
       if (customers.data.length > 0) {
-        customerId = customers.data[0].id;
+        const candidate = customers.data[0].id;
+
+        // Tenant isolation: verify this Stripe customer has a subscription linked to THIS company.
+        // Prevents assigning a foreign company's customerId when a user is member of multiple tenants.
+        const candidateSubs = await stripe.subscriptions.list({
+          customer: candidate,
+          status: 'all',
+          limit: 10,
+        });
+        const belongsHere = candidateSubs.data.some(s => s.metadata?.companyId === companyId);
+
+        if (!belongsHere && candidateSubs.data.length > 0) {
+          // Customer exists but all subscriptions belong to other companies.
+          console.log('[Stripe Sync] ⚠️ Customer found but subscriptions belong to a different company — skipping assignment');
+          return NextResponse.json({ synced: false, plan: 'trial', status: 'trial' });
+        }
+
+        customerId = candidate;
         console.log(`[Stripe Sync] ✅ Cliente encontrado: ${customerId}`);
 
-        // Persistir o customer_id para futuras consultas
+        // Persist the customer_id for future lookups only when tenant ownership is confirmed.
         await admin
           .from('companies')
           .update({ stripe_customer_id: customerId })

@@ -1,12 +1,12 @@
 // app/admin/tabs/system-health-tab.tsx
 "use client";
 
-import { useState } from "react";
-import { ShieldAlert, Lock, Zap, Cpu, Activity } from "lucide-react";
+import { useState, useTransition } from "react";
+import { ShieldAlert, Lock, Zap, Cpu, Activity, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { forceUnlockStaleLead } from "../actions";
+import { forceUnlockStaleLead, forceUnlockAllStaleLeads, forceUnlockStaleMessage } from "../actions";
 import type { ProviderStat, RecentAiError, StaleLead, StaleMessage, TokenConsumer, DailyPoint } from "../types";
 
 interface Props {
@@ -34,6 +34,9 @@ export function SystemHealthTab({
   providerStats, recentAiErrors, staleLeads, staleMessages, topTokenConsumers, aiErrorDaily,
 }: Props) {
   const router = useRouter();
+  const [bulkUnlocking, startBulkUnlock] = useTransition();
+  const [unlockingMsg, setUnlockingMsg] = useState<string | null>(null);
+
   const maxP99 = Math.max(...providerStats.map((p) => p.p99_ms), 1);
   const maxDayTotal = Math.max(...aiErrorDaily.map((d) => d.total), 1);
   const totalReq7d = aiErrorDaily.reduce((s, d) => s + d.total, 0);
@@ -44,6 +47,24 @@ export function SystemHealthTab({
     const res = await forceUnlockStaleLead(lead.id, lead.company_id);
     if (res.success) { toast.success(`Lead "${lead.name}" desbloqueado`); router.refresh(); }
     else toast.error(res.error || "Erro ao desbloquear lead");
+  }
+
+  async function handleBulkUnlock() {
+    const res = await forceUnlockAllStaleLeads();
+    if (res.success) {
+      toast.success(`${res.unlocked ?? 0} lead(s) desbloqueado(s)`);
+      router.refresh();
+    } else {
+      toast.error(res.error || "Erro ao desbloquear leads");
+    }
+  }
+
+  async function handleUnlockMessage(m: StaleMessage) {
+    setUnlockingMsg(m.id);
+    const res = await forceUnlockStaleMessage(m.id, m.company_id);
+    setUnlockingMsg(null);
+    if (res.success) { toast.success("Mensagem liberada"); router.refresh(); }
+    else toast.error(res.error || "Erro ao liberar mensagem");
   }
 
   return (
@@ -106,9 +127,9 @@ export function SystemHealthTab({
         </div>
       </div>
 
-      {/* AI error rate trend (7d) */}
-      <div className="border border-[#E4E4E7] bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#E4E4E7] bg-[#F4F4F5] flex items-center gap-2">
+      {/* AI error rate trend (7d) — card has NO overflow-hidden so tooltip can escape */}
+      <div className="border border-[#E4E4E7] bg-white rounded-2xl shadow-sm">
+        <div className="px-5 py-4 border-b border-[#E4E4E7] bg-[#F4F4F5] flex items-center gap-2 rounded-t-2xl">
           <Activity size={15} className="text-[#2563EB]" />
           <h2 className="text-sm font-semibold text-[#09090B]">Taxa de Erro de IA (7d)</h2>
           <span className={`ml-auto text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${errRate7d >= 5 ? "bg-[#DC2626] text-white" : "bg-[#F0FDF4] text-[#166534]"}`}>
@@ -118,22 +139,23 @@ export function SystemHealthTab({
         {aiErrorDaily.length === 0 ? (
           <div className="px-5 py-6 text-xs text-[#71717A] text-center">Sem requisições de IA no período.</div>
         ) : (
-          <div className="p-4 flex items-end gap-1.5 h-32">
+          // overflow-visible + pt-10 = space above bars for the tooltip
+          <div className="px-4 pb-4 pt-10 flex items-end gap-1.5 h-[9rem] overflow-visible relative">
             {aiErrorDaily.map((d) => {
               const totalH = Math.max(4, (d.total / maxDayTotal) * 100);
               const errH = d.total > 0 ? (d.errors / d.total) * totalH : 0;
               const dayErrRate = d.total > 0 ? Math.round((d.errors / d.total) * 100) : 0;
               return (
                 <div key={d.day} className="flex-1 flex flex-col items-center gap-1 group relative">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-[#09090B] text-white text-[9px] font-mono px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none">
+                    {d.total} reqs · {d.errors} erros ({dayErrRate}%)
+                  </div>
                   <div className="w-full flex flex-col justify-end rounded-t bg-[#E4E4E7] overflow-hidden" style={{ height: `${totalH}%` }}>
                     <div className="w-full bg-[#DC2626]" style={{ height: `${(errH / totalH) * 100}%` }} />
                   </div>
                   <span className="text-[8px] font-mono text-[#A1A1AA]">
                     {new Date(d.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
                   </span>
-                  <div className="absolute -top-8 hidden group-hover:block bg-[#09090B] text-white text-[9px] font-mono px-2 py-1 rounded whitespace-nowrap z-10">
-                    {d.total} reqs · {d.errors} erros ({dayErrRate}%)
-                  </div>
                 </div>
               );
             })}
@@ -148,9 +170,21 @@ export function SystemHealthTab({
           <h2 className="text-sm font-semibold text-[#09090B]">
             Stale Locks — Leads Travados (&gt;10 min)
           </h2>
-          <span className={`ml-auto text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${staleLeads.length > 0 ? "bg-[#DC2626] text-white" : "bg-[#F4F4F5] text-[#71717A]"}`}>
+          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${staleLeads.length > 0 ? "bg-[#DC2626] text-white" : "bg-[#F4F4F5] text-[#71717A]"}`}>
             {staleLeads.length}
           </span>
+          {staleLeads.length > 1 && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="ml-auto text-[10px] gap-1 text-[#DC2626] hover:bg-white border-[#FECACA]"
+              onClick={() => startBulkUnlock(handleBulkUnlock)}
+              disabled={bulkUnlocking}
+            >
+              <Unlock size={11} />
+              {bulkUnlocking ? "Desbloqueando…" : `Desbloquear todos (${staleLeads.length})`}
+            </Button>
+          )}
         </div>
         {staleLeads.length === 0 ? (
           <div className="px-5 py-6 text-xs text-[#71717A] text-center">
@@ -186,17 +220,29 @@ export function SystemHealthTab({
 
       {/* Stale processed_messages */}
       {staleMessages.length > 0 && (
-        <div className="border border-[#FED7AA] bg-[#FFF7ED] rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-[#D97706] font-semibold text-sm mb-3">
+        <div className="border border-[#FED7AA] bg-[#FFF7ED] rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 text-[#D97706] font-semibold text-sm px-5 py-4 border-b border-[#FED7AA]">
             <ShieldAlert size={15} />
             Mensagens Presas em &apos;processing&apos; (&gt;5 min) — {staleMessages.length}
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col divide-y divide-[#FED7AA]">
             {staleMessages.map((m) => (
-              <div key={m.id} className="bg-white border border-[#FED7AA] rounded-xl px-3 py-2 text-xs font-mono text-[#3F3F46]">
-                <span className="text-[#09090B] font-bold">{m.company_name}</span>
-                <span className="text-[#A1A1AA] ml-2">{m.id.substring(0, 20)}…</span>
-                <span className="ml-2 text-[#D97706]">desde {new Date(m.stuck_since).toLocaleString("pt-BR")}</span>
+              <div key={m.id} className="bg-white px-4 py-3 text-xs font-mono text-[#3F3F46] flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <span className="text-[#09090B] font-bold not-italic font-sans">{m.company_name}</span>
+                  <span className="text-[#A1A1AA] ml-2">{m.id.substring(0, 24)}…</span>
+                  <span className="ml-2 text-[#D97706]">desde {new Date(m.stuck_since).toLocaleString("pt-BR")}</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0 text-[10px] gap-1 text-[#DC2626] border-[#FECACA] hover:bg-[#FFF1F2]"
+                  disabled={unlockingMsg === m.id}
+                  onClick={() => handleUnlockMessage(m)}
+                >
+                  <Unlock size={10} />
+                  {unlockingMsg === m.id ? "…" : "Liberar"}
+                </Button>
               </div>
             ))}
           </div>

@@ -8,7 +8,7 @@ export { PLAN_LIMITS };
 
 export interface CompanyUsage {
   planType: PlanType;
-  status: 'active' | 'past_due' | 'canceled' | 'trial';
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'trial' | 'incomplete' | 'incomplete_expired';
   limits: PlanLimits;
   usage: { leads: number };
   isLimitReached: boolean;
@@ -23,10 +23,9 @@ export interface CompanyUsage {
 export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> {
   const admin = createAdminClient();
 
-  // Buscamos apenas o básico primeiro para evitar erro de coluna inexistente
   const { data: company, error: companyError } = await admin
     .from('companies')
-    .select('*')
+    .select('id, plan_type, subscription_status, created_at, current_period_start, current_period_end, cancel_at_period_end, extra_leads')
     .eq('id', companyId)
     .single();
 
@@ -63,12 +62,14 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> 
 
   // ── Trial / paid status ────────────────────────────────────────────────────
   // [FIX A1] 'canceled' nunca deve ser tratado como trial — bloqueio imediato.
-  const isCanceled = company.subscription_status === 'canceled';
-  const isPastDue  = company.subscription_status === 'past_due';
-  const isActive   = company.subscription_status === 'active';
+  const isCanceled   = company.subscription_status === 'canceled';
+  const isPastDue    = company.subscription_status === 'past_due';
+  const isActive     = company.subscription_status === 'active' || company.subscription_status === 'trialing';
+  // incomplete: pagamento inicial pendente — acesso bloqueado (23h até expirar)
+  const isIncomplete = company.subscription_status === 'incomplete' || company.subscription_status === 'incomplete_expired';
 
-  // Considera trial quando não tem assinatura ativa, past_due ou canceled
-  const isOnTrial = !isActive && !isPastDue && !isCanceled &&
+  // Considera trial quando não tem assinatura ativa, past_due, canceled ou incomplete
+  const isOnTrial = !isActive && !isPastDue && !isCanceled && !isIncomplete &&
     (planType === 'trial' || !company.subscription_status || company.subscription_status === 'trial');
 
   let trialDaysRemaining: number | null = null;
@@ -83,16 +84,17 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> 
 
   // [FIX A2] past_due = sem acesso imediato (inadimplente).
   // [FIX A1] canceled = sem acesso imediato.
+  // [MED-1 FIX] incomplete/incomplete_expired = sem acesso (pagamento inicial pendente).
   const isTrialExpired  = isOnTrial && trialDaysRemaining === 0;
   // Admin-granted overage (migration 072) lifts the plan cap without a plan change.
   const extraLeads        = Math.max(0, Number(company.extra_leads) || 0);
   const effectiveMaxLeads = limits.maxLeads + extraLeads;
   const isLeadsExceeded   = leadsUsed >= effectiveMaxLeads;
-  const isLimitReached  = isLeadsExceeded || isTrialExpired || isPastDue || isCanceled;
+  const isLimitReached  = isLeadsExceeded || isTrialExpired || isPastDue || isCanceled || isIncomplete;
 
   return {
     planType,
-    status: (company.subscription_status || 'trial') as 'active' | 'past_due' | 'canceled' | 'trial',
+    status: (company.subscription_status || 'trial') as CompanyUsage['status'],
     // Spread (not mutate) — getPlanLimits returns the shared PLAN_LIMITS constant.
     limits: extraLeads > 0 ? { ...limits, maxLeads: effectiveMaxLeads } : limits,
     usage: { leads: leadsUsed },

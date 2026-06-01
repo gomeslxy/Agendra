@@ -6,6 +6,18 @@ export async function enforceLimits(companyId: string) {
   const usage = await getCompanyUsage(companyId);
   const admin = createAdminClient();
 
+  // Block status-based access denial before any resource check.
+  const statusBlocked = ['canceled', 'past_due', 'incomplete', 'incomplete_expired'].includes(usage.status);
+  const trialExpired  = usage.status === 'trial' && usage.trialDaysRemaining === 0;
+  if (statusBlocked || trialExpired) {
+    const msg = usage.status === 'past_due'
+      ? 'Sua assinatura está inadimplente. Regularize o pagamento para continuar.'
+      : trialExpired
+      ? 'Seu período de teste expirou. Assine um plano para continuar usando a Agendra.'
+      : 'Sua assinatura está cancelada. Assine um plano para continuar usando a Agendra.';
+    throw new Error(msg);
+  }
+
   // Channels limit check
   const { count: channelCount } = await admin
     .from('channels')

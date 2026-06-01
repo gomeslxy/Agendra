@@ -204,6 +204,13 @@ export function AdminDashboardClient({
   const [cmdOpen, setCmdOpen]     = useState(false);
   const [refreshing, startRefresh] = useTransition();
 
+  // Re-compute every 30s so "N min ago" stays fresh without a full reload
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   // Cmd+K / Ctrl+K shortcut
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -269,9 +276,20 @@ export function AdminDashboardClient({
 
           <div className="text-right hidden sm:block">
             <p className="text-xs font-semibold text-[#09090B]">Super Admin</p>
-            <p className="text-[10px] font-mono text-[#71717A]">
-              {new Date(summary.generatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-            </p>
+            {(() => {
+              const ageMs = now - new Date(summary.generatedAt).getTime();
+              const ageMin = Math.floor(ageMs / 60_000);
+              const stale = ageMin >= 5;
+              const veryStale = ageMin >= 15;
+              return (
+                <p className={`text-[10px] font-mono ${veryStale ? "text-[#DC2626] font-semibold" : stale ? "text-[#D97706]" : "text-[#71717A]"}`}
+                   title={`Gerado às ${new Date(summary.generatedAt).toLocaleTimeString("pt-BR")}`}
+                >
+                  {ageMin === 0 ? "agora mesmo" : `${ageMin}min atrás`}
+                  {stale && " ⚠"}
+                </p>
+              );
+            })()}
           </div>
 
           <Button

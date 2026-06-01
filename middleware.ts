@@ -10,7 +10,7 @@ const AUTH_PREFIXES = ["/login", "/signup", "/verify", "/recuperar-senha", "/nov
 /** Public marketing routes — no auth check needed, ever */
 const PUBLIC_PREFIXES = ["/contato", "/planos", "/sobre", "/termos", "/privacidade"];
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Fast path: public marketing routes — skip Supabase round-trip entirely

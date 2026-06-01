@@ -3,7 +3,7 @@
 import { createClient, getUserProfile } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { isValidUuid } from "@/lib/utils";
-import { createGoogleCalendarEvent, deleteGCalEvent } from "@/lib/calendar/google";
+import { createGoogleCalendarEvent, deleteGCalEvent, updateGCalEvent } from "@/lib/calendar/google";
 import { requireOnboarding } from "@/lib/onboarding/guards";
 
 export async function createEvent(formData: FormData) {
@@ -135,3 +135,118 @@ export async function deleteEvent(eventId: string) {
 
   revalidatePath("/agenda");
 }
+
+export async function updateEvent(eventId: string, formData: FormData) {
+  if (!isValidUuid(eventId)) throw new Error("eventId inválido");
+
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId || !isValidUuid(companyId)) throw new Error("No company");
+  await requireOnboarding(companyId);
+
+  const leadId = (formData.get("lead_id") as string | null)?.trim() || null;
+  const title = (formData.get("title") as string | null)?.trim() ?? "";
+  const startTime = (formData.get("start_time") as string | null)?.trim() ?? "";
+  const endTime = (formData.get("end_time") as string | null)?.trim() ?? "";
+
+  if (!title || title.length > 300) throw new Error("Título inválido");
+  if (leadId && !isValidUuid(leadId)) throw new Error("lead_id inválido");
+
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    throw new Error("Data/hora inválida");
+  }
+  if (end <= start) throw new Error("end_time deve ser posterior a start_time");
+
+  const supabase = await createClient();
+
+  // Update DB first
+  const { data: event, error } = await supabase
+    .from("events")
+    .update({
+      lead_id: leadId,
+      title,
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+    })
+    .eq("id", eventId)
+    .eq("company_id", companyId)
+    .select("gcal_event_id, source")
+    .single();
+
+  if (error || !event) throw new Error(error?.message ?? "Falha ao atualizar evento");
+
+  // Sync to Google Calendar if needed
+  if (event.gcal_event_id && event.source === "agendra") {
+    const { data: company } = await supabase
+      .from("companies")
+      .select("google_refresh_token, google_calendar_id")
+      .eq("id", companyId)
+      .single();
+
+    if (company?.google_refresh_token) {
+      try {
+        await updateGCalEvent(
+          company.google_refresh_token,
+          company.google_calendar_id ?? "primary",
+          event.gcal_event_id,
+          {
+            title,
+            start: start.toISOString(),
+            end: end.toISOString(),
+            description: "Atualizado via Agendra",
+          }
+        );
+
+        await supabase
+          .from("events")
+          .update({ gcal_sync_status: "synced" })
+          .eq("id", eventId);
+      } catch (err) {
+        console.error("[updateEvent] GCal update failed:", err);
+        await supabase
+          .from("events")
+          .update({ gcal_sync_status: "error" })
+          .eq("id", eventId);
+      }
+    }
+  }
+
+  revalidatePath("/agenda");
+}
+
+export async function searchLeads(query: string) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId || !isValidUuid(companyId)) throw new Error("No company");
+
+  const supabase = await createClient();
+  const trimmed = query.trim();
+
+  let q = supabase
+    .from("leads")
+    .select("id, name, status, phone")
+    .eq("company_id", companyId)
+    .order("name", { ascending: true })
+    .limit(50);
+
+  if (trimmed) {
+    q = q.or(`name.ilike.%${trimmed}%,phone.like.%${trimmed}%`);
+  }
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data as Array<{
+    id: string;
+    name: string;
+    status: "hot" | "warm" | "cold" | "success";
+    phone: string;
+  }>;
+}
+

@@ -13,13 +13,20 @@ import {
   Loader2,
   RefreshCw,
   Cloud,
+  Pencil,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { createEvent, deleteEvent } from "./actions";
+import { createEvent, deleteEvent, updateEvent, searchLeads } from "./actions";
 import { trackEvent } from "@/lib/analytics";
 import { EmptyState } from "@/components/ui/empty-state";
+import { createBrowserClient } from "@supabase/ssr";
+
+const browserSupabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
 
 const MONTHS = [
   "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
@@ -135,6 +142,12 @@ export function AgendaClient({
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+  const [editingEvent, setEditingEvent] = useState<AgendaEvent | null>(null);
+  const [leadQuery, setLeadQuery] = useState("");
+  const [leadResults, setLeadResults] = useState<LeadOption[]>(leads.slice(0, 50));
+  const [selectedLead, setSelectedLead] = useState<LeadOption | null>(null);
+  const [isSearchingLeads, setIsSearchingLeads] = useState(false);
+
   const didAutoSync = useRef(false);
   useEffect(() => {
     if (!autoSync || didAutoSync.current) return;
@@ -146,12 +159,80 @@ export function AgendaClient({
       .finally(() => setIsSyncing(false));
   }, [autoSync, router]);
 
+  // [AGD-1] Realtime Subscription
+  useEffect(() => {
+    if (!_companyId) return;
+
+    const supabase = browserSupabase;
+    const companyFilter = `company_id=eq.${_companyId}`;
+
+    const channel = supabase
+      .channel(`agenda-realtime-${_companyId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "events", filter: companyFilter },
+        (payload) => {
+          console.log("[Agenda Realtime] event modification detected:", payload);
+          router.refresh();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [_companyId, router]);
+
+  // [AGD-3] Debounced lead search
   useEffect(() => {
     if (!showModal) return;
-    const base = new Date(viewYear, viewMonth, selected, 9, 0);
-    setStartTime(toDatetimeLocal(base));
-    setEndTime(toDatetimeLocal(new Date(base.getTime() + 60 * 60 * 1000)));
-  }, [showModal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const delayDebounceFn = setTimeout(async () => {
+      if (!leadQuery.trim()) {
+        setLeadResults(leads.slice(0, 50));
+        return;
+      }
+      setIsSearchingLeads(true);
+      try {
+        const results = await searchLeads(leadQuery);
+        setLeadResults(results);
+      } catch (err) {
+        console.error("Erro ao buscar leads:", err);
+      } finally {
+        setIsSearchingLeads(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [leadQuery, showModal, leads]);
+
+  // Modal form pre-fill for creation / edition
+  useEffect(() => {
+    if (!showModal) {
+      setLeadQuery("");
+      setSelectedLead(null);
+      return;
+    }
+    if (editingEvent) {
+      setStartTime(toDatetimeLocal(new Date(editingEvent.start_time)));
+      setEndTime(toDatetimeLocal(new Date(editingEvent.end_time)));
+      if (editingEvent.lead_id) {
+        setSelectedLead({
+          id: editingEvent.lead_id,
+          name: editingEvent.leads?.name ?? "",
+          status: editingEvent.leads?.status ?? "cold",
+          phone: editingEvent.leads?.phone ?? "",
+        });
+      } else {
+        setSelectedLead(null);
+      }
+    } else {
+      const base = new Date(viewYear, viewMonth, selected, 9, 0);
+      setStartTime(toDatetimeLocal(base));
+      setEndTime(toDatetimeLocal(new Date(base.getTime() + 60 * 60 * 1000)));
+      setSelectedLead(null);
+    }
+  }, [showModal, editingEvent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartChange = (val: string) => {
     setStartTime(val);
@@ -207,23 +288,35 @@ export function AgendaClient({
     setSelected((prev) => Math.min(prev, maxDay));
   };
 
-  const handleCreate = (formData: FormData) => {
+  const handleSubmit = (formData: FormData) => {
     setError(null);
     const startLocal = formData.get("start_time") as string | null;
     const endLocal = formData.get("end_time") as string | null;
     if (startLocal) formData.set("start_time", new Date(startLocal).toISOString());
     if (endLocal) formData.set("end_time", new Date(endLocal).toISOString());
 
+    if (selectedLead) {
+      formData.set("lead_id", selectedLead.id);
+    } else {
+      formData.set("lead_id", "");
+    }
+
     startTransition(async () => {
       try {
-        await createEvent(formData);
-        trackEvent("event_created");
+        if (editingEvent) {
+          await updateEvent(editingEvent.id, formData);
+          trackEvent("event_updated");
+        } else {
+          await createEvent(formData);
+          trackEvent("event_created");
+        }
         setShowModal(false);
+        setEditingEvent(null);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Erro ao criar agendamento";
+        const msg = e instanceof Error ? e.message : "Erro ao salvar agendamento";
         setError(
           msg.startsWith("Onboarding not complete")
-            ? "Complete o onboarding da sua empresa antes de criar agendamentos."
+            ? "Complete o onboarding da sua empresa antes de salvar agendamentos."
             : msg,
         );
       }
@@ -331,7 +424,7 @@ export function AgendaClient({
             <CalendarDays size={14} />
             <span className="hidden sm:inline">Hoje</span>
           </Button>
-          <Button variant="orange" size="sm" onClick={() => setShowModal(true)}>
+          <Button variant="orange" size="sm" onClick={() => { setEditingEvent(null); setShowModal(true); }}>
             <Plus size={14} />
             <span className="hidden sm:inline">Novo agendamento</span>
             <span className="sm:hidden">Novo</span>
@@ -435,7 +528,7 @@ export function AgendaClient({
                 description={`Não há nenhum agendamento para o dia ${selected} de ${MONTHS[viewMonth]}.`}
                 action={
                   <Button
-                    onClick={() => setShowModal(true)}
+                    onClick={() => { setEditingEvent(null); setShowModal(true); }}
                     variant="ghost"
                     className="text-xs text-[#2563EB] hover:text-[#1D4ED8]"
                   >
@@ -502,31 +595,45 @@ export function AgendaClient({
                         </span>
                       )}
                       {!isGcal && (
-                        deleteConfirm === e.id ? (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-[#DC2626] font-bold">Excluir?</span>
+                        <div className="flex items-center gap-1">
+                          {deleteConfirm !== e.id && (
+                            <button
+                              onClick={() => {
+                                setEditingEvent(e);
+                                setShowModal(true);
+                              }}
+                              className="grid h-6 w-6 place-items-center rounded-lg text-[#A1A1AA] transition hover:bg-[#F4F4F5] hover:text-[#09090B] cursor-pointer shrink-0"
+                              aria-label="Editar"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          )}
+                          {deleteConfirm === e.id ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-[#DC2626] font-bold">Excluir?</span>
+                              <button
+                                onClick={() => handleDelete(e.id)}
+                                className="rounded px-1.5 py-0.5 text-[10px] font-black text-[#DC2626] hover:bg-[#FFF1F2] cursor-pointer"
+                              >
+                                Sim
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm(null)}
+                                className="rounded px-1.5 py-0.5 text-[10px] text-[#71717A] hover:bg-[#F4F4F5] cursor-pointer"
+                              >
+                                Não
+                              </button>
+                            </div>
+                          ) : (
                             <button
                               onClick={() => handleDelete(e.id)}
-                              className="rounded px-1.5 py-0.5 text-[10px] font-black text-[#DC2626] hover:bg-[#FFF1F2] cursor-pointer"
+                              className="grid h-6 w-6 place-items-center rounded-lg text-[#A1A1AA] transition hover:bg-[#FFF1F2] hover:text-[#DC2626] cursor-pointer shrink-0"
+                              aria-label="Excluir"
                             >
-                              Sim
+                              <Trash2 size={12} />
                             </button>
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              className="rounded px-1.5 py-0.5 text-[10px] text-[#71717A] hover:bg-[#F4F4F5] cursor-pointer"
-                            >
-                              Não
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => handleDelete(e.id)}
-                            className="grid h-6 w-6 place-items-center rounded-lg text-[#A1A1AA] transition hover:bg-[#FFF1F2] hover:text-[#DC2626] cursor-pointer shrink-0"
-                            aria-label="Excluir"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )
+                          )}
+                        </div>
                       )}
                     </div>
                   </motion.div>
@@ -562,7 +669,9 @@ export function AgendaClient({
                 className="w-full max-w-md border border-[#E4E4E7] bg-white p-6 shadow-2xl flex flex-col rounded-xl max-h-[85vh]"
               >
                 <div className="mb-5 flex shrink-0 items-center justify-between">
-                  <h2 className="text-lg font-semibold text-[#09090B]">Novo agendamento</h2>
+                  <h2 className="text-lg font-semibold text-[#09090B]">
+                    {editingEvent ? "Editar agendamento" : "Novo agendamento"}
+                  </h2>
                   <button
                     onClick={() => setShowModal(false)}
                     className="grid h-8 w-8 place-items-center rounded-lg text-[#71717A] transition hover:bg-[#F4F4F5] hover:text-[#09090B]"
@@ -572,7 +681,7 @@ export function AgendaClient({
                 </div>
 
                 <div className="overflow-y-auto px-1 -mx-1 flex-1">
-                  <form action={handleCreate} className="flex flex-col gap-4 pb-2">
+                  <form action={handleSubmit} className="flex flex-col gap-4 pb-2" key={editingEvent?.id ?? "new"}>
                     <div className="flex flex-col gap-1.5">
                       <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                         Título / motivo *
@@ -580,30 +689,88 @@ export function AgendaClient({
                       <input
                         name="title"
                         required
+                        defaultValue={editingEvent?.title ?? ""}
                         placeholder="Ex: Consulta inicial, Retorno..."
                         className="rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
                       />
                     </div>
 
-                    <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-col gap-1.5 relative">
                       <label className="font-mono text-[11px] uppercase tracking-wider text-[#71717A]">
                         Lead (opcional)
                       </label>
-                      <select
-                        name="lead_id"
-                        className="rounded-xl border border-[#E4E4E7] bg-white px-3.5 py-2.5 text-sm text-[#09090B] outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10"
-                      >
-                        <option value="">— Nenhum lead vinculado —</option>
-                        {leads.map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.name} ({l.phone})
-                          </option>
-                        ))}
-                      </select>
-                      {leads.length === 200 && (
-                        <p className="text-[10px] text-[#71717A]">
-                          Exibindo os 200 leads mais recentes. Use a busca de leads para encontrar outros.
-                        </p>
+                      {selectedLead ? (
+                        <div className="flex items-center justify-between rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] p-3 text-sm text-[#09090B]">
+                           <div className="flex items-center gap-2">
+                             <span className={cn(
+                               "h-2 w-2 rounded-full shrink-0",
+                               selectedLead.status === "hot"     ? "bg-[#F97316]" :
+                               selectedLead.status === "warm"    ? "bg-[#F59E0B]" :
+                               selectedLead.status === "success" ? "bg-[#14B8A6]" : "bg-[#60A5FA]",
+                             )} />
+                             <div>
+                               <p className="font-semibold text-left">{selectedLead.name}</p>
+                               <p className="text-[11px] text-[#71717A] text-left">{selectedLead.phone}</p>
+                             </div>
+                           </div>
+                           <button
+                             type="button"
+                             onClick={() => setSelectedLead(null)}
+                             className="grid h-7 w-7 place-items-center rounded-lg text-[#71717A] hover:bg-[#E4E4E7] hover:text-[#09090B]"
+                           >
+                             <X size={14} />
+                           </button>
+                           <input type="hidden" name="lead_id" value={selectedLead.id} />
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="flex items-center relative">
+                            <Search size={14} className="absolute left-3.5 text-[#A1A1AA]" />
+                            <input
+                              type="text"
+                              placeholder="Buscar lead por nome ou telefone..."
+                              value={leadQuery}
+                              onChange={(e) => setLeadQuery(e.target.value)}
+                              className="w-full rounded-xl border border-[#E4E4E7] bg-[#F4F4F5] pl-10 pr-3.5 py-2.5 text-sm text-[#09090B] outline-none transition placeholder:text-[#A1A1AA] focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/10"
+                            />
+                            {isSearchingLeads && (
+                              <Loader2 size={14} className="animate-spin text-[#71717A] absolute right-3.5" />
+                            )}
+                          </div>
+
+                          {leadQuery.trim().length > 0 && (
+                            <div className="absolute left-0 right-0 z-50 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#E4E4E7] bg-white p-1 shadow-lg">
+                              {leadResults.length === 0 ? (
+                                <p className="p-3 text-center text-xs text-[#71717A]">
+                                  Nenhum lead encontrado
+                                </p>
+                              ) : (
+                                leadResults.map((l) => (
+                                  <button
+                                    key={l.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedLead(l);
+                                      setLeadQuery("");
+                                    }}
+                                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition hover:bg-[#F4F4F5]"
+                                  >
+                                    <div>
+                                      <p className="font-semibold text-[#09090B]">{l.name}</p>
+                                      <p className="text-[10px] text-[#71717A]">{l.phone}</p>
+                                    </div>
+                                    <span className={cn(
+                                      "h-1.5 w-1.5 rounded-full shrink-0",
+                                      l.status === "hot"     ? "bg-[#F97316]" :
+                                      l.status === "warm"    ? "bg-[#F59E0B]" :
+                                      l.status === "success" ? "bg-[#14B8A6]" : "bg-[#60A5FA]",
+                                    )} />
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -657,10 +824,22 @@ export function AgendaClient({
                         variant="orange"
                         size="sm"
                         disabled={isPending}
-                        className="flex-1 justify-center"
+                        className="flex-1 justify-center gap-1.5"
                       >
-                        {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                        {isPending ? "Criando..." : "Criar agendamento"}
+                        {isPending ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : editingEvent ? (
+                          <Pencil size={14} />
+                        ) : (
+                          <Plus size={14} />
+                        )}
+                        {isPending
+                          ? editingEvent
+                            ? "Salvando..."
+                            : "Criando..."
+                          : editingEvent
+                          ? "Salvar alterações"
+                          : "Criar agendamento"}
                       </Button>
                     </div>
                   </form>

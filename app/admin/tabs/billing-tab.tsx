@@ -1,6 +1,7 @@
 // app/admin/tabs/billing-tab.tsx
 "use client";
 
+import { useState } from "react";
 import { DollarSign, AlertTriangle, TrendingUp, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -14,8 +15,12 @@ interface Props {
   summary: SummaryData;
 }
 
+const EXTEND_OPTIONS = [100, 250, 500, 1000, 2000] as const;
+
 export function BillingTab({ companies, summary }: Props) {
   const router = useRouter();
+  // Per-company extend amount selection; defaults to 500
+  const [extendAmounts, setExtendAmounts] = useState<Record<string, number>>({});
 
   // Only Stripe-backed active subscriptions count as recognized revenue (M1).
   const payingCompanies = companies.filter((c) => c.mrr_real);
@@ -29,8 +34,9 @@ export function BillingTab({ companies, summary }: Props) {
   });
 
   async function handleExtend(company: Company) {
-    const res = await extendTenantMessageLimit(company.id, 500);
-    if (res.success) { toast.success(`+500 leads adicionados para ${company.name}`); router.refresh(); }
+    const amount = extendAmounts[company.id] ?? 500;
+    const res = await extendTenantMessageLimit(company.id, amount);
+    if (res.success) { toast.success(`+${amount} leads adicionados para ${company.name}`); router.refresh(); }
     else toast.error(res.error || "Erro ao estender limite");
   }
 
@@ -106,14 +112,25 @@ export function BillingTab({ companies, summary }: Props) {
                 </span>
               )}
               {c.atLimit && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="text-[10px] px-2 py-1 gap-0.5 border-[#FECACA] hover:bg-white"
-                  onClick={() => handleExtend(c)}
-                >
-                  <Plus size={10} /> +500
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <select
+                    value={extendAmounts[c.id] ?? 500}
+                    onChange={(e) => setExtendAmounts((p) => ({ ...p, [c.id]: Number(e.target.value) }))}
+                    className="text-[10px] font-mono bg-white border border-[#E4E4E7] rounded-lg px-1.5 py-1 focus:outline-none focus:border-[#2563EB]"
+                  >
+                    {EXTEND_OPTIONS.map((n) => (
+                      <option key={n} value={n}>+{n}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="text-[10px] px-2 py-1 gap-0.5 border-[#FECACA] hover:bg-white"
+                    onClick={() => handleExtend(c)}
+                  >
+                    <Plus size={10} /> Adicionar
+                  </Button>
+                </div>
               )}
             </div>
           ))}

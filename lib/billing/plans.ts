@@ -180,9 +180,14 @@ export function getPlanLimits(planType: string | null | undefined): PlanLimits {
   return PLAN_LIMITS[key] ?? PLAN_LIMITS.trial;
 }
 
-/** Dado um priceId do Stripe, retorna o PlanType correspondente. */
-export function planFromPriceId(priceId: string): PlanType {
-  return PRICE_ID_TO_PLAN[priceId] ?? 'starter';
+/**
+ * Dado um priceId do Stripe, retorna o PlanType correspondente.
+ * Retorna null para price IDs desconhecidos — callers devem manter o plano atual
+ * do banco em vez de aplicar um downgrade silencioso para 'starter'.
+ */
+export function planFromPriceId(priceId: string | null | undefined): PlanType | null {
+  if (!priceId) return null;
+  return PRICE_ID_TO_PLAN[priceId] ?? null;
 }
 
 export const TRIAL_DAYS = 7;

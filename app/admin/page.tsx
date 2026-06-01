@@ -27,7 +27,10 @@ export default async function AdminDashboardPage() {
   const since14d = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
   const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
   const since30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const startOfToday = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+  // BRT = UTC-3: "today" means since midnight in São Paulo, not UTC midnight.
+  // toLocaleDateString('en-CA') returns "YYYY-MM-DD" which we reparse in BRT.
+  const todayBRT = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const startOfToday = new Date(todayBRT + "T00:00:00.000-03:00").toISOString();
   const staleLeadCutoff = new Date(now - 10 * 60 * 1000).toISOString();
   const staleMsgCutoff  = new Date(now -  5 * 60 * 1000).toISOString();
   const startOfThisWeek = since7d;

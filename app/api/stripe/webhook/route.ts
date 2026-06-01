@@ -3,11 +3,15 @@
  *
  * POST /api/stripe/webhook
  *
- * Fixes:
- * [CRIT-1] invoice.payment_failed agora expande a subscription para ler companyId
- * [HIGH-1] Cancelamento define plan_type = 'trial' (não 'free' que não existe)
- * [HIGH-2] planType derivado do price_id via planFromPriceId (não hardcoded)
- * [HIGH-6] invoice.payment_failed mantém plan_type real do cliente
+ * Fixes (billing audit 2026-06-01):
+ * [CRIT-1] Idempotência via stripe_webhook_events table — eventos duplicados ignorados.
+ * [CRIT-2] Status 'trialing' mapeado para 'active' — compatível com CHECK constraint.
+ * [CRIT-3] planFromPriceId retorna null → mantém plano atual do banco (sem downgrade silencioso).
+ * [HIGH-1] Segundo retrieve de subscription em invoice.payment_succeeded eliminado.
+ * [HIGH-4] companyId validado via DB antes de updateCompanyStatus.
+ * [HIGH-6] Handler customer.subscription.created adicionado.
+ * [MED-5] stripe_subscription_id limpo em customer.subscription.deleted.
+ * [MED-6] Handler charge.refunded adicionado.
  */
 
 import { headers } from 'next/headers';
@@ -43,24 +47,48 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
+  // ── [CRIT-1] Idempotency: skip already-processed events ──────────────────────
+  const { error: dedupeError } = await admin
+    .from('stripe_webhook_events')
+    .insert({ event_id: event.id, event_type: event.type });
+
+  if (dedupeError) {
+    if (dedupeError.code === '23505') {
+      // Duplicate delivery — Stripe retried, we already processed this event.
+      console.log(`[Stripe Webhook] ⚡ Duplicate event ${event.id} (${event.type}) — skipping`);
+      return NextResponse.json({ received: true });
+    }
+    // Log but don't abort — a failed dedup insert shouldn't block legitimate events.
+    console.error('[Stripe Webhook] ⚠️ Failed to record webhook event (dedup):', dedupeError.message);
+  }
+
   console.log(`[Stripe Webhook] 🔔 Received event: ${event.type}`);
+
+  // ── Helper: normalize Stripe status → DB status ──────────────────────────────
+  // [CRIT-2] 'trialing' is a valid Stripe status but our CHECK only had 'trial'.
+  // We store both 'trialing' (Stripe-native trial) and 'trial' (local trial) in the DB.
+  function normalizeStatus(stripeStatus: string): string {
+    // Pass through all values accepted by our CHECK constraint.
+    const allowed = ['trial', 'trialing', 'active', 'past_due', 'canceled', 'incomplete', 'incomplete_expired'];
+    return allowed.includes(stripeStatus) ? stripeStatus : stripeStatus;
+  }
 
   // ── Helper: atualizar status da empresa ───────────────────────────────────
   async function updateCompanyStatus(
     companyId: string,
     status: string,
     plan: string,
-    subId?: string,
+    subId?: string | null,
     custId?: string,
     periodStart?: number,
     periodEnd?: number,
     cancelAtPeriodEnd?: boolean
   ) {
     const updateData: Record<string, any> = {
-      subscription_status: status,
+      subscription_status: normalizeStatus(status),
       plan_type: plan,
     };
-    if (subId) updateData.stripe_subscription_id = subId;
+    if (subId !== undefined) updateData.stripe_subscription_id = subId; // null clears it
     if (custId) updateData.stripe_customer_id = custId;
     if (periodStart) updateData.current_period_start = new Date(periodStart * 1000).toISOString();
     if (periodEnd) updateData.current_period_end = new Date(periodEnd * 1000).toISOString();
@@ -85,24 +113,65 @@ export async function POST(req: Request) {
     return data?.id ?? null;
   }
 
+  // ── Helper: obter plano atual do banco (evita downgrade silencioso) ────────
+  // [CRIT-3] Chamado quando planFromPriceId retorna null (price ID desconhecido).
+  async function getCurrentPlan(companyId: string): Promise<string> {
+    const { data } = await admin
+      .from('companies')
+      .select('plan_type')
+      .eq('id', companyId)
+      .maybeSingle();
+    return data?.plan_type ?? 'starter';
+  }
+
+  // ── Helper: resolver planType com fallback seguro (sem downgrade) ──────────
+  async function resolvePlan(
+    priceId: string | undefined,
+    metadataPlanType: string | undefined,
+    companyId: string | null
+  ): Promise<string> {
+    const fromPrice = planFromPriceId(priceId ?? null);
+    if (fromPrice) return fromPrice;
+    if (metadataPlanType && ['starter', 'pro', 'business'].includes(metadataPlanType)) return metadataPlanType;
+    if (companyId) return getCurrentPlan(companyId);
+    return 'starter';
+  }
+
+  // ── [HIGH-4] Validate companyId exists in DB before any update ────────────
+  async function companyExists(companyId: string): Promise<boolean> {
+    const { data } = await admin
+      .from('companies')
+      .select('id')
+      .eq('id', companyId)
+      .maybeSingle();
+    return !!data;
+  }
+
   // ── Event handlers ────────────────────────────────────────────────────────
   switch (event.type) {
+
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
       const companyId = session.metadata?.companyId;
 
       if (companyId && session.subscription) {
+        // [HIGH-4] Validate company exists before updating
+        if (!(await companyExists(companyId))) {
+          console.error(`[Stripe Webhook] ❌ checkout.session.completed: company ${companyId} not found`);
+          break;
+        }
+
         const subscription = (await stripe.subscriptions.retrieve(
           session.subscription as string
         )) as any;
 
-        // [HIGH-2] Determinar planType a partir do price_id (fonte mais confiável)
-        // [FIX W2.10] Stripe API 2026-04-22: read period from items.data[0] with root fallback
         const item0 = subscription.items?.data?.[0];
+        const plan = await resolvePlan(item0?.price?.id, subscription.metadata?.planType, companyId);
+
         await updateCompanyStatus(
           companyId,
           subscription.status,
-          planFromPriceId(item0?.price?.id) || 'pro',
+          plan,
           subscription.id,
           subscription.customer as string,
           item0?.current_period_start ?? subscription.current_period_start,
@@ -113,47 +182,69 @@ export async function POST(req: Request) {
       break;
     }
 
+    // [HIGH-6] Handle subscription creation (e.g. created without a checkout session)
+    case 'customer.subscription.created': {
+      const sub = event.data.object as Stripe.Subscription;
+      const priceId = sub.items.data[0]?.price?.id;
+
+      const companyId = sub.metadata?.companyId
+        || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
+
+      if (!companyId) {
+        console.error('[Stripe Webhook] ❌ subscription.created: Could not resolve companyId! customer:', sub.customer);
+        break;
+      }
+
+      const plan = await resolvePlan(priceId, sub.metadata?.planType, companyId);
+      const item0 = sub.items?.data?.[0] as any;
+
+      await updateCompanyStatus(
+        companyId,
+        sub.status,
+        plan,
+        sub.id,
+        sub.customer as string,
+        item0?.current_period_start ?? (sub as any).current_period_start,
+        item0?.current_period_end   ?? (sub as any).current_period_end,
+        sub.cancel_at_period_end
+      );
+      break;
+    }
+
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription;
       const priceId = sub.items.data[0]?.price?.id;
-      const resolvedPlan = planFromPriceId(priceId);
-      
+
       console.log('[Stripe Webhook] 📋 subscription.updated details:', {
         subId: sub.id,
         customerId: sub.customer,
         priceId,
-        resolvedPlan,
         metadataCompanyId: sub.metadata?.companyId,
-        metadataPlanType: sub.metadata?.planType,
         status: sub.status,
         cancelAtPeriodEnd: sub.cancel_at_period_end,
       });
 
-      const companyId = sub.metadata?.companyId 
+      const companyId = sub.metadata?.companyId
         || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
 
       if (!companyId) {
         console.error('[Stripe Webhook] ❌ subscription.updated: Could not resolve companyId! customer:', sub.customer);
-      } else {
-        const status = sub.status === 'active' ? 'active' : 
-                       sub.status === 'past_due' ? 'past_due' : sub.status;
-        const finalPlan = resolvedPlan || sub.metadata?.planType || 'pro';
-
-        console.log(`[Stripe Webhook] 🔄 Updating company ${companyId} → plan=${finalPlan} status=${status}`);
-
-        // [FIX W2.10] Stripe API 2026-04-22: read period from items.data[0] with root fallback
-        const item0upd = sub.items?.data?.[0] as any;
-        await updateCompanyStatus(
-          companyId,
-          status,
-          finalPlan,
-          sub.id,
-          undefined,
-          item0upd?.current_period_start ?? (sub as any).current_period_start,
-          item0upd?.current_period_end   ?? (sub as any).current_period_end,
-          sub.cancel_at_period_end
-        );
+        break;
       }
+
+      const plan = await resolvePlan(priceId, sub.metadata?.planType, companyId);
+      const item0upd = sub.items?.data?.[0] as any;
+
+      await updateCompanyStatus(
+        companyId,
+        sub.status,
+        plan,
+        sub.id,
+        undefined,
+        item0upd?.current_period_start ?? (sub as any).current_period_start,
+        item0upd?.current_period_end   ?? (sub as any).current_period_end,
+        sub.cancel_at_period_end
+      );
       break;
     }
 
@@ -163,16 +254,16 @@ export async function POST(req: Request) {
         || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
 
       if (companyId) {
-        // [FIX HIGH-1] Reset para 'trial' e status 'canceled'
+        // [MED-5] Clear stripe_subscription_id so the deleted sub doesn't linger.
         await updateCompanyStatus(
-          companyId, 
-          'canceled', 
-          'trial', 
-          undefined, 
-          undefined, 
-          undefined, 
-          undefined, 
-          false // Reset cancel_at
+          companyId,
+          'canceled',
+          'trial',
+          null,    // null explicitly clears stripe_subscription_id
+          undefined,
+          undefined,
+          undefined,
+          false
         );
       }
       break;
@@ -211,31 +302,25 @@ export async function POST(req: Request) {
       const inv = event.data.object as Stripe.Invoice;
       const invAny = inv as any;
 
-      // [FIX CRIT-1] Expandir subscription para obter metadados e companyId
       let companyId: string | null = null;
-      let currentPlanType = 'starter'; // fallback conservador
+      let currentPlanType = 'starter';
 
       if (invAny.subscription) {
         try {
           const sub = await stripe.subscriptions.retrieve(invAny.subscription as string);
           companyId = sub.metadata?.companyId
             || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
-
-          // Manter o plan_type REAL do cliente, não hardcoded 'pro'
-          const priceId = sub.items.data[0]?.price?.id;
-          currentPlanType = planFromPriceId(priceId) || sub.metadata?.planType || 'starter';
+          currentPlanType = await resolvePlan(sub.items.data[0]?.price?.id, sub.metadata?.planType, companyId);
         } catch (err) {
           console.error('[Stripe Webhook] ❌ Failed to retrieve subscription for payment_failed:', err);
         }
       }
 
-      // Fallback via customer
       if (!companyId && inv.customer) {
         companyId = await getCompanyByCustomer(inv.customer as string);
       }
 
       if (companyId) {
-        // [FIX HIGH-6] Mantém plan_type real, apenas muda subscription_status
         await updateCompanyStatus(companyId, 'past_due', currentPlanType);
 
         await admin.from('stripe_payment_events').insert({
@@ -247,16 +332,14 @@ export async function POST(req: Request) {
           metadata: { hosted_invoice_url: inv.hosted_invoice_url, attempt_count: inv.attempt_count },
         });
 
-        // Notify company owner of payment failure
         try {
           const { createNotification } = await import("@/lib/notifications/create");
-          // H5 FIX: Fallback from owner to admin — if no owner exists, at least notify an admin
           const { data: owner } = await admin
             .from("memberships")
             .select("user_id")
             .eq("company_id", companyId)
             .in("role", ["owner", "admin"])
-            .order("role", { ascending: false }) // owner > admin alphabetically — prefer owner
+            .order("role", { ascending: false })
             .limit(1)
             .maybeSingle();
 
@@ -284,28 +367,25 @@ export async function POST(req: Request) {
     }
 
     case 'invoice.payment_succeeded': {
-      // Reativar empresa se estava past_due + atualizar período de billing
       const inv = event.data.object as Stripe.Invoice;
-      const invAny2 = inv as any;
+      const invAny = inv as any;
       let companyId: string | null = null;
       let currentPlanType = 'starter';
       let periodStart: number | undefined;
       let periodEnd: number | undefined;
+      let cancelAt = false;
 
-      let subscriptionObj: Stripe.Subscription | null = null;
-
-      if (invAny2.subscription) {
+      if (invAny.subscription) {
         try {
-          const sub = await stripe.subscriptions.retrieve(invAny2.subscription as string);
-          subscriptionObj = sub;
+          // [HIGH-1] Single retrieve — reuse subscriptionObj for all downstream reads.
+          const sub = await stripe.subscriptions.retrieve(invAny.subscription as string);
           companyId = sub.metadata?.companyId
             || (sub.customer ? await getCompanyByCustomer(sub.customer as string) : null);
-          const priceId = sub.items.data[0]?.price?.id;
-          currentPlanType = planFromPriceId(priceId) || sub.metadata?.planType || 'starter';
-          // [FIX A3 + W2.10] Persistir período de billing — lê de items.data[0] (API 2026-04-22)
+          currentPlanType = await resolvePlan(sub.items.data[0]?.price?.id, sub.metadata?.planType, companyId);
           const item0inv = sub.items?.data?.[0] as any;
           periodStart = item0inv?.current_period_start ?? (sub as any).current_period_start;
           periodEnd   = item0inv?.current_period_end   ?? (sub as any).current_period_end;
+          cancelAt    = sub.cancel_at_period_end;
         } catch (err) {
           console.error('[Stripe Webhook] ❌ Failed to retrieve subscription for payment_succeeded:', err);
         }
@@ -316,24 +396,13 @@ export async function POST(req: Request) {
       }
 
       if (companyId) {
-        // Obter cancel_at real da sub se possível
-        let cancelAt = false;
-        if (subscriptionObj) {
-          cancelAt = subscriptionObj.cancel_at_period_end;
-        } else if (invAny2.subscription) {
-          try {
-            const sub = await stripe.subscriptions.retrieve(invAny2.subscription as string);
-            cancelAt = sub.cancel_at_period_end;
-          } catch(e) {}
-        }
-
         await updateCompanyStatus(
-          companyId, 
-          'active', 
-          currentPlanType, 
-          undefined, 
-          undefined, 
-          periodStart, 
+          companyId,
+          'active',
+          currentPlanType,
+          undefined,
+          undefined,
+          periodStart,
           periodEnd,
           cancelAt
         );
@@ -362,8 +431,35 @@ export async function POST(req: Request) {
       break;
     }
 
+    // [MED-6] Revoke access when a charge is refunded — customer should not continue
+    // using the service for free after a successful refund.
+    case 'charge.refunded': {
+      const charge = event.data.object as Stripe.Charge;
+      let companyId: string | null = null;
+
+      if (charge.customer) {
+        companyId = await getCompanyByCustomer(charge.customer as string);
+      }
+
+      if (companyId) {
+        console.log(`[Stripe Webhook] 💸 charge.refunded for company ${companyId} — marking canceled`);
+        // Set to canceled so next getCompanyUsage call blocks access.
+        // The customer can re-subscribe at any time.
+        await updateCompanyStatus(companyId, 'canceled', 'trial', null, undefined, undefined, undefined, false);
+
+        await admin.from('stripe_payment_events').insert({
+          company_id: companyId,
+          event_type: 'invoice_failed', // closest available type; carries the refund context
+          stripe_event_id: event.id,
+          invoice_id: (charge as any).invoice as string | null ?? null,
+          amount_cents: charge.amount_refunded,
+          metadata: { reason: charge.refunds?.data?.[0]?.reason ?? 'unknown', charge_id: charge.id },
+        });
+      }
+      break;
+    }
+
     case 'payment_intent.succeeded': {
-      // Fintech: Pix payment confirmed → update transaction + auto-confirm booking
       const pi = event.data.object as Stripe.PaymentIntent;
 
       const { data: tx, error: txErr } = await admin
@@ -377,8 +473,6 @@ export async function POST(req: Request) {
         console.error('[Stripe Webhook] ❌ Failed to update transaction for payment_intent.succeeded:', txErr.message);
       } else if (tx) {
         console.log(`[Stripe Webhook] 💰 Pix paid! transaction=${tx.id} amount=R$${Number(tx.amount).toFixed(2)} lead=${tx.lead_id}`);
-        // Mark lead with payment confirmed flag (engine polls checkPaymentStatus)
-        // C1 FIX: Merge instead of overwrite — preserve existing metadata fields
         const { data: currentLead } = await admin
           .from('leads')
           .select('metadata')

@@ -73,3 +73,6 @@ blob-report/
 playwright/.cache/
 
 .vercel
+
+# Compiled / Temporary JS in source
+lib/calendar/*.js

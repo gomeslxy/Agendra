@@ -34,7 +34,7 @@ function resolveReturnPath(referer: string | null): '/settings' | '/planos' {
 
 export async function POST(request: NextRequest) {
   try {
-    const { priceId, planType: planTypeFromBody } = await request.json();
+    const { priceId } = await request.json();
     // origin comes from the request origin header; fall back to env — never from user body
     const origin = process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin') || '';
 
@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
 
         // 2. Realizar o swap do plano diretamente via API
         // Usamos proration_behavior: 'create_prorations' para cobrar a diferença proporcional
+        const upgradePlanType = planFromPriceId(priceId) ?? 'pro';
         const updatedSubscription = await stripe.subscriptions.update(
           company.stripe_subscription_id,
           {
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
             expand: ['latest_invoice.payment_intent'],
             metadata: {
               companyId,
-              planType: planFromPriceId(priceId),
+              planType: upgradePlanType,
             }
           }
         );
@@ -145,8 +146,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Determinar planType a partir do priceId (mais confiável que o body)
-    const resolvedPlanType = planFromPriceId(priceId) || planTypeFromBody || 'pro';
+    // 3. Determinar planType a partir do priceId — nunca confiar em input do cliente.
+    const resolvedPlanType = planFromPriceId(priceId) ?? 'pro';
 
     // 4. Criar Sessão de Checkout
     const session = await stripe.checkout.sessions.create({
