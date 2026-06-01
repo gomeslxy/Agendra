@@ -16,6 +16,7 @@ interface ChatBubbleProps {
   isLast?: boolean;
   hideLabel?: boolean;
   hideTime?: boolean;
+  pending?: boolean;
 }
 
 const ANIM_X: Record<Variant, number> = {
@@ -43,6 +44,7 @@ export function ChatBubble({
   isLast = true,
   hideLabel = false,
   hideTime = false,
+  pending = false,
 }: ChatBubbleProps) {
   const x = ANIM_X[variant];
   const { label, align } = META[variant];
@@ -72,7 +74,8 @@ export function ChatBubble({
       className={cn(
         "flex max-w-[85%] sm:max-w-[72%] flex-col gap-1",
         align === "end" ? "self-end items-end" : "self-start items-start",
-        !isFirst && "-mt-2"
+        !isFirst && "-mt-2",
+        pending && "opacity-60"
       )}
     >
       {/* Sender label */}

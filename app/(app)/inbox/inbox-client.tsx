@@ -10,11 +10,10 @@ import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import type { LeadWithMessages } from "./page";
-import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage, editAndSendDraft, sendFileAttachment, fetchOlderMessages } from "./actions";
+import { sendNote, takeOverLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage, editAndSendDraft, sendFileAttachment, fetchOlderMessages } from "./actions";
 import { toast } from "sonner";
 import { DateSeparator } from "@/components/app/date-separator";
 import { createBrowserClient } from "@supabase/ssr";
-import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
 
 const browserSupabase = createBrowserClient(
@@ -289,13 +288,11 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, unreadCount
 });
 
 export function InboxClient({ leads: initialLeads, companyId, fetchError }: { leads: LeadWithMessages[]; companyId: string | null; fetchError?: string | null }) {
-  const router = useRouter();
   const [leads, setLeads] = useState<LeadWithMessages[]>(initialLeads);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id ?? null);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [sendPending, startSend] = useTransition();
@@ -330,15 +327,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const selectedIdRef = useRef<string | null>(selectedId);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
-  // Track viewport so the chat/detail columns can be skipped from the DOM on
-  // mobile while the lead list is showing (lg breakpoint = 1024px).
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1023px)");
-    const update = () => setIsMobile(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
 
   const handleLeadSelect = useCallback((id: string) => {
     setSelectedId(id);
@@ -776,23 +764,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     });
   }, [selected]);
 
-  const handleAutomatize = useCallback(() => {
-    if (!selected) return;
-    setLeads((prev) =>
-      prev.map((l) => (l.id === selected.id ? { ...l, is_paused: false } : l)),
-    );
-    startTake(async () => {
-      try {
-        await automatizeLead(selected.id);
-        trackEvent("lead_automatize", { lead_id: selected.id });
-      } catch (e) {
-        setLeads((prev) =>
-          prev.map((l) => (l.id === selected.id ? { ...l, is_paused: true } : l)),
-        );
-        toast.error((e as Error).message);
-      }
-    });
-  }, [selected]);
 
   const handleToneChange = useCallback((tone: "cold" | "warm" | "hot") => {
     if (!selected || selected.conversation_tone === tone) return;
@@ -1153,45 +1124,67 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 xl:hidden">
-                <ControlModeDropdown
-                  compact
-                  selected={selected}
-                  controlOpen={controlOpen}
-                  setControlOpen={setControlOpen}
-                  controlPending={controlPending}
-                  onControlModeChange={handleControlModeChange}
-                />
-                <div className="hidden sm:block">
-                  <ToneDropdown
+              <div className="flex items-center gap-2">
+                {/* Mode badge — visible on all breakpoints, replaces sticky banners */}
+                <AnimatePresence mode="wait">
+                  {isAutonomous ? (
+                    <motion.div
+                      key="autonomous"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="hidden sm:flex items-center gap-1.5 rounded-full bg-[#F0FDF4] border border-[#BBF7D0] px-2.5 py-1"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse shrink-0" />
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#166534] whitespace-nowrap">IA Ativa</span>
+                    </motion.div>
+                  ) : currentMode === 'shadow' ? (
+                    <motion.div
+                      key="shadow"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="hidden sm:flex items-center gap-1.5 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] px-2.5 py-1"
+                    >
+                      <Sparkles size={9} className="text-[#2563EB] shrink-0" />
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#1D4ED8] whitespace-nowrap">Copiloto</span>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="manual"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="hidden sm:flex items-center gap-1.5 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] px-2.5 py-1"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#D4D4D8] shrink-0" />
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#71717A] whitespace-nowrap">Manual</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="xl:hidden flex items-center gap-2">
+                  <ControlModeDropdown
                     compact
                     selected={selected}
-                    toneOpen={toneOpen}
-                    setToneOpen={setToneOpen}
-                    tonePending={tonePending}
-                    onToneChange={handleToneChange}
+                    controlOpen={controlOpen}
+                    setControlOpen={setControlOpen}
+                    controlPending={controlPending}
+                    onControlModeChange={handleControlModeChange}
                   />
+                  <div className="hidden sm:block">
+                    <ToneDropdown
+                      compact
+                      selected={selected}
+                      toneOpen={toneOpen}
+                      setToneOpen={setToneOpen}
+                      tonePending={tonePending}
+                      onToneChange={handleToneChange}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* Sticky mode banners */}
-            {isAutonomous && (
-              <div className="flex items-center justify-center gap-1.5 border-b border-[#FDE68A] bg-[#FEFCE8] px-4 py-1.5 shrink-0">
-                <Zap size={10} className="text-[#CA8A04]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#854D0E]">
-                  Modo Autônomo · Agendra IA está no controle
-                </span>
-              </div>
-            )}
-            {!isAutonomous && selected.control_mode === 'shadow' && (
-              <div className="flex items-center justify-center gap-1.5 border-b border-[#DBEAFE] bg-[#EFF6FF] px-4 py-1.5 shrink-0">
-                <Sparkles size={10} className="text-[#2563EB]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#2563EB]">
-                  Modo Copiloto · Aprove rascunhos ou escreva diretamente
-                </span>
-              </div>
-            )}
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -1327,23 +1320,23 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   );
 
                   return (
-                    <div key={msg.key} className={cn(isPending && "opacity-75 transition-opacity duration-300")}>
-                      <ChatBubble
-                        timestamp={msg.created_at}
-                        variant={
-                          msg.role === "user" ? "lead" :
-                          msg.role === "note" ? "note" :
-                          msg.role === "agent" ? "agent" :
-                          "ai"
-                        }
-                        isFirst={msg.isFirst}
-                        isLast={msg.isLast}
-                        hideLabel={msg.hideLabel}
-                        hideTime={msg.hideTime}
-                      >
-                        {msgContent}
-                      </ChatBubble>
-                    </div>
+                    <ChatBubble
+                      key={msg.key}
+                      timestamp={msg.created_at}
+                      variant={
+                        msg.role === "user" ? "lead" :
+                        msg.role === "note" ? "note" :
+                        msg.role === "agent" ? "agent" :
+                        "ai"
+                      }
+                      isFirst={msg.isFirst}
+                      isLast={msg.isLast}
+                      hideLabel={msg.hideLabel}
+                      hideTime={msg.hideTime}
+                      pending={isPending}
+                    >
+                      {msgContent}
+                    </ChatBubble>
                   );
                 })}
 
