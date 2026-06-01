@@ -37,11 +37,16 @@ const localFreeBusyCache = new Map<string, FreeBusyCacheEntry>();
 function getOAuthConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  // GOOGLE_REDIRECT_URI must be set explicitly.
+  // - Local: http://localhost:3000/api/auth/google
+  // - Production: https://www.agendra.site/api/auth/google
+  const redirectUri =
+    process.env.GOOGLE_REDIRECT_URI ||
+    `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.agendra.site'}/api/auth/google`;
 
-  if (!clientId || !clientSecret || !redirectUri) {
+  if (!clientId || !clientSecret) {
     throw new Error(
-      'Variáveis de ambiente ausentes: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI',
+      'Variáveis de ambiente ausentes: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET',
     );
   }
   return { clientId, clientSecret, redirectUri };
@@ -128,6 +133,8 @@ export async function getFreeBusySlots(
   const cacheKey = `gcal:freebusy:${tokenHash}:${calendarId}:${timeMin}:${timeMax}`;
   const localCacheKey = `${refreshToken.slice(-8)}:${calendarId}:${timeMin}:${timeMax}`;
 
+  const backupCacheKey = `gcal:freebusy:backup:${tokenHash}:${calendarId}:${timeMin}:${timeMax}`;
+
   // 1. Try distributed Redis cache
   if (isRedisAvailable()) {
     try {
@@ -143,6 +150,8 @@ export async function getFreeBusySlots(
   // 2. Fallback to local process cache (90-second TTL)
   const cached = localFreeBusyCache.get(localCacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.slots;
+
+  try {
 
   const accessToken = await refreshAccessToken(refreshToken);
 
@@ -174,16 +183,33 @@ export async function getFreeBusySlots(
   // Store in process cache
   localFreeBusyCache.set(localCacheKey, { slots, expiresAt });
 
-  // Store in distributed Redis cache (90-second TTL)
+  // Store in distributed Redis cache (90-second TTL + 4h backup)
   if (isRedisAvailable()) {
     try {
-      await redis.set(cacheKey, JSON.stringify(slots), 90);
+      const slotsJson = JSON.stringify(slots);
+      await redis.set(cacheKey, slotsJson, 90);
+      await redis.set(backupCacheKey, slotsJson, 4 * 60 * 60); // 4 hours backup
     } catch (err) {
       console.warn('[GCal Cache] Redis freebusy set failed:', err);
     }
   }
 
   return slots;
+  } catch (apiError) {
+    console.warn('[GCal Cache] Falha na API do Google Calendar, tentando backup de 4h...', apiError);
+    if (isRedisAvailable()) {
+      try {
+        const backupData = await redis.get(backupCacheKey);
+        if (backupData) {
+          console.log('[GCal Cache] Utilizando backup "stale" (valido por 4h) para evitar indisponibilidade.');
+          return JSON.parse(backupData) as BusySlot[];
+        }
+      } catch (backupErr) {
+        console.warn('[GCal Cache] Falha ao recuperar backup de 4h:', backupErr);
+      }
+    }
+    throw apiError;
+  }
 }
 
 // ─── Event Listing (for sync) ─────────────────────────────────────────────────

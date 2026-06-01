@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const META_API_BASE = "https://graph.facebook.com/v19.0";
+const META_API_BASE = "https://graph.facebook.com/v21.0";
 
 /**
  * Utilitários para o fluxo de Embedded Signup da Meta.

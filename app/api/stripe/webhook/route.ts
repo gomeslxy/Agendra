@@ -65,12 +65,11 @@ export async function POST(req: Request) {
   console.log(`[Stripe Webhook] 🔔 Received event: ${event.type}`);
 
   // ── Helper: normalize Stripe status → DB status ──────────────────────────────
-  // [CRIT-2] 'trialing' is a valid Stripe status but our CHECK only had 'trial'.
-  // We store both 'trialing' (Stripe-native trial) and 'trial' (local trial) in the DB.
+  // 'trialing' is a valid Stripe status; both 'trialing' and 'trial' are stored in DB.
+  // Unknown statuses fall back to 'incomplete' so the CHECK constraint never rejects the row.
   function normalizeStatus(stripeStatus: string): string {
-    // Pass through all values accepted by our CHECK constraint.
     const allowed = ['trial', 'trialing', 'active', 'past_due', 'canceled', 'incomplete', 'incomplete_expired'];
-    return allowed.includes(stripeStatus) ? stripeStatus : stripeStatus;
+    return allowed.includes(stripeStatus) ? stripeStatus : 'incomplete';
   }
 
   // ── Helper: atualizar status da empresa ───────────────────────────────────

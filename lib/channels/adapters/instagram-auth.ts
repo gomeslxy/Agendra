@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logInfo, logError } from '@/lib/logging';
 
-const META_API_BASE = 'https://graph.facebook.com/v19.0';
+const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
 function getRedirectUri() {
   // SERVER_APP_URL takes priority (server-only, not exposed to client).
@@ -31,7 +31,7 @@ export function getInstagramOAuthUrl(companyId: string): string {
     'pages_messaging'
   ].join(',');
 
-  return `https://www.facebook.com/v19.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${companyId}`;
+  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${companyId}`;
 }
 
 /**

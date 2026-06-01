@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { logInfo, logError, logDebug } from '@/lib/logging';
-const WHATSAPP_API_BASE = 'https://graph.facebook.com/v19.0';
+import { logInfo, logError } from '@/lib/logging';
+const WHATSAPP_API_BASE = 'https://graph.facebook.com/v21.0';
 
 async function resolveWaCreds(companyId?: string): Promise<{ phoneId: string; token: string; admin: ReturnType<typeof createAdminClient> | null }> {
   const admin = companyId ? createAdminClient() : null;

@@ -1172,30 +1172,6 @@ export async function getTenantStripeInvoices(
       created_at: e.created_at,
     })) ?? [];
 
-    if (invoices.length === 0) {
-      const { data: company } = await adminClient
-        .from("companies")
-        .select("created_at, plan_type")
-        .eq("id", companyId)
-        .single();
-      const plan = company?.plan_type || "trial";
-      const start = new Date(company?.created_at || Date.now());
-
-      const PLAN_COST: Record<string, number> = { trial: 0, starter: 199, pro: 499, business: 1499 };
-      const cost = PLAN_COST[plan] ?? 0;
-
-      if (cost > 0) {
-        invoices.push({
-          id: "mock-inv-1",
-          invoice_id: "in_mock_starter_01",
-          event_type: "invoice_paid",
-          amount: cost,
-          hosted_invoice_url: "#",
-          created_at: start.toISOString(),
-        });
-      }
-    }
-
     return { success: true, invoices };
   } catch (err: any) {
     return { success: false, error: err.message };
@@ -1270,6 +1246,11 @@ export async function getTenantDailyUsage(
   }
 }
 
+/** Escape HTML special chars so admin-supplied strings are never executed. */
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 export async function triggerTenantAnomalyAlert(
   companyId: string,
   type: string,
@@ -1307,12 +1288,12 @@ export async function triggerTenantAnomalyAlert(
             to: email,
             subject: `[Agendra Alerta] Anomalia detectada em ${company?.name || "sua conta"}`,
             html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #E4E4E7; border-radius: 8px;">
-              <h2 style="color: #DC2626; margin-top: 0;">⚠️ Alerta de Anomalia</h2>
-              <p>Olá,</p>
-              <p>Nossa monitoração automática detectou a seguinte anomalia na sua conta <strong>${company?.name || ""}</strong>:</p>
+              <h2 style="color: #DC2626; margin-top: 0;">&#9888;&#65039; Alerta de Anomalia</h2>
+              <p>Ol&aacute;,</p>
+              <p>Nossa monitoração automática detectou a seguinte anomalia na sua conta <strong>${escHtml(company?.name || "")}</strong>:</p>
               <div style="background-color: #FFF1F2; border: 1px solid #FECACA; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 13px; color: #DC2626; margin: 16px 0;">
-                <strong>Tipo:</strong> ${type}<br/>
-                <strong>Detalhe:</strong> ${message}
+                <strong>Tipo:</strong> ${escHtml(type)}<br/>
+                <strong>Detalhe:</strong> ${escHtml(message)}
               </div>
               <p>Acesse o painel para verificar ou reconfigurar seus canais de atendimento.</p>
               <hr style="border: 0; border-top: 1px solid #E4E4E7; margin: 20px 0;"/>

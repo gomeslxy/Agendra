@@ -4,7 +4,7 @@ import { ChannelAdapter, ChannelCapabilities, ChannelConfig, OutgoingMessage, Se
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logInfo, logError } from '@/lib/logging';
 
-const META_API_BASE = 'https://graph.facebook.com/v19.0';
+const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
 export class InstagramAdapter implements ChannelAdapter {
   provider: 'instagram' = 'instagram';

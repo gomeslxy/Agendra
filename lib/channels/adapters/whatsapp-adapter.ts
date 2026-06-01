@@ -4,7 +4,7 @@ import { ChannelAdapter, ChannelCapabilities, ChannelConfig, OutgoingMessage, Se
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logInfo, logError, isDebug, logDebug } from '@/lib/logging';
 
-const WHATSAPP_API_BASE = 'https://graph.facebook.com/v19.0';
+const WHATSAPP_API_BASE = 'https://graph.facebook.com/v21.0';
 const META_VERSION = 'v21.0';
 
 export class WhatsAppAdapter implements ChannelAdapter {

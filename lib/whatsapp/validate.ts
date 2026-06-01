@@ -5,7 +5,7 @@
  * chamando a API da Meta ANTES de salvar no banco.
  */
 
-const META_API_BASE = 'https://graph.facebook.com/v19.0';
+const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
 export interface TokenValidationResult {
   ok: boolean;
