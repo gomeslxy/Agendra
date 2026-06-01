@@ -614,6 +614,239 @@ export async function toggleTenantRAG(
   }
 }
 
+// ── Debug actions ────────────────────────────────────────────────────────────
+
+export async function checkEnvHealth(): Promise<{
+  success: boolean;
+  envs?: { name: string; set: boolean; note?: string }[];
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+    const required = [
+      { name: "NEXT_PUBLIC_SUPABASE_URL",     note: "Supabase project URL" },
+      { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY",note: "Supabase anon key" },
+      { name: "SUPABASE_SERVICE_ROLE_KEY",     note: "Service role key (admin)" },
+      { name: "ADMIN_PASSWORD_HASH",           note: "Admin panel password hash" },
+      { name: "ADMIN_COOKIE_SECRET",           note: "Cookie signing secret" },
+      { name: "NEXT_PUBLIC_APP_URL",           note: "App base URL" },
+      { name: "GEMINI_API_KEY",               note: "Google Gemini AI" },
+      { name: "GROQ_API_KEY",                 note: "Groq AI (fallback)" },
+      { name: "UPSTASH_REDIS_REST_URL",        note: "Redis/debounce" },
+      { name: "UPSTASH_REDIS_REST_TOKEN",      note: "Redis auth" },
+      { name: "STRIPE_SECRET_KEY",             note: "Stripe payments" },
+      { name: "STRIPE_WEBHOOK_SECRET",         note: "Stripe webhooks" },
+      { name: "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", note: "Stripe frontend" },
+      { name: "EVOLUTION_API_URL",             note: "WhatsApp Evolution API" },
+      { name: "EVOLUTION_API_KEY",             note: "Evolution API auth" },
+    ];
+    const envs = required.map((e) => ({ ...e, set: !!process.env[e.name] }));
+    return { success: true, envs };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function inspectLeadByPhone(
+  companyId: string,
+  phone: string
+): Promise<{
+  success: boolean;
+  lead?: Record<string, unknown>;
+  messages?: Record<string, unknown>[];
+  stuckMessages?: Record<string, unknown>[];
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+    const adminClient = createAdminClient();
+
+    const { data: lead, error: leadErr } = await adminClient
+      .from("leads")
+      .select("id, name, phone, email, status, intent, lead_score, is_processing, created_at, last_message_at, updated_at, company_id")
+      .eq("company_id", companyId)
+      .eq("phone", phone)
+      .single();
+    if (leadErr || !lead) throw new Error(leadErr?.message || "Lead não encontrado");
+
+    const [{ data: messages }, { data: stuckMessages }] = await Promise.all([
+      adminClient
+        .from("messages")
+        .select("id, role, content, created_at, metadata")
+        .eq("lead_id", lead.id)
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(20),
+      adminClient
+        .from("processed_messages")
+        .select("provider_message_id, status, created_at")
+        .eq("lead_id", lead.id)
+        .eq("company_id", companyId)
+        .eq("status", "processing"),
+    ]);
+
+    return {
+      success: true,
+      lead: lead as unknown as Record<string, unknown>,
+      messages: (messages ?? []) as unknown as Record<string, unknown>[],
+      stuckMessages: (stuckMessages ?? []) as unknown as Record<string, unknown>[],
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getLatestMigrations(): Promise<{
+  success: boolean;
+  migrations?: { name: string; executed_at: string }[];
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+    const adminClient = createAdminClient();
+
+    const { data, error } = await adminClient
+      .from("schema_migrations")
+      .select("name, executed_at")
+      .order("executed_at", { ascending: false })
+      .limit(30);
+    if (error) throw new Error(error.message);
+
+    return { success: true, migrations: (data ?? []) as { name: string; executed_at: string }[] };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getCompanyChannelDetails(
+  companyId: string
+): Promise<{
+  success: boolean;
+  channels?: Record<string, unknown>[];
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+    const adminClient = createAdminClient();
+
+    const { data, error } = await adminClient
+      .from("channels")
+      .select("id, provider, status, display_name, phone_number, last_error, created_at, updated_at")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+
+    return { success: true, channels: (data ?? []) as unknown as Record<string, unknown>[] };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getCompanyQuotaStatus(
+  companyId: string
+): Promise<{
+  success: boolean;
+  quota?: {
+    lead_count: number;
+    message_count: number;
+    extra_leads: number;
+    plan_type: string;
+    plan_max_leads: number;
+  };
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+    const adminClient = createAdminClient();
+
+    const [
+      { count: leadCount },
+      { count: msgCount },
+      { data: company },
+    ] = await Promise.all([
+      adminClient.from("leads").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      adminClient.from("messages").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      adminClient.from("companies").select("plan_type, extra_leads").eq("id", companyId).single(),
+    ]);
+
+    if (!company) throw new Error("Empresa não encontrada");
+
+    const PLAN_MAX: Record<string, number> = { trial: 50, starter: 500, pro: 2000, business: 10000 };
+    const planMax = PLAN_MAX[company.plan_type ?? "trial"] ?? 50;
+
+    return {
+      success: true,
+      quota: {
+        lead_count: leadCount ?? 0,
+        message_count: msgCount ?? 0,
+        extra_leads: (company.extra_leads as number) ?? 0,
+        plan_type: company.plan_type ?? "trial",
+        plan_max_leads: planMax + ((company.extra_leads as number) ?? 0),
+      },
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function forceBypassOnboarding(
+  companyId: string
+): Promise<{ success: boolean; link?: string; error?: string }> {
+  try {
+    await validateAdminSessionOrThrow();
+    const user = await getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+    const { ip, ua } = await getRequestMeta();
+    const adminClient = createAdminClient();
+
+    // Reset onboarding so layout won't redirect to /inbox
+    const { error: updateErr } = await adminClient
+      .from("companies")
+      .update({
+        onboarding_status: "not_started",
+        onboarding_step: 0,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", companyId);
+    if (updateErr) throw new Error(updateErr.message);
+
+    // Magic link pointing to /onboarding
+    const { data: membership, error: memErr } = await adminClient
+      .from("memberships")
+      .select("user_id, users(email)")
+      .eq("company_id", companyId)
+      .eq("role", "owner")
+      .single();
+    if (memErr || !membership) throw new Error("Owner não encontrado");
+
+    const ownerEmail = (membership.users as any)?.email as string;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.agendra.site";
+    const { data, error: linkErr } = await adminClient.auth.admin.generateLink({
+      type: "magiclink",
+      email: ownerEmail,
+      options: { redirectTo: `${appUrl}/onboarding` },
+    });
+    if (linkErr || !data?.properties?.action_link) {
+      throw new Error(linkErr?.message || "Falha ao gerar link");
+    }
+
+    const { data: company } = await adminClient
+      .from("companies")
+      .select("name")
+      .eq("id", companyId)
+      .single();
+
+    await insertAudit(adminClient, companyId, user.id, user.email, ip, ua, "admin_bypass_onboarding", {
+      company_name: company?.name,
+      target_email: ownerEmail,
+    });
+
+    return { success: true, link: data.properties.action_link };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 export async function forceCompanyModel(
   companyId: string,
   model: string | null

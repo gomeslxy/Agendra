@@ -420,10 +420,9 @@ export async function processLeadMessage(
 
     // Extrair a resposta antes do JSON de metadados para fins de validação de suspeita
     let replyToCheck = reply;
-    const separatorRegex = /---JSON---/i;
-    const separatorMatch = replyToCheck.match(separatorRegex);
-    if (separatorMatch && separatorMatch.index !== undefined) {
-      replyToCheck = replyToCheck.substring(0, separatorMatch.index).trim();
+    const loopSeparatorMatch = replyToCheck.match(/---JSON---/i);
+    if (loopSeparatorMatch && loopSeparatorMatch.index !== undefined) {
+      replyToCheck = replyToCheck.substring(0, loopSeparatorMatch.index).trim();
     } else {
       const lastOpenBrace = replyToCheck.lastIndexOf('{');
       const lastCloseBrace = replyToCheck.lastIndexOf('}');
@@ -1015,7 +1014,7 @@ export async function handleIncomingMessage(
 
       // Se houver parte 2, inserir como rascunho
       if (sanitizedParts.length > 1) {
-        const { data: insertedMsg2, error: aiMsgErr2 } = await admin
+        const { error: aiMsgErr2 } = await admin
           .from('messages')
           .insert({
             lead_id: activeLead.id,

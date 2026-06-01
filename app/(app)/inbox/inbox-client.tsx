@@ -278,8 +278,13 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id ?? null);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [sendPending, startSend] = useTransition();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [takePending, startTake] = useTransition();
   const [tonePending, startTone] = useTransition();
   const [toneOpen, setToneOpen] = useState(false);
@@ -941,7 +946,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
   const sortedMessages = selected ? selected.messages : [];
   const currentMode = selected ? (selected.control_mode ?? (selected.is_paused ? "manual" : "autonomous")) : "autonomous";
-  const isAutonomous = currentMode === "autonomous";
+  const isAutonomous = mounted && currentMode === "autonomous";
   const inputBlocked = isAutonomous || sendPending;
 
   return (

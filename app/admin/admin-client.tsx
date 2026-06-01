@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
   TrendingUp, Building2, Activity, FileText, LogOut,
-  Brain, DollarSign, Command, Search, X, RefreshCw,
+  Brain, DollarSign, Command, Search, X, RefreshCw, Bug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logoutAdmin, updateTenantPlan, toggleCompanyAI } from "./actions";
@@ -19,6 +19,7 @@ import { SystemHealthTab }   from "./tabs/system-health-tab";
 import { AiEngineTab }       from "./tabs/ai-engine-tab";
 import { BillingTab }        from "./tabs/billing-tab";
 import { SecurityLogsTab }   from "./tabs/security-logs-tab";
+import { DebugTab }          from "./tabs/debug-tab";
 
 import type {
   Company, User, UnhealthyChannel, ProviderStat, RecentAiError,
@@ -50,6 +51,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType; badge?: (s: Summa
   { id: "ai_engine",     label: "Motor de IA",         icon: Brain },
   { id: "billing",       label: "Billing",             icon: DollarSign },
   { id: "security_logs", label: "Logs de Segurança",   icon: FileText },
+  { id: "debug",         label: "Debug",               icon: Bug },
 ];
 
 // ── Command palette ──────────────────────────────────────────────────────────
@@ -392,6 +394,9 @@ export function AdminDashboardClient({
               )}
               {activeTab === "security_logs" && (
                 <SecurityLogsTab auditLogs={auditLogs} />
+              )}
+              {activeTab === "debug" && (
+                <DebugTab companies={companies} />
               )}
             </motion.div>
           </AnimatePresence>

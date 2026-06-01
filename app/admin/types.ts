@@ -126,4 +126,4 @@ export interface SummaryData {
   generatedAt: string;
 }
 
-export type Tab = "executive" | "tenants" | "system_health" | "ai_engine" | "billing" | "security_logs";
+export type Tab = "executive" | "tenants" | "system_health" | "ai_engine" | "billing" | "security_logs" | "debug";

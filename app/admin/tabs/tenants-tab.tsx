@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useTransition, Fragment } from "react";
-import { Search, Power, ChevronUp, ChevronDown, Download, Trash2, RefreshCw, Bell, Wand2, Plus } from "lucide-react";
+import { Search, Power, ChevronUp, ChevronDown, Download, Trash2, RefreshCw, Bell, Wand2, Plus, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
   updateTenantPlan, toggleCompanyAI, generateTenantMagicLink,
   resetTenantOnboarding, sendTenantNotification, extendTenantMessageLimit,
-  exportTenantDataCSV, deleteTenant,
+  exportTenantDataCSV, deleteTenant, forceBypassOnboarding,
 } from "../actions";
 import { ConfirmModal } from "../components/confirm-modal";
 import type { Company } from "../types";
@@ -145,6 +145,17 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
       toast.success("CSV exportado!");
     } else {
       toast.error(res.error || "Erro ao exportar CSV");
+    }
+  }
+
+  async function handleBypassOnboarding(company: Company) {
+    toast.info("Resetando onboarding e gerando link...");
+    const res = await forceBypassOnboarding(company.id);
+    if (res.success && res.link) {
+      await navigator.clipboard.writeText(res.link);
+      toast.success("Onboarding resetado! Magic link copiado — cole no navegador para testar.", { duration: 8000 });
+    } else {
+      toast.error(res.error || "Erro ao gerar link de onboarding");
     }
   }
 
@@ -318,6 +329,9 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
                               </Button>
                               <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => handleResetOnboarding(c)}>
                                 <RefreshCw size={11} /> Resetar Onboarding
+                              </Button>
+                              <Button size="sm" variant="secondary" className="text-[10px] gap-1 text-[#7C3AED] hover:bg-[#F5F3FF] hover:border-[#DDD6FE]" onClick={() => handleBypassOnboarding(c)}>
+                                <Play size={11} /> Testar Onboarding
                               </Button>
                               <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => setNotifTarget(c)}>
                                 <Bell size={11} /> Notificação
