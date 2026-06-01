@@ -1110,8 +1110,47 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 >
                   {initials(selected.name)}
                 </div>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-bold text-[#09090B]">{selected.name}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="truncate text-sm font-bold text-[#09090B]">{selected.name}</span>
+                    {/* Mode badge next to lead name — always visible */}
+                    <AnimatePresence mode="wait">
+                      {isAutonomous ? (
+                        <motion.span
+                          key="autonomous"
+                          initial={{ opacity: 0, scale: 0.85 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.85 }}
+                          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse" />
+                          <span className="text-[9px] font-black uppercase tracking-wider text-[#166534]">IA Autônoma</span>
+                        </motion.span>
+                      ) : currentMode === 'shadow' ? (
+                        <motion.span
+                          key="shadow"
+                          initial={{ opacity: 0, scale: 0.85 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.85 }}
+                          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] px-2 py-0.5"
+                        >
+                          <Sparkles size={8} className="text-[#2563EB]" />
+                          <span className="text-[9px] font-black uppercase tracking-wider text-[#1D4ED8]">Copiloto</span>
+                        </motion.span>
+                      ) : (
+                        <motion.span
+                          key="manual"
+                          initial={{ opacity: 0, scale: 0.85 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.85 }}
+                          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] px-2 py-0.5"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#D4D4D8]" />
+                          <span className="text-[9px] font-black uppercase tracking-wider text-[#71717A]">Manual</span>
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
                   {(() => {
                     const act = activityLabel(selected);
                     return (
@@ -1125,44 +1164,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Mode badge — visible on all breakpoints, replaces sticky banners */}
-                <AnimatePresence mode="wait">
-                  {isAutonomous ? (
-                    <motion.div
-                      key="autonomous"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="hidden sm:flex items-center gap-1.5 rounded-full bg-[#F0FDF4] border border-[#BBF7D0] px-2.5 py-1"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse shrink-0" />
-                      <span className="text-[9px] font-black uppercase tracking-wider text-[#166534] whitespace-nowrap">IA Ativa</span>
-                    </motion.div>
-                  ) : currentMode === 'shadow' ? (
-                    <motion.div
-                      key="shadow"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="hidden sm:flex items-center gap-1.5 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] px-2.5 py-1"
-                    >
-                      <Sparkles size={9} className="text-[#2563EB] shrink-0" />
-                      <span className="text-[9px] font-black uppercase tracking-wider text-[#1D4ED8] whitespace-nowrap">Copiloto</span>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="manual"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="hidden sm:flex items-center gap-1.5 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] px-2.5 py-1"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#D4D4D8] shrink-0" />
-                      <span className="text-[9px] font-black uppercase tracking-wider text-[#71717A] whitespace-nowrap">Manual</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
                 <div className="xl:hidden flex items-center gap-2">
                   <ControlModeDropdown
                     compact
