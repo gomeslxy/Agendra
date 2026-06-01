@@ -98,7 +98,10 @@ export async function hasValidAdminCookie(): Promise<boolean> {
   if (!stored) return false;
   const { ip, ua } = await getRequestMeta();
   try {
-    return stored === computeAdminToken(ip, ua);
+    // constant-time compare — both are fixed-length sha256 hex digests
+    const a = Buffer.from(stored);
+    const b = Buffer.from(computeAdminToken(ip, ua));
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
   } catch {
     return false; // secrets unset → fail closed
   }

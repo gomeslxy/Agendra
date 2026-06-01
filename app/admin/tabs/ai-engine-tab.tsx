@@ -47,8 +47,8 @@ export function AiEngineTab({ companies, intentDistribution }: Props) {
     setSending(true);
     const res = await injectTestMessage(selectedCompany.id, testMsg, testPhone);
     setSending(false);
-    if (res.success) { toast.success("Mensagem injetada (sem envio WhatsApp)"); setTestMsg(""); }
-    else toast.error(res.error || "Erro ao injetar mensagem");
+    if (res.success) { toast.success("Mensagem semeada na conversa (não dispara a IA)"); setTestMsg(""); }
+    else toast.error(res.error || "Erro ao semear mensagem");
   }
 
   const totalIntents = intentDistribution.reduce((s, i) => s + i.count, 0);
@@ -114,11 +114,15 @@ export function AiEngineTab({ companies, intentDistribution }: Props) {
       <div className="border border-[#E4E4E7] bg-white rounded-2xl p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
           <Send size={15} className="text-[#2563EB]" />
-          <h2 className="text-sm font-semibold text-[#09090B]">Injetar Mensagem de Teste</h2>
+          <h2 className="text-sm font-semibold text-[#09090B]">Semear Mensagem na Conversa</h2>
           <span className="text-[10px] text-[#71717A] bg-[#F4F4F5] px-2 py-0.5 rounded-full border border-[#E4E4E7]">
-            Sem envio WhatsApp
+            Não envia WhatsApp · não dispara a IA
           </span>
         </div>
+        <p className="text-[11px] text-[#A1A1AA] -mt-2 mb-4">
+          Insere uma mensagem <span className="font-mono">role=user</span> no histórico do lead para inspeção/seed.
+          A IA só responde via webhook de entrada — isto não gera resposta automática.
+        </p>
         <div className="flex flex-col gap-3">
           <div>
             <label className="block text-xs font-semibold text-[#3F3F46] mb-1">Empresa</label>
@@ -161,7 +165,7 @@ export function AiEngineTab({ companies, intentDistribution }: Props) {
             onClick={handleInjectMessage}
           >
             <Send size={13} className="mr-1.5" />
-            {sending ? "Injetando..." : "Injetar Mensagem"}
+            {sending ? "Semeando..." : "Semear Mensagem"}
           </Button>
         </div>
       </div>

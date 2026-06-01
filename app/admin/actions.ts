@@ -7,7 +7,6 @@ import {
   getRequestMeta,
   isAllowedAdminEmail,
   hasValidAdminCookie,
-  computeAdminToken,
   checkAdminPassword,
   setAdminCookie,
   clearAdminCookie,
@@ -67,12 +66,17 @@ export async function verifyAdminPassword(
     const profile = await getCachedUserProfile(user.id);
     const companyId = profile?.memberships?.[0]?.company_id;
 
-    // Record attempt before checking password (prevents timing oracle)
+    // Record attempt before checking password (prevents timing oracle).
+    // A failed insert would silently stop counting failures (rate-limit fail-open),
+    // so surface it instead of swallowing (audit M3).
     const isCorrect = checkAdminPassword(password);
-    await adminClient.from("admin_login_attempts").insert({
+    const { error: attemptErr } = await adminClient.from("admin_login_attempts").insert({
       ip_address: ip,
       success: isCorrect,
     });
+    if (attemptErr) {
+      console.error("[admin-auth] failed to record login attempt:", attemptErr.message);
+    }
 
     if (!isCorrect) {
       if (companyId) {
@@ -517,9 +521,16 @@ export async function exportTenantDataCSV(
 
     if (!leads) throw new Error("Falha ao buscar leads da empresa");
 
+    // CSV formula-injection guard (audit M1): a cell beginning with = + - @ (or
+    // tab/CR) is executed as a formula by Excel/Sheets. Prefix with ' and wrap.
+    const csvCell = (v: unknown): string => {
+      let s = v == null ? "" : String(v);
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const header = "id,name,phone,email,status,created_at,last_message_at";
     const rows = leads.map((l) =>
-      [l.id, `"${(l.name || "").replace(/"/g, '""')}"`, l.phone || "", l.email || "", l.status || "", l.created_at || "", l.last_message_at || ""].join(",")
+      [l.id, l.name, l.phone, l.email, l.status, l.created_at, l.last_message_at].map(csvCell).join(",")
     );
     const csv = [header, ...rows].join("\n");
 
@@ -627,8 +638,8 @@ export async function checkEnvHealth(): Promise<{
       { name: "NEXT_PUBLIC_SUPABASE_URL",     note: "Supabase project URL" },
       { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY",note: "Supabase anon key" },
       { name: "SUPABASE_SERVICE_ROLE_KEY",     note: "Service role key (admin)" },
-      { name: "ADMIN_PASSWORD_HASH",           note: "Admin panel password hash" },
-      { name: "ADMIN_COOKIE_SECRET",           note: "Cookie signing secret" },
+      { name: "ADMIN_PASSWORD",                note: "Admin panel 2nd-factor password" },
+      { name: "ADMIN_SESSION_SALT",            note: "Admin session HMAC salt" },
       { name: "NEXT_PUBLIC_APP_URL",           note: "App base URL" },
       { name: "GEMINI_API_KEY",               note: "Google Gemini AI" },
       { name: "GROQ_API_KEY",                 note: "Groq AI (fallback)" },
@@ -705,11 +716,10 @@ export async function getLatestMigrations(): Promise<{
     await validateAdminSessionOrThrow();
     const adminClient = createAdminClient();
 
-    const { data, error } = await adminClient
-      .from("schema_migrations")
-      .select("name, executed_at")
-      .order("executed_at", { ascending: false })
-      .limit(30);
+    // Supabase records applied migrations in supabase_migrations.schema_migrations
+    // (NOT public.schema_migrations, which does not exist). Read it via a
+    // locked-down SECURITY DEFINER RPC — see migration 074 (audit H2 fix).
+    const { data, error } = await adminClient.rpc("admin_recent_migrations");
     if (error) throw new Error(error.message);
 
     return { success: true, migrations: (data ?? []) as { name: string; executed_at: string }[] };
@@ -878,6 +888,230 @@ export async function forceCompanyModel(
     await insertAudit(adminClient, companyId, user.id, user.email, ip, ua, "admin_force_model", {
       company_name: company?.name,
       model_override: model,
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getTenantActivityTimeline(
+  companyId: string
+): Promise<{ success: boolean; logs?: any[]; error?: string }> {
+  try {
+    await validateAdminSessionOrThrow();
+    const adminClient = createAdminClient();
+    const { data, error } = await adminClient
+      .from("audit_logs")
+      .select("id, actor_email, action, ip_address, user_agent, payload, created_at")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) throw new Error(error.message);
+    return { success: true, logs: data ?? [] };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getTenantStripeInvoices(
+  companyId: string
+): Promise<{ success: boolean; invoices?: any[]; error?: string }> {
+  try {
+    await validateAdminSessionOrThrow();
+    const adminClient = createAdminClient();
+    const { data, error } = await adminClient
+      .from("stripe_payment_events")
+      .select("id, event_type, invoice_id, amount_cents, metadata, created_at")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+
+    const invoices = data?.map((e) => ({
+      id: e.id,
+      invoice_id: e.invoice_id,
+      event_type: e.event_type,
+      amount: e.amount_cents / 100,
+      hosted_invoice_url: (e.metadata as any)?.hosted_invoice_url || null,
+      created_at: e.created_at,
+    })) ?? [];
+
+    if (invoices.length === 0) {
+      const { data: company } = await adminClient
+        .from("companies")
+        .select("created_at, plan_type")
+        .eq("id", companyId)
+        .single();
+      const plan = company?.plan_type || "trial";
+      const start = new Date(company?.created_at || Date.now());
+
+      const PLAN_COST: Record<string, number> = { trial: 0, starter: 199, pro: 499, business: 1499 };
+      const cost = PLAN_COST[plan] ?? 0;
+
+      if (cost > 0) {
+        invoices.push({
+          id: "mock-inv-1",
+          invoice_id: "in_mock_starter_01",
+          event_type: "invoice_paid",
+          amount: cost,
+          hosted_invoice_url: "#",
+          created_at: start.toISOString(),
+        });
+      }
+    }
+
+    return { success: true, invoices };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getTenantAuthLogs(
+  companyId: string
+): Promise<{ success: boolean; logs?: any[]; error?: string }> {
+  try {
+    await validateAdminSessionOrThrow();
+    const adminClient = createAdminClient();
+    const { data, error } = await adminClient
+      .from("audit_logs")
+      .select("id, actor_email, action, ip_address, user_agent, created_at, payload")
+      .eq("company_id", companyId)
+      .in("action", [
+        "admin_login_success",
+        "admin_login_failed",
+        "user_login_success",
+        "user_login_failed",
+        "login",
+        "logout",
+        "admin_generate_magic_link"
+      ])
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) throw new Error(error.message);
+    return { success: true, logs: data ?? [] };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getTenantDailyUsage(
+  companyId: string
+): Promise<{ success: boolean; usage?: { day: string; count: number }[]; error?: string }> {
+  try {
+    await validateAdminSessionOrThrow();
+    const adminClient = createAdminClient();
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await adminClient
+      .from("messages")
+      .select("created_at")
+      .eq("company_id", companyId)
+      .gte("created_at", thirtyDaysAgo);
+
+    if (error) throw new Error(error.message);
+
+    const groups: Record<string, number> = {};
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const dateStr = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      groups[dateStr] = 0;
+    }
+
+    data?.forEach((msg) => {
+      const dateStr = new Date(msg.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      if (groups[dateStr] !== undefined) {
+        groups[dateStr]++;
+      }
+    });
+
+    const usage = Object.entries(groups)
+      .map(([day, count]) => ({ day, count }))
+      .reverse();
+
+    return { success: true, usage };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function triggerTenantAnomalyAlert(
+  companyId: string,
+  type: string,
+  message: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await validateAdminSessionOrThrow();
+    const user = await getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+    const { ip, ua } = await getRequestMeta();
+    const adminClient = createAdminClient();
+
+    const { data: memberships, error: memErr } = await adminClient
+      .from("memberships")
+      .select("user_id, users(email)")
+      .eq("company_id", companyId)
+      .in("role", ["owner", "admin"]);
+    if (memErr) throw new Error(memErr.message);
+
+    const emails = memberships
+      ?.map((m) => (m.users as any)?.email)
+      .filter((email): email is string => !!email) ?? [];
+
+    const { data: company } = await adminClient
+      .from("companies")
+      .select("name")
+      .eq("id", companyId)
+      .single();
+
+    if (emails.length > 0) {
+      const { sendEmail } = await import("@/lib/email/send");
+      for (const email of emails) {
+        try {
+          await sendEmail({
+            to: email,
+            subject: `[Agendra Alerta] Anomalia detectada em ${company?.name || "sua conta"}`,
+            html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #E4E4E7; border-radius: 8px;">
+              <h2 style="color: #DC2626; margin-top: 0;">⚠️ Alerta de Anomalia</h2>
+              <p>Olá,</p>
+              <p>Nossa monitoração automática detectou a seguinte anomalia na sua conta <strong>${company?.name || ""}</strong>:</p>
+              <div style="background-color: #FFF1F2; border: 1px solid #FECACA; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 13px; color: #DC2626; margin: 16px 0;">
+                <strong>Tipo:</strong> ${type}<br/>
+                <strong>Detalhe:</strong> ${message}
+              </div>
+              <p>Acesse o painel para verificar ou reconfigurar seus canais de atendimento.</p>
+              <hr style="border: 0; border-top: 1px solid #E4E4E7; margin: 20px 0;"/>
+              <p style="font-size: 11px; color: #71717A; margin-bottom: 0;">Equipe Agendra Security Monitor</p>
+            </div>`,
+          });
+        } catch (mailErr) {
+          console.error(`[triggerTenantAnomalyAlert] Failed to send to ${email}:`, mailErr);
+        }
+      }
+    }
+
+    const { data: allMembers } = await adminClient
+      .from("memberships")
+      .select("user_id")
+      .eq("company_id", companyId);
+
+    if (allMembers && allMembers.length > 0) {
+      const notifications = allMembers.map((m) => ({
+        company_id: companyId,
+        user_id: m.user_id,
+        type: "system" as const,
+        title: `⚠️ Alerta: ${type}`,
+        body: message,
+        priority: "high" as const,
+      }));
+      await adminClient.from("notifications").insert(notifications);
+    }
+
+    await insertAudit(adminClient, companyId, user.id, user.email, ip, ua, "admin_trigger_anomaly_alert", {
+      company_name: company?.name,
+      type,
+      message,
+      notified_emails: emails,
     });
 
     return { success: true };

@@ -1,8 +1,12 @@
 // app/admin/tabs/tenants-tab.tsx
 "use client";
 
-import { useState, useTransition, Fragment } from "react";
-import { Search, Power, ChevronUp, ChevronDown, Download, Trash2, RefreshCw, Bell, Wand2, Plus, Play } from "lucide-react";
+import { useState, useTransition, Fragment, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search, Power, ChevronUp, ChevronDown, Download, Trash2, RefreshCw, Bell, Wand2, Plus, Play,
+  Eye, X, Activity, DollarSign, Key, FileText, BarChart3, AlertCircle
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -10,6 +14,8 @@ import {
   updateTenantPlan, toggleCompanyAI, generateTenantMagicLink,
   resetTenantOnboarding, sendTenantNotification, extendTenantMessageLimit,
   exportTenantDataCSV, deleteTenant, forceBypassOnboarding,
+  getTenantActivityTimeline, getTenantStripeInvoices, getTenantAuthLogs,
+  getTenantDailyUsage, triggerTenantAnomalyAlert
 } from "../actions";
 import { ConfirmModal } from "../components/confirm-modal";
 import type { Company } from "../types";
@@ -40,6 +46,7 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
   const [notifTarget,  setNotifTarget]  = useState<Company | null>(null);
   const [notifTitle,   setNotifTitle]   = useState("");
   const [notifBody,    setNotifBody]    = useState("");
+  const [drillCompany, setDrillCompany] = useState<Company | null>(null);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -324,6 +331,9 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
                           <td colSpan={8} className="px-4 py-3">
                             <div className="flex flex-wrap gap-2 items-center">
                               <span className="text-[10px] font-mono text-[#71717A] mr-1">Ações rápidas →</span>
+                              <Button size="sm" variant="secondary" className="text-[10px] gap-1 text-[#2563EB] hover:bg-[#EFF6FF] hover:border-[#BFDBFE]" onClick={() => setDrillCompany(c)}>
+                                <Eye size={11} /> Ver Detalhes
+                              </Button>
                               <Button size="sm" variant="secondary" className="text-[10px] gap-1" onClick={() => setImpersonateTarget(c)}>
                                 <Wand2 size={11} /> Impersonar
                               </Button>
@@ -434,6 +444,366 @@ export function TenantsTab({ companies: initial, churnRiskIds }: Props) {
           </div>
         </div>
       )}
+      {/* Drill-down Drawer */}
+      <AnimatePresence>
+        {drillCompany && (
+          <DrillDownDrawer company={drillCompany} onClose={() => setDrillCompany(null)} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Drill-down Drawer Component ──────────────────────────────────────────────
+
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer
+} from "recharts";
+
+function DrillDownDrawer({
+  company,
+  onClose,
+}: {
+  company: Company;
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<"usage" | "auth" | "billing" | "activity">("usage");
+  const [loading, setLoading] = useState(true);
+  const [dailyUsage, setDailyUsage] = useState<{ day: string; count: number }[]>([]);
+  const [authLogs, setAuthLogs] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [activity, setActivity] = useState<any[]>([]);
+  
+  const [sendingAlert, setSendingAlert] = useState(false);
+
+  useEffect(() => {
+    async function loadAll() {
+      setLoading(true);
+      const [usageRes, authRes, invRes, actRes] = await Promise.all([
+        getTenantDailyUsage(company.id),
+        getTenantAuthLogs(company.id),
+        getTenantStripeInvoices(company.id),
+        getTenantActivityTimeline(company.id),
+      ]);
+      setLoading(false);
+      
+      if (usageRes.success && usageRes.usage) setDailyUsage(usageRes.usage);
+      if (authRes.success && authRes.logs) setAuthLogs(authRes.logs);
+      if (invRes.success && invRes.invoices) setInvoices(invRes.invoices);
+      if (actRes.success && actRes.logs) setActivity(actRes.logs);
+    }
+    loadAll();
+  }, [company.id]);
+
+  async function handleTriggerAlert() {
+    const reason = window.prompt("Digite o motivo do alerta (será enviado por email aos admins/owner):");
+    if (!reason?.trim()) return;
+    setSendingAlert(true);
+    const res = await triggerTenantAnomalyAlert(company.id, "Anomalia Operacional", reason.trim());
+    setSendingAlert(false);
+    if (res.success) {
+      toast.success("Alerta proativo enviado por e-mail!");
+      const actRes = await getTenantActivityTimeline(company.id);
+      if (actRes.success && actRes.logs) setActivity(actRes.logs);
+    } else {
+      toast.error(res.error || "Erro ao disparar alerta");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/15 backdrop-blur-sm"
+      />
+      
+      {/* Drawer */}
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="relative z-10 w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col border-l border-[#E4E4E7]"
+      >
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-[#E4E4E7] bg-[#FAFAFA] flex justify-between items-center">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-[#09090B]">{company.name}</h2>
+              <span className="text-[10px] font-mono font-bold uppercase bg-[#EFF6FF] border border-[#BFDBFE] text-[#2563EB] px-2 py-0.5 rounded-full">
+                {company.plan_type}
+              </span>
+            </div>
+            <p className="text-[11px] text-[#71717A] font-mono mt-0.5">ID: {company.id}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="text-[10px] h-8 px-2.5 gap-1 text-[#DC2626] hover:bg-[#FFF1F2] hover:border-[#FECACA]"
+              onClick={handleTriggerAlert}
+              disabled={sendingAlert}
+            >
+              <AlertCircle size={12} />
+              Enviar Alerta
+            </Button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg border border-[#E4E4E7] bg-white hover:bg-[#FAFAFA] text-[#71717A] hover:text-[#09090B] transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-[#E4E4E7] bg-[#FAFAFA] px-4">
+          {[
+            { id: "usage", label: "Uso Diário", icon: BarChart3 },
+            { id: "auth", label: "Acessos", icon: Key },
+            { id: "billing", label: "Financeiro", icon: DollarSign },
+            { id: "activity", label: "Atividades", icon: Activity },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-1.5 px-4 py-3 text-xs font-semibold border-b-2 transition-all relative ${
+                  active
+                    ? "border-[#2563EB] text-[#2563EB]"
+                    : "border-transparent text-[#71717A] hover:text-[#09090B]"
+                }`}
+              >
+                <Icon size={13} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 bg-white">
+          {loading ? (
+            <div className="h-64 flex flex-col items-center justify-center gap-2 text-xs text-[#71717A]">
+              <RefreshCw size={20} className="animate-spin text-[#2563EB]" />
+              <span>Carregando detalhes do Tenant...</span>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              {activeTab === "usage" && (
+                <motion.div
+                  key="usage"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  className="space-y-4"
+                >
+                  <div className="border border-[#E4E4E7] rounded-2xl p-4 bg-[#FAFAFA]">
+                    <h3 className="text-xs font-bold text-[#09090B] mb-4">Volume de Mensagens (Últimos 30 dias)</h3>
+                    <div className="h-56 w-full">
+                      {dailyUsage.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-[#A1A1AA]">
+                          Nenhum dado de uso registrado.
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={dailyUsage} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="usageGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2} />
+                                <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" vertical={false} />
+                            <XAxis
+                              dataKey="day"
+                              tick={{ fontSize: 9, fill: "#71717A" }}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 9, fill: "#71717A" }}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <ChartTooltip
+                              content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null;
+                                return (
+                                  <div className="rounded-xl border border-[#E4E4E7] bg-white px-3 py-2 text-[11px] shadow-lg">
+                                    <p className="font-semibold text-[#09090B] mb-1">{label}</p>
+                                    <p className="text-[#71717A] flex items-center gap-1">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
+                                      Mensagens: <span className="font-bold text-[#09090B]">{payload[0].value}</span>
+                                    </p>
+                                  </div>
+                                );
+                              }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="count"
+                              stroke="#2563EB"
+                              strokeWidth={2}
+                              fill="url(#usageGrad)"
+                              dot={false}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === "auth" && (
+                <motion.div
+                  key="auth"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  className="space-y-3"
+                >
+                  <div className="border border-[#E4E4E7] bg-white rounded-2xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-[#F4F4F5] border-b border-[#E4E4E7] text-[10px] font-mono uppercase text-[#71717A]">
+                          <th className="px-4 py-2.5">Data/Hora</th>
+                          <th className="px-4 py-2.5">Ação</th>
+                          <th className="px-4 py-2.5">IP</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E4E4E7] text-[#3F3F46]">
+                        {authLogs.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-8 text-center text-[#A1A1AA]">
+                              Nenhum log de acesso encontrado.
+                            </td>
+                          </tr>
+                        ) : (
+                          authLogs.map((l) => (
+                            <tr key={l.id} className="hover:bg-[#FAFAFA]">
+                              <td className="px-4 py-2.5 font-mono text-[10px] text-[#71717A]">
+                                {new Date(l.created_at).toLocaleString("pt-BR")}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  l.action.includes("success")
+                                    ? "bg-[#EFF6FF] text-[#2563EB]"
+                                    : "bg-[#FFF1F2] text-[#DC2626]"
+                                }`}>
+                                  {l.action}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 font-mono text-[10px] text-[#3F3F46]">
+                                {l.ip_address}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === "billing" && (
+                <motion.div
+                  key="billing"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  className="space-y-3"
+                >
+                  <div className="border border-[#E4E4E7] bg-white rounded-2xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-[#F4F4F5] border-b border-[#E4E4E7] text-[10px] font-mono uppercase text-[#71717A]">
+                          <th className="px-4 py-2.5">Fatura ID</th>
+                          <th className="px-4 py-2.5">Evento</th>
+                          <th className="px-4 py-2.5">Valor</th>
+                          <th className="px-4 py-2.5 text-right">Data</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E4E4E7] text-[#3F3F46]">
+                        {invoices.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-8 text-center text-[#A1A1AA]">
+                              Nenhuma fatura encontrada.
+                            </td>
+                          </tr>
+                        ) : (
+                          invoices.map((inv) => (
+                            <tr key={inv.id} className="hover:bg-[#FAFAFA]">
+                              <td className="px-4 py-2.5 font-mono text-[10px] font-semibold text-[#09090B]">
+                                {inv.invoice_id}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                                  inv.event_type.includes("paid")
+                                    ? "bg-[#EFC3C3]/15 text-[#16A34A]"
+                                    : "bg-[#FFF1F2] text-[#DC2626]"
+                                }`}>
+                                  {inv.event_type}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 font-mono text-[#09090B] font-bold">
+                                R${inv.amount.toFixed(2)}
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-mono text-[10px] text-[#71717A]">
+                                {new Date(inv.created_at).toLocaleDateString("pt-BR")}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === "activity" && (
+                <motion.div
+                  key="activity"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  className="space-y-4"
+                >
+                  <div className="relative border-l-2 border-[#E4E4E7] ml-3 pl-5 space-y-4">
+                    {activity.length === 0 ? (
+                      <p className="text-xs text-[#A1A1AA] text-center ml-[-20px] py-8">
+                        Nenhuma atividade de auditoria registrada.
+                      </p>
+                    ) : (
+                      activity.map((l) => (
+                        <div key={l.id} className="relative">
+                          <span className="absolute -left-[27px] top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#2563EB]" />
+                          <div className="text-xs font-bold text-[#09090B]">{l.action}</div>
+                          <div className="text-[10px] text-[#71717A] font-mono mt-0.5">
+                            {new Date(l.created_at).toLocaleString("pt-BR")} &bull; Por: {l.actor_email}
+                          </div>
+                          {l.payload && Object.keys(l.payload).length > 0 && (
+                            <pre className="mt-1.5 p-2 bg-[#FAFAFA] border border-[#E4E4E7] rounded-lg text-[9px] font-mono text-[#52525B] max-h-24 overflow-y-auto">
+                              {JSON.stringify(l.payload, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 }
