@@ -24,10 +24,11 @@ export default async function InboxPage() {
       .from("leads")
       .select(`*, messages(id, lead_id, company_id, content, role, metadata, created_at)`)
       .eq("company_id", companyId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
       .order("updated_at", { ascending: false })
       .order("created_at", { referencedTable: "messages", ascending: false })
       .limit(50, { referencedTable: "messages" })
-      .limit(30),
+      .limit(100),
     supabase
       .from("events")
       .select("id, lead_id, title, start_time, end_time")

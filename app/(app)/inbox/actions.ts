@@ -8,6 +8,7 @@ import { sendChannelMessage, sendChannelMedia } from "@/lib/channels/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { persistAITrace } from "@/lib/ai/observability";
 import crypto from "crypto";
+import type { Message } from "@/lib/types/database";
 
 async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string, companyId: string) {
   const { data, error } = await supabase
@@ -46,7 +47,14 @@ export async function sendNote(leadId: string, content: string) {
 
     if (dbError) throw new Error(`Erro no Banco: ${dbError.message}`);
 
-    // 2. Enviar WhatsApp / Canal unificado
+    // 2. Manter last_message_at atualizado para ordenação correta
+    await supabase
+      .from("leads")
+      .update({ last_message_at: new Date().toISOString() })
+      .eq("id", leadId)
+      .eq("company_id", company_id);
+
+    // 3. Enviar WhatsApp / Canal unificado
     await sendChannelMessage(phone, trimmed, company_id);
 
     revalidatePath("/inbox");
@@ -80,7 +88,7 @@ export async function takeOverLead(leadId: string) {
   const { error } = await supabase.from("messages").insert({
     lead_id: leadId,
     company_id,
-    content: "Atendente assumiu a conversa (Modo Manual).",
+    content: "Você assumiu o atendimento.",
     role: "note",
   });
   if (error) throw new Error(error.message);
@@ -173,13 +181,13 @@ export async function setControlMode(leadId: string, mode: 'autonomous' | 'shado
   } else if (mode === 'autonomous') {
     await deactivateTakeover({ companyId: company_id, leadId });
   } else {
-    // For 'shadow' fallback to direct DB update
-    const isPaused = false; // shadow does not pause the lead
-    await supabase
+    // shadow mode: use admin client to avoid potential RLS gaps on control_mode
+    const admin = createAdminClient();
+    await admin
       .from("leads")
-      .update({ control_mode: mode, is_paused: isPaused })
+      .update({ control_mode: mode, is_paused: false })
       .eq("id", leadId)
-      .eq("company_id", company_id); // IDOR guard — must always filter by company_id
+      .eq("company_id", company_id);
   }
 
   const modeLabels = {
@@ -384,4 +392,26 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
 
   revalidatePath('/inbox');
   return { success: true };
+}
+
+export async function fetchOlderMessages(leadId: string, beforeDate: string): Promise<Message[]> {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+  const companyId = profile.memberships?.[0]?.company_id;
+  if (!companyId) throw new Error("No company");
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id, lead_id, company_id, content, role, metadata, created_at")
+    .eq("lead_id", leadId)
+    .eq("company_id", companyId)
+    .lt("created_at", beforeDate)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as Message[]).reverse();
 }

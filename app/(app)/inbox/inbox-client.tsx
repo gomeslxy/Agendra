@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Search, MessageCircle, Instagram } from "lucide-react";
+import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Search, MessageCircle, Instagram, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatBubble } from "@/components/app/chat-bubble";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -10,7 +10,9 @@ import { HEAT_GRADIENT, HEAT_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Lead, Message } from "@/lib/types/database";
 import type { LeadWithMessages } from "./page";
-import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage, editAndSendDraft, sendFileAttachment } from "./actions";
+import { sendNote, takeOverLead, automatizeLead, setConversationTone, setControlMode, approveDraftMessage, deleteDraftMessage, editAndSendDraft, sendFileAttachment, fetchOlderMessages } from "./actions";
+import { toast } from "sonner";
+import { DateSeparator } from "@/components/app/date-separator";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
@@ -42,7 +44,21 @@ function relativeTime(dateStr: string) {
   if (h < 24) return `${h}h`;
   const d = Math.floor(h / 24);
   if (d === 1) return "ontem";
-  return `${d}d`;
+  if (d < 7) return `${d}d`;
+  return new Date(dateStr).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+type PendingMessage = Message & { _pending?: true };
+
+function activityLabel(lead: LeadWithMessages): { dot: string; text: string } {
+  const ts = (lead as any).last_message_at ?? lastMsg(lead)?.created_at;
+  if (!ts) return { dot: "bg-[#D4D4D8]", text: lead.channel };
+  const diffMin = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
+  if (diffMin < 5) return { dot: "bg-[#22C55E] animate-pulse", text: `Ativo agora · ${lead.channel}` };
+  if (diffMin < 60) return { dot: "bg-[#F59E0B]", text: `Ativo há ${diffMin}m · ${lead.channel}` };
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return { dot: "bg-[#D4D4D8]", text: `Ativo há ${diffH}h · ${lead.channel}` };
+  return { dot: "bg-[#D4D4D8]", text: lead.channel };
 }
 
 function lastMsg(lead: LeadWithMessages) {
@@ -212,11 +228,11 @@ function ControlModeDropdown({ selected, controlOpen, setControlOpen, controlPen
 interface LeadListItemProps {
   lead: LeadWithMessages;
   isActive: boolean;
-  isUnread: boolean;
+  unreadCount: number;
   onSelect: (id: string) => void;
 }
 
-const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, onSelect }: LeadListItemProps) {
+const LeadListItem = memo(function LeadListItem({ lead: l, isActive, unreadCount, onSelect }: LeadListItemProps) {
   const last = lastMsg(l);
   return (
     <div
@@ -237,8 +253,10 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, isUnread, o
           l.status === "warm" ? "bg-[#F59E0B]" :
           l.status === "success" ? "bg-[#22C55E]" : "bg-[#3B82F6]"
         )} />
-        {isUnread && (
-          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#2563EB] border-2 border-white" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#2563EB] border-2 border-white text-[8px] font-black text-white leading-none">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
         )}
       </div>
       <div className="min-w-0 flex-1">
@@ -293,16 +311,22 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const [draftPending, startDraft] = useTransition();
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [editDraftText, setEditDraftText] = useState("");
-  const [inboxError, setInboxError] = useState<string | null>(fetchError ?? null);
-  const [isTyping, setIsTyping] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  useEffect(() => {
+    if (fetchError) toast.error(`Erro ao carregar inbox: ${fetchError}`);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachPreview, setAttachPreview] = useState<string | null>(null);
-  const [unreadLeadIds, setUnreadLeadIds] = useState<Set<string>>(new Set());
+  const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loadingMoreFor, setLoadingMoreFor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<Map<string, boolean>>(() => {
+    const m = new Map<string, boolean>();
+    initialLeads.forEach((l) => { if (l.messages.length >= 50) m.set(l.id, true); });
+    return m;
+  });
   const selectedIdRef = useRef<string | null>(selectedId);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
@@ -316,15 +340,14 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  // On mobile, only mount the chat + detail columns once the user opens a lead.
-  const showChatColumns = !isMobile || showChatOnMobile;
-
   const handleLeadSelect = useCallback((id: string) => {
     setSelectedId(id);
     setShowChatOnMobile(true);
-    setUnreadLeadIds((prev) => {
+    setEditingDraftId(null);
+    setEditDraftText("");
+    setUnreadCounts((prev) => {
       if (!prev.has(id)) return prev;
-      const next = new Set(prev);
+      const next = new Map(prev);
       next.delete(id);
       return next;
     });
@@ -339,10 +362,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selectedMessageCount, showChatOnMobile]);
 
-  useEffect(() => {
-    setIsTyping(false);
-    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-  }, [selectedId]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -367,9 +386,14 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
       return { ...(data as Lead), messages, next_event: null };
     };
 
+    const realtimeSort = (arr: LeadWithMessages[]) =>
+      arr.slice().sort((a, b) => {
+        const aTs = (a as any).last_message_at ?? lastMsg(a)?.created_at ?? a.updated_at;
+        const bTs = (b as any).last_message_at ?? lastMsg(b)?.created_at ?? b.updated_at;
+        return new Date(bTs).getTime() - new Date(aTs).getTime();
+      });
+
     // Defer realtime subscription past the initial paint/hydration cycle.
-    // The websocket handshake competes for the main thread during mount —
-    // a 200ms delay frees that window and improves FCP/INP on first load.
     let channel: ReturnType<typeof supabase.channel> | null = null;
     const subscribeTimer = setTimeout(() => {
     channel = supabase
@@ -379,17 +403,13 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         { event: "INSERT", schema: "public", table: "messages", filter: companyFilter },
         (payload) => {
           const newMsg = payload.new as Message;
-          if (newMsg.role === "user" && newMsg.lead_id === selectedIdRef.current) {
-            setIsTyping(true);
-            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-            typingTimerRef.current = setTimeout(() => setIsTyping(false), 8000);
-          } else if (newMsg.role !== "user") {
-            setIsTyping(false);
-            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-          }
 
           if (newMsg.role === "user" && newMsg.lead_id !== selectedIdRef.current) {
-            setUnreadLeadIds((prev) => new Set(prev).add(newMsg.lead_id));
+            setUnreadCounts((prev) => {
+              const next = new Map(prev);
+              next.set(newMsg.lead_id, (next.get(newMsg.lead_id) ?? 0) + 1);
+              return next;
+            });
           }
 
           setLeads((prev) => {
@@ -400,13 +420,13 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 if (!lead) return;
                 setLeads((p) => {
                   if (p.some((l) => l.id === lead.id)) {
-                    return p.map((l) =>
+                    return realtimeSort(p.map((l) =>
                       l.id === lead.id && !l.messages.some((m) => m.id === newMsg.id)
                         ? { ...l, messages: [...l.messages, newMsg] }
                         : l,
-                    );
+                    ));
                   }
-                  return [lead, ...p];
+                  return realtimeSort([{ ...lead, messages: [newMsg] }, ...p]);
                 });
               });
               return prev;
@@ -414,13 +434,17 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
             const next = prev.map((lead) => {
               if (lead.id !== newMsg.lead_id) return lead;
               if (lead.messages.some((m) => m.id === newMsg.id)) return lead;
-              return { ...lead, messages: [...lead.messages, newMsg] };
+              // Deduplicate: remove pending temp messages with same content
+              const withoutPending = lead.messages.filter((m) => {
+                const pm = m as PendingMessage;
+                if (!pm._pending) return true;
+                const contentMatch = pm.content === newMsg.content;
+                const timeClose = Math.abs(new Date(pm.created_at).getTime() - new Date(newMsg.created_at).getTime()) < 30000;
+                return !(contentMatch && timeClose);
+              });
+              return { ...lead, messages: [...withoutPending, newMsg] };
             });
-            return next.sort((a, b) => {
-              const aLast = lastMsg(a)?.created_at ?? a.updated_at;
-              const bLast = lastMsg(b)?.created_at ?? b.updated_at;
-              return new Date(bLast).getTime() - new Date(aLast).getTime();
-            });
+            return realtimeSort(next);
           });
         },
       )
@@ -429,18 +453,13 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         { event: "UPDATE", schema: "public", table: "leads", filter: companyFilter },
         (payload) => {
           const updatedLead = payload.new as Lead;
-          setLeads((prev) => {
-            const next = prev.map((lead) =>
+          setLeads((prev) =>
+            realtimeSort(prev.map((lead) =>
               lead.id === updatedLead.id
                 ? { ...lead, ...updatedLead, messages: lead.messages }
                 : lead,
-            );
-            return next.sort((a, b) => {
-              const aLast = lastMsg(a)?.created_at ?? a.updated_at;
-              const bLast = lastMsg(b)?.created_at ?? b.updated_at;
-              return new Date(bLast).getTime() - new Date(aLast).getTime();
-            });
-          });
+            ))
+          );
         },
       )
       .on(
@@ -450,11 +469,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           const newLead = payload.new as Lead;
           setLeads((prev) => {
             if (prev.some((l) => l.id === newLead.id)) return prev;
-            return [{ ...newLead, messages: [] }, ...prev].sort((a, b) => {
-              const aLast = lastMsg(a)?.created_at ?? a.updated_at;
-              const bLast = lastMsg(b)?.created_at ?? b.updated_at;
-              return new Date(bLast).getTime() - new Date(aLast).getTime();
-            });
+            return realtimeSort([{ ...newLead, messages: [] }, ...prev]);
           });
         },
       )
@@ -463,13 +478,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         { event: "UPDATE", schema: "public", table: "messages", filter: companyFilter },
         (payload) => {
           const updatedMsg = payload.new as Message;
-          if (updatedMsg.role !== "user") {
-            setIsTyping(false);
-            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-          }
-
-          setLeads((prev) => {
-            return prev.map((lead) => {
+          setLeads((prev) =>
+            prev.map((lead) => {
               if (lead.id !== updatedMsg.lead_id) return lead;
               return {
                 ...lead,
@@ -477,8 +487,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   m.id === updatedMsg.id ? updatedMsg : m
                 ),
               };
-            });
-          });
+            })
+          );
         },
       )
       .on(
@@ -489,8 +499,8 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
             const newEvent = payload.new as any;
             if (!newEvent.lead_id) return;
             const isFuture = new Date(newEvent.start_time).getTime() >= Date.now();
-            setLeads((prev) => {
-              return prev.map((lead) => {
+            setLeads((prev) =>
+              prev.map((lead) => {
                 if (lead.id !== newEvent.lead_id) return lead;
                 if (isFuture) {
                   if (
@@ -498,35 +508,22 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                     lead.next_event.id === newEvent.id ||
                     new Date(newEvent.start_time).getTime() < new Date(lead.next_event.start_time).getTime()
                   ) {
-                    return {
-                      ...lead,
-                      next_event: {
-                        id: newEvent.id,
-                        title: newEvent.title,
-                        start_time: newEvent.start_time,
-                        end_time: newEvent.end_time,
-                      },
-                    };
+                    return { ...lead, next_event: { id: newEvent.id, title: newEvent.title, start_time: newEvent.start_time, end_time: newEvent.end_time } };
                   }
-                } else {
-                  if (lead.next_event?.id === newEvent.id) {
-                    return { ...lead, next_event: null };
-                  }
-                }
-                return lead;
-              });
-            });
-          } else if (payload.eventType === "DELETE") {
-            const oldId = (payload.old as { id?: string })?.id;
-            if (!oldId) return;
-            setLeads((prev) => {
-              return prev.map((lead) => {
-                if (lead.next_event?.id === oldId) {
+                } else if (lead.next_event?.id === newEvent.id) {
                   return { ...lead, next_event: null };
                 }
                 return lead;
-              });
-            });
+              })
+            );
+          } else if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as { id?: string })?.id;
+            if (!oldId) return;
+            setLeads((prev) =>
+              prev.map((lead) =>
+                lead.next_event?.id === oldId ? { ...lead, next_event: null } : lead
+              )
+            );
           }
         }
       )
@@ -540,19 +537,17 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
             prev.map((lead) => ({
               ...lead,
               messages: lead.messages.filter((m) => m.id !== deletedId),
-            })),
+            }))
           );
         },
       )
       .subscribe((status) => {
-        console.log(`[Inbox] realtime status: ${status}`);
-        setIsConnected(status === "SUBSCRIBED");
+        setIsConnected(status === "SUBSCRIBED" ? true : status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED" ? false : null);
       });
     }, 200);
 
     return () => {
       clearTimeout(subscribeTimer);
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       if (channel) supabase.removeChannel(channel);
     };
   }, [companyId]);
@@ -583,25 +578,66 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     }
   }, [sendPending, takePending, selected?.id]);
 
-  const groupedMessages = useMemo(() => {
+  type GroupedItem =
+    | { type: "separator"; date: string; key: string }
+    | { type: "message"; key: string; isFirst: boolean; isLast: boolean; hideLabel: boolean; hideTime: boolean } & Message & { _pending?: true };
+
+  const groupedMessages = useMemo((): GroupedItem[] => {
     const msgs = selected?.messages ?? [];
-    return msgs.map((msg, i) => {
+    const result: GroupedItem[] = [];
+    const GAP_LIMIT = 5 * 60 * 1000;
+
+    msgs.forEach((msg, i) => {
       const prev = msgs[i - 1];
       const next = msgs[i + 1];
+
+      // Date separator when day changes
+      const msgDay = new Date(msg.created_at).toDateString();
+      const prevDay = prev ? new Date(prev.created_at).toDateString() : null;
+      if (!prevDay || msgDay !== prevDay) {
+        result.push({ type: "separator", date: msg.created_at, key: `sep-${msg.created_at}` });
+      }
+
       const isNote = msg.role === "note";
       const prevIsSame = prev && prev.role === msg.role && !isNote;
       const nextIsSame = next && next.role === msg.role && !isNote;
-
       const timeGapPrev = prev ? (new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime()) : 0;
       const timeGapNext = next ? (new Date(next.created_at).getTime() - new Date(msg.created_at).getTime()) : 0;
-      const GAP_LIMIT = 5 * 60 * 1000;
-
       const isFirst = !prevIsSame || timeGapPrev > GAP_LIMIT;
       const isLast = !nextIsSame || timeGapNext > GAP_LIMIT;
 
-      return { ...msg, isFirst, isLast, hideLabel: !isFirst, hideTime: !isLast };
+      result.push({ type: "message", key: msg.id, ...msg, isFirst, isLast, hideLabel: !isFirst, hideTime: !isLast } as GroupedItem);
     });
+
+    return result;
   }, [selected?.messages]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (!selected || loadingMoreFor) return;
+    const oldest = selected.messages[0];
+    if (!oldest) return;
+
+    setLoadingMoreFor(selected.id);
+    try {
+      const older = await fetchOlderMessages(selected.id, oldest.created_at);
+      if (older.length === 0) {
+        setHasMore((prev) => { const next = new Map(prev); next.set(selected.id, false); return next; });
+        return;
+      }
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === selected.id ? { ...l, messages: [...older, ...l.messages] } : l
+        )
+      );
+      if (older.length < 30) {
+        setHasMore((prev) => { const next = new Map(prev); next.set(selected.id, false); return next; });
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setLoadingMoreFor(null);
+    }
+  }, [selected, loadingMoreFor]);
 
   const clearAttachment = useCallback(() => {
     if (attachPreview) URL.revokeObjectURL(attachPreview);
@@ -613,7 +649,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 16 * 1024 * 1024) { setInboxError('Arquivo muito grande (máx 16 MB)'); return; }
+    if (file.size > 16 * 1024 * 1024) { toast.error('Arquivo muito grande (máx 16 MB)'); return; }
     setAttachedFile(file);
     if (file.type.startsWith('image/')) setAttachPreview(URL.createObjectURL(file));
     else setAttachPreview(null);
@@ -623,7 +659,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
     if (!selected) return;
 
     if (attachedFile) {
-      setInboxError(null);
       const file = attachedFile;
       const caption = noteText.trim();
       clearAttachment();
@@ -634,9 +669,9 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           form.append('file', file);
           if (caption) form.append('caption', caption);
           const result = await sendFileAttachment(selected.id, form);
-          if (!result.success) setInboxError(result.error ?? 'Erro ao enviar arquivo');
+          if (!result.success) toast.error(result.error ?? 'Erro ao enviar arquivo');
         } catch (e) {
-          setInboxError((e as Error).message);
+          toast.error((e as Error).message);
         }
       });
       return;
@@ -644,17 +679,17 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
     if (!noteText.trim()) return;
     const content = noteText.trim();
-    setInboxError(null);
     setNoteText("");
 
     const tempId = crypto.randomUUID();
-    const tempMsg: Message = {
+    const tempMsg: PendingMessage = {
       id: tempId,
       lead_id: selected.id,
       company_id: selected.company_id,
       content,
       role: "agent",
       created_at: new Date().toISOString(),
+      _pending: true,
     };
 
     setLeads((prev) =>
@@ -668,14 +703,30 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         const result = await sendNote(selected.id, content);
         if (result?.success) {
           trackEvent("message_sent", { lead_id: selected.id });
+          // Safety: remove temp after 15s if realtime dedup didn't fire
+          setTimeout(() => {
+            setLeads((prev) =>
+              prev.map((l) =>
+                l.id === selected.id
+                  ? { ...l, messages: l.messages.filter((m) => m.id !== tempId) }
+                  : l
+              )
+            );
+          }, 15000);
         } else if (result?.error) {
-          setInboxError(result.error);
+          toast.error(result.error);
           setNoteText(content);
+          setLeads((prev) =>
+            prev.map((l) =>
+              l.id === selected.id
+                ? { ...l, messages: l.messages.filter((m) => m.id !== tempId) }
+                : l
+            )
+          );
         }
       } catch (e) {
-        setInboxError((e as Error).message);
+        toast.error((e as Error).message);
         setNoteText(content);
-      } finally {
         setLeads((prev) =>
           prev.map((l) =>
             l.id === selected.id
@@ -689,7 +740,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
   const handleTakeOver = useCallback(() => {
     if (!selected) return;
-    setInboxError(null);
 
     const tempId = crypto.randomUUID();
     const tempNote: Message = {
@@ -713,7 +763,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         setLeads((prev) =>
           prev.map((l) => (l.id === selected.id ? { ...l, is_paused: false } : l)),
         );
-        setInboxError((e as Error).message);
+        toast.error((e as Error).message);
       } finally {
         setLeads((prev) =>
           prev.map((l) =>
@@ -728,7 +778,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
   const handleAutomatize = useCallback(() => {
     if (!selected) return;
-    setInboxError(null);
     setLeads((prev) =>
       prev.map((l) => (l.id === selected.id ? { ...l, is_paused: false } : l)),
     );
@@ -740,7 +789,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         setLeads((prev) =>
           prev.map((l) => (l.id === selected.id ? { ...l, is_paused: true } : l)),
         );
-        setInboxError((e as Error).message);
+        toast.error((e as Error).message);
       }
     });
   }, [selected]);
@@ -759,7 +808,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         setLeads((prev) =>
           prev.map((l) => (l.id === selected.id ? { ...l, conversation_tone: current } : l)),
         );
-        setInboxError((e as Error).message);
+        toast.error((e as Error).message);
       }
     });
   }, [selected]);
@@ -781,14 +830,14 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         setLeads((prev) =>
           prev.map((l) => (l.id === selected.id ? { ...l, control_mode: current, is_paused: current === 'manual' } : l)),
         );
-        setInboxError((e as Error).message);
+        toast.error((e as Error).message);
       }
     });
   }, [selected]);
 
   const handleApproveDraft = useCallback((messageId: string) => {
     if (!selectedId) return;
-    setInboxError(null);
+
 
     // Optimistic update: remove is_draft from message metadata
     setLeads((prev) =>
@@ -825,7 +874,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           );
         }
       } catch (e) {
-        setInboxError((e as Error).message);
+        toast.error((e as Error).message);
         // Revert optimistic
         setLeads((prev) =>
           prev.map((l) => {
@@ -845,7 +894,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
   const handleEditAndSendDraft = useCallback((messageId: string, text: string) => {
     if (!selectedId || !text.trim()) return;
-    setInboxError(null);
+
     setEditingDraftId(null);
 
     // Save original content for potential rollback
@@ -888,7 +937,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           );
         }
       } catch (e) {
-        setInboxError((e as Error).message);
+        toast.error((e as Error).message);
         // Rollback
         setLeads((prev) =>
           prev.map((l) => {
@@ -908,7 +957,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
 
   const handleDeleteDraft = useCallback((messageId: string) => {
     if (!selectedId) return;
-    setInboxError(null);
+
 
     // Save original messages for rollback
     const originalMessages = leads.find((l) => l.id === selectedId)?.messages ?? [];
@@ -933,7 +982,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           );
         }
       } catch (e) {
-        setInboxError((e as Error).message);
+        toast.error((e as Error).message);
         // Rollback
         setLeads((prev) =>
           prev.map((l) =>
@@ -962,15 +1011,17 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
             <div className="flex items-center gap-2">
               <div className={cn(
                 "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all duration-500",
-                isConnected
+                isConnected === true
                   ? "bg-[#F0FDFA] text-[#0F766E] border border-[#CCFBF1]"
+                  : isConnected === false
+                  ? "bg-[#FFF1F2] text-[#DC2626] border border-[#FECACA]"
                   : "bg-[#F4F4F5] text-[#71717A] border border-[#E4E4E7]"
               )}>
                 <span className={cn(
                   "h-1.5 w-1.5 rounded-full transition-all duration-500",
-                  isConnected ? "bg-[#14B8A6] animate-pulse" : "bg-[#D4D4D8]"
+                  isConnected === true ? "bg-[#14B8A6] animate-pulse" : isConnected === false ? "bg-[#DC2626]" : "bg-[#D4D4D8]"
                 )} />
-                {isConnected ? "LIVE" : "OFFLINE"}
+                {isConnected === true ? "LIVE" : isConnected === false ? "OFFLINE" : "···"}
               </div>
             </div>
           </div>
@@ -1033,17 +1084,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         </div>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pb-[calc(72px+env(safe-area-inset-bottom,12px))] lg:pb-0">
-          {inboxError && (
-            <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-xl border border-[#FECACA] bg-[#FFF1F2] px-3 py-2">
-              <p className="text-[12px] font-medium text-[#DC2626] leading-tight">{inboxError}</p>
-              <button
-                onClick={() => router.refresh()}
-                className="shrink-0 text-[11px] font-black uppercase tracking-wider text-[#DC2626] hover:text-[#991B1B] transition-colors"
-              >
-                Tentar novamente
-              </button>
-            </div>
-          )}
           {filteredLeads.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 px-5 text-center gap-2">
               <div className="h-12 w-12 rounded-full bg-[#F4F4F5] flex items-center justify-center">
@@ -1058,7 +1098,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   key={l.id}
                   lead={l}
                   isActive={l.id === selectedId}
-                  isUnread={unreadLeadIds.has(l.id)}
+                  unreadCount={unreadCounts.get(l.id) ?? 0}
                   onSelect={handleLeadSelect}
                 />
               ))}
@@ -1067,8 +1107,7 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
         </div>
       </section>
 
-      {/* COL 2 — chat (skipped from DOM on mobile while the lead list is active) */}
-      {showChatColumns && (
+      {/* COL 2 — chat (always in DOM; hidden via CSS on mobile when list is active) */}
       <section className={cn(
         "flex flex-col transition-all duration-300",
         !showChatOnMobile ? "hidden lg:flex lg:flex-1" : "flex w-full lg:flex-1"
@@ -1102,10 +1141,15 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-bold text-[#09090B]">{selected.name}</div>
-                  <div className="flex items-center gap-1.5 truncate text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse" />
-                    Ativo agora · {selected.channel}
-                  </div>
+                  {(() => {
+                    const act = activityLabel(selected);
+                    return (
+                      <div className="flex items-center gap-1.5 truncate text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">
+                        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", act.dot)} />
+                        {act.text}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1131,6 +1175,24 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
               </div>
             </div>
 
+            {/* Sticky mode banners */}
+            {isAutonomous && (
+              <div className="flex items-center justify-center gap-1.5 border-b border-[#FDE68A] bg-[#FEFCE8] px-4 py-1.5 shrink-0">
+                <Zap size={10} className="text-[#CA8A04]" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#854D0E]">
+                  Modo Autônomo · Agendra IA está no controle
+                </span>
+              </div>
+            )}
+            {!isAutonomous && selected.control_mode === 'shadow' && (
+              <div className="flex items-center justify-center gap-1.5 border-b border-[#DBEAFE] bg-[#EFF6FF] px-4 py-1.5 shrink-0">
+                <Sparkles size={10} className="text-[#2563EB]" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#2563EB]">
+                  Modo Copiloto · Aprove rascunhos ou escreva diretamente
+                </span>
+              </div>
+            )}
+
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               <motion.div
@@ -1140,25 +1202,36 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
                 className="flex flex-col gap-3 p-4 sm:p-6 bg-[#F8F8F8] min-h-full"
               >
-                {isAutonomous && (
-                  <ChatBubble variant="note">Agendra está respondendo automaticamente</ChatBubble>
-                )}
-                {selected.control_mode === 'shadow' && (
-                  <ChatBubble variant="note">
-                    <span className="flex items-center gap-1.5">
-                      <Sparkles size={11} className="text-[#2563EB] shrink-0" />
-                      Modo Copiloto ativo — IA gera rascunhos para sua aprovação
-                    </span>
-                  </ChatBubble>
+                {hasMore.get(selected.id) && (
+                  <div className="flex justify-center pb-2">
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={loadingMoreFor === selected.id}
+                      className="flex items-center gap-2 rounded-full border border-[#E4E4E7] bg-white px-4 py-1.5 text-[11px] font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      {loadingMoreFor === selected.id ? (
+                        <Zap size={11} className="animate-spin text-[#2563EB]" />
+                      ) : (
+                        <ChevronLeft size={11} className="rotate-90" />
+                      )}
+                      {loadingMoreFor === selected.id ? "Carregando..." : "Carregar histórico"}
+                    </button>
+                  </div>
                 )}
 
-                {groupedMessages.map((msg) => {
+                {groupedMessages.map((item) => {
+                  if (item.type === "separator") {
+                    return <DateSeparator key={item.key} date={item.date} />;
+                  }
+
+                  const msg = item;
                   const isDraft = (msg.metadata as any)?.is_draft === true;
+                  const isPending = !!(msg as PendingMessage)._pending;
 
                   if (isDraft) {
                     return (
                       <motion.div
-                        key={msg.id}
+                        key={msg.key}
                         initial={{ opacity: 0, y: 8, scale: 0.97 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         className="flex flex-col items-end gap-2 self-end max-w-[85%]"
@@ -1167,17 +1240,14 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                           <Sparkles size={10} />
                           Rascunho da IA{(msg.metadata as any)?.part ? ` (Parte ${(msg.metadata as any).part}/${(msg.metadata as any).total_parts})` : ''} · Aguardando aprovação
                         </div>
-                        <div className="relative rounded-[14px] rounded-br-[3px] border-[1.5px] border-[#CCFBF1] bg-[#F0FDFA] px-4 py-3 text-[13px] leading-relaxed text-[#166534]">
-                          {msg.content}
-                        </div>
                         {editingDraftId === msg.id ? (
                           <div className="flex flex-col gap-2 w-full">
                             <textarea
                               autoFocus
                               value={editDraftText}
                               onChange={(e) => setEditDraftText(e.target.value)}
-                              rows={3}
-                              className="w-full rounded-xl border-[1.5px] border-[#E4E4E7] bg-white px-3 py-2 text-[13px] text-[#09090B] outline-none resize-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10"
+                              rows={4}
+                              className="w-full rounded-xl border-[1.5px] border-[#2563EB] bg-white px-3 py-2 text-[13px] text-[#09090B] outline-none resize-none focus:ring-2 focus:ring-[#2563EB]/10"
                             />
                             <div className="flex items-center gap-2 justify-end">
                               <button
@@ -1197,79 +1267,83 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleDeleteDraft(msg.id)}
-                              disabled={draftPending}
-                              className="flex items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-all disabled:opacity-50"
-                            >
-                              <Trash size={10} /> Descartar
-                            </button>
-                            <button
-                              onClick={() => { setEditingDraftId(msg.id); setEditDraftText(msg.content); }}
-                              disabled={draftPending}
-                              className="flex items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-all disabled:opacity-50"
-                            >
-                              ✏️ Editar
-                            </button>
-                            <button
-                              onClick={() => handleApproveDraft(msg.id)}
-                              disabled={draftPending}
-                              className="flex items-center gap-1.5 rounded-lg border border-[#BFDBFE] bg-[#2563EB] px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-[#1D4ED8] transition-all shadow-[0_2px_8px_rgba(37,99,235,0.22)] disabled:opacity-50"
-                            >
-                              <Check size={10} /> ✓ Aprovar e Enviar
-                            </button>
-                          </div>
+                          <>
+                            <div className="relative rounded-[14px] rounded-br-[3px] border-[1.5px] border-[#CCFBF1] bg-[#F0FDFA] px-4 py-3 text-[13px] leading-relaxed text-[#166534]">
+                              {msg.content}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleDeleteDraft(msg.id)}
+                                disabled={draftPending}
+                                className="flex items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-all disabled:opacity-50"
+                              >
+                                <Trash size={10} /> Descartar
+                              </button>
+                              <button
+                                onClick={() => { setEditingDraftId(msg.id); setEditDraftText(msg.content); }}
+                                disabled={draftPending}
+                                className="flex items-center gap-1.5 rounded-lg border border-[#E4E4E7] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-all disabled:opacity-50"
+                              >
+                                ✏️ Editar
+                              </button>
+                              <button
+                                onClick={() => handleApproveDraft(msg.id)}
+                                disabled={draftPending}
+                                className="flex items-center gap-1.5 rounded-lg border border-[#BFDBFE] bg-[#2563EB] px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-[#1D4ED8] transition-all shadow-[0_2px_8px_rgba(37,99,235,0.22)] disabled:opacity-50"
+                              >
+                                <Check size={10} /> ✓ Aprovar e Enviar
+                              </button>
+                            </div>
+                          </>
                         )}
                       </motion.div>
                     );
                   }
 
                   const mediaMeta = (msg.metadata as any);
+                  const msgContent = mediaMeta?.media_url ? (
+                    <div className="flex flex-col gap-1.5">
+                      {mediaMeta.media_type === 'image' ? (
+                        <img src={mediaMeta.media_url} alt={mediaMeta.filename ?? 'imagem'} className="max-w-[240px] rounded-xl object-cover" />
+                      ) : mediaMeta.media_type === 'video' ? (
+                        <video src={mediaMeta.media_url} controls className="max-w-[240px] rounded-xl" />
+                      ) : mediaMeta.media_type === 'audio' ? (
+                        <audio src={mediaMeta.media_url} controls className="w-full max-w-[240px]" />
+                      ) : (
+                        <a href={mediaMeta.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2 text-[12px] hover:bg-[#EBEBEC] transition-colors text-[#09090B]">
+                          <FileText size={14} className="shrink-0 text-[#71717A]" />
+                          <span className="truncate max-w-[180px]">{mediaMeta.filename ?? 'documento'}</span>
+                        </a>
+                      )}
+                      {msg.content && msg.content !== mediaMeta.filename && (
+                        <span className="text-[12px] opacity-80">{msg.content}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="flex items-end gap-1.5">
+                      {msg.content}
+                      {isPending && <Clock size={9} className="shrink-0 opacity-40 mb-0.5" />}
+                    </span>
+                  );
+
                   return (
-                    <ChatBubble
-                      key={msg.id}
-                      timestamp={msg.created_at}
-                      variant={
-                        msg.role === "user" ? "lead" :
-                        msg.role === "note" ? "note" :
-                        msg.role === "agent" ? "agent" :
-                        "ai"
-                      }
-                      isFirst={msg.isFirst}
-                      isLast={msg.isLast}
-                      hideLabel={msg.hideLabel}
-                      hideTime={msg.hideTime}
-                    >
-                      {mediaMeta?.media_url ? (
-                        <div className="flex flex-col gap-1.5">
-                          {mediaMeta.media_type === 'image' ? (
-                            <img
-                              src={mediaMeta.media_url}
-                              alt={mediaMeta.filename ?? 'imagem'}
-                              className="max-w-[240px] rounded-xl object-cover"
-                            />
-                          ) : mediaMeta.media_type === 'video' ? (
-                            <video src={mediaMeta.media_url} controls className="max-w-[240px] rounded-xl" />
-                          ) : mediaMeta.media_type === 'audio' ? (
-                            <audio src={mediaMeta.media_url} controls className="w-full max-w-[240px]" />
-                          ) : (
-                            <a
-                              href={mediaMeta.media_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 rounded-lg border border-[#E4E4E7] bg-[#F4F4F5] px-3 py-2 text-[12px] hover:bg-[#EBEBEC] transition-colors text-[#09090B]"
-                            >
-                              <FileText size={14} className="shrink-0 text-[#71717A]" />
-                              <span className="truncate max-w-[180px]">{mediaMeta.filename ?? 'documento'}</span>
-                            </a>
-                          )}
-                          {msg.content && msg.content !== mediaMeta.filename && (
-                            <span className="text-[12px] opacity-80">{msg.content}</span>
-                          )}
-                        </div>
-                      ) : msg.content}
-                    </ChatBubble>
+                    <div key={msg.key} className={cn(isPending && "opacity-75 transition-opacity duration-300")}>
+                      <ChatBubble
+                        timestamp={msg.created_at}
+                        variant={
+                          msg.role === "user" ? "lead" :
+                          msg.role === "note" ? "note" :
+                          msg.role === "agent" ? "agent" :
+                          "ai"
+                        }
+                        isFirst={msg.isFirst}
+                        isLast={msg.isLast}
+                        hideLabel={msg.hideLabel}
+                        hideTime={msg.hideTime}
+                      >
+                        {msgContent}
+                      </ChatBubble>
+                    </div>
                   );
                 })}
 
@@ -1280,26 +1354,30 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                   </div>
                 )}
 
-                {isTyping && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    className="flex items-center gap-2 self-start mt-2"
-                  >
-                    <div className="flex items-center gap-2 rounded-[14px] rounded-bl-[3px] border border-[#E4E4E7] bg-white px-4 py-2.5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-                      <div className="flex gap-1">
-                        {[0, 1, 2].map((i) => (
-                          <motion.span
-                            key={i}
-                            className="h-1.5 w-1.5 rounded-full bg-[#3B82F6]"
-                            animate={{ y: [0, -3, 0] }}
-                            transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
-                          />
-                        ))}
+                <AnimatePresence>
+                  {selected.is_processing && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                      className="flex items-center gap-2 self-start mt-2"
+                    >
+                      <div className="flex items-center gap-2 rounded-[14px] rounded-bl-[3px] border border-[#E4E4E7] bg-white px-4 py-2.5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+                        <div className="flex gap-1">
+                          {[0, 1, 2].map((i) => (
+                            <motion.span
+                              key={i}
+                              className="h-1.5 w-1.5 rounded-full bg-[#3B82F6]"
+                              animate={{ y: [0, -3, 0] }}
+                              transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-[10px] font-medium text-[#71717A]">IA gerando resposta...</span>
                       </div>
-                    </div>
-                  </motion.div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <div ref={chatBottomRef} />
               </motion.div>
             </div>
@@ -1438,28 +1516,12 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 </div>
               </div>
 
-              {isAutonomous && (
-                <p className="mt-3 text-center text-[9px] font-bold uppercase tracking-[0.2em] text-[#14B8A6]">
-                  Modo Automático Ativo · Agendra IA está no controle
-                </p>
-              )}
-              {selected.control_mode === 'shadow' && (
-                <p className="mt-3 text-center text-[9px] font-bold uppercase tracking-[0.2em] text-[#2563EB]">
-                  <Sparkles className="inline mr-1" size={9} />
-                  Modo Copiloto · Aprove rascunhos acima ou escreva diretamente
-                </p>
-              )}
-              {inboxError && (
-                <p className="mt-2 text-center text-[11px] font-bold text-[#DC2626]">Erro: {inboxError}</p>
-              )}
             </div>
           </>
         )}
       </section>
-      )}
 
-      {/* COL 3 — detail (skipped from DOM on mobile while the lead list is active) */}
-      {showChatColumns && (
+      {/* COL 3 — detail (always in DOM; xl:flex handles visibility) */}
       <aside className="hidden flex-col gap-5 overflow-y-auto border-l border-[#E4E4E7] bg-white p-5 w-[280px] shrink-0 custom-scrollbar xl:flex z-10 select-none">
         {selected && (
           <motion.div
@@ -1527,7 +1589,6 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
           </motion.div>
         )}
       </aside>
-      )}
     </div>
   );
 }
