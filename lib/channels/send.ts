@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAdapter } from './registry';
 import { ChannelConfig, SendResult } from './types';
 import { logInfo, logError } from '@/lib/logging';
+import { sanitizeClientResponse } from '@/lib/ai/sanitizer';
 
 /**
  * Resolves the channel configuration for a company and target recipient.
@@ -120,10 +121,11 @@ export async function sendChannelMessage(to: string, text: string, companyId?: s
     throw new Error('companyId is required to send messages.');
   }
 
+  const sanitizedText = sanitizeClientResponse(text);
   const config = await resolveChannelConfig(companyId, to);
   const adapter = getAdapter(config.provider);
 
-  const result = await adapter.sendText(config, { to, text });
+  const result = await adapter.sendText(config, { to, text: sanitizedText });
 
   if (!result.ok) {
     throw new Error(result.error || 'Failed to send channel text message');
@@ -148,6 +150,7 @@ export async function sendChannelMedia(
     throw new Error('companyId is required to send media.');
   }
 
+  const sanitizedCaption = sanitizeClientResponse(caption);
   const config = await resolveChannelConfig(companyId, to);
   const adapter = getAdapter(config.provider);
 
@@ -155,7 +158,7 @@ export async function sendChannelMedia(
     to,
     mediaUrl,
     mediaType,
-    mediaCaption: caption,
+    mediaCaption: sanitizedCaption,
     filename,
     audioBuffer,
   });

@@ -30,6 +30,7 @@ import { neutralToolDefinitions } from './tool-schemas';
 import type { NormalizedMessage } from './providers/types';
 import { isUnderHumanTakeover } from './takeover';
 import { classifyIntent, type Intent } from './intent';
+import { isResponseSuspicious, sanitizeClientResponse } from './sanitizer';
 
 // Gemini SDK kept ONLY for text-embedding-005 (RAG) — lazy to avoid crashing if key absent at module load
 let _embeddingGenAI: GoogleGenerativeAI | null = null;
@@ -280,82 +281,7 @@ ${memoryContext}
 ${extraInstructions}${forbidden}`;
 }
 
-/**
- * sanitizeClientResponse — Absolute shield to sanitize any technical details,
- * JSON blocks, tool names, or internal terms before sending messages to WhatsApp leads.
- */
-export function sanitizeClientResponse(text: string): string {
-  if (!text) return '';
-
-  let clean = text.trim();
-
-  // 0. Remove bracketed ID tags [ID: ...] or ID: <uuid> patterns to prevent technical leaks
-  clean = clean.replace(/\[ID:\s*[^\]]+\]/gi, '');
-  clean = clean.replace(/\bID:\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '');
-  clean = clean.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '');
-
-  // 1. Remove markdown json blocks or backticks containing JSON completely.
-  clean = clean.replace(/```json[\s\S]*?```/gi, '').trim();
-  clean = clean.replace(/```[\s\S]*?```/gi, '').trim();
-
-  // 2. Remove balanced curly brace groups { ... } to completely erase JSON objects/inline JSON
-  let braceDepth = 0;
-  let newClean = '';
-  for (let i = 0; i < clean.length; i++) {
-    const char = clean[i];
-    if (char === '{') {
-      braceDepth++;
-    } else if (char === '}') {
-      if (braceDepth > 0) {
-        braceDepth--;
-      }
-    } else {
-      if (braceDepth === 0) {
-        newClean += char;
-      }
-    }
-  }
-  if (braceDepth === 0) {
-    clean = newClean.trim();
-  }
-
-  // 3. Remove raw ---JSON--- or ---JSON--- blocks if left over
-  clean = clean.replace(/---JSON---/gi, '').trim();
-
-  // 4. Strip internal tool/function names completely.
-  const toolNames = [
-    'bookAppointment', 'checkAvailability', 'listServices', 'cancelAppointment',
-    'rescheduleAppointment', 'myAppointments', 'updateLeadInfo', 'updateLeadMemory',
-    'requestHumanAgent', 'generatePixCharge', 'checkPaymentStatus'
-  ];
-  for (const name of toolNames) {
-    const regex = new RegExp(`\\b${name}\\b`, 'gi');
-    clean = clean.replace(regex, '');
-  }
-
-  // 5. Remove jargon terms that can leak internal mechanisms.
-  const technicalJargon = [
-    '\\bstart_time\\b', '\\bservice_id\\b', '\\bcompany_id\\b', '\\blead_id\\b',
-    '\\btimezone\\b', '\\bparameter\\b', '\\bargument\\b', '\\bfunction\\b',
-    '\\bmetadata\\b', '\\buuid\\b', '\\biso 8601\\b', '\\biso\\b', '\\bstring\\b',
-    '\\bboolean\\b', '\\bjson\\b', '\\bxml\\b', '\\bfuncão\\b', '\\bfunção\\b',
-    '\\butc\\b', '\\b8601\\b'
-  ];
-  for (const jargon of technicalJargon) {
-    const regex = new RegExp(jargon, 'gi');
-    clean = clean.replace(regex, '');
-  }
-
-  // 6. If the response became empty or contains only spacing/punctuation after removing technical terms, fallback.
-  if (!clean.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?\s]/g, '').trim()) {
-    return 'Entendido! Como posso ajudar você hoje?';
-  }
-
-  // 7. General cleanup of multiple spaces, newlines, and trailing characters.
-  clean = clean.replace(/\n{3,}/g, '\n\n');
-  clean = clean.replace(/[ \t]{2,}/g, ' '); // collapse consecutive spaces/tabs
-  return clean.trim();
-}
+export { isResponseSuspicious, sanitizeClientResponse };
 
 interface AIResult {
   reply: string;
@@ -466,22 +392,60 @@ export async function processLeadMessage(
   // Fallback seguro: na dúvida, usa tools (as ferramentas seguem disponíveis em ambas).
   const useToolsChain = intent ? intent.needsTools : true;
 
-  const result = await routeChat(
-    {
-      systemPrompt,
-      history: normalizedHistory,
-      userMessage: newMessage,
-      tools: neutralToolDefinitions,
-      toolHandler,
-      maxIterations: MAX_ITERATIONS,
-      preferredModel: geminiModelOverride,
-      toolMode: 'AUTO',
-    },
-    { chain: useToolsChain ? 'tools' : 'conv', traceId }
-  );
+  let systemPromptWithCorrection = systemPrompt;
+  let result: any;
+  let fullText = '';
+  let reply = '';
+  let attempts = 0;
+  const maxAttempts = 2;
 
-  const fullText = result.text;
-  let reply = fullText.trim();
+  while (attempts < maxAttempts) {
+    attempts++;
+    result = await routeChat(
+      {
+        systemPrompt: systemPromptWithCorrection,
+        history: normalizedHistory,
+        userMessage: newMessage,
+        tools: neutralToolDefinitions,
+        toolHandler,
+        maxIterations: MAX_ITERATIONS,
+        preferredModel: geminiModelOverride,
+        toolMode: 'AUTO',
+      },
+      { chain: useToolsChain ? 'tools' : 'conv', traceId }
+    );
+
+    fullText = result.text;
+    reply = fullText.trim();
+
+    // Extrair a resposta antes do JSON de metadados para fins de validação de suspeita
+    let replyToCheck = reply;
+    const separatorRegex = /---JSON---/i;
+    const separatorMatch = replyToCheck.match(separatorRegex);
+    if (separatorMatch && separatorMatch.index !== undefined) {
+      replyToCheck = replyToCheck.substring(0, separatorMatch.index).trim();
+    } else {
+      const lastOpenBrace = replyToCheck.lastIndexOf('{');
+      const lastCloseBrace = replyToCheck.lastIndexOf('}');
+      if (lastOpenBrace !== -1 && lastCloseBrace !== -1 && lastCloseBrace > lastOpenBrace) {
+        const jsonCandidate = replyToCheck.substring(lastOpenBrace, lastCloseBrace + 1);
+        if (jsonCandidate.includes('"heat_score"') || jsonCandidate.includes('"status"') || jsonCandidate.includes('"summary"')) {
+          replyToCheck = replyToCheck.substring(0, lastOpenBrace).trim();
+        }
+      }
+    }
+
+    if (!isResponseSuspicious(replyToCheck)) {
+      break;
+    }
+
+    console.warn(`[Engine][${traceId?.slice(0, 8) ?? 'n/a'}] 🚨 Suspicious response detected on attempt ${attempts}: "${replyToCheck}"`);
+
+    if (attempts < maxAttempts) {
+      systemPromptWithCorrection = `${systemPrompt}\n\n⚠️ ATENÇÃO CRÍTICA (AUTO-CORREÇÃO): Na tentativa anterior, você gerou uma resposta contendo termos técnicos, formatação corrompida, tags XML/HTML ou placeholders que não deveriam aparecer em uma conversa real do WhatsApp. CERTIFIQUE-SE de que a resposta final seja 100% amigável, natural e legível por um cliente real. Você está TERMINANTEMENTE PROIBIDO de incluir: tags (como <...>, </...>, <=x>/>), placeholders (como {{nome}}, [inserir]), ou nomes de funções técnicas (como checkAvailability). Escreva puramente texto natural.`;
+    }
+  }
+
   let heat_score = lead.heat_score;
   let status = lead.status;
   let summary = lead.summary ?? '';
@@ -667,6 +631,13 @@ export async function handleIncomingMessage(
   const tag = traceId.slice(0, 8);
   console.log(`[Engine][${tag}] 🚀 start company=${companyId} phone=${phone.slice(0, 6)}*** msgId=${providerMessageId?.slice(-8) ?? 'n/a'} len=${messageText.length}`);
 
+  // IDs of user messages already saved to DB by bufferAndDebounce for real-time
+  // inbox display. Engine must skip its own insert and exclude them from the AI
+  // history window (messageText already covers their content for this turn).
+  const preSavedIds: string[] = Array.isArray(incomingMetadata?.pre_persisted_ids)
+    ? (incomingMetadata!.pre_persisted_ids as string[])
+    : [];
+
   // 1. Atomic deduplication — INSERT with PK conflict means duplicate webhook.
   // Race-safe: PostgreSQL guarantees only one inserter wins.
   if (providerMessageId) {
@@ -723,11 +694,14 @@ export async function handleIncomingMessage(
     if (isUnderHumanTakeover(activeLead)) {
       console.log(`[Engine] skip — lead ${activeLead.id} em human takeover até ${activeLead.human_takeover_until}`);
       // Persist so the message appears in the inbox for the human operator
-      await admin.from('messages').insert({
-        lead_id: activeLead.id, company_id: companyId,
-        role: 'user', content: messageText,
-        metadata: incomingMetadata ?? null,
-      });
+      // (skip if already pre-saved by bufferAndDebounce for real-time inbox display)
+      if (preSavedIds.length === 0) {
+        await admin.from('messages').insert({
+          lead_id: activeLead.id, company_id: companyId,
+          role: 'user', content: messageText,
+          metadata: incomingMetadata ?? null,
+        });
+      }
       if (providerMessageId) {
         await admin.from('processed_messages').update({ status: 'completed' })
           .eq('provider_message_id', providerMessageId);
@@ -741,11 +715,14 @@ export async function handleIncomingMessage(
       if (ageMs < 1000) {
         console.warn(`[AI Engine] Rate limit: Lead ${phone} sent message ${ageMs}ms ago. Skipping.`);
         // 1. Persist message anyway (não perde histórico)
-        await admin.from('messages').insert({
-          lead_id: activeLead.id, company_id: companyId,
-          role: 'user', content: messageText,
-          metadata: { rate_limited: true, age_ms: ageMs }
-        });
+        // Skip if already pre-saved by bufferAndDebounce for real-time inbox display
+        if (preSavedIds.length === 0) {
+          await admin.from('messages').insert({
+            lead_id: activeLead.id, company_id: companyId,
+            role: 'user', content: messageText,
+            metadata: { rate_limited: true, age_ms: ageMs }
+          });
+        }
         // 2. Marca processed_messages como completed (não fica órfão)
         if (providerMessageId) {
           await admin.from('processed_messages')
@@ -877,19 +854,24 @@ export async function handleIncomingMessage(
     return admin.from('leads').update({ is_processing: false, processing_started_at: null }).eq('id', activeLead.id).eq('company_id', companyId);
   };
 
-  // 4. Persist incoming message (must happen before any early return so inbox always shows it)
+  // 4. Persist incoming message
+  // Skip if messages were already pre-saved by bufferAndDebounce for real-time inbox display.
   // NOTE: the `messages` table has no `channel_id` column (the lead row already tracks the
   // channel). Inserting it makes PostgREST reject the whole row; the error used to be
   // swallowed, so neither the lead's message nor the AI reply ever reached the inbox.
-  const { error: userMsgErr } = await admin
-    .from('messages')
-    .insert({
-      lead_id: activeLead.id,
-      company_id: companyId,
-      role: 'user',
-      content: messageText,
-    });
-  if (userMsgErr) logError(`[Engine][${tag}] 💥 failed to persist user message:`, userMsgErr);
+  if (preSavedIds.length === 0) {
+    const { error: userMsgErr } = await admin
+      .from('messages')
+      .insert({
+        lead_id: activeLead.id,
+        company_id: companyId,
+        role: 'user',
+        content: messageText,
+      });
+    if (userMsgErr) logError(`[Engine][${tag}] 💥 failed to persist user message:`, userMsgErr);
+  } else {
+    console.log(`[Engine][${tag}] ⚡ skipped user msg insert — pre-saved (${preSavedIds.length} ids)`);
+  }
 
   // 5. Billing gate
   const usage = preloadedUsage ?? await getCompanyUsage(companyId);
@@ -942,7 +924,14 @@ export async function handleIncomingMessage(
   logDebug(`History list prepared with ${historyList.length} messages`);
   const isNewConversation = (assistantTotal ?? 0) === 0;
 
-  const historyToSend: Message[] = historyList;
+  // Exclude pre-saved messages from this turn's AI context to avoid double-counting.
+  // They are already covered by messageText (the current turn content passed to the AI).
+  let historyToSend: Message[] = historyList;
+  if (preSavedIds.length > 0) {
+    const excludeSet = new Set(preSavedIds);
+    historyToSend = historyList.filter((m) => !excludeSet.has(m.id));
+    console.log(`[Engine][${tag}] 🔍 excluded ${historyList.length - historyToSend.length} pre-saved msgs from AI history`);
+  }
 
   // Declare outside try so the background analytics IIFE can close over them
   let aiResult: Awaited<ReturnType<typeof processLeadMessage>> | undefined;

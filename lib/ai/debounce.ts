@@ -108,6 +108,43 @@ export async function bufferAndDebounce(args: {
   const dbgTag = `${args.companyId.slice(0, 6)}:${args.leadPhone.slice(-4)}`;
   const delayMs = debounceDelayFor(args.body);
 
+  // Pre-save the user message to the messages table immediately so the inbox
+  // shows it in real-time without waiting for the debounce delay + AI turn.
+  // The pre-saved ID is stored in Redis and passed to the engine at flush time
+  // so it can skip the duplicate insert and exclude it from the AI history window.
+  // Non-fatal: if the lead doesn't exist yet (new lead) or any DB error occurs,
+  // the engine will save the message normally on flush.
+  const preIdsKey = `ch:pre_ids:${args.companyId}:${args.leadPhone}`;
+  try {
+    const admin = createAdminClient();
+    const { data: leadRow } = await admin
+      .from('leads')
+      .select('id')
+      .eq('company_id', args.companyId)
+      .eq('phone', args.leadPhone)
+      .maybeSingle();
+    if (leadRow?.id) {
+      const { data: ins } = await admin
+        .from('messages')
+        .insert({
+          lead_id: leadRow.id,
+          company_id: args.companyId,
+          role: 'user',
+          content: args.body,
+          metadata: args.metadata ?? null,
+        })
+        .select('id')
+        .single();
+      if (ins?.id) {
+        await redis.rpush(preIdsKey, ins.id);
+        await redis.expire(preIdsKey, BUF_TTL_SEC);
+        console.log(`[Debounce][${dbgTag}] 💾 pre-saved message ${ins.id.slice(0, 8)} for real-time inbox`);
+      }
+    }
+  } catch (e) {
+    logError('[debounce] pre-save failed (non-fatal, engine will save on flush):', e);
+  }
+
   const job: FlushJob = {
     companyId: args.companyId,
     leadPhone: args.leadPhone,
@@ -197,13 +234,28 @@ export async function flushBuffer(job: FlushJob): Promise<void> {
     ? `[O lead enviou ${items.length} mensagens em sequência:]\n` + items.map((i) => i.body).join('\n')
     : items[0].body;
 
+  // Drain pre-persisted IDs so the engine can skip duplicate inserts and
+  // exclude those messages from the AI history window for this turn.
+  const preIdsKey = `ch:pre_ids:${job.companyId}:${job.leadPhone}`;
+  let prePersistedIds: string[] = [];
+  try {
+    prePersistedIds = await redis.lrange(preIdsKey, 0, -1);
+    if (prePersistedIds.length > 0) await redis.del(preIdsKey);
+  } catch (e) {
+    logError(`[Debounce][${dbgTag}] failed to drain pre_ids (non-fatal):`, e);
+  }
+
   await handleIncomingMessage(
     job.companyId, job.leadPhone, job.leadName,
     mergedBody,
     lastItem.provider_message_id,
     job.usage,
-    { ...mergedMetadata, debounce_batch_size: items.length,
-      debounce_message_ids: items.map((i) => i.provider_message_id) }
+    {
+      ...mergedMetadata,
+      debounce_batch_size: items.length,
+      debounce_message_ids: items.map((i) => i.provider_message_id),
+      ...(prePersistedIds.length > 0 ? { pre_persisted_ids: prePersistedIds } : {}),
+    }
   );
 }
 
