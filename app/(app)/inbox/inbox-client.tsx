@@ -1163,7 +1163,27 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 shrink-0">
+                {/* Mode status — right of header, no mounted guard so always renders */}
+                {currentMode === 'autonomous' && (
+                  <div className="hidden sm:flex flex-col items-end gap-0.5" suppressHydrationWarning>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse" />
+                      <span className="text-[11px] font-bold text-[#166534]">IA Autônoma</span>
+                    </div>
+                    <span className="text-[9px] text-[#A1A1AA] font-medium">respondendo automaticamente</span>
+                  </div>
+                )}
+                {currentMode === 'shadow' && (
+                  <div className="hidden sm:flex flex-col items-end gap-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles size={10} className="text-[#2563EB]" />
+                      <span className="text-[11px] font-bold text-[#1D4ED8]">Copiloto</span>
+                    </div>
+                    <span className="text-[9px] text-[#A1A1AA] font-medium">aprovando rascunhos</span>
+                  </div>
+                )}
+
                 <div className="xl:hidden flex items-center gap-2">
                   <ControlModeDropdown
                     compact
