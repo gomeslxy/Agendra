@@ -641,15 +641,15 @@ export async function checkEnvHealth(): Promise<{
       { name: "ADMIN_PASSWORD",                     note: "Admin panel 2nd-factor password" },
       { name: "ADMIN_SESSION_SALT",                 note: "Admin session HMAC salt" },
       { name: "NEXT_PUBLIC_APP_URL",                note: "App base URL" },
-      { name: "GEMINI_API_KEY",                    note: "Google Gemini AI" },
+      { name: "GOOGLE_AI_API_KEY",                 note: "Google Gemini AI" },
       { name: "GROQ_API_KEY",                      note: "Groq AI (fallback)" },
       { name: "UPSTASH_REDIS_REST_URL",             note: "Redis/debounce" },
       { name: "UPSTASH_REDIS_REST_TOKEN",           note: "Redis auth" },
       { name: "STRIPE_SECRET_KEY",                  note: "Stripe payments" },
       { name: "STRIPE_WEBHOOK_SECRET",              note: "Stripe webhooks" },
       { name: "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", note: "Stripe frontend" },
-      { name: "EVOLUTION_API_URL",                  note: "WhatsApp Evolution API" },
-      { name: "EVOLUTION_API_KEY",                  note: "Evolution API auth" },
+      { name: "WHATSAPP_APP_SECRET",                note: "Meta App Secret" },
+      { name: "WHATSAPP_VERIFY_TOKEN",              note: "Meta Webhook Verify Token" },
     ];
     const envs = required.map((e) => ({ ...e, set: !!process.env[e.name] }));
     return { success: true, envs };
@@ -718,9 +718,9 @@ export async function checkDependencyHealth(): Promise<{
     }
 
     // ── Gemini ───────────────────────────────────────────────────────────────
-    const geminiKey = process.env.GEMINI_API_KEY;
+    const geminiKey = process.env.GOOGLE_AI_API_KEY;
     if (!geminiKey) {
-      checks.push(Promise.resolve({ name: "Gemini AI", status: "missing_env" as DepStatus, latency_ms: null, detail: "GEMINI_API_KEY not set" }));
+      checks.push(Promise.resolve({ name: "Gemini AI", status: "missing_env" as DepStatus, latency_ms: null, detail: "GOOGLE_AI_API_KEY not set" }));
     } else {
       checks.push(
         ping("Gemini AI", async () => {
@@ -768,19 +768,21 @@ export async function checkDependencyHealth(): Promise<{
       );
     }
 
-    // ── Evolution API ────────────────────────────────────────────────────────
-    const evoUrl = process.env.EVOLUTION_API_URL;
-    const evoKey = process.env.EVOLUTION_API_KEY;
-    if (!evoUrl || !evoKey) {
-      checks.push(Promise.resolve({ name: "Evolution API (WhatsApp)", status: "missing_env" as DepStatus, latency_ms: null, detail: "EVOLUTION_API_URL / KEY not set" }));
+    // ── Meta WhatsApp API ────────────────────────────────────────────────────
+    const metaToken = process.env.WHATSAPP_TOKEN;
+    if (!metaToken) {
+      checks.push(Promise.resolve({ name: "Meta WhatsApp API", status: "missing_env" as DepStatus, latency_ms: null, detail: "WHATSAPP_TOKEN not set" }));
     } else {
       checks.push(
-        ping("Evolution API (WhatsApp)", async () => {
-          const res = await fetch(`${evoUrl}/instance/fetchInstances`, {
-            headers: { apikey: evoKey },
+        ping("Meta WhatsApp API", async () => {
+          const res = await fetch("https://graph.facebook.com/v19.0/me", {
+            headers: { Authorization: `Bearer ${metaToken}` },
             signal: AbortSignal.timeout(8000),
           });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            throw new Error(`HTTP ${res.status}: ${body.slice(0, 120)}`);
+          }
         })
       );
     }
