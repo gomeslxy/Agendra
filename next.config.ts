@@ -22,8 +22,9 @@ const config: NextConfig = {
     optimizePackageImports: [
       "lucide-react",
       "framer-motion",
-      "@supabase/ssr",
-      "@supabase/supabase-js",
+      // @supabase/ssr and @supabase/supabase-js must NOT be here:
+      // Turbopack tries to resolve internal 'proxy.ts' during import optimization
+      // which doesn't exist at the project root → "Could not parse module [project]/proxy.ts"
       "recharts",
       "@next/third-parties",
     ],
