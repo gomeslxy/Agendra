@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { STRIPE_PRICE_IDS, PLANS_META } from "@/lib/billing/plans";
+import { SafeClientOnly } from "@/components/ui/safe-client-only";
 import type { PlanType } from "@/lib/billing/plans";
 
 interface Company {
@@ -140,7 +141,7 @@ export function Billing({ company, usage, isReadOnly = false }: { company: Compa
             <div>
               <p className="text-sm font-semibold text-[#C2410C]">Sua assinatura foi cancelada</p>
               <p className="text-xs text-[#C2410C]/70">
-                Seu acesso ao plano <strong>{currentPlan.toUpperCase()}</strong> continuará ativo até o dia <strong>{new Date(currentPeriodEnd).toLocaleDateString()}</strong>. Após essa data, você voltará ao plano Trial.
+                Seu acesso ao plano <strong>{currentPlan.toUpperCase()}</strong> continuará ativo até o dia <strong><SafeClientOnly fallback="—">{new Date(currentPeriodEnd).toLocaleDateString("pt-BR")}</SafeClientOnly></strong>. Após essa data, você voltará ao plano Trial.
               </p>
             </div>
           </CardContent>

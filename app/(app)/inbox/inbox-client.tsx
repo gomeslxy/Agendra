@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useMemo, useState, useTransition, useEffect, useRef, useCallback } from "react";
+import { SafeClientOnly } from "@/components/ui/safe-client-only";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarCheck, ChevronDown, ChevronLeft, Paperclip, Send, Zap, Sparkles, Check, Trash, X, FileText, Search, MessageCircle, Instagram, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { toast } from "sonner";
 import { DateSeparator } from "@/components/app/date-separator";
 import { createBrowserClient } from "@supabase/ssr";
 import { trackEvent } from "@/lib/analytics";
+
 
 const browserSupabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -269,9 +271,11 @@ const LeadListItem = memo(function LeadListItem({ lead: l, isActive, unreadCount
             {l.channel === "whatsapp" && <MessageCircle size={11} className="text-[#14B8A6] shrink-0" />}
             {l.channel === "instagram" && <Instagram size={11} className="text-pink-400 shrink-0" />}
           </div>
-          <span className="font-mono text-[9px] font-medium text-[#71717A] whitespace-nowrap" suppressHydrationWarning>
-            {last ? relativeTime(last.created_at) : "—"}
-          </span>
+          <SafeClientOnly fallback={<span className="font-mono text-[9px] font-medium text-[#71717A] whitespace-nowrap">—</span>}>
+            <span className="font-mono text-[9px] font-medium text-[#71717A] whitespace-nowrap">
+              {last ? relativeTime(last.created_at) : "—"}
+            </span>
+          </SafeClientOnly>
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
           {last && (last.metadata as any)?.is_draft && (
@@ -1155,15 +1159,22 @@ export function InboxClient({ leads: initialLeads, companyId, fetchError }: { le
                       )}
                     </AnimatePresence>
                   </div>
-                  {(() => {
-                    const act = activityLabel(selected);
-                    return (
-                      <div className="flex items-center gap-1.5 truncate text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">
-                        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", act.dot)} />
-                        {act.text}
-                      </div>
-                    );
-                  })()}
+                  <SafeClientOnly fallback={
+                    <div className="flex items-center gap-1.5 truncate text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-[#D4D4D8]" />
+                      {selected.channel}
+                    </div>
+                  }>
+                    {(() => {
+                      const act = activityLabel(selected);
+                      return (
+                        <div className="flex items-center gap-1.5 truncate text-[10px] font-bold uppercase tracking-wider text-[#A1A1AA]">
+                          <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", act.dot)} />
+                          {act.text}
+                        </div>
+                      );
+                    })()}
+                  </SafeClientOnly>
                 </div>
               </div>
 
@@ -1615,11 +1626,6 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
   const next = lead.next_event;
 
   if (next) {
-    const dt = new Date(next.start_time);
-    const formatted = dt.toLocaleString("pt-BR", {
-      weekday: "short", day: "2-digit", month: "short",
-      hour: "2-digit", minute: "2-digit",
-    });
     return (
       <div className="rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-4">
         <div className="flex flex-col gap-2">
@@ -1629,7 +1635,14 @@ function BookingStatusCard({ lead }: { lead: LeadWithMessages }) {
           <div>
             <div className="text-[11px] font-bold text-[#71717A]">Agendamento Confirmado</div>
             <div className="text-[12px] font-semibold text-[#09090B] mt-0.5">{next.title}</div>
-            <div className="text-[10px] text-[#A1A1AA] mt-0.5 capitalize" suppressHydrationWarning>{formatted}</div>
+            <div className="text-[10px] text-[#A1A1AA] mt-0.5 capitalize">
+              <SafeClientOnly fallback="—">
+                {new Date(next.start_time).toLocaleString("pt-BR", {
+                  weekday: "short", day: "2-digit", month: "short",
+                  hour: "2-digit", minute: "2-digit",
+                })}
+              </SafeClientOnly>
+            </div>
           </div>
         </div>
       </div>

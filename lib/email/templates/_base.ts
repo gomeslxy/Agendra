@@ -266,8 +266,8 @@ export function emailWrapper(content: string): string {
       <!-- Logo -->
       <div class="logo-row" style="text-align: center; margin-bottom: 24px;">
         <a href="https://www.agendra.site" style="text-decoration: none; display: inline-block;">
-          <span style="display: inline-block; width: 24px; height: 24px; background-color: #09090B; border-radius: 6px; vertical-align: middle; margin-right: 8px;"></span>
-          <span style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: -0.02em; color: #09090B; vertical-align: middle; line-height: 24px;">Agendra</span>
+          <img src="https://www.agendra.site/assets/agendra-glyph.svg" alt="Agendra" width="32" height="32" style="display: inline-block; vertical-align: middle; border: 0; margin-right: 8px;" />
+          <span style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: #09090B; vertical-align: middle; line-height: 32px;">Agendra</span>
         </a>
       </div>
 

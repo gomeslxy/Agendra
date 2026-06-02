@@ -54,9 +54,9 @@ export async function POST(req: NextRequest) {
   if (createError) {
     // If user already exists, check if they are unconfirmed and allow OTP recovery
     if (createError.message.includes("already registered") || createError.message.includes("already been registered")) {
-      // Check if user is already confirmed using O(1) getUserByEmail
-      const { data: userData, error: getErr } = await admin.auth.admin.getUserByEmail(email);
-      if (!getErr && userData?.user?.email_confirmed_at) {
+      const { data: listData, error: getErr } = await admin.auth.admin.listUsers();
+      const userData = listData?.users?.find((u) => u.email === email);
+      if (!getErr && userData?.email_confirmed_at) {
         return NextResponse.json({ error: "Este email já está cadastrado." }, { status: 400 });
       }
 

@@ -3,6 +3,7 @@
 
 import { getUser, getCachedUserProfile } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { invalidateUsageCache } from "@/lib/billing/limits";
 import {
   getRequestMeta,
   isAllowedAdminEmail,
@@ -180,6 +181,7 @@ export async function updateTenantPlan(
       })
       .eq("id", companyId);
     if (updateErr) throw new Error(updateErr.message);
+    await invalidateUsageCache(companyId);
 
     await insertAudit(adminClient, companyId, user.id, user.email, ip, ua, "admin_update_plan", {
       company_name: company.name,
@@ -396,6 +398,7 @@ export async function extendTenantMessageLimit(
       .update({ extra_leads: newExtra, updated_at: new Date().toISOString() })
       .eq("id", companyId);
     if (updateErr) throw new Error(updateErr.message);
+    await invalidateUsageCache(companyId);
 
     await insertAudit(adminClient, companyId, user.id, user.email, ip, ua, "admin_extend_limit", {
       company_name: company.name,

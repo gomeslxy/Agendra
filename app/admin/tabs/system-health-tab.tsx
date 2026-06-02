@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { SafeClientOnly } from "@/components/ui/safe-client-only";
 import { ShieldAlert, Lock, Zap, Cpu, Activity, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -154,7 +155,9 @@ export function SystemHealthTab({
                     <div className="w-full bg-[#DC2626]" style={{ height: `${(errH / totalH) * 100}%` }} />
                   </div>
                   <span className="text-[8px] font-mono text-[#A1A1AA]">
-                    {new Date(d.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                    <SafeClientOnly fallback="—">
+                      {new Date(d.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                    </SafeClientOnly>
                   </span>
                 </div>
               );
@@ -201,7 +204,9 @@ export function SystemHealthTab({
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] font-mono text-[#DC2626]">
-                    Travado desde {new Date(lead.locked_since).toLocaleString("pt-BR")}
+                    <SafeClientOnly fallback="Travado desde —">
+                      Travado desde {new Date(lead.locked_since).toLocaleString("pt-BR")}
+                    </SafeClientOnly>
                   </div>
                   <Button
                     size="sm"
@@ -231,7 +236,11 @@ export function SystemHealthTab({
                 <div className="flex-1 min-w-0">
                   <span className="text-[#09090B] font-bold not-italic font-sans">{m.company_name}</span>
                   <span className="text-[#A1A1AA] ml-2">{m.id.substring(0, 24)}…</span>
-                  <span className="ml-2 text-[#D97706]">desde {new Date(m.stuck_since).toLocaleString("pt-BR")}</span>
+                  <span className="ml-2 text-[#D97706]">
+                    <SafeClientOnly fallback="desde —">
+                      desde {new Date(m.stuck_since).toLocaleString("pt-BR")}
+                    </SafeClientOnly>
+                  </span>
                 </div>
                 <Button
                   size="sm"
@@ -296,7 +305,11 @@ export function SystemHealthTab({
               <div key={err.id} className="border border-[#FECACA] bg-[#FFF1F2] rounded-xl p-3.5 text-xs text-[#3F3F46]">
                 <div className="flex justify-between text-[10px] text-[#71717A] mb-1.5">
                   <span>Empresa: <strong className="text-[#09090B]">{err.company_name}</strong></span>
-                  <span className="font-mono">{new Date(err.created_at).toLocaleString("pt-BR")}</span>
+                  <span className="font-mono">
+                    <SafeClientOnly fallback="—">
+                      {new Date(err.created_at).toLocaleString("pt-BR")}
+                    </SafeClientOnly>
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-[9px] bg-[#FECACA] px-1.5 py-0.5 rounded uppercase font-bold text-[#DC2626]">

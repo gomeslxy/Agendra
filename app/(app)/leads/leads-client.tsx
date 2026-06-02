@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { SafeClientOnly } from "@/components/ui/safe-client-only";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, UserPlus, X, Plus, Loader2, Phone, Mail, MapPin, MessageSquare, MessageCircle, Instagram } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -239,7 +240,9 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                     </td>
                     <td className="px-4 py-3.5 text-sm capitalize text-[#3F3F46]">{l.status}</td>
                     <td className="px-4 py-3.5 font-mono text-xs text-[#71717A]">
-                      {l.last_message ? relativeTime(l.last_message.created_at) : relativeTime(l.created_at)}
+                      <SafeClientOnly fallback="—">
+                        {l.last_message ? relativeTime(l.last_message.created_at) : relativeTime(l.created_at)}
+                      </SafeClientOnly>
                     </td>
                   </>
                 );
@@ -442,7 +445,9 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                 <div className="flex-1 min-w-0">
                   <div className="truncate text-[15px] font-semibold text-[#09090B]">{selectedLead.name}</div>
                   <div className="font-mono text-[11px] text-[#71717A]">
-                    criado {formatDate(selectedLead.created_at)}
+                    <SafeClientOnly fallback="criado —">
+                      criado {formatDate(selectedLead.created_at)}
+                    </SafeClientOnly>
                   </div>
                 </div>
                 <button
@@ -510,7 +515,9 @@ export function LeadsClient({ leads }: { leads: LeadWithLastMessage[] }) {
                       "{selectedLead.last_message.content}"
                     </p>
                     <p className="mt-2 font-mono text-[11px] text-[#71717A]">
-                      {formatDate(selectedLead.last_message.created_at)} · {selectedLead.last_message.role}
+                      <SafeClientOnly fallback="—">
+                        {formatDate(selectedLead.last_message.created_at)} · {selectedLead.last_message.role}
+                      </SafeClientOnly>
                     </p>
                   </div>
                 )}

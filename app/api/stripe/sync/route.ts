@@ -17,6 +17,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { cookies } from 'next/headers';
 import { planFromPriceId } from '@/lib/billing/plans';
+import { invalidateUsageCache } from '@/lib/billing/limits';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-04-22.dahlia' as any,
@@ -129,6 +130,7 @@ export async function POST() {
         })
         .eq('id', companyId);
 
+      await invalidateUsageCache(companyId);
       return NextResponse.json({ synced: true, plan: 'trial', status: 'canceled' });
     }
 
@@ -158,6 +160,7 @@ export async function POST() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    await invalidateUsageCache(companyId);
     console.log(`[Stripe Sync] ✅ Sincronizado: plan=${planType} status=${activeSub.status} cancel=${activeSub.cancel_at_period_end}`);
     return NextResponse.json({
       synced: true,

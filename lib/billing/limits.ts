@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { redis } from '@/lib/infra/redis';
 import { getPlanLimits, PLAN_LIMITS, TRIAL_DAYS } from './plans';
 import type { PlanType, PlanLimits } from './plans';
 
@@ -20,7 +21,39 @@ export interface CompanyUsage {
   cancelAtPeriodEnd: boolean;
 }
 
+// Short-lived cache for the usage object. getCompanyUsage runs on the hot path of
+// EVERY inbound message (webhook → before the debounce timer even starts) and does
+// a companies SELECT + a leads COUNT(exact) — the count is an O(n) scan that becomes
+// the dominant DB cost under load (many messages from the same company). A 45s TTL
+// removes both queries from the repeat path while staying fresh enough for billing:
+// the hard cancellation guard in the webhook reads `companies.subscription_status`
+// FRESH and separately, so a canceled tenant is still blocked immediately; the cache
+// only softens lead-count / trial-day limits by ≤45s (soft limits, self-healing).
+const USAGE_CACHE_TTL_SEC = 45;
+const usageCacheKey = (companyId: string) => `cache:usage:${companyId}`;
+
+/** Invalidate the cached usage for a company (call after plan/subscription changes). */
+export async function invalidateUsageCache(companyId: string): Promise<void> {
+  try { await redis.del(usageCacheKey(companyId)); } catch { /* fail-open */ }
+}
+
 export async function getCompanyUsage(companyId: string): Promise<CompanyUsage> {
+  const cacheKey = usageCacheKey(companyId);
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) return JSON.parse(cached) as CompanyUsage;
+  } catch { /* fail-open: fall through to a fresh compute */ }
+
+  const usage = await computeCompanyUsage(companyId);
+
+  try {
+    await redis.set(cacheKey, JSON.stringify(usage), USAGE_CACHE_TTL_SEC);
+  } catch { /* ignore cache write failures */ }
+
+  return usage;
+}
+
+async function computeCompanyUsage(companyId: string): Promise<CompanyUsage> {
   const admin = createAdminClient();
 
   const { data: company, error: companyError } = await admin

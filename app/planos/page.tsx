@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { SafeClientOnly } from "@/components/ui/safe-client-only";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Sparkles, ArrowRight, Clock, Loader2, Zap, X, PartyPopper } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -258,7 +259,7 @@ export default function PlanosPage() {
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-[#C2410C]">Sua assinatura será encerrada em breve</h4>
                   <p className="text-xs text-[#EA580C] mt-0.5">
-                    Seu plano <strong>{currentPlan?.toUpperCase()}</strong> expira em <strong>{new Date(periodEnd).toLocaleDateString()}</strong>. Você voltará ao plano Trial após esta data.
+                    Seu plano <strong>{currentPlan?.toUpperCase()}</strong> expira em <strong><SafeClientOnly fallback="—">{new Date(periodEnd).toLocaleDateString("pt-BR")}</SafeClientOnly></strong>. Você voltará ao plano Trial após esta data.
                   </p>
                 </div>
                 <Button 

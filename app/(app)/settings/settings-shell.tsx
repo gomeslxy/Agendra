@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { SafeClientOnly } from "@/components/ui/safe-client-only";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
@@ -1024,7 +1025,7 @@ function Persona({
                           {doc.source_name}
                         </p>
                         <p className="text-[11px] text-[#71717A] mt-0.5">
-                          {doc.chunks} blocos indexados • {new Date(doc.created_at).toLocaleDateString("pt-BR")}
+                          {doc.chunks} blocos indexados • <SafeClientOnly fallback="—">{new Date(doc.created_at).toLocaleDateString("pt-BR")}</SafeClientOnly>
                         </p>
                       </div>
                     </div>
@@ -2650,7 +2651,7 @@ function Team({
                         <Badge variant={inv.role === "admin" ? "hot" : "cold"}>{inv.role}</Badge>
                         <span className="text-[#D4D4D8]">·</span>
                         <span style={{ color: "var(--color-fg-3)" }}>
-                          Enviado {new Date(inv.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                          Enviado <SafeClientOnly fallback="—">{new Date(inv.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</SafeClientOnly>
                         </span>
                       </div>
                     </div>

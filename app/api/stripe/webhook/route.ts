@@ -18,6 +18,7 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { invalidateUsageCache } from '@/lib/billing/limits';
 import { planFromPriceId } from '@/lib/billing/plans';
 
 export async function POST(req: Request) {
@@ -99,7 +100,10 @@ export async function POST(req: Request) {
       .eq('id', companyId);
 
     if (error) console.error(`[Stripe Webhook] ❌ Error updating company ${companyId}:`, error.message);
-    else console.log(`[Stripe Webhook] ✅ Updated company ${companyId} → status=${status} plan=${plan} cancel_at=${cancelAtPeriodEnd}`);
+    else {
+      await invalidateUsageCache(companyId); // plan/subscription changed → drop stale usage cache
+      console.log(`[Stripe Webhook] ✅ Updated company ${companyId} → status=${status} plan=${plan} cancel_at=${cancelAtPeriodEnd}`);
+    }
   }
 
   // ── Helper: obter companyId a partir de customer_id (fallback) ────────────

@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { SafeClientOnly } from "@/components/ui/safe-client-only";
 
 function formatSeparatorDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -27,10 +28,12 @@ interface DateSeparatorProps {
 
 export function DateSeparator({ date, className }: DateSeparatorProps) {
   return (
-    <div className={cn("flex items-center gap-3 py-2 select-none", className)} suppressHydrationWarning>
+    <div className={cn("flex items-center gap-3 py-2 select-none", className)}>
       <div className="h-px flex-1 bg-[#E4E4E7]" />
       <span className="shrink-0 text-[9px] font-bold uppercase tracking-[0.16em] text-[#A1A1AA]">
-        {formatSeparatorDate(date)}
+        <SafeClientOnly fallback="—">
+          {formatSeparatorDate(date)}
+        </SafeClientOnly>
       </span>
       <div className="h-px flex-1 bg-[#E4E4E7]" />
     </div>

@@ -895,23 +895,26 @@ export async function handleIncomingMessage(
   const isBookingActive = (activeLead.status as string) === 'booking_in_progress';
   const historyLimit = isBookingActive ? 15 : 10;
 
-  const { data: historyRaw } = await admin
-    .from('messages')
-    .select('id, role, content, created_at, metadata')
-    .eq('lead_id', activeLead.id)
-    .eq('company_id', companyId) // ALWAYS filter by company_id!
-    .order('created_at', { ascending: false })
-    .limit(historyLimit);
+  // History window and the first-response count are independent reads on the same
+  // table — run them in parallel to shave a serial round-trip off the hot path.
+  // (Reliable first-response check: query count directly, not from windowed history.)
+  const [{ data: historyRaw }, { count: assistantTotal }] = await Promise.all([
+    admin
+      .from('messages')
+      .select('id, role, content, created_at, metadata')
+      .eq('lead_id', activeLead.id)
+      .eq('company_id', companyId) // ALWAYS filter by company_id!
+      .order('created_at', { ascending: false })
+      .limit(historyLimit),
+    admin
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('lead_id', activeLead.id)
+      .eq('company_id', companyId) // ALWAYS filter by company_id!
+      .eq('role', 'assistant'),
+  ]);
   const history = (historyRaw ?? []).reverse();
   logDebug(`Fetched ${history.length} history messages`);
-
-  // Reliable first-response check: query count directly, not from the windowed history
-  const { count: assistantTotal } = await admin
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('lead_id', activeLead.id)
-    .eq('company_id', companyId) // ALWAYS filter by company_id!
-    .eq('role', 'assistant');
 
   if (activeLead.is_paused && activeLead.control_mode !== 'shadow') {
     if (providerMessageId) {
