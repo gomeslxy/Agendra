@@ -30,10 +30,10 @@ export function emailWrapper(content: string): string {
 
     /* Base */
     body {
-      background-color: #F4F4F5;
-      color: #09090B;
+      background-color: #FAFAFA;
+      color: #3F3F46;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-      font-size: 15px;
+      font-size: 14px;
       line-height: 1.6;
       margin: 0;
       padding: 0;
@@ -43,21 +43,21 @@ export function emailWrapper(content: string): string {
 
     /* Wrapper */
     .email-body {
-      background-color: #F4F4F5;
+      background-color: #FAFAFA;
       padding: 48px 16px;
       width: 100%;
     }
 
     /* Container */
     .container {
-      max-width: 540px;
+      max-width: 520px;
       margin: 0 auto;
     }
 
     /* Logo header */
     .logo-row {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
     }
     .logo-mark {
       display: inline-flex;
@@ -66,150 +66,184 @@ export function emailWrapper(content: string): string {
       text-decoration: none;
     }
     .logo-icon {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, #2563EB 0%, #14B8A6 100%);
-      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      background-color: #09090B;
+      border-radius: 6px;
       display: inline-block;
+      vertical-align: middle;
     }
     .logo-text {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 700;
       letter-spacing: -0.02em;
       color: #09090B;
       vertical-align: middle;
+      font-family: 'Inter', -apple-system, sans-serif;
     }
 
     /* Card */
     .card {
       background: #FFFFFF;
       border: 1px solid #E4E4E7;
-      border-radius: 16px;
-      padding: 40px 36px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
-    }
-
-    /* Top accent line */
-    .accent-bar {
-      height: 3px;
-      background: linear-gradient(90deg, #2563EB 0%, #14B8A6 100%);
-      border-radius: 2px;
-      margin-bottom: 32px;
+      border-radius: 12px;
+      padding: 36px 32px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.01);
     }
 
     /* Typography */
     h1 {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #09090B;
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
       letter-spacing: -0.02em;
       color: #09090B;
-      margin-bottom: 8px;
-      line-height: 1.3;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+    p {
+      color: #3F3F46;
+      margin-bottom: 16px;
     }
     .subtitle {
       font-size: 14px;
-      color: #71717A;
-      margin-bottom: 28px;
+      color: #3F3F46;
+      margin-bottom: 24px;
       line-height: 1.6;
       font-weight: 400;
     }
 
-    /* OTP box */
+    /* OTP box - High contrast raised style */
     .otp-box {
-      background: #F0F6FF;
-      border: 1px solid #BFDBFE;
-      border-radius: 12px;
-      padding: 28px 24px 20px;
+      background: #F4F4F5;
+      border: 1px solid #E4E4E7;
+      border-radius: 8px;
+      padding: 24px 20px;
       text-align: center;
       margin: 24px 0;
     }
     .otp-label-top {
       font-size: 11px;
       font-weight: 600;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
-      color: #2563EB;
-      margin-bottom: 12px;
+      color: #71717A;
+      margin-bottom: 10px;
     }
     .otp-code {
-      font-size: 48px;
+      font-size: 36px;
       font-weight: 700;
-      letter-spacing: 0.22em;
-      color: #1D4ED8;
+      letter-spacing: 0.18em;
+      color: #09090B;
       font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
       line-height: 1;
+      margin-left: 0.18em; /* offset the letter-spacing on the last char */
     }
     .otp-expire {
-      font-size: 12px;
-      color: #6B7280;
+      font-size: 11px;
+      color: #71717A;
       margin-top: 10px;
       font-weight: 400;
     }
 
-    /* CTA Button */
+    /* CTA Button - Precise brand-orange */
     .cta-btn {
       display: block;
       background: #F97316;
       color: #FFFFFF !important;
       text-decoration: none;
-      border-radius: 10px;
-      padding: 14px 24px;
-      font-size: 15px;
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-size: 14px;
       font-weight: 600;
       text-align: center;
-      margin: 28px 0;
+      margin: 24px 0;
       letter-spacing: -0.01em;
-      box-shadow: 0 1px 3px rgba(249,115,22,0.3), 0 4px 12px rgba(249,115,22,0.15);
+      box-shadow: 0 1px 2px rgba(249,115,22,0.1);
+    }
+    .cta-btn:hover {
+      background: #EA580C;
+    }
+
+    /* Secondary button */
+    .sec-btn {
+      display: inline-block;
+      background: #FFFFFF;
+      color: #09090B !important;
+      border: 1px solid #E4E4E7;
+      text-decoration: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: center;
+      margin: 16px 0;
     }
 
     /* Divider */
     .divider {
       height: 1px;
       background-color: #E4E4E7;
-      margin: 28px 0;
+      margin: 24px 0;
     }
 
-    /* Info row */
+    /* Semantic Status Info Box */
     .info-row {
       display: flex;
       align-items: flex-start;
       gap: 10px;
-      background: #FAFAFA;
+      background: #F4F4F5;
       border: 1px solid #E4E4E7;
-      border-radius: 10px;
-      padding: 14px 16px;
+      border-radius: 8px;
+      padding: 12px 14px;
       margin: 20px 0;
     }
     .info-icon {
-      font-size: 16px;
+      font-size: 14px;
       flex-shrink: 0;
-      margin-top: 1px;
+      margin-top: 2px;
     }
     .info-text {
-      font-size: 13px;
-      color: #3F3F46;
+      font-size: 12px;
+      color: #71717A;
       line-height: 1.5;
     }
 
-    /* Teal highlight */
-    .teal {
+    /* Color highlights matching Design System */
+    .text-teal {
       color: #0D9488;
       font-weight: 600;
     }
-    .blue {
+    .text-blue {
       color: #2563EB;
+      font-weight: 600;
+    }
+    .text-orange {
+      color: #EA580C;
+      font-weight: 600;
+    }
+    .text-red {
+      color: #DC2626;
       font-weight: 600;
     }
 
     /* Footer */
     .footer {
       text-align: center;
-      margin-top: 28px;
+      margin-top: 24px;
     }
     .footer p {
-      font-size: 12px;
+      font-size: 11px;
       color: #A1A1AA;
       line-height: 1.6;
+      margin-bottom: 4px;
     }
     .footer a {
       color: #71717A;
@@ -220,8 +254,8 @@ export function emailWrapper(content: string): string {
     /* Mobile */
     @media only screen and (max-width: 600px) {
       .card { padding: 28px 20px; }
-      .otp-code { font-size: 38px; letter-spacing: 0.16em; }
-      h1 { font-size: 20px; }
+      .otp-code { font-size: 32px; letter-spacing: 0.12em; }
+      h1 { font-size: 18px; }
     }
   </style>
 </head>
@@ -231,15 +265,14 @@ export function emailWrapper(content: string): string {
 
       <!-- Logo -->
       <div class="logo-row">
-        <a href="https://www.agendra.site" class="logo-mark" style="text-decoration:none;">
-          <span class="logo-icon" style="display:inline-block; width:32px; height:32px; background:linear-gradient(135deg,#2563EB,#14B8A6); border-radius:8px; vertical-align:middle; margin-right:8px;"></span>
-          <span class="logo-text" style="font-family:'Inter',-apple-system,sans-serif; font-size:18px; font-weight:700; letter-spacing:-0.02em; color:#09090B; vertical-align:middle;">Agendra</span>
+        <a href="https://www.agendra.site" class="logo-mark">
+          <span class="logo-icon"></span>
+          <span class="logo-text">Agendra</span>
         </a>
       </div>
 
       <!-- Card -->
       <div class="card">
-        <div class="accent-bar"></div>
         ${content}
       </div>
 
@@ -249,7 +282,7 @@ export function emailWrapper(content: string): string {
           &copy; 2026 Agendra &nbsp;&middot;&nbsp;
           <a href="https://www.agendra.site">www.agendra.site</a>
         </p>
-        <p style="margin-top:4px;">Voc&ecirc; recebeu este email porque tem uma conta Agendra.</p>
+        <p>Você recebeu este e-mail porque possui uma conta ativa no Agendra.</p>
       </div>
 
     </div>

@@ -32,6 +32,7 @@ describe("Signup API Route — Recovery of Unconfirmed Users", () => {
   const mockFrom = vi.fn();
   const mockCreateUser = vi.fn();
   const mockListUsers = vi.fn();
+  const mockGetUserByEmail = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,6 +53,7 @@ describe("Signup API Route — Recovery of Unconfirmed Users", () => {
         admin: {
           createUser: mockCreateUser,
           listUsers: mockListUsers,
+          getUserByEmail: mockGetUserByEmail,
         },
       },
     });
@@ -100,15 +102,13 @@ describe("Signup API Route — Recovery of Unconfirmed Users", () => {
       error: { message: "already registered" },
     });
 
-    mockListUsers.mockResolvedValue({
+    mockGetUserByEmail.mockResolvedValue({
       data: {
-        users: [
-          {
-            id: "existing-user-id",
-            email: "confirmed@example.com",
-            email_confirmed_at: "2026-05-30T00:00:00Z",
-          },
-        ],
+        user: {
+          id: "existing-user-id",
+          email: "confirmed@example.com",
+          email_confirmed_at: "2026-05-30T00:00:00Z",
+        },
       },
       error: null,
     });
@@ -134,15 +134,13 @@ describe("Signup API Route — Recovery of Unconfirmed Users", () => {
       error: { message: "already registered" },
     });
 
-    mockListUsers.mockResolvedValue({
+    mockGetUserByEmail.mockResolvedValue({
       data: {
-        users: [
-          {
-            id: "existing-unconfirmed-id",
-            email: "unconfirmed@example.com",
-            email_confirmed_at: null, // Unconfirmed!
-          },
-        ],
+        user: {
+          id: "existing-unconfirmed-id",
+          email: "unconfirmed@example.com",
+          email_confirmed_at: null, // Unconfirmed!
+        },
       },
       error: null,
     });

@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/send";
 import { checkRateLimitAsync } from "@/lib/rate-limit";
-
-/** Escapes HTML special chars to prevent injected markup from being rendered in email clients */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-}
+import { contactEmail } from "@/lib/email/templates/contact";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,30 +30,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email inválido." }, { status: 400 });
     }
 
-    // Escape all user-supplied values before interpolating into HTML
-    const safeName    = escapeHtml(name);
-    const safeEmail   = escapeHtml(email);
-    const safeSubject = escapeHtml(subject);
-    const safeMessage = escapeHtml(message);
-
-    const adminEmailHtml = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">
-        <h2 style="color: #0f172a; margin-top: 0;">Novo Contato - Agendra</h2>
-        <p style="color: #475569; font-size: 16px;">Você recebeu uma nova mensagem através do formulário de contato.</p>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-        <p><strong>Nome:</strong> ${safeName}</p>
-        <p><strong>E-mail:</strong> ${safeEmail}</p>
-        <p><strong>Assunto:</strong> ${safeSubject}</p>
-        <div style="background-color: #f8fafc; padding: 16px; border-radius: 4px; margin-top: 16px;">
-          <p style="margin: 0; white-space: pre-wrap;">${safeMessage}</p>
-        </div>
-      </div>
-    `;
-
     await sendEmail({
       to: "la181009@gmail.com",
-      subject: `[Contato Agendra] ${safeSubject}`,
-      html: adminEmailHtml,
+      subject: `[Contato Agendra] ${subject}`,
+      html: contactEmail({ name, email, subject, message }),
     });
 
     return NextResponse.json({ success: true });

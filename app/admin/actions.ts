@@ -1246,11 +1246,6 @@ export async function getTenantDailyUsage(
   }
 }
 
-/** Escape HTML special chars so admin-supplied strings are never executed. */
-function escHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
 export async function triggerTenantAnomalyAlert(
   companyId: string,
   type: string,
@@ -1282,23 +1277,14 @@ export async function triggerTenantAnomalyAlert(
 
     if (emails.length > 0) {
       const { sendEmail } = await import("@/lib/email/send");
+      const { anomalyAlertEmail } = await import("@/lib/email/templates/anomaly");
+      const companyName = company?.name || "sua conta";
       for (const email of emails) {
         try {
           await sendEmail({
             to: email,
-            subject: `[Agendra Alerta] Anomalia detectada em ${company?.name || "sua conta"}`,
-            html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #E4E4E7; border-radius: 8px;">
-              <h2 style="color: #DC2626; margin-top: 0;">&#9888;&#65039; Alerta de Anomalia</h2>
-              <p>Ol&aacute;,</p>
-              <p>Nossa monitoração automática detectou a seguinte anomalia na sua conta <strong>${escHtml(company?.name || "")}</strong>:</p>
-              <div style="background-color: #FFF1F2; border: 1px solid #FECACA; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 13px; color: #DC2626; margin: 16px 0;">
-                <strong>Tipo:</strong> ${escHtml(type)}<br/>
-                <strong>Detalhe:</strong> ${escHtml(message)}
-              </div>
-              <p>Acesse o painel para verificar ou reconfigurar seus canais de atendimento.</p>
-              <hr style="border: 0; border-top: 1px solid #E4E4E7; margin: 20px 0;"/>
-              <p style="font-size: 11px; color: #71717A; margin-bottom: 0;">Equipe Agendra Security Monitor</p>
-            </div>`,
+            subject: `[Agendra Alerta] Anomalia detectada em ${companyName}`,
+            html: anomalyAlertEmail({ companyName, type, message }),
           });
         } catch (mailErr) {
           console.error(`[triggerTenantAnomalyAlert] Failed to send to ${email}:`, mailErr);

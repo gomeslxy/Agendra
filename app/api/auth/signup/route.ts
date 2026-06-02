@@ -54,9 +54,12 @@ export async function POST(req: NextRequest) {
   if (createError) {
     // If user already exists, check if they are unconfirmed and allow OTP recovery
     if (createError.message.includes("already registered") || createError.message.includes("already been registered")) {
-      // In Supabase, if the user is already registered but unconfirmed, we can still generate an OTP for them.
-      // We don't have getUserByEmail in the standard JS client, so we proceed to send OTP blindly.
-      // If they are already confirmed, the OTP will be sent, but signup is technically already done.
+      // Check if user is already confirmed using O(1) getUserByEmail
+      const { data: userData, error: getErr } = await admin.auth.admin.getUserByEmail(email);
+      if (!getErr && userData?.user?.email_confirmed_at) {
+        return NextResponse.json({ error: "Este email já está cadastrado." }, { status: 400 });
+      }
+
       const code = generateOtp();
           await admin
             .from("otp_codes")
