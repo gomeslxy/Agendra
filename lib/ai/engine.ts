@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { after } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logDebug, logInfo, logError, isDebug } from '@/lib/logging';
 import { sendChannelMessage } from '@/lib/channels/send';
@@ -551,18 +552,21 @@ async function getSemanticKnowledge(
     if (!process.env.GOOGLE_AI_API_KEY) return { text: '', status: 'empty' };
     const embedModel = getEmbeddingClient().getGenerativeModel({ model: 'text-embedding-005' });
 
-    // 4s budget with real cancellation: abort the embedding request on timeout and
+    // 2.5s budget with real cancellation: abort the embedding request on timeout and
     // always clear the timer (no dangling timer keeping the event loop warm, no
     // leaked in-flight request when we give up). Replaces the old Promise.race that
-    // left both the timer and the socket pending.
+    // left both the timer and the socket pending. Budget trimmed from 4s → 2.5s:
+    // text-embedding-005 normally returns <500ms, so 4s only ever served to make a
+    // slow Google call block the reply for up to 4s. Past 2.5s we skip RAG and answer
+    // without FAQ context — better than stalling the whole turn on the hot path.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
+    const timer = setTimeout(() => controller.abort(), 2500);
     let result: Awaited<ReturnType<typeof embedModel.embedContent>>;
     try {
       result = await embedModel.embedContent(query, { signal: controller.signal } as any);
     } catch (err: any) {
       if (controller.signal.aborted) {
-        console.error('[RAG] Semantic search timed out after 4000ms');
+        console.error('[RAG] Semantic search timed out after 2500ms');
         return { text: '', status: 'timeout' };
       }
       throw err;
@@ -594,7 +598,7 @@ async function getSemanticKnowledge(
     return { text: '', status: 'empty' };
   } catch (err: any) {
     if (err.message === 'Timeout') {
-      console.error('[RAG] Semantic search timed out after 4000ms');
+      console.error('[RAG] Semantic search timed out after 2500ms');
       return { text: '', status: 'timeout' };
     }
     console.error('[RAG] Semantic search failed, fallback to none:', err);
@@ -1315,9 +1319,16 @@ export async function handleIncomingMessage(
           ? (isFirstAssistantMsg ? 'first_msg' : statusChanged ? `status:${activeLead.status}->${leadPatch.status}` : calledMeaningfulTool ? 'tool_call' : 'cognitive_trigger')
           : `cadence_${cadenceN}`;
 
-        // Await the background analytics promise to prevent premature serverless platform suspension.
-        // Latency is not affected since sendChannelMessage has already completed and returned!
-        await (async () => {
+        // Background analytics: deferred via Vercel `after()` so it runs AFTER the
+        // function sends its HTTP response instead of blocking it. The reply was
+        // already sent to the lead above, so latency was never affected — but
+        // awaiting inline kept the function (and its Active CPU) alive up to 20s per
+        // turn, throttling Fluid concurrency under load and risking QStash retry if
+        // the ACK was delayed. `after()` runs it post-response on the same instance.
+        // Defensive fallback to inline await if no request context exists (all real
+        // callers — flush route, crons — run inside a route handler, so this is a
+        // belt-and-suspenders guard, never expected to trigger in production).
+        const runAnalytics = async () => {
           try {
             const recentHistory = historyList.slice(-5);
             const analyticsTimeout = new Promise<never>((_, reject) =>
@@ -1415,7 +1426,12 @@ export async function handleIncomingMessage(
           } catch (e) {
             console.error('[AI Engine] Background analytics failed:', e);
           }
-        })();
+        };
+        try {
+          after(runAnalytics);
+        } catch {
+          await runAnalytics();
+        }
       }
     } // if (planHasAnalytics)
   } // if (aiResult && finalReply)

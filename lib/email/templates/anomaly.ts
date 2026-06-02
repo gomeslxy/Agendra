@@ -42,8 +42,8 @@ export function anomalyAlertEmail(opts: {
       Recomendamos que você acesse o Painel Administrativo imediatamente para inspecionar os logs detalhados, verificar a integridade das conexões e garantir que a operação do tenant não esteja comprometida.
     </p>
 
-    <a href="https://www.agendra.site/admin" class="cta-btn" style="background-color: #09090B; border: 1px solid #09090B;">
-      Acessar Painel de Controle &rarr;
+    <a href="https://www.agendra.site/settings" class="cta-btn" style="background-color: #09090B; border: 1px solid #09090B;">
+      Acessar Configurações &rarr;
     </a>
 
     <div class="divider"></div>

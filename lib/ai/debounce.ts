@@ -11,8 +11,15 @@ import { runWithDeadline } from './deadline';
 // fragmentos de um burst (lead digitando em várias bolhas) → espera mais longa
 // para consolidar. Frases completas respondem quase imediatamente. Reduz a
 // latência percebida no caso comum sem perder o merge de mensagens picotadas.
-const DEBOUNCE_FAST_MS = 1_200;
-const DEBOUNCE_BURST_MS = 4_000;
+//
+// NOTA DE LATÊNCIA: o agendamento de prod usa QStash, cujo `delay` é em SEGUNDOS
+// inteiros (Math.ceil em scheduleDelayed). Por isso os valores são escolhidos no
+// limite do segundo: FAST=1000 → ceil=1s (era 1200 → ceil=2s, +1s desperdiçado);
+// BURST=2500 → ceil=3s (era 4000 → ceil=4s). O período de silêncio é medido APÓS
+// a última bolha (gen-token reagenda a cada mensagem), então 2.5s ainda captura
+// com folga o intervalo humano entre bolhas (~0.5-2s) sem perder o merge.
+const DEBOUNCE_FAST_MS = 1_000;
+const DEBOUNCE_BURST_MS = 2_500;
 const BUF_TTL_SEC = 60;
 export const FLUSH_PATH = '/api/internal/flush';
 
