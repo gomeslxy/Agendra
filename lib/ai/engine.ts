@@ -794,7 +794,7 @@ export async function handleIncomingMessage(
       console.warn(`[Engine][${tag}] 🩹 reclaimed STALE lock (held >${STALE_LOCK_MS}ms, phone=${phone.slice(0, 6)}***)`);
     }
   } else {
-    const { data: created } = await admin
+    const { data: created, error: createErr } = await admin
       .from('leads')
       .insert({
         company_id: companyId,
@@ -809,7 +809,34 @@ export async function handleIncomingMessage(
       })
       .select()
       .single();
-    activeLead = created as Lead;
+
+    if (created) {
+      activeLead = created as Lead;
+    } else {
+      // Race: a concurrent flush (Redis path + SQL-fallback drain, or two crons)
+      // created this lead between our SELECT and INSERT. Re-select instead of
+      // proceeding with a null lead (which crashed the turn with a TypeError) —
+      // and instead of creating a duplicate lead that splits the conversation.
+      console.warn(`[Engine][${tag}] lead insert failed (${createErr?.code ?? 'unknown'}) — re-selecting (likely concurrent creation)`);
+      const { data: existing } = await admin
+        .from('leads')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('phone', phone)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!existing) {
+        if (providerMessageId) {
+          await admin.from('processed_messages').update({
+            status: 'error',
+            error_message: `lead insert failed: ${createErr?.message ?? 'unknown'}`,
+          }).eq('provider_message_id', providerMessageId);
+        }
+        throw new Error(`Falha ao criar lead: ${createErr?.message ?? 'unknown'}`);
+      }
+      activeLead = existing as Lead;
+    }
   }
 
   // Compute early plan limits using preloaded usage (fast path) or derive from company record.
@@ -1076,6 +1103,7 @@ export async function handleIncomingMessage(
         }
       }
 
+      let sendError1: string | null = null;
       if (!sentAudio1) {
         try {
           const sendRes1 = await sendChannelMessage(phone, sanitizedParts[0], companyId);
@@ -1087,10 +1115,33 @@ export async function handleIncomingMessage(
               }).eq('id', sentMessage1.id);
             }
             console.log(`[Engine][${tag}] 📤 reply part 1 sent to ${phone.substring(0, 6)}***`);
+          } else {
+            sendError1 = sendRes1.error ?? 'unknown send failure';
           }
         } catch (sendErr: any) {
-          console.error(`[Engine][${tag}] 💥 sendChannelMessage 1 failed:`, sendErr?.message ?? sendErr);
+          sendError1 = String(sendErr?.message ?? sendErr);
+          console.error(`[Engine][${tag}] 💥 sendChannelMessage 1 failed:`, sendError1);
         }
+      }
+
+      // Delivery failure must be visible: without this the reply is persisted as
+      // if sent (inbox shows a normal assistant message), the turn completes and
+      // the lead silently never receives anything (e.g. 24h window closed,
+      // expired token). Flag the message + emit an automation event so the
+      // dashboard/operator can act.
+      if (!message1Success && !sentAudio1 && sentMessage1) {
+        console.error(`[Engine][${tag}] 🚨 reply NOT delivered to lead (${sendError1 ?? 'no detail'})`);
+        await admin.from('messages').update({
+          metadata: { send_failed: true, send_error: (sendError1 ?? '').slice(0, 300) }
+        }).eq('id', sentMessage1.id);
+        await admin.from('automation_events').insert({
+          company_id: companyId,
+          lead_id: activeLead.id,
+          type: 'reply_delivery_failed',
+          detail: (sendError1 ?? 'unknown send failure').slice(0, 200),
+          trace_id: traceId,
+          payload: { message_id: sentMessage1.id },
+        }).then(() => {}, () => {});
       }
 
       // Se houver parte 2 e parte 1 foi enviada com sucesso, envia a parte 2

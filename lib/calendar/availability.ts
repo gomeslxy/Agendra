@@ -20,6 +20,12 @@ export interface AvailabilityOptions {
   daysAhead: number;
   bufferMinutes?: number;
   now?: Date; // Optional for testing
+  /**
+   * Hard cap on generated slots. Must be large enough to cover the whole
+   * daysAhead window — if the cap is hit mid-window, later days produce zero
+   * slots and get incorrectly reported as "lotado" by checkAvailability.
+   */
+  maxSlots?: number;
 }
 
 export interface AvailableSlot {
@@ -36,7 +42,9 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
     busyIntervals,
     daysAhead,
     bufferMinutes = 0,
-    now: providedNow
+    now: providedNow,
+    // 30-min steps × ~20h of working hours = 40 slots/day worst case.
+    maxSlots = Math.max(daysAhead, 1) * 40,
   } = options;
 
   const now = providedNow || new Date();
@@ -82,7 +90,7 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
     }
   }
 
-  while (cursor < rangeEnd && availableSlots.length < 30) {
+  while (cursor < rangeEnd && availableSlots.length < maxSlots) {
     const offsetMin = getOffsetMinutes(cursor, timezone);
     const offsetMs = offsetMin * 60000;
     const localCursor = new Date(cursor.getTime() + offsetMs);
@@ -113,10 +121,16 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
 
       if (localMinutes >= workStart && slotEndLocalMinutes <= workEnd) {
         const slotEnd = new Date(cursor.getTime() + durationMinutes * 60000);
-        
-        // Check if overlaps with any busy interval
+
+        // Check if overlaps with any busy interval, expanded by the buffer.
+        // book_appointment_atomic rejects bookings within bufferMinutes of an
+        // existing event, so slots offered here must respect the same margin —
+        // otherwise the AI offers a slot that booking then refuses.
+        const bufferMs = bufferMinutes * 60000;
         const isBusy = busyIntervals.some(
-          (busy) => busy.start < slotEnd && busy.end > cursor
+          (busy) =>
+            busy.start.getTime() < slotEnd.getTime() + bufferMs &&
+            busy.end.getTime() > cursor.getTime() - bufferMs
         );
 
         if (!isBusy) {
@@ -141,15 +155,56 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
       if (localMinutes >= workEnd) {
         const nextLocalMidnight = new Date(localCursor.getTime() + 24 * 60 * 60 * 1000);
         nextLocalMidnight.setUTCHours(0, 0, 0, 0);
-        cursor = new Date(nextLocalMidnight.getTime() - offsetMs);
+        // Recompute the offset at the target instant: reusing the current day's
+        // offset lands the cursor 1h off when a DST transition happens overnight.
+        const nextOffsetMs = getOffsetMinutes(new Date(nextLocalMidnight.getTime() - offsetMs), timezone) * 60000;
+        cursor = new Date(nextLocalMidnight.getTime() - nextOffsetMs);
       }
     } else {
       // Not a working day, skip to next day
       const nextLocalMidnight = new Date(localCursor.getTime() + 24 * 60 * 60 * 1000);
       nextLocalMidnight.setUTCHours(0, 0, 0, 0);
-      cursor = new Date(nextLocalMidnight.getTime() - offsetMs);
+      const nextOffsetMs = getOffsetMinutes(new Date(nextLocalMidnight.getTime() - offsetMs), timezone) * 60000;
+      cursor = new Date(nextLocalMidnight.getTime() - nextOffsetMs);
     }
   }
 
   return availableSlots;
+}
+
+/**
+ * Validates that an appointment [start, start+duration] falls entirely inside
+ * the company's configured working hours for that weekday, in the company
+ * timezone. Used as a server-side guard so the AI can never book outside the
+ * configured schedule, even if the model fabricates a start_time instead of
+ * using a slot returned by checkAvailability.
+ */
+export function isWithinWorkingHours(
+  start: Date,
+  durationMinutes: number,
+  workingHours: Record<string, [string, string]>,
+  timezone: string,
+): boolean {
+  const dayNames: Record<string, string> = {
+    Mon: 'mon', Tue: 'tue', Wed: 'wed', Thu: 'thu', Fri: 'fri', Sat: 'sat', Sun: 'sun',
+  };
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(start);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+
+  const dayKey = dayNames[get('weekday')];
+  if (!dayKey) return false;
+  const hours = workingHours[dayKey];
+  if (!hours) return false; // closed that day
+
+  const [startHH, startMM] = hours[0].split(':').map(Number);
+  const [endHH, endMM] = hours[1].split(':').map(Number);
+  // Intl with hour12:false can render midnight as "24"
+  const localHour = Number(get('hour')) % 24;
+  const localMinutes = localHour * 60 + Number(get('minute'));
+  const workStart = startHH * 60 + startMM;
+  const workEnd = endHH * 60 + endMM;
+
+  return localMinutes >= workStart && localMinutes + durationMinutes <= workEnd;
 }
