@@ -18,7 +18,7 @@ import {
   deleteGCalEvent,
   updateGCalEvent
 } from '@/lib/calendar/google';
-import { calculateAvailableSlots } from '@/lib/calendar/availability';
+import { calculateAvailableSlots, isWithinWorkingHours } from '@/lib/calendar/availability';
 import { type Tool, type FunctionDeclaration, SchemaType } from '@google/generative-ai';
 import { handleUpdateLeadMemory } from './memory';
 import { buildBookingConfirmation, formatDateTime } from '@/lib/whatsapp/messages';
@@ -380,13 +380,42 @@ export async function handleCheckAvailability(
 
   const availabilitySummary = buildAvailabilitySummary(slots, tz);
 
+  // Cap the raw slot list sent to the model (token budget) WITHOUT capping the
+  // slots used for day_breakdown/summary above — capping the calculation itself
+  // made later days falsely appear "lotado". Keep an even spread per day so the
+  // model still has bookable ISO starts across the whole window.
+  const slotsForModel = capSlotsPerDay(slots, tz, 8);
+
   console.log(`[Tools] checkAvailability summary: ${availabilitySummary}`);
   return {
     day_breakdown: dayBreakdown,
     availability_summary: availabilitySummary,
-    slots,
+    slots: slotsForModel,
     message: `Disponibilidade agrupada por período (apresente ao lead em faixas, NUNCA liste slot a slot): ${availabilitySummary}\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}`,
   };
+}
+
+/** Evenly samples at most `perDay` slots for each local day (keeps first/last of the day). */
+function capSlotsPerDay<T extends { start: string }>(slots: T[], tz: string, perDay: number): T[] {
+  const dayKeyFmt = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit' });
+  const byDay = new Map<string, T[]>();
+  for (const s of slots) {
+    const key = dayKeyFmt.format(new Date(s.start));
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key)!.push(s);
+  }
+  const out: T[] = [];
+  for (const daySlots of byDay.values()) {
+    if (daySlots.length <= perDay) {
+      out.push(...daySlots);
+      continue;
+    }
+    for (let i = 0; i < perDay; i++) {
+      const idx = Math.round((i * (daySlots.length - 1)) / (perDay - 1));
+      out.push(daySlots[idx]);
+    }
+  }
+  return out;
 }
 
 type DayPeriod = 'manhã' | 'tarde' | 'noite';
@@ -445,10 +474,26 @@ export async function handleBookAppointment(
   if (!svcRes.data) throw new Error('Serviço não encontrado.');
   const service = svcRes.data;
   const lead = leadRes.data;
-  const bufferMinutes = (coRes.data?.persona_config as any)?.buffer_minutes ?? 0;
+  const bookPersona = (coRes.data?.persona_config ?? {}) as any;
+  const bufferMinutes = bookPersona.buffer_minutes ?? 0;
   const startTime = new Date(args.start_time);
   if (isNaN(startTime.getTime())) throw new Error('Horário inválido. Informe um ISO 8601 válido.');
   if (startTime.getTime() < Date.now()) throw new Error('Não é possível agendar no passado.');
+
+  // Server-side working-hours guard: the model is instructed to only use slots
+  // returned by checkAvailability, but if it fabricates a start_time this is the
+  // last line of defense against bookings outside the configured schedule.
+  const bookTz = bookPersona.timezone ?? 'America/Sao_Paulo';
+  const bookWorkingHours = bookPersona.working_hours ?? {
+    mon: ['09:00', '18:00'], tue: ['09:00', '18:00'], wed: ['09:00', '18:00'],
+    thu: ['09:00', '18:00'], fri: ['09:00', '18:00']
+  };
+  if (!isWithinWorkingHours(startTime, service.duration, bookWorkingHours, bookTz)) {
+    throw new Error(
+      'Este horário está fora do expediente da empresa. Use checkAvailability e ofereça apenas os horários retornados.'
+    );
+  }
+
   const endTime = new Date(startTime.getTime() + service.duration * 60000);
 
   // 3. Sync GCal & Double-Check External
@@ -636,27 +681,62 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
       (event.services as any)?.duration ??
       Math.round((new Date(event.end_time).getTime() - new Date(event.start_time).getTime()) / 60000);
   const newStart = new Date(args.new_start_time);
+  if (isNaN(newStart.getTime())) throw new Error('Horário inválido. Informe um ISO 8601 válido.');
+  if (newStart.getTime() < Date.now()) throw new Error('Não é possível reagendar para o passado.');
   const newEnd = new Date(newStart.getTime() + duration * 60000);
 
-  // Check collision
-  const { data: collision } = await admin
-    .from('events')
-    .select('id')
-    .eq('company_id', ctx.companyId)
-    .neq('id', args.event_id)
-    .neq('status', 'cancelled')
-    .lt('start_time', newEnd.toISOString())
-    .gt('end_time', newStart.toISOString())
-    .maybeSingle();
+  // Same server-side guards as bookAppointment: working hours + buffer-aware,
+  // atomic collision check (the old SELECT-then-UPDATE allowed double-booking
+  // when a concurrent booking landed between the two statements).
+  const reschedPersona = ((event.companies as any)?.persona_config ?? {}) as any;
+  const reschedTz = reschedPersona.timezone ?? 'America/Sao_Paulo';
+  const reschedWorkingHours = reschedPersona.working_hours ?? {
+    mon: ['09:00', '18:00'], tue: ['09:00', '18:00'], wed: ['09:00', '18:00'],
+    thu: ['09:00', '18:00'], fri: ['09:00', '18:00']
+  };
+  if (!isWithinWorkingHours(newStart, duration, reschedWorkingHours, reschedTz)) {
+    throw new Error(
+      'Este novo horário está fora do expediente da empresa. Use checkAvailability e ofereça apenas os horários retornados.'
+    );
+  }
 
-  if (collision) throw new Error('Infelizmente este novo horário já está ocupado.');
+  const reschedBuffer = reschedPersona.buffer_minutes ?? 0;
+  const { data: reschedRes, error: reschedErr } = await admin.rpc('reschedule_appointment_atomic', {
+    p_event_id: args.event_id,
+    p_company_id: ctx.companyId,
+    p_lead_id: ctx.leadId,
+    p_new_start_time: newStart.toISOString(),
+    p_new_end_time: newEnd.toISOString(),
+    p_buffer_minutes: reschedBuffer,
+  });
 
-  // Update local
-  await admin.from('events').update({
-    start_time: newStart.toISOString(),
-    end_time: newEnd.toISOString(),
-    status: 'rescheduled'
-  }).eq('id', args.event_id).eq('company_id', ctx.companyId);
+  if (reschedErr) {
+    // Function not deployed yet (migration 077 pending) → legacy non-atomic path
+    if ((reschedErr as any).code === 'PGRST202' || /reschedule_appointment_atomic/.test(reschedErr.message ?? '')) {
+      console.warn('[Tools] reschedule_appointment_atomic missing — falling back to legacy path. Apply migration 077.');
+      const { data: collision } = await admin
+        .from('events')
+        .select('id')
+        .eq('company_id', ctx.companyId)
+        .neq('id', args.event_id)
+        .neq('status', 'cancelled')
+        .lt('start_time', newEnd.toISOString())
+        .gt('end_time', newStart.toISOString())
+        .maybeSingle();
+
+      if (collision) throw new Error('Infelizmente este novo horário já está ocupado.');
+
+      await admin.from('events').update({
+        start_time: newStart.toISOString(),
+        end_time: newEnd.toISOString(),
+        status: 'rescheduled'
+      }).eq('id', args.event_id).eq('company_id', ctx.companyId);
+    } else {
+      throw reschedErr;
+    }
+  } else if (!reschedRes?.success) {
+    throw new Error(reschedRes?.error ?? 'Não foi possível reagendar.');
+  }
   
   // Atualizar lembrete usando reminder_advance_hours da config (fallback 2h)
   const reminderAdvanceHours = (event.companies as any)?.persona_config?.reminder_advance_hours ?? 2;

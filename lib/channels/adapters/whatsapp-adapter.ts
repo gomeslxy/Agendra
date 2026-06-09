@@ -295,7 +295,16 @@ export class WhatsAppAdapter implements ChannelAdapter {
         // Process incoming messages
         if (value.messages) {
           const contacts = value.contacts ?? [];
+          const businessPhone = String(value.metadata?.display_phone_number ?? '').replace(/\D/g, '');
           for (const msg of value.messages) {
+            // Echo guard: never process a message sent by the business number
+            // itself (smb_message_echoes / coexistence setups). Without this the
+            // AI replies to its own reply → infinite loop until rate-limit.
+            const fromDigits = String(msg.from ?? '').replace(/\D/g, '');
+            if ((msg as any).is_echo === true || (businessPhone && fromDigits === businessPhone)) {
+              console.log(`[WhatsApp Adapter] ↩️ Ignoring echo message ${msg.id}`);
+              continue;
+            }
             const contact = contacts.find((c: any) => c.wa_id === msg.from);
             const senderName = contact?.profile?.name || msg.from;
 
