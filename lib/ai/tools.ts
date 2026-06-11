@@ -64,6 +64,7 @@ const baseFunctionDeclarations: FunctionDeclaration[] = [
         properties: {
           service_id: { type: SchemaType.STRING, description: 'ID do serviço desejado' },
           days_ahead: { type: SchemaType.NUMBER, description: 'Dias à frente (padrão 7)' },
+          date_hint: { type: SchemaType.STRING, description: 'Dica de data mencionada pelo lead (ex: "hoje", "amanhã", "terça") para otimizar a busca' },
         },
         required: ['service_id'],
       },
@@ -248,11 +249,29 @@ export async function handleListServices(_args: any, ctx: ToolContext) {
 }
 
 export async function handleCheckAvailability(
-  args: { service_id: string; days_ahead?: number },
+  args: { service_id: string; days_ahead?: number; date_hint?: string },
   ctx: ToolContext,
 ) {
   const admin = createAdminClient();
-  const daysAhead = Math.min(args.days_ahead ?? 7, 14);
+
+  let daysAhead = args.days_ahead;
+  if (daysAhead === undefined) {
+    if (args.date_hint) {
+      const hint = args.date_hint.toLowerCase();
+      if (hint.includes('hoje')) {
+        daysAhead = 1;
+      } else if (hint.includes('amanhã') || hint.includes('amanha')) {
+        daysAhead = 2;
+      } else if (hint.includes('fim de semana') || hint.includes('fds')) {
+        daysAhead = 3;
+      } else {
+        daysAhead = 7;
+      }
+    } else {
+      daysAhead = 7;
+    }
+  }
+  daysAhead = Math.min(daysAhead, 14);
 
   // 1. Buscar serviço e config da empresa
   const [svcRes, coRes] = await Promise.all([
@@ -329,6 +348,17 @@ export async function handleCheckAvailability(
     thu: ['09:00', '18:00'], fri: ['09:00', '18:00']
   };
 
+  const consulted_at = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    timeZoneName: 'short'
+  }).format(now);
+  const today_date = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(now);
+
   // Diagnóstico diário para diferenciar dias fechados vs lotados
   const dayBreakdown: { date: string; weekday: string; status: 'disponivel' | 'fechado' | 'lotado'; working_hours?: string[] }[] = [];
   const ptDaysLong: Record<string, string> = {
@@ -365,21 +395,23 @@ export async function handleCheckAvailability(
     }
   }
 
-  const breakdownSummary = dayBreakdown.map(d => {
+  const dayBreakdownFiltered = dayBreakdown.filter(d => d.status !== 'disponivel');
+
+  const breakdownSummary = dayBreakdownFiltered.map(d => {
     if (d.status === 'fechado') {
       return `- ${d.weekday} (${d.date}): FECHADO (Sem expediente comercial).`;
-    } else if (d.status === 'lotado') {
-      return `- ${d.weekday} (${d.date}): LOTADO (Todos os horários preenchidos).`;
     } else {
-      return `- ${d.weekday} (${d.date}): DISPONÍVEL (Temos horários livres).`;
+      return `- ${d.weekday} (${d.date}): LOTADO (Todos os horários preenchidos).`;
     }
   }).join('\n');
 
   if (!slots.length) {
     return {
+      consulted_at,
+      today_date,
       slots: [],
-      day_breakdown: dayBreakdown,
-      message: `Infelizmente não encontrei horários disponíveis para este serviço nos próximos dias.\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}`
+      day_breakdown: dayBreakdownFiltered,
+      message: `Consulta realizada em ${consulted_at}. Hoje é ${today_date}.\n\nInfelizmente não encontrei horários disponíveis para este serviço nos próximos dias.\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}`
     };
   }
 
@@ -389,14 +421,16 @@ export async function handleCheckAvailability(
   // slots used for day_breakdown/summary above — capping the calculation itself
   // made later days falsely appear "lotado". Keep an even spread per day so the
   // model still has bookable ISO starts across the whole window.
-  const slotsForModel = capSlotsPerDay(slots, tz, 8);
+  const slotsForModel = capSlotsPerDay(slots, tz, 5);
 
   console.log(`[Tools] checkAvailability summary: ${availabilitySummary}`);
   return {
-    day_breakdown: dayBreakdown,
+    consulted_at,
+    today_date,
+    day_breakdown: dayBreakdownFiltered,
     availability_summary: availabilitySummary,
     slots: slotsForModel,
-    message: `Disponibilidade agrupada por período (apresente ao lead em faixas, NUNCA liste slot a slot): ${availabilitySummary}\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}`,
+    message: `Consulta realizada em ${consulted_at}. Hoje é ${today_date}.\n\nDisponibilidade agrupada por período (apresente ao lead em faixas, NUNCA liste slot a slot): ${availabilitySummary}${breakdownSummary ? `\n\nStatus detalhado da agenda por dia:\n${breakdownSummary}` : ''}`,
   };
 }
 
@@ -571,6 +605,16 @@ export async function handleBookAppointment(
 
     event = rpcRes.event;
 
+    // GCal estava indisponível na criação: o evento existe só localmente e a
+    // agenda externa diverge. Marca 'error' para o badge da UI e para a
+    // reconciliação push do cron gcal-sync (30min) recriar o evento no Google.
+    if (gcalFailed) {
+      await admin.from('events')
+        .update({ gcal_sync_status: 'error' })
+        .eq('id', event.id)
+        .eq('company_id', ctx.companyId);
+    }
+
     // 5. Agendar Lembrete Automático (antecedência configurável via persona_config)
     try {
       const advanceHours = (company?.persona_config as any)?.reminder_advance_hours ?? 2;
@@ -658,8 +702,10 @@ export async function handleCancelAppointment(args: { event_id: string; reason?:
     try {
       await deleteGCalEvent(co.google_refresh_token, co.google_calendar_id ?? 'primary', event.gcal_event_id);
     } catch (e) {
-      console.warn('[Tools] Failed to delete GCal event on cancel — marking gcal_sync_status=failed');
-      await admin.from('events').update({ gcal_sync_status: 'failed' }).eq('id', args.event_id).eq('company_id', _ctx.companyId);
+      // 'error' (não 'failed'): único valor de falha no tipo GCalSyncStatus — o
+      // badge da agenda e a reconciliação push do cron gcal-sync filtram por ele.
+      console.warn('[Tools] Failed to delete GCal event on cancel — marking gcal_sync_status=error');
+      await admin.from('events').update({ gcal_sync_status: 'error' }).eq('id', args.event_id).eq('company_id', _ctx.companyId);
     }
   }
 
@@ -775,8 +821,8 @@ export async function handleRescheduleAppointment(args: { event_id: string; new_
         timeZone: co.persona_config?.timezone
       });
     } catch (e) {
-      console.warn('[Tools] Failed to update GCal event on reschedule — marking gcal_sync_status=failed');
-      await admin.from('events').update({ gcal_sync_status: 'failed' }).eq('id', args.event_id).eq('company_id', ctx.companyId);
+      console.warn('[Tools] Failed to update GCal event on reschedule — marking gcal_sync_status=error');
+      await admin.from('events').update({ gcal_sync_status: 'error' }).eq('id', args.event_id).eq('company_id', ctx.companyId);
     }
   }
 

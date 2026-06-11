@@ -17,7 +17,12 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
-import { listGCalEvents } from '@/lib/calendar/google';
+import {
+  listGCalEvents,
+  createGoogleCalendarEvent,
+  updateGCalEvent,
+  deleteGCalEvent,
+} from '@/lib/calendar/google';
 
 export interface SyncResult {
   skipped?: boolean;
@@ -205,5 +210,96 @@ export async function syncCompanyCalendar(companyId: string): Promise<SyncResult
     })
     .eq('id', companyId);
 
+  // Push reconciliation: retry Agendra→GCal writes that failed while the Google
+  // API was down (booking/cancel/reschedule marked gcal_sync_status='error').
+  // Non-fatal: a reconcile failure must not invalidate the pull sync above.
+  try {
+    await reconcileGCalPushFailures(companyId, company.google_refresh_token, calendarId);
+  } catch (err: any) {
+    console.warn('[GCal Reconcile] push reconciliation failed (non-fatal):', err?.message ?? err);
+  }
+
   return { inserted, updated, deleted, syncToken: gcalResult.nextSyncToken };
+}
+
+/**
+ * Retries Agendra-origin events whose Google Calendar write failed at
+ * booking/cancel/reschedule time (gcal_sync_status='error').
+ *
+ * Piggybacks on the 30-min gcal-sync cron: each broken event gets one retry
+ * attempt per cycle until it converges — a durable retry queue with the cron
+ * cadence as natural backoff, no extra infra. Past events stop retrying
+ * (status cleared): pushing them to GCal no longer prevents double-booking.
+ */
+export async function reconcileGCalPushFailures(
+  companyId: string,
+  refreshToken: string,
+  calendarId: string,
+): Promise<{ repaired: number; stillFailing: number }> {
+  const admin = createAdminClient();
+  let repaired = 0;
+  let stillFailing = 0;
+
+  // Batch bounded so the cron turn stays cheap; leftovers picked up next cycle.
+  const { data: broken } = await admin
+    .from('events')
+    .select('id, title, notes, start_time, end_time, status, gcal_event_id, leads(email)')
+    .eq('company_id', companyId)
+    .eq('source', 'agendra')
+    .eq('gcal_sync_status', 'error')
+    .limit(20);
+
+  if (!broken?.length) return { repaired: 0, stillFailing: 0 };
+
+  const markStatus = (eventId: string, status: string | null) =>
+    admin.from('events').update({ gcal_sync_status: status }).eq('id', eventId).eq('company_id', companyId);
+
+  for (const ev of broken) {
+    try {
+      if (ev.status === 'cancelled') {
+        // Cancelled locally but the GCal delete failed → retry (404 = already gone).
+        if (ev.gcal_event_id) {
+          await deleteGCalEvent(refreshToken, calendarId, ev.gcal_event_id);
+        }
+        await markStatus(ev.id, 'synced');
+        repaired++;
+      } else if (new Date(ev.end_time).getTime() < Date.now()) {
+        await markStatus(ev.id, null); // past event — stop retrying
+      } else if (ev.gcal_event_id) {
+        // Rescheduled locally but the GCal patch failed → retry with current times.
+        await updateGCalEvent(refreshToken, calendarId, ev.gcal_event_id, {
+          title: ev.title,
+          start: ev.start_time,
+          end: ev.end_time,
+          description: ev.notes ?? '',
+        });
+        await markStatus(ev.id, 'synced');
+        repaired++;
+      } else {
+        // Booked while GCal was down → create the missing event now.
+        const gcalId = await createGoogleCalendarEvent(refreshToken, calendarId, {
+          title: ev.title,
+          start: ev.start_time,
+          end: ev.end_time,
+          description: ev.notes ?? 'Agendamento realizado via Agendra AI.',
+          attendeeEmail: (ev.leads as any)?.email ?? undefined,
+        });
+        await admin
+          .from('events')
+          .update({ gcal_event_id: gcalId, gcal_sync_status: 'synced' })
+          .eq('id', ev.id)
+          .eq('company_id', companyId);
+        repaired++;
+      }
+    } catch (err: any) {
+      // Keep 'error' → retried on the next sync cycle.
+      stillFailing++;
+      console.warn('[GCal Reconcile] event push retry failed (will retry next cycle):', err?.message ?? err);
+    }
+  }
+
+  if (repaired > 0 || stillFailing > 0) {
+    console.log(`[GCal Reconcile] company=${companyId.slice(0, 6)}***: repaired=${repaired}, still_failing=${stillFailing}`);
+  }
+  return { repaired, stillFailing };
 }

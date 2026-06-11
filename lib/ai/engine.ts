@@ -118,6 +118,7 @@ function buildSystemPrompt(
   isSessionExpired?: boolean,
   timeSinceLastStr?: string,
   clientProfileRule: string = '',
+  intent?: Intent,
 ): string {
   const aiName = persona.name ?? 'Agendra';
   const businessName = persona.business_name ?? 'nossa empresa';
@@ -152,7 +153,7 @@ function buildSystemPrompt(
   };
 
   const selectedToneKey = (lead.conversation_tone || persona.tone) as string;
-  const tone = TONE_BLUEPRINTS[selectedToneKey] ?? (persona.tone || 'Amigável, profissional e objetivo.');
+  const tone = TONE_BLUEPRINTS[selectedToneKey] ?? (persona.tone || 'Amigável, professional e objetivo.');
   const timezone = persona.timezone ?? 'America/Sao_Paulo';
   const firstName = lead.name.split(' ')[0];
   const nowInTz = nowFormatterFor(timezone).format(new Date());
@@ -213,21 +214,39 @@ function buildSystemPrompt(
 - Listas: use hifen simples "-" ou numero "1."`;
   }
 
-  return `## 1. IDENTIDADE E MISSÃO (ALTA PRIORIDADE)
+  const intentType = intent?.type ?? 'scheduling';
+
+  const identityBlock = `## 1. IDENTIDADE E MISSÃO (ALTA PRIORIDADE)
 - Nome: ${aiName}
 - Empresa: ${businessName} (${businessType})
 - Fuso Horário: ${timezone} (Data e hora atual: ${nowInTz})
-- Serviços Disponíveis no Catálogo:
-${servicesDisplay}
-
+${intentType !== 'greeting' ? `- Serviços Disponíveis no Catálogo:\n${servicesDisplay}\n` : ''}
 ### TOM DE VOZ OBRIGATÓRIO (respeite em CADA frase)
 ${tone}
 Use sempre o primeiro nome do lead: "${firstName}". Máximo 2 a 3 frases por resposta.
 
 Sua MISSÃO principal e absoluta é qualificar o lead com humanidade e conduzi-lo de forma natural e eficiente para agendar uma reunião ou atendimento. Se o lead demonstrar real interesse e estiver pronto, use as ferramentas adequadas para verificar horários e agendar.
 
-${memoryContext}
+${memoryContext}`;
 
+  let conversationalFlowBlock = '';
+
+  if (intentType === 'greeting') {
+    conversationalFlowBlock = `
+## 2. FLUXO CONVERSACIONAL (MÉDIA PRIORIDADE)
+- **Saudação & Contexto de Sessão**:
+  ${greetingRule}
+  Sua resposta deve ser curta, natural e amigável.`;
+  } else if (intentType === 'info' || intentType === 'complaint') {
+    conversationalFlowBlock = `
+## 2. FLUXO CONVERSACIONAL (MÉDIA PRIORIDADE)
+- **Condução Premium e Humanizada**:
+  - **MÁXIMA CONCISÃO E SIMPLICIDADE**: Suas respostas devem ser curtas, naturais e amigáveis (máximo de 2 a 3 frases).
+- **Saudação & Contexto de Sessão**:
+  ${greetingRule}
+- **Regra de Ouro da Proatividade Comercial (Sempre Fechar com CTA)**: NUNCA responda a uma pergunta informativa do lead de forma puramente passiva ou inerte. Toda resposta informativa DEVE terminar com um convite proativo, gentil e sutil para o agendamento (ex: sugerindo verificar vagas).`;
+  } else {
+    conversationalFlowBlock = `
 ## 2. FLUXO CONVERSACIONAL E REGRAS DE AGENDA (MÉDIA PRIORIDADE)
 - **Condução Premium e Humanizada**: Aja como um atendente humano premium e acolhedor, não como um robô mecânico.
   - **MÁXIMA CONCISÃO E SIMPLICIDADE (CONCISENESS CAP)**: Suas respostas devem ser curtas, naturais e amigáveis.
@@ -268,8 +287,12 @@ ${memoryContext}
      - **Múltiplos agendamentos**: Faça uma pergunta natural e humana para identificar qual o lead deseja: "Você quer cancelar o [Serviço A] de amanhã às 14h ou o [Serviço B] de sexta às 16h?" — NUNCA peça o ID.
   3. **Inferência por contexto**: Use data, horário, serviço e qualquer detalhe mencionado pelo lead para identificar o agendamento correto sem perguntas desnecessárias.
   4. **Confirmação obrigatória antes de cancelar**: Sempre confirme com o lead QUAL agendamento será cancelado antes de chamar cancelAppointment, usando linguagem natural e humana.
-- **Atualização de Memória**: Use updateLeadMemory para registrar interesses reais, objeções ou respostas de qualificação. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".
+- **Atualização de Memória**: Use updateLeadMemory para registrar interesses reais, objeções ou respostas de qualificação. Se o lead parecer desinteressado ou agressivo, use updateLeadMemory com event_type: "disqualified".`;
+  }
 
+  let securityAndGuardrailsBlock = '';
+  if (intentType !== 'greeting') {
+    securityAndGuardrailsBlock = `
 ## 3. SEGURANÇA, PLANO E FORMATAÇÃO (GUARDRAILS — PESO MENOR)
 - **Formatação de Canal**:
   ${formatBlock}
@@ -280,6 +303,13 @@ ${memoryContext}
 - **ZERO VAZAMENTOS TÉCNICOS**: Você está terminantemente proibido de citar qualquer termo de programação, nomes de funções do sistema (como checkAvailability, bookAppointment, updateLeadMemory, etc.), formatos de dados técnicos (como ISO 8601, UTC) ou nomes de tabelas/banco de dados. Você está terminantemente proibido de mostrar identificadores técnicos, UUIDs ou tags de ID como [ID: ...] para o cliente. Use-os estritamente de forma interna para invocar ferramentas. Responda sempre de forma 100% humanizada, comercial e limpa.
 
 ${extraInstructions}${forbidden}`;
+  } else {
+    securityAndGuardrailsBlock = `
+## 3. SEGURANÇA E GUARDRAILS (PESO MENOR)
+- **ZERO VAZAMENTOS TÉCNICOS**: Você está terminantemente proibido de citar qualquer termo de programação ou expor identificadores técnicos. Responda de forma 100% humanizada, comercial e limpa.`;
+  }
+
+  return `${identityBlock}${conversationalFlowBlock}${securityAndGuardrailsBlock}`;
 }
 
 export { isResponseSuspicious, sanitizeClientResponse };
@@ -295,6 +325,7 @@ interface AIResult {
   model_used: string;
   provider_used: string;
   fallback_used: boolean;
+  intent_classified?: string;
 }
 
 export async function processLeadMessage(
@@ -340,7 +371,8 @@ export async function processLeadMessage(
     planLimits,
     isSessionExpired,
     timeSinceLastStr,
-    clientProfileRule
+    clientProfileRule,
+    intent
   );
 
   const ctx: ToolContext = { companyId, leadId: lead.id, traceId };
@@ -608,6 +640,16 @@ async function getSemanticKnowledge(
 
 
 
+// Lock-contention requeue: mensagem que chega enquanto um turno do MESMO lead
+// ainda está em andamento era descartada (status 'error') — o lead ficava sem
+// resposta até mandar outra mensagem. Agora o turno é parqueado no
+// `message_buffer` durável e re-entregue pelo drain de 1min (pg_cron
+// agendra_flush_buffer). O teto de tentativas com backoff cobre com folga a
+// vida máxima de um lock legítimo (TURN_BUDGET_MS + 30s do stale reclaim).
+const LOCK_REQUEUE_BASE_DELAY_MS = 5_000;
+const LOCK_REQUEUE_MAX_DELAY_MS = 60_000;
+const MAX_LOCK_REQUEUES = 8;
+
 export async function handleIncomingMessage(
   companyId: string,
   phone: string,
@@ -616,7 +658,7 @@ export async function handleIncomingMessage(
   providerMessageId?: string,
   preloadedUsage?: CompanyUsage,
   incomingMetadata?: Record<string, any>
-): Promise<void> {
+): Promise<'requeued' | void> {
   // Auto-initialize the deadline supervisor when called without an active context
   // (cron routes, direct calls). The flush endpoint establishes it explicitly via
   // runWithDeadline before calling flushBuffer → handleIncomingMessage, so those
@@ -781,7 +823,50 @@ export async function handleIncomingMessage(
         .maybeSingle();
 
       if (!reclaimed) {
-        console.warn(`[Engine][${tag}] 🔒 lead lock contention — another worker holds a fresh lock (phone=${phone.slice(0, 6)}***)`);
+        // Another worker holds a fresh lock: the lead messaged mid-turn. Park the
+        // consolidated turn in the durable buffer for redelivery instead of
+        // dropping it; the reply to THIS message would otherwise never happen.
+        const requeueCount = Number(incomingMetadata?.requeue_count ?? 0);
+        if (requeueCount < MAX_LOCK_REQUEUES) {
+          const delayMs = Math.min(
+            LOCK_REQUEUE_BASE_DELAY_MS * 2 ** requeueCount,
+            LOCK_REQUEUE_MAX_DELAY_MS,
+          );
+          const requeueId = providerMessageId ?? `requeue:${traceId}`;
+          const { error: requeueErr } = await admin.from('message_buffer').upsert({
+            provider_message_id: requeueId,
+            company_id: companyId,
+            lead_phone: phone,
+            lead_name: senderName,
+            body: messageText,
+            msg_type: 'text',
+            metadata: {
+              ...(incomingMetadata ?? {}),
+              requeue_count: requeueCount + 1,
+              ...(preSavedIds.length > 0 ? { pre_persisted_ids: preSavedIds } : {}),
+            },
+            flush_after: new Date(Date.now() + delayMs).toISOString(),
+            flushed: false,
+          }, { onConflict: 'provider_message_id' });
+
+          if (!requeueErr) {
+            if (providerMessageId) {
+              // Free the dedup claim — without this the redelivery hits the
+              // processed_messages PK and is silently skipped as a duplicate.
+              const { error: delErr } = await admin
+                .from('processed_messages')
+                .delete()
+                .eq('provider_message_id', providerMessageId);
+              if (delErr) {
+                console.error(`[Engine][${tag}] requeue dedup release failed — redelivery may be skipped:`, delErr.message);
+              }
+            }
+            console.warn(`[Engine][${tag}] 🔒 lock contention — turn requeued (attempt ${requeueCount + 1}/${MAX_LOCK_REQUEUES}, +${delayMs}ms, phone=${phone.slice(0, 6)}***)`);
+            return 'requeued';
+          }
+          console.error(`[Engine][${tag}] requeue insert failed, falling back to error path:`, requeueErr.message);
+        }
+        console.warn(`[Engine][${tag}] 🔒 lead lock contention — dropping turn (requeue ${requeueCount >= MAX_LOCK_REQUEUES ? 'budget exhausted' : 'unavailable'}, phone=${phone.slice(0, 6)}***)`);
         if (providerMessageId) {
           await admin
             .from('processed_messages')

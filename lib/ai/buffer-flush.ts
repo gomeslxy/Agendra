@@ -89,7 +89,7 @@ export async function flushMessageBuffer(
         {} as Record<string, any>,
       );
 
-      await handleIncomingMessage(
+      const outcome = await handleIncomingMessage(
         items[0].company_id,
         items[0].lead_phone,
         items[0].lead_name ?? '',
@@ -98,6 +98,22 @@ export async function flushMessageBuffer(
         usage,
         { ...mergedMetadata, debounce_batch_size: items.length, via_sql_fallback: true },
       );
+
+      if (outcome === 'requeued') {
+        // Lock contention: the engine re-armed the consolidated turn in this same
+        // table under the group's representative id (items[0]). Mark only the
+        // OTHER rows flushed — their content lives inside the re-armed merged
+        // body. Flipping the representative row here would clobber the requeue.
+        const otherIds = items.slice(1).map((i) => i.provider_message_id);
+        if (otherIds.length > 0) {
+          await admin
+            .from('message_buffer')
+            .update({ flushed: true })
+            .in('provider_message_id', otherIds);
+        }
+        flushed += otherIds.length;
+        continue;
+      }
 
       await admin
         .from('message_buffer')
