@@ -45,6 +45,8 @@ export interface ChatParams {
   preferredModel?: string;
   /** AbortSignal injected by the router per-attempt. */
   signal?: AbortSignal;
+  /** Timeout in milliseconds injected by the router per-attempt. */
+  timeout?: number;
   /** Force tool calls when set to 'ANY'; defaults to AUTO. */
   toolMode?: 'ANY' | 'AUTO';
   /** Maximum output tokens to generate. */
@@ -65,6 +67,8 @@ export interface GenerateParams {
   preferredModel?: string;
   /** AbortSignal injected by the router per-attempt (deadline/timeout). */
   signal?: AbortSignal;
+  /** Timeout in milliseconds injected by the router per-attempt. */
+  timeout?: number;
 }
 
 export interface AIProviderAdapter {

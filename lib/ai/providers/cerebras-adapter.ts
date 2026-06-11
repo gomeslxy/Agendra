@@ -38,7 +38,10 @@ export class CerebrasAdapter implements AIProviderAdapter {
     const modelName = this.defaultChatModel;
     const tools = params.tools.length > 0 ? params.tools.map(toOpenAITool) : undefined;
     const toolChoice = params.toolMode === 'ANY' ? 'required' : 'auto';
-    const reqOpts = params.signal ? { signal: params.signal } : undefined;
+    const reqOpts: OpenAI.RequestOptions = {
+      ...(params.signal ? { signal: params.signal } : {}),
+      ...(params.timeout ? { timeout: params.timeout } : {}),
+    };
 
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: params.systemPrompt },
@@ -144,7 +147,10 @@ export class CerebrasAdapter implements AIProviderAdapter {
 
   async generateText(params: GenerateParams): Promise<string> {
     const modelName = this.defaultGenerateModel;
-    const reqOpts = params.signal ? { signal: params.signal } : undefined;
+    const reqOpts: OpenAI.RequestOptions = {
+      ...(params.signal ? { signal: params.signal } : {}),
+      ...(params.timeout ? { timeout: params.timeout } : {}),
+    };
     const response = await this.client.chat.completions.create({
       model: modelName,
       messages: [{ role: 'user', content: params.prompt }],

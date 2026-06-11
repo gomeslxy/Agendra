@@ -5,19 +5,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { logError } from "@/lib/logging";
 import { qstashEnabled, scheduleDelayed } from '@/lib/infra/qstash';
 import type { CompanyUsage } from '@/lib/billing/limits';
+import { getCompanyUsage } from '@/lib/billing/limits';
 import { runWithDeadline } from './deadline';
 
-// Adaptive debounce: mensagens curtas e sem pontuação final costumam ser
-// fragmentos de um burst (lead digitando em várias bolhas) → espera mais longa
-// para consolidar. Frases completas respondem quase imediatamente. Reduz a
-// latência percebida no caso comum sem perder o merge de mensagens picotadas.
-//
-// NOTA DE LATÊNCIA: o agendamento de prod usa QStash, cujo `delay` é em SEGUNDOS
-// inteiros (Math.ceil em scheduleDelayed). Por isso os valores são escolhidos no
-// limite do segundo: FAST=1000 → ceil=1s (era 1200 → ceil=2s, +1s desperdiçado);
-// BURST=2500 → ceil=3s (era 4000 → ceil=4s). O período de silêncio é medido APÓS
-// a última bolha (gen-token reagenda a cada mensagem), então 2.5s ainda captura
-// com folga o intervalo humano entre bolhas (~0.5-2s) sem perder o merge.
 const DEBOUNCE_FAST_MS = 1_000;
 const DEBOUNCE_BURST_MS = 2_500;
 const BUF_TTL_SEC = 60;
@@ -30,15 +20,6 @@ function debounceDelayFor(body: string): number {
   return looksFragmented ? DEBOUNCE_BURST_MS : DEBOUNCE_FAST_MS;
 }
 
-interface Buffered {
-  body: string;
-  ts: number;
-  provider_message_id: string;
-  type: string;
-  metadata?: Record<string, any>;
-}
-
-/** Payload QStash delivers to the flush endpoint after the debounce delay. */
 export interface FlushJob {
   companyId: string;
   leadPhone: string;
@@ -47,83 +28,58 @@ export interface FlushJob {
   usage?: CompanyUsage;
 }
 
-export async function bufferAndDebounce(args: {
+/**
+ * Buffers the incoming message directly into the PostgreSQL `message_buffer` table,
+ * schedules a background processing turn via QStash, and returns immediately.
+ */
+export async function bufferAndQueueMessage(args: {
   companyId: string;
   leadPhone: string;
   leadName: string;
   body: string;
   providerMessageId: string;
   msgType: string;
-  usage?: CompanyUsage;
   metadata?: Record<string, any>;
 }): Promise<void> {
-  const bufKey = `ch:buf:${args.companyId}:${args.leadPhone}`;
-  const tokenKey = `ch:bufgen:${args.companyId}:${args.leadPhone}`;
-  const gen = crypto.randomBytes(8).toString('hex');
-
-  // Guard the buffer write: if rpush fails (Redis blip / timeout) it returns null.
-  // Without this guard the code would still schedule a flush whose buffer is empty
-  // → the message is silently lost ("empty buffer at flush"). On a failed push we
-  // divert straight to the durable DB buffer (drained within ~1min by pg_cron).
-  const pushed = await redis.rpush(bufKey, JSON.stringify({
-    body: args.body, ts: Date.now(),
-    provider_message_id: args.providerMessageId,
-    type: args.msgType, metadata: args.metadata ?? {},
-  } satisfies Buffered));
-  if (pushed === null) {
-    logError('[debounce] Redis rpush failed — diverting to DB buffer fallback');
-    await bufferInDB({
-      companyId: args.companyId, leadPhone: args.leadPhone, leadName: args.leadName,
-      body: args.body, providerMessageId: args.providerMessageId,
-      msgType: args.msgType, metadata: args.metadata,
-    });
-    return;
-  }
-  await redis.expire(bufKey, BUF_TTL_SEC);
-
-  let okSet: boolean | null = null;
-  try {
-    okSet = await redis.set(tokenKey, gen, BUF_TTL_SEC);
-  } catch (e) {
-    logError('[debounce] Redis error on set, falling back to DB buffer:', e);
-    // Fallback to DB buffering
-    await bufferInDB({
-      companyId: args.companyId,
-      leadPhone: args.leadPhone,
-      leadName: args.leadName,
-      body: args.body,
-      providerMessageId: args.providerMessageId,
-      msgType: args.msgType,
-      metadata: args.metadata,
-    });
-    return; // exit early, DB will be processed later by cron
-  }
-  if (okSet === null) {
-    console.error('[debounce] Redis returned null, falling back to DB buffer');
-    await bufferInDB({
-      companyId: args.companyId,
-      leadPhone: args.leadPhone,
-      leadName: args.leadName,
-      body: args.body,
-      providerMessageId: args.providerMessageId,
-      msgType: args.msgType,
-      metadata: args.metadata,
-    });
-    return;
-  }
-
   const dbgTag = `${args.companyId.slice(0, 6)}:${args.leadPhone.slice(-4)}`;
   const delayMs = debounceDelayFor(args.body);
+  const gen = crypto.randomBytes(8).toString('hex');
+  const tokenKey = `ch:bufgen:${args.companyId}:${args.leadPhone}`;
 
-  // Pre-save the user message to the messages table immediately so the inbox
-  // shows it in real-time without waiting for the debounce delay + AI turn.
-  // The pre-saved ID is stored in Redis and passed to the engine at flush time
-  // so it can skip the duplicate insert and exclude it from the AI history window.
-  // Non-fatal: if the lead doesn't exist yet (new lead) or any DB error occurs,
-  // the engine will save the message normally on flush.
+  const admin = createAdminClient();
+
+  // 1. Durably insert the message into PostgreSQL message_buffer
+  const { error } = await admin.from('message_buffer').insert({
+    provider_message_id: args.providerMessageId,
+    company_id: args.companyId,
+    lead_phone: args.leadPhone,
+    lead_name: args.leadName,
+    body: args.body || '',
+    msg_type: args.msgType,
+    metadata: {
+      ...(args.metadata ?? {}),
+      gen,
+      attempt_count: 1, // First attempt
+    },
+    flush_after: new Date(Date.now() + delayMs).toISOString(),
+    flushed: false,
+  });
+
+  if (error) {
+    logError(`[debounce][${dbgTag}] PostgreSQL buffer insert failed: ${error.message}`);
+    throw new Error(`Failed to buffer message in DB: ${error.message}`);
+  }
+
+  // 2. Set the gen token in Redis to enable debounce comparison on flush
+  try {
+    await redis.set(tokenKey, gen, BUF_TTL_SEC);
+  } catch (e) {
+    logError(`[debounce][${dbgTag}] Redis gen token set failed (non-fatal):`, e);
+  }
+
+  // 3. Pre-save to messages table for real-time inbox view
   const preIdsKey = `ch:pre_ids:${args.companyId}:${args.leadPhone}`;
   try {
-    const admin = createAdminClient();
     const { data: leadRow } = await admin
       .from('leads')
       .select('id')
@@ -137,7 +93,7 @@ export async function bufferAndDebounce(args: {
           lead_id: leadRow.id,
           company_id: args.companyId,
           role: 'user',
-          content: args.body,
+          content: args.body || '',
           metadata: args.metadata ?? null,
         })
         .select('id')
@@ -149,7 +105,7 @@ export async function bufferAndDebounce(args: {
       }
     }
   } catch (e) {
-    logError('[debounce] pre-save failed (non-fatal, engine will save on flush):', e);
+    logError(`[debounce][${dbgTag}] pre-save failed (non-fatal):`, e);
   }
 
   const job: FlushJob = {
@@ -157,92 +113,162 @@ export async function bufferAndDebounce(args: {
     leadPhone: args.leadPhone,
     leadName: args.leadName,
     gen,
-    usage: args.usage,
   };
 
-  // Serverless-native debounce: schedule a delayed flush via QStash instead of
-  // blocking the instance with setTimeout. Each new burst message overwrites the
-  // gen token (above) and schedules its own delayed flush; only the delivery
-  // whose gen still matches the token at fire time wins — debounce + race-safe.
+  // 4. Schedule background flush via QStash
   if (qstashEnabled()) {
     try {
       await scheduleDelayed(FLUSH_PATH, job, Math.ceil(delayMs / 1000));
       console.log(`[Debounce][${dbgTag}] 📨 scheduled flush via QStash (gen=${gen.slice(0, 6)}, +${delayMs}ms)`);
     } catch (e) {
-      logError('[debounce] QStash publish failed, falling back to DB buffer:', e);
-      await bufferInDB({
-        companyId: args.companyId, leadPhone: args.leadPhone, leadName: args.leadName,
-        body: args.body, providerMessageId: args.providerMessageId,
-        msgType: args.msgType, metadata: args.metadata,
-      });
+      logError(`[debounce][${dbgTag}] QStash schedule failed, falling back to local setTimeout:`, e);
+      // Fallback: spawn background task locally
+      setTimeout(async () => {
+        try {
+          await runWithDeadline(() => flushBuffer(job));
+        } catch (err) {
+          logError(`[debounce][${dbgTag}] local fallback flush run failed:`, err);
+        }
+      }, delayMs);
     }
-    return;
+  } else {
+    // Local development: wait inline then flush
+    console.log(`[Debounce][${dbgTag}] ⏲️  (no QStash) scheduling local setTimeout (+${delayMs}ms, gen=${gen.slice(0, 6)})`);
+    setTimeout(async () => {
+      try {
+        await runWithDeadline(() => flushBuffer(job));
+      } catch (err) {
+        logError(`[debounce][${dbgTag}] local setTimeout flush run failed:`, err);
+      }
+    }, delayMs);
   }
-
-  // Dev/local fallback (no QStash configured): inline wait then flush directly.
-  console.log(`[Debounce][${dbgTag}] ⏲️  (no QStash) waiting ${delayMs}ms inline (gen=${gen.slice(0, 6)})`);
-  await new Promise((r) => setTimeout(r, delayMs));
-  await runWithDeadline(() => flushBuffer(job));
 }
 
 /**
- * Consolidates the buffered burst into one merged message and hands it to the
- * engine. Idempotent / race-safe via the gen token: only the caller whose gen
- * still owns the token proceeds; everyone else is a no-op. Invoked either by the
- * QStash flush endpoint (production) or inline (dev).
+ * Backward-compatible wrapper. Calls bufferAndQueueMessage.
+ */
+export async function bufferAndDebounce(args: {
+  companyId: string;
+  leadPhone: string;
+  leadName: string;
+  body: string;
+  providerMessageId: string;
+  msgType: string;
+  usage?: CompanyUsage;
+  metadata?: Record<string, any>;
+}): Promise<void> {
+  return bufferAndQueueMessage(args);
+}
+
+/**
+ * Consolidates the buffered database messages for a specific lead, transcribes/downloads
+ * media attachments in the background, and executes the AI turn.
  */
 export async function flushBuffer(job: FlushJob): Promise<void> {
-  const bufKey = `ch:buf:${job.companyId}:${job.leadPhone}`;
   const tokenKey = `ch:bufgen:${job.companyId}:${job.leadPhone}`;
   const dbgTag = `${job.companyId.slice(0, 6)}:${job.leadPhone.slice(-4)}`;
 
-  // Atomic claim-and-drain: single Lua script atomically checks the gen token,
-  // drains the buffer, and deletes both keys. Eliminates the TOCTOU race where
-  // two concurrent QStash deliveries (retry storm) both pass a non-atomic GET
-  // guard and double-fire the engine for the same lead turn.
-  //
-  // claimAndFlush returns null ONLY on a genuine token mismatch (superseded) and
-  // THROWS when Redis is unreachable. On a throw we must NOT fabricate a recovered
-  // placeholder (that used to send "(recovered from flush)" to the lead) nor drop
-  // the message: we rethrow so the flush route returns 500 and QStash retries —
-  // the burst stays in Redis for the retry to drain, and the gen-token guard +
-  // processed_messages dedup keep the retry idempotent.
-  let raw: string[] | null;
+  // 1. Debounce Guard: verify if we are the winning delivery
+  let currentGen: string | null = null;
   try {
-    raw = await redis.claimAndFlush(tokenKey, bufKey, job.gen);
+    currentGen = await redis.get(tokenKey);
   } catch (e) {
-    logError(`[Debounce][${dbgTag}] Redis unreachable during flush — rethrowing for QStash retry:`, e);
-    throw e;
+    logError(`[Debounce][${dbgTag}] Redis token get failed (proceeding):`, e);
   }
 
-  if (raw === null) {
+  if (currentGen && currentGen !== job.gen) {
     console.log(`[Debounce][${dbgTag}] 🪂 superseded by newer flusher, exiting (gen=${job.gen.slice(0, 6)})`);
     return;
   }
-  if (raw.length === 0) {
-    console.warn(`[Debounce][${dbgTag}] ⚠️  empty buffer at flush — race lost`);
+
+  // 2. Fetch all unflushed buffer messages for this lead
+  const admin = createAdminClient();
+  const { data: rawItems, error } = await admin
+    .from('message_buffer')
+    .select('*')
+    .eq('flushed', false)
+    .eq('company_id', job.companyId)
+    .eq('lead_phone', job.leadPhone)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    logError(`[Debounce][${dbgTag}] Failed to query message_buffer: ${error.message}`);
+    throw error;
+  }
+
+  if (!rawItems || rawItems.length === 0) {
+    console.warn(`[Debounce][${dbgTag}] ⚠️ empty buffer at SQL flush`);
     return;
   }
 
-  const items: Buffered[] = raw
-    .map((s) => { try { return JSON.parse(s) as Buffered; } catch { return null; } })
-    .filter((x): x is Buffered => x !== null)
-    .sort((a, b) => a.ts - b.ts);
+  // Determine the attempt count (default 1)
+  const attemptCount = Number(rawItems[0].metadata?.attempt_count ?? 1);
 
-  // FIX B8: merge metadata de TODAS fragmentadas (não só primeira)
+  // 3. Resolve Channel for media routing
+  const channelProvider = rawItems[0].metadata?.channelProvider || 'whatsapp';
+  const channelId = rawItems[0].metadata?.channelId;
+
+  let channel: any = null;
+  if (channelId) {
+    const { data } = await admin
+      .from('channels')
+      .select('*')
+      .eq('id', channelId)
+      .maybeSingle();
+    channel = data;
+    if (channel && !channel.access_token && channel.access_token_secret_id) {
+      const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: channel.id });
+      channel.access_token = tokenData ?? null;
+    }
+  }
+
+  // 4. Download and transcribe media attachments in background
+  const { routeMedia } = await import('@/lib/ai/media-router');
+  const items: any[] = [];
+  for (const item of rawItems) {
+    let text = item.body || '';
+    let itemMetadata = (item.metadata as Record<string, any>) ?? {};
+
+    // Check if the message is media and has not been transcribed yet
+    const isMedia = item.msg_type !== 'text';
+    const hasMediaMetadata = !!itemMetadata.mediaId || !!itemMetadata.mediaUrl;
+    if (isMedia && channel?.access_token && !text && hasMediaMetadata) {
+      console.log(`[Debounce][${dbgTag}] 🎙️ transcribing media message in background (type=${item.msg_type})`);
+      try {
+        const msgForRouting = {
+          type: item.msg_type,
+          providerMessageId: item.provider_message_id,
+          senderIdentifier: item.lead_phone,
+          senderName: item.lead_name,
+          body: item.body,
+          metadata: itemMetadata,
+        } as any;
+        const routed = await routeMedia(msgForRouting, channel.access_token, item.provider_message_id);
+        text = routed.body || '';
+        itemMetadata = { ...itemMetadata, ...routed.metadata };
+      } catch (mediaErr: any) {
+        logError(`[Debounce][${dbgTag}] Background media routing failed:`, mediaErr?.message);
+        text = '[Arquivo de mídia não pôde ser processado]';
+      }
+    }
+
+    items.push({
+      ...item,
+      body: text,
+      metadata: itemMetadata,
+    });
+  }
+
+  // 5. Consolidate bodies and metadata
   const mergedMetadata = items.reduce<Record<string, any>>(
     (acc, i) => ({ ...acc, ...(i.metadata ?? {}) }), {}
   );
-
   const lastItem = items[items.length - 1];
-  console.log(`[Debounce][${dbgTag}] 🚦 flushing batch=${items.length} lastMsgId=${lastItem.provider_message_id.slice(-8)}`);
-
-  const mergedBody = items.length > 1
+  const consolidatedBody = items.length > 1
     ? `[O lead enviou ${items.length} mensagens em sequência:]\n` + items.map((i) => i.body).join('\n')
     : items[0].body;
 
-  // Drain pre-persisted IDs so the engine can skip duplicate inserts and
-  // exclude those messages from the AI history window for this turn.
+  // Drain pre-persisted messages from Redis
   const preIdsKey = `ch:pre_ids:${job.companyId}:${job.leadPhone}`;
   let prePersistedIds: string[] = [];
   try {
@@ -252,18 +278,39 @@ export async function flushBuffer(job: FlushJob): Promise<void> {
     logError(`[Debounce][${dbgTag}] failed to drain pre_ids (non-fatal):`, e);
   }
 
+  // 6. Evaluate billing limits
+  const usage = job.usage ?? await getCompanyUsage(job.companyId);
+
+  // 7. Invoke AI Engine
+  console.log(`[Debounce][${dbgTag}] 🚦 flushing batch=${items.length} attempt=${attemptCount} lastMsgId=${lastItem.provider_message_id.slice(-8)}`);
+  
   await handleIncomingMessage(
-    job.companyId, job.leadPhone, job.leadName,
-    mergedBody,
+    job.companyId,
+    job.leadPhone,
+    job.leadName,
+    consolidatedBody,
     lastItem.provider_message_id,
-    job.usage,
+    usage,
     {
       ...mergedMetadata,
+      attempt_count: attemptCount,
       debounce_batch_size: items.length,
       debounce_message_ids: items.map((i) => i.provider_message_id),
       ...(prePersistedIds.length > 0 ? { pre_persisted_ids: prePersistedIds } : {}),
     }
   );
+
+  // 8. Success: mark rows as flushed and clear Redis gen token
+  await admin
+    .from('message_buffer')
+    .update({ flushed: true })
+    .in('provider_message_id', items.map((i) => i.provider_message_id));
+
+  try {
+    await redis.del(tokenKey);
+  } catch (e) {
+    logError(`[Debounce][${dbgTag}] failed to clear Redis gen token:`, e);
+  }
 }
 
 export async function claimMessage(messageId: string): Promise<boolean> {
@@ -277,7 +324,7 @@ export async function claimMessage(messageId: string): Promise<boolean> {
   if (!error) return true;
   if (error.code === '23505') return false; // unique violation = duplicata
   console.error('[claimMessage] CRITICAL: redis off AND pg fail', error);
-  return true; // não perder msg em falha total
+  return true;
 }
 
 export async function bufferInDB(args: {
@@ -299,5 +346,6 @@ export async function bufferInDB(args: {
     msg_type: args.msgType,
     metadata: args.metadata ?? {},
     flush_after: new Date(Date.now() + 4_000).toISOString(),
+    flushed: false,
   });
 }

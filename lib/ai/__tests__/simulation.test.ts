@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mountContext } from '../memory';
 import { sanitizeClientResponse, processLeadMessage } from '../engine';
-import { handleCheckAvailability } from '../tools';
+import { handleGetAvailableSlots } from '../tools';
 import { classifyIntent } from '../intent';
 import { routeChat } from '../providers/router';
 import type { Lead, Message } from '@/lib/types/database';
@@ -257,7 +257,7 @@ describe('Conversational Sales Engine Simulation', () => {
     });
   });
 
-  describe('handleCheckAvailability - Daily Diagnostics (Cenário A & B)', () => {
+  describe('handleGetAvailableSlots - Daily Diagnostics (Cenário A & B)', () => {
 
     it('accurately identifies closed (fechado) and available (disponivel) days (Cenário A)', async () => {
       // Mock createAdminClient specifically for this test
@@ -320,10 +320,10 @@ describe('Conversational Sales Engine Simulation', () => {
         }),
       }));
 
-      // Let's call checkAvailability for a Monday (say 2026-06-01, Monday)
+      // Let's call get_available_slots for a Monday (say 2026-06-01, Monday)
       // We check next 3 days
-      const result = await handleCheckAvailability(
-        { service_id: 'svc-123', days_ahead: 3 },
+      const result = await handleGetAvailableSlots(
+        { service_id: 'svc-123', days_ahead: 3, timezone: 'America/Sao_Paulo' },
         { companyId: 'company-123', leadId: 'lead-123' }
       );
 
@@ -407,9 +407,9 @@ describe('Conversational Sales Engine Simulation', () => {
         }),
       }));
 
-      // We call checkAvailability
-      const result = await handleCheckAvailability(
-        { service_id: 'svc-123', days_ahead: 3 },
+      // We call get_available_slots
+      const result = await handleGetAvailableSlots(
+        { service_id: 'svc-123', days_ahead: 3, timezone: 'America/Sao_Paulo' },
         { companyId: 'company-123', leadId: 'lead-123' }
       );
 

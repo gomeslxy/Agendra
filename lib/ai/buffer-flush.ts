@@ -96,7 +96,12 @@ export async function flushMessageBuffer(
         consolidated,
         items[0].provider_message_id,
         usage,
-        { ...mergedMetadata, debounce_batch_size: items.length, via_sql_fallback: true },
+        { 
+          ...mergedMetadata, 
+          attempt_count: Number(mergedMetadata.attempt_count ?? 1),
+          debounce_batch_size: items.length, 
+          via_sql_fallback: true 
+        },
       );
 
       if (outcome === 'requeued') {
@@ -122,6 +127,41 @@ export async function flushMessageBuffer(
       flushed += items.length;
     } catch (err: any) {
       console.error('[flush-buffer] group error:', err?.message ?? err);
+      const currentAttempts = Number(items[0].metadata?.attempt_count ?? 1);
+      const nextAttempts = currentAttempts + 1;
+      
+      const mergedMetadata = items.reduce(
+        (acc, i) => ({ ...acc, ...((i.metadata as Record<string, any>) ?? {}) }),
+        {} as Record<string, any>,
+      );
+
+      if (nextAttempts > 3) {
+        // Permanent failure: mark all items as flushed so they stop retrying
+        await admin
+          .from('message_buffer')
+          .update({ 
+            flushed: true, 
+            metadata: { 
+              ...mergedMetadata, 
+              attempt_count: nextAttempts, 
+              permanent_failure: true,
+              error: String(err?.message || err)
+            } 
+          })
+          .in('provider_message_id', items.map((i) => i.provider_message_id));
+      } else {
+        // Transient failure: update attempts and set backoff flush_after time
+        const backoffSec = nextAttempts * 30; // 60s, 90s
+        const nextFlushAfter = new Date(Date.now() + backoffSec * 1000).toISOString();
+        await admin
+          .from('message_buffer')
+          .update({
+            metadata: { ...mergedMetadata, attempt_count: nextAttempts },
+            flush_after: nextFlushAfter
+          })
+          .in('provider_message_id', items.map((i) => i.provider_message_id));
+        console.log(`[flush-buffer] rescheduled group company=${items[0].company_id} lead=${items[0].lead_phone} for retry ${nextAttempts}/3 in +${backoffSec}s`);
+      }
     }
   }
 

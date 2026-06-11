@@ -5,7 +5,7 @@
 
 // Tool/Function names used internally
 const TOOL_NAMES = [
-  'bookAppointment', 'checkAvailability', 'listServices', 'cancelAppointment',
+  'bookAppointment', 'get_available_slots', 'checkAvailability', 'listServices', 'cancelAppointment',
   'rescheduleAppointment', 'myAppointments', 'updateLeadInfo', 'updateLeadMemory',
   'requestHumanAgent', 'generatePixCharge', 'checkPaymentStatus'
 ];

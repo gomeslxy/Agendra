@@ -36,7 +36,10 @@ export class GroqAdapter implements AIProviderAdapter {
     // Groq returns 400 "Failed to call a function" when tool_choice='required' on complex
     // prompts. Always use 'auto' — Groq's 70b is reliable enough for tool calling.
     const toolChoice = 'auto';
-    const reqOpts = params.signal ? { signal: params.signal } : undefined;
+    const reqOpts: OpenAI.RequestOptions = {
+      ...(params.signal ? { signal: params.signal } : {}),
+      ...(params.timeout ? { timeout: params.timeout } : {}),
+    };
 
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: params.systemPrompt },
@@ -136,7 +139,10 @@ export class GroqAdapter implements AIProviderAdapter {
 
   async generateText(params: GenerateParams): Promise<string> {
     const modelName = this.defaultGenerateModel;
-    const reqOpts = params.signal ? { signal: params.signal } : undefined;
+    const reqOpts: OpenAI.RequestOptions = {
+      ...(params.signal ? { signal: params.signal } : {}),
+      ...(params.timeout ? { timeout: params.timeout } : {}),
+    };
     const response = await this.client.chat.completions.create({
       model: modelName,
       messages: [{ role: 'user', content: params.prompt }],

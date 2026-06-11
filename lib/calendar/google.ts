@@ -130,6 +130,16 @@ export async function getFreeBusySlots(
   timeMax: string,
   opts: { noCache?: boolean } = {},
 ): Promise<BusySlot[]> {
+  // Defensive guard against empty/invalid range. Google Calendar freeBusy will fail with 400 timeRangeEmpty.
+  if (!timeMin || !timeMax) {
+    return [];
+  }
+  const minTime = new Date(timeMin).getTime();
+  const maxTime = new Date(timeMax).getTime();
+  if (isNaN(minTime) || isNaN(maxTime) || maxTime <= minTime) {
+    return [];
+  }
+
   const tokenHash = hashToken(refreshToken);
   const cacheKey = `gcal:freebusy:${tokenHash}:${calendarId}:${timeMin}:${timeMax}`;
   const localCacheKey = `${refreshToken.slice(-8)}:${calendarId}:${timeMin}:${timeMax}`;

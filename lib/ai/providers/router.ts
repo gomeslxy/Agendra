@@ -19,11 +19,11 @@ const groq = new GroqAdapter();
 const sambanova = new SambaNovaAdapter();
 const gemini = new GeminiAdapter();
 
-const CONV_CHAIN: AIProviderAdapter[] = [cerebras, groq, gemini];
-// Latency-first ordering: Groq (70B em LPU, ~280 tok/s, tool-calling confiável) lidera.
-// Cerebras (gpt-oss-120b, ~3000 tok/s, tool-calling sólido) é fallback rápido.
-// SambaNova 70B sofre cold-start (era o 1º hop e penalizava todo turn de agenda) → atrás.
-const TOOLS_CHAIN: AIProviderAdapter[] = [groq, cerebras, sambanova, gemini];
+const CONV_CHAIN: AIProviderAdapter[] = [gemini, cerebras, groq];
+// Resiliência e cotas elevadas: Gemini (gemini-2.5-flash) lidera.
+// Cerebras (gpt-oss-120b) e SambaNova atuam como fallbacks rápidos.
+// Groq (llama-3.3-70b-versatile) rebaixado a fallback final para evitar estouro de TPD/429.
+const TOOLS_CHAIN: AIProviderAdapter[] = [gemini, cerebras, sambanova, groq];
 const BG_CHAIN: AIProviderAdapter[] = [gemini, groq];
 
 function classifyError(err: any): { retryable: boolean; kind: string } {
@@ -37,7 +37,7 @@ function classifyError(err: any): { retryable: boolean; kind: string } {
 
 async function runChain<T>(
   chain: AIProviderAdapter[],
-  exec: (p: AIProviderAdapter, signal: AbortSignal) => Promise<T>,
+  exec: (p: AIProviderAdapter, signal: AbortSignal, timeout: number) => Promise<T>,
   baseTimeout: number,
   traceId?: string
 ): Promise<{ result: T; provider: ProviderName; fallbackUsed: boolean }> {
@@ -78,7 +78,7 @@ async function runChain<T>(
     );
     const start = Date.now();
     try {
-      const result = await exec(provider, controller.signal);
+      const result = await exec(provider, controller.signal, t);
       recordSuccess(provider.name);
       console.log(`[Router] ✅ ${provider.name} ${Date.now() - start}ms trace=${traceId}`);
       return { result, provider: provider.name, fallbackUsed: provider.name !== first };
@@ -104,7 +104,7 @@ export async function routeChat(
   const maxTokens = opts.chain !== 'tools' ? 250 : undefined;
   const { result, provider, fallbackUsed } = await runChain(
     chain,
-    (p, signal) => p.chat({ ...params, signal, ...(maxTokens ? { maxTokens } : {}) }),
+    (p, signal, timeout) => p.chat({ ...params, signal, timeout, ...(maxTokens ? { maxTokens } : {}) }),
     baseTimeout,
     opts.traceId
   );
@@ -117,7 +117,7 @@ export async function routeGenerate(
 ): Promise<ProviderGenerateResult> {
   const chain = opts.chain === 'bg' ? BG_CHAIN : CONV_CHAIN;
   const { result, provider, fallbackUsed } = await runChain(
-    chain, (p, signal) => p.generateText({ ...params, signal }), GEN_TIMEOUT_MS, opts.traceId
+    chain, (p, signal, timeout) => p.generateText({ ...params, signal, timeout }), GEN_TIMEOUT_MS, opts.traceId
   );
   return { text: result, provider, fallbackUsed };
 }

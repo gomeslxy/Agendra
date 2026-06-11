@@ -54,19 +54,20 @@ const baseFunctionDeclarations: FunctionDeclaration[] = [
       parameters: { type: SchemaType.OBJECT, properties: {}, required: [] },
     },
     {
-      name: 'checkAvailability',
+      name: 'get_available_slots',
       description:
-        'Consulta horários disponíveis nos próximos dias para um serviço específico. ' +
+        'Consulta horários disponíveis nos próximos dias para um serviço específico em um fuso horário definido. ' +
         'Use quando o lead demonstrar interesse real em agendar um serviço específico. ' +
-        'OBRIGATÓRIO informar o service_id. NÃO use se você ainda não sabe qual serviço o lead deseja agendar.',
+        'OBRIGATÓRIO informar o service_id e o timezone (fuso horário).',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
           service_id: { type: SchemaType.STRING, description: 'ID do serviço desejado' },
           days_ahead: { type: SchemaType.NUMBER, description: 'Dias à frente (padrão 7)' },
           date_hint: { type: SchemaType.STRING, description: 'Dica de data mencionada pelo lead (ex: "hoje", "amanhã", "terça") para otimizar a busca' },
+          timezone: { type: SchemaType.STRING, description: 'Timezone do lead/tenant (ex: "America/Sao_Paulo", "America/Manaus", "America/Bahia")' },
         },
-        required: ['service_id'],
+        required: ['service_id', 'timezone'],
       },
     },
     {
@@ -74,12 +75,12 @@ const baseFunctionDeclarations: FunctionDeclaration[] = [
       description:
         'Cria um novo agendamento de forma atômica no calendário. ' +
         'Use SOMENTE depois de ter confirmado explicitamente com o lead o serviço, a data e o horário selecionados. ' +
-        'IMPORTANTE: start_time DEVE ser exatamente o valor "start" ISO retornado por checkAvailability, NUNCA reconstrua o horário manualmente.',
+        'IMPORTANTE: start_time DEVE ser exatamente o valor "start" ISO retornado por get_available_slots, NUNCA reconstrua o horário manualmente.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
           service_id: { type: SchemaType.STRING, description: 'ID do serviço' },
-          start_time: { type: SchemaType.STRING, description: 'ISO 8601 — OBRIGATORIAMENTE use o campo "start" do slot retornado por checkAvailability. Nunca tente reconstruir manualmente.' },
+          start_time: { type: SchemaType.STRING, description: 'ISO 8601 — OBRIGATORIAMENTE use o campo "start" do slot retornado por get_available_slots. Nunca tente reconstruir manualmente.' },
           notes: { type: SchemaType.STRING, description: 'Observações adicionais' },
         },
         required: ['service_id', 'start_time'],
@@ -114,13 +115,13 @@ const baseFunctionDeclarations: FunctionDeclaration[] = [
         'FLUXO OBRIGATÓRIO: (1) Chame myAppointments para obter a lista de agendamentos futuros. ' +
         '(2) Identifique o agendamento correto usando o contexto da conversa. ' +
         '(3) Se houver apenas 1 agendamento, confirme qual é e pergunte o novo horário desejado. ' +
-        '(4) Use checkAvailability para verificar disponibilidade do novo horário. ' +
+        '(4) Use get_available_slots para verificar disponibilidade do novo horário. ' +
         'NUNCA solicite ou mencione o event_id ao cliente — use-o apenas internamente após identificá-lo via myAppointments.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
           event_id: { type: SchemaType.STRING, description: 'ID interno do agendamento — obtido de myAppointments, NUNCA solicitado ao cliente' },
-          new_start_time: { type: SchemaType.STRING, description: 'Novo ISO 8601 de início — use o campo "start" exato retornado por checkAvailability' },
+          new_start_time: { type: SchemaType.STRING, description: 'Novo ISO 8601 de início — use o campo "start" exato retornado por get_available_slots' },
           date_hint: { type: SchemaType.STRING, description: 'Data mencionada pelo cliente para ajudar a identificar o agendamento' },
           service_hint: { type: SchemaType.STRING, description: 'Serviço mencionado pelo cliente' },
         },
@@ -248,8 +249,8 @@ export async function handleListServices(_args: any, ctx: ToolContext) {
   return { message: `Serviços disponíveis:\n${list}`, services };
 }
 
-export async function handleCheckAvailability(
-  args: { service_id: string; days_ahead?: number; date_hint?: string },
+export async function handleGetAvailableSlots(
+  args: { service_id: string; days_ahead?: number; date_hint?: string; timezone: string },
   ctx: ToolContext,
 ) {
   const admin = createAdminClient();
@@ -271,7 +272,7 @@ export async function handleCheckAvailability(
       daysAhead = 7;
     }
   }
-  daysAhead = Math.min(daysAhead, 14);
+  daysAhead = Math.max(1, Math.min(daysAhead, 14));
 
   // 1. Buscar serviço e config da empresa
   const [svcRes, coRes] = await Promise.all([
@@ -325,8 +326,10 @@ export async function handleCheckAvailability(
   ];
 
   // 3. Calcular slots
+  const tz = args.timezone || persona.timezone || 'America/Sao_Paulo';
+
   const slots = calculateAvailableSlots({
-    timezone: persona.timezone ?? 'America/Sao_Paulo',
+    timezone: tz,
     workingHours: persona.working_hours ?? {
       mon: ['09:00', '18:00'], tue: ['09:00', '18:00'], wed: ['09:00', '18:00'],
       thu: ['09:00', '18:00'], fri: ['09:00', '18:00']
@@ -337,12 +340,11 @@ export async function handleCheckAvailability(
     bufferMinutes: persona.buffer_minutes ?? 0
   });
 
-  console.log(`[Tools] checkAvailability: found ${slots.length} slots for svc ${args.service_id} (duration ${svcRes.data.duration}m)`);
+  console.log(`[Tools] get_available_slots: found ${slots.length} slots for svc ${args.service_id} (duration ${svcRes.data.duration}m)`);
   if (busyIntervals.length > 0) {
     console.log(`[Tools] busyIntervals count: ${busyIntervals.length}`);
   }
 
-  const tz = persona.timezone ?? 'America/Sao_Paulo';
   const workingHours = persona.working_hours ?? {
     mon: ['09:00', '18:00'], tue: ['09:00', '18:00'], wed: ['09:00', '18:00'],
     thu: ['09:00', '18:00'], fri: ['09:00', '18:00']
@@ -423,7 +425,7 @@ export async function handleCheckAvailability(
   // model still has bookable ISO starts across the whole window.
   const slotsForModel = capSlotsPerDay(slots, tz, 5);
 
-  console.log(`[Tools] checkAvailability summary: ${availabilitySummary}`);
+  console.log(`[Tools] get_available_slots summary: ${availabilitySummary}`);
   return {
     consulted_at,
     today_date,

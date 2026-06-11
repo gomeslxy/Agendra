@@ -7,7 +7,7 @@ import type { Lead, Message } from '@/lib/types/database';
 import crypto from 'crypto';
 import {
   handleListServices,
-  handleCheckAvailability,
+  handleGetAvailableSlots,
   handleBookAppointment,
   handleCancelAppointment,
   handleRescheduleAppointment,
@@ -183,7 +183,7 @@ function buildSystemPrompt(
   let greetingRule = '';
   if (isNewConversation) {
     greetingRule = `Esta e a PRIMEIRA conversa deste lead (saudação inicial). Apresente-se de forma curta, amigável e calorosa como assistente do(a) ${businessName}, dê as boas-vindas e pergunte como pode ajudar.
-- **CONDUÇÃO GRADUAL OBRIGATÓRIA**: NUNCA tente agendar, oferecer horários ou chamar a ferramenta checkAvailability nesta primeira resposta se o lead enviou apenas uma saudação inicial (como "olá", "bom dia", "oi", "suave"). Primeiro converse, entenda o interesse dele, apresente os serviços de forma humana e somente prossiga para disponibilidade quando ele solicitar ou demonstrar interesse claro.`;
+- **CONDUÇÃO GRADUAL OBRIGATÓRIA**: NUNCA tente agendar, oferecer horários ou chamar a ferramenta get_available_slots nesta primeira resposta se o lead enviou apenas uma saudação inicial (como "olá", "bom dia", "oi", "suave"). Primeiro converse, entenda o interesse dele, apresente os serviços de forma humana e somente prossiga para disponibilidade quando ele solicitar ou demonstrar interesse claro.`;
   } else if (isSessionExpired) {
     greetingRule = `ATENCAO: O lead esta retornando apos um intervalo de ${timeSinceLastStr}. Esta e uma RETOMADA de conversa (nova sessao de atendimento).
 - Cumprimente o lead de forma natural e calorosa (ex: "Ola, ${firstName}! Tudo bem? Que bom falar com voce de novo!", ou "Ola, ${firstName}! Bom dia! Como posso te ajudar hoje?").
@@ -261,23 +261,23 @@ ${memoryContext}`;
   ${greetingRule}
 - **Instruções de Agendamento (REGRAS INVIOLÁVEIS)**:
   1. Identifique o serviço de interesse do lead. Se não estiver claro, pergunte ou chame listServices. Use SEMPRE o UUID [ID: ...] do catálogo.
-  2. **CONSULTA PRÉVIA OBRIGATÓRIA (Zero Alucinação de Vagas)**: Você está TERMINANTEMENTE PROIBIDO de afirmar, sugerir, insinuar ou chutar que possui horários livres ou que "tem vaga para hoje/amanhã/à tarde" sem antes ter efetuado com sucesso a chamada da ferramenta checkAvailability para o serviço correspondente. Qualquer intenção de agendamento por parte do lead (ex: "quero marcar", "tem vaga amanhã?", "pode ser à tarde?") deve disparar IMEDIATAMENTE a ferramenta checkAvailability em background antes de formular sua resposta final. NUNCA invente disponibilidade ou diga que não há horários baseando-se apenas em histórico ou resumos.
+  2. **CONSULTA PRÉVIA OBRIGATÓRIA (Zero Alucinação de Vagas)**: Você está TERMINANTEMENTE PROIBIDO de afirmar, sugerir, insinuar ou chutar que possui horários livres ou que "tem vaga para hoje/amanhã/à tarde" sem antes ter efetuado com sucesso a chamada da ferramenta get_available_slots para o serviço correspondente. Qualquer intenção de agendamento por parte do lead (ex: "quero marcar", "tem vaga amanhã?", "pode ser à tarde?") deve disparar IMEDIATAMENTE a ferramenta get_available_slots em background antes de formular sua resposta final. NUNCA invente disponibilidade ou diga que não há horários baseando-se apenas em histórico ou resumos.
   3. **DIFERENCIAÇÃO DE DIAS SEM EXPEDIENTE VS. AGENDA LOTADA**:
-     - Analise atentamente o diagnóstico do status diário retornado no campo "message" ou "day_breakdown" de checkAvailability.
+     - Analise atentamente o diagnóstico do status diário retornado no campo "message" ou "day_breakdown" de get_available_slots.
      - **Dias Fechados/Sem Expediente**: Se o lead solicitar ou demonstrar interesse em um dia classificado como FECHADO (dia de folga ou sem funcionamento), NUNCA responda secamente que "não há horários disponíveis". Você deve explicar de forma muito simpática e atenciosa que o local não abre/funciona naquele dia e sugerir alternativas inteligentes (ex: "Nós não funcionamos aos domingos! Que tal darmos uma olhada na segunda-feira pela manhã ou na terça à tarde?").
      - **Dias Genuinamente Lotados**: Se o lead solicitar um dia de funcionamento normal que está classificado como LOTADO (agenda cheia), explique com simpatia que os horários para essa data já estão totalmente preenchidos e sugira verificar o dia seguinte (ex: "Para este dia os horários já estão totalmente preenchidos. Vamos dar uma olhada no dia seguinte?").
-  4. **PROIBIDO DUMP DE HORÁRIOS (UX Conversacional Premium)**: Quando checkAvailability retornar os slots livres, você está TERMINANTEMENTE PROIBIDO de listar horários individuais sequenciais como uma lista ou texto corrido de múltiplos slots (ex: "Temos segunda-feira às 09:00, 09:30, 10:00, 10:30..." é expressamente proibido e considerado falha grave!). Isso assusta o cliente e causa cansaço visual.
+  4. **PROIBIDO DUMP DE HORÁRIOS (UX Conversacional Premium)**: Quando get_available_slots retornar os slots livres, você está TERMINANTEMENTE PROIBIDO de listar horários individuais sequenciais como uma lista ou texto corrido de múltiplos slots (ex: "Temos segunda-feira às 09:00, 09:30, 10:00, 10:30..." é expressamente proibido e considerado falha grave!). Isso assusta o cliente e causa cansaço visual.
      - **Como Apresentar Horários**:
        a) Primeiro, quando o cliente quiser agendar, pergunte qual dia e período (manhã, tarde ou noite) ele prefere (ex: "Qual dia e período fica melhor para você?").
-       b) Ao sugerir horários disponíveis de checkAvailability, use **faixas de horários/períodos gerais** em vez de listar cada slot individual de 30 em 30 minutos.
+       b) Ao sugerir horários disponíveis de get_available_slots, use **faixas de horários/períodos gerais** em vez de listar cada slot individual de 30 em 30 minutos.
           * Exemplo correto: "Temos horários disponíveis nesta segunda-feira pela manhã (entre 09:00 e 12:00) ou à tarde (das 15:00 às 18:00). Qual desses períodos fica melhor para você?"
           * Exemplo correto: "Na terça-feira temos horários livres à tarde, entre 14:00 e 17:30. Algum momento nesse intervalo funciona para você?"
           * Exemplo correto: "Para o corte, temos disponibilidade na quarta-feira das 14:00 às 16:30. Qual horário você gostaria de marcar dentro desse período?"
        c) Use no máximo 2 opções de períodos/dias diferentes por vez para simplificar a escolha do lead.
   5. **Confirmação Obrigatória**: Antes de efetivamente agendar (bookAppointment), confirme de forma explícita com o lead o serviço desejado, a data e o horário (ex: "Perfeito! Então podemos confirmar o [Serviço] para segunda-feira, [Data], às [Horário]?").
-  6. **Agendamento no Calendário**: Chame bookAppointment SOMENTE após a confirmation clara e explícita do lead. Para bookAppointment, use SEMPRE o campo "start" ISO 8601 exato retornado pelo slot de checkAvailability, NUNCA tente reconstruir o horário manualmente nem assuma fuso horário de forma incorreta.
+  6. **Agendamento no Calendário**: Chame bookAppointment SOMENTE após a confirmation clara e explícita do lead. Para bookAppointment, use SEMPRE o campo "start" ISO 8601 exato retornado pelo slot de get_available_slots, NUNCA tente reconstruir o horário manualmente nem assuma fuso horário de forma incorreta.
 - **Regra de Ouro da Proatividade Comercial (Sempre Fechar com CTA)**: NUNCA responda a uma pergunta informativa do lead (como preço, localização, políticas, funcionamento) de forma puramente passiva ou inerte. Toda resposta informativa DEVE terminar com um convite proativo, gentil e sutil para o agendamento (ex: respondendo ao valor de um serviço e imediatamente sugerindo: "Inclusive, tenho algumas vagas para amanhã ou quinta-feira. Gostaria de garantir um horário?").
-- **Atalho de Agendamento (Fim de Loops Redundantes)**: Se o lead indicar qualquer parâmetro de tempo ou dia na conversa (ex: "segunda-feira", "amanhã", "à tarde", "quarta de manhã"), NÃO faça novas perguntas de qualificação nem repita perguntas pendentes. Considere isso como intenção clara de agendar, chame a ferramenta checkAvailability imediatamente para o serviço desejado e ofereça os slots correspondentes para o lead escolher. Guie-o ativamente.
+- **Atalho de Agendamento (Fim de Loops Redundantes)**: Se o lead indicar qualquer parâmetro de tempo ou dia na conversa (ex: "segunda-feira", "amanhã", "à tarde", "quarta de manhã"), NÃO faça novas perguntas de qualificação nem repita perguntas pendentes. Considere isso como intenção clara de agendar, chame a ferramenta get_available_slots imediatamente para o serviço desejado e ofereça os slots correspondentes para o lead escolher. Guie-o ativamente.
 - **Cancelamento e Reagendamento Inteligente (REGRAS INVIOLÁVEIS)**:
   1. **IDs são exclusivamente internos**: NUNCA cite, exiba, mencione, peça ou pergunte o ID de um agendamento ao cliente. event_id é um identificador técnico interno e absolutamente invisível para o cliente.
   2. **Fluxo obrigatório de cancelamento/reagendamento**:
@@ -300,7 +300,7 @@ ${memoryContext}`;
   ${planContext}
 - **Regras Comerciais Invioláveis e Segurança**:
   ${jailbreakGuards}
-- **ZERO VAZAMENTOS TÉCNICOS**: Você está terminantemente proibido de citar qualquer termo de programação, nomes de funções do sistema (como checkAvailability, bookAppointment, updateLeadMemory, etc.), formatos de dados técnicos (como ISO 8601, UTC) ou nomes de tabelas/banco de dados. Você está terminantemente proibido de mostrar identificadores técnicos, UUIDs ou tags de ID como [ID: ...] para o cliente. Use-os estritamente de forma interna para invocar ferramentas. Responda sempre de forma 100% humanizada, comercial e limpa.
+- **ZERO VAZAMENTOS TÉCNICOS**: Você está terminantemente proibido de citar qualquer termo de programação, nomes de funções do sistema (como get_available_slots, bookAppointment, updateLeadMemory, etc.), formatos de dados técnicos (como ISO 8601, UTC) ou nomes de tabelas/banco de dados. Você está terminantemente proibido de mostrar identificadores técnicos, UUIDs ou tags de ID como [ID: ...] para o cliente. Use-os estritamente de forma interna para invocar ferramentas. Responda sempre de forma 100% humanizada, comercial e limpa.
 
 ${extraInstructions}${forbidden}`;
   } else {
@@ -379,7 +379,8 @@ export async function processLeadMessage(
 
   const normalizedHistory: NormalizedMessage[] = history
     .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    .slice(-5); // Truncate to the last 5 messages to save tokens and prevent rate limits
 
   const isLitePlan = planLimits.hasAdvancedModel === false;
   const MAX_ITERATIONS = isLitePlan ? 3 : 5;
@@ -390,7 +391,13 @@ export async function processLeadMessage(
   async function toolHandler(name: string, args: Record<string, any>): Promise<any> {
     try {
       if (name === 'listServices') return await handleListServices(args as any, ctx);
-      if (name === 'checkAvailability') return await handleCheckAvailability(args as any, ctx);
+      if (name === 'checkAvailability' || name === 'get_available_slots') {
+        const slotsArgs = {
+          ...args,
+          timezone: args.timezone || persona.timezone || 'America/Sao_Paulo'
+        };
+        return await handleGetAvailableSlots(slotsArgs as any, ctx);
+      }
       if (name === 'bookAppointment') return await handleBookAppointment(args as any, ctx);
       if (name === 'cancelAppointment') return await handleCancelAppointment(args as any, ctx);
       if (name === 'rescheduleAppointment') return await handleRescheduleAppointment(args as any, ctx);
@@ -474,7 +481,7 @@ export async function processLeadMessage(
     console.warn(`[Engine][${traceId?.slice(0, 8) ?? 'n/a'}] 🚨 Suspicious response detected on attempt ${attempts}: "${replyToCheck}"`);
 
     if (attempts < maxAttempts) {
-      systemPromptWithCorrection = `${systemPrompt}\n\n⚠️ ATENÇÃO CRÍTICA (AUTO-CORREÇÃO): Na tentativa anterior, você gerou uma resposta contendo termos técnicos, formatação corrompida, tags XML/HTML ou placeholders que não deveriam aparecer em uma conversa real do WhatsApp. CERTIFIQUE-SE de que a resposta final seja 100% amigável, natural e legível por um cliente real. Você está TERMINANTEMENTE PROIBIDO de incluir: tags (como <...>, </...>, <=x>/>), placeholders (como {{nome}}, [inserir]), ou nomes de funções técnicas (como checkAvailability). Escreva puramente texto natural.`;
+      systemPromptWithCorrection = `${systemPrompt}\n\n⚠️ ATENÇÃO CRÍTICA (AUTO-CORREÇÃO): Na tentativa anterior, você gerou uma resposta contendo termos técnicos, formatação corrompida, tags XML/HTML ou placeholders que não deveriam aparecer em uma conversa real do WhatsApp. CERTIFIQUE-SE de que a resposta final seja 100% amigável, natural e legível por um cliente real. Você está TERMINANTEMENTE PROIBIDO de incluir: tags (como <...>, </...>, <=x>/>), placeholders (como {{nome}}, [inserir]), ou nomes de funções técnicas (como get_available_slots). Escreva puramente texto natural.`;
     }
   }
 
@@ -531,7 +538,7 @@ export async function processLeadMessage(
 
   const calledCheck = (result.toolsCalled || []).some((t: any) => {
     const name = typeof t === 'string' ? t : (t?.name ?? t?.tool ?? '');
-    return name === 'checkAvailability' || name === 'listServices';
+    return name === 'checkAvailability' || name === 'get_available_slots' || name === 'listServices';
   });
 
   if (calledBook) {
@@ -1425,6 +1432,22 @@ export async function handleIncomingMessage(
     console.error(`[Engine][${tag}] 💥 turn failed (allProvidersFailed=${isAllProvidersFailed} deadline=${isDeadline}): ${errMsg.slice(0, 300)}`);
 
     if (isAllProvidersFailed) {
+      const attemptCount = Number(incomingMetadata?.attempt_count ?? 1);
+      if (attemptCount < 3) {
+        console.warn(`[Engine][${tag}] 💥 Transient API failure (attempt ${attemptCount}/3). Skipping human takeover handoff, rethrowing for retry.`);
+        try { await releaseLock(); } catch (lockErr) {
+          console.error('[Engine] releaseLock failed in error handler:', lockErr);
+        }
+        if (providerMessageId) {
+          await admin.from('processed_messages').update({
+            status: 'error',
+            error_message: errMsg.slice(0, 500)
+          }).eq('provider_message_id', providerMessageId);
+        }
+        throw err;
+      }
+
+      // Permanent failure (attempt >= 3): perform handoff
       const hours = (company.persona_config as any)?.fallback_takeover_hours ?? 2;
       const alreadyInTakeover =
         activeLead.human_takeover_until &&

@@ -15,7 +15,10 @@
 import { Client, Receiver } from '@upstash/qstash';
 
 export function qstashEnabled(): boolean {
-  return Boolean(process.env.QSTASH_TOKEN);
+  if (!process.env.QSTASH_TOKEN) return false;
+  const url = publicBaseUrl();
+  const isLoopback = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('::1');
+  return !isLoopback;
 }
 
 export function publicBaseUrl(): string {
