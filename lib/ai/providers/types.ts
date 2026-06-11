@@ -47,6 +47,8 @@ export interface ChatParams {
   signal?: AbortSignal;
   /** Force tool calls when set to 'ANY'; defaults to AUTO. */
   toolMode?: 'ANY' | 'AUTO';
+  /** Maximum output tokens to generate. */
+  maxTokens?: number;
 }
 
 export interface ChatResult {

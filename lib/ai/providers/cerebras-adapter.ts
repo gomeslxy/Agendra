@@ -59,7 +59,13 @@ export class CerebrasAdapter implements AIProviderAdapter {
     const reasoningOpts = { reasoning_effort: 'low' } as Record<string, unknown>;
 
     let response = await this.client.chat.completions.create(
-      { model: modelName, messages, ...reasoningOpts, ...(tools ? { tools, tool_choice: toolChoice } : {}) },
+      {
+        model: modelName,
+        messages,
+        ...reasoningOpts,
+        ...(tools ? { tools, tool_choice: toolChoice } : {}),
+        ...(params.maxTokens ? { max_tokens: params.maxTokens } : {}),
+      },
       reqOpts,
     );
 
@@ -113,7 +119,13 @@ export class CerebrasAdapter implements AIProviderAdapter {
       messages.push(...toolResults);
 
       response = await this.client.chat.completions.create(
-        { model: modelName, messages, ...reasoningOpts, ...(tools ? { tools, tool_choice: 'auto' } : {}) },
+        {
+          model: modelName,
+          messages,
+          ...reasoningOpts,
+          ...(tools ? { tools, tool_choice: 'auto' } : {}),
+          ...(params.maxTokens ? { max_tokens: params.maxTokens } : {}),
+        },
         reqOpts,
       );
 

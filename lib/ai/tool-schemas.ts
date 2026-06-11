@@ -20,6 +20,7 @@ const baseDefs: NeutralToolDefinition[] = [
       properties: {
         service_id: { type: 'string', description: 'ID do serviço desejado' },
         days_ahead: { type: 'number', description: 'Dias à frente (padrão 7)' },
+        date_hint: { type: 'string', description: 'Dica de data mencionada pelo lead (ex: "hoje", "amanhã", "terça") para otimizar a busca' },
       },
       required: ['service_id'],
     },

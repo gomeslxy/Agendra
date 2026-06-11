@@ -704,8 +704,8 @@ export async function handleIncomingMessage(
     }
   }
 
-  // 2. Context loading — company e services são independentes, carregam em paralelo.
-  const [{ data: company }, { data: services }] = await Promise.all([
+  // 2. Context loading — company, services, knowledge count, and lead are loaded in parallel.
+  const [{ data: company }, { data: services }, { count: knowledgeCount }, { data: lead }] = await Promise.all([
     admin.from('companies').select('*').eq('id', companyId).single(),
     admin
       .from('services')
@@ -713,6 +713,17 @@ export async function handleIncomingMessage(
       .eq('company_id', companyId)
       .eq('active', true)
       .neq('is_paused', true),
+    admin
+      .from('company_knowledge')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .limit(1),
+    admin
+      .from('leads')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('phone', phone)
+      .maybeSingle(),
   ]);
   if (!company) throw new Error('Empresa nao encontrada');
 
@@ -723,14 +734,6 @@ export async function handleIncomingMessage(
     ai_forbidden: company.ai_forbidden || (company.persona_config as any)?.ai_forbidden,
     realServices: (services as any[]) || [],
   };
-
-  // 3. Lead upsert
-  const { data: lead } = await admin
-    .from('leads')
-    .select('*')
-    .eq('company_id', companyId)
-    .eq('phone', phone)
-    .maybeSingle();
 
   let activeLead: Lead;
   if (lead) {
@@ -938,12 +941,6 @@ export async function handleIncomingMessage(
   // consultam a base de conhecimento.
   if (earlyPlanLimits.hasRAG && intent.needsRAG) {
     // RAG guard: skip embedding if company has no knowledge documents (avoids quota burn on empty corpus)
-    const { count: knowledgeCount } = await admin
-      .from('company_knowledge')
-      .select('id', { count: 'exact', head: true })
-      .eq('company_id', companyId)
-      .limit(1);
-
     if ((knowledgeCount ?? 0) > 0) {
       try {
         const { text: semanticContext, status } = await getSemanticKnowledge(companyId, messageText, admin);
@@ -969,31 +966,23 @@ export async function handleIncomingMessage(
     return admin.from('leads').update({ is_processing: false, processing_started_at: null }).eq('id', activeLead.id).eq('company_id', companyId);
   };
 
-  // 4. Persist incoming message
-  // Skip if messages were already pre-saved by bufferAndDebounce for real-time inbox display.
-  // NOTE: the `messages` table has no `channel_id` column (the lead row already tracks the
-  // channel). Inserting it makes PostgREST reject the whole row; the error used to be
-  // swallowed, so neither the lead's message nor the AI reply ever reached the inbox.
-  if (preSavedIds.length === 0) {
-    const { error: userMsgErr } = await admin
-      .from('messages')
-      .insert({
-        lead_id: activeLead.id,
-        company_id: companyId,
-        role: 'user',
-        content: messageText,
-      });
-    if (userMsgErr) logError(`[Engine][${tag}] 💥 failed to persist user message:`, userMsgErr);
-  } else {
-    console.log(`[Engine][${tag}] ⚡ skipped user msg insert — pre-saved (${preSavedIds.length} ids)`);
-  }
-
-  // 5. Billing gate
+  // 4. Billing gate
   const usage = preloadedUsage ?? await getCompanyUsage(companyId);
   if (usage.isLimitReached) {
     const fallback =
       'Ola! No momento estamos com alta demanda. Recebemos sua mensagem e um consultor humano entrara em contato em breve.';
     console.warn(`[Engine][${tag}] 🚫 billing limit reached — sending fallback`);
+    // Persist incoming user message before failing (if not pre-saved)
+    if (preSavedIds.length === 0) {
+      await admin.from('messages').insert({
+        lead_id: activeLead.id,
+        company_id: companyId,
+        role: 'user',
+        content: messageText,
+      }).then(({ error }) => {
+        if (error) logError(`[Engine][${tag}] 💥 failed to persist user message:`, error);
+      });
+    }
     await sendChannelMessage(phone, fallback, companyId);
     if (providerMessageId) {
       await admin.from('processed_messages').update({ status: 'completed' })
@@ -1007,9 +996,8 @@ export async function handleIncomingMessage(
   const isBookingActive = (activeLead.status as string) === 'booking_in_progress';
   const historyLimit = isBookingActive ? 15 : 10;
 
-  // History window and the first-response count are independent reads on the same
-  // table — run them in parallel to shave a serial round-trip off the hot path.
-  // (Reliable first-response check: query count directly, not from windowed history.)
+  // 5. Context History loading (run before inserting the current user message
+  // to avoid double-sending the current message inside history).
   const [{ data: historyRaw }, { count: assistantTotal }] = await Promise.all([
     admin
       .from('messages')
@@ -1029,6 +1017,17 @@ export async function handleIncomingMessage(
   logDebug(`Fetched ${history.length} history messages`);
 
   if (activeLead.is_paused && activeLead.control_mode !== 'shadow') {
+    // Persist incoming user message before exiting (if not pre-saved)
+    if (preSavedIds.length === 0) {
+      await admin.from('messages').insert({
+        lead_id: activeLead.id,
+        company_id: companyId,
+        role: 'user',
+        content: messageText,
+      }).then(({ error }) => {
+        if (error) logError(`[Engine][${tag}] 💥 failed to persist user message:`, error);
+      });
+    }
     if (providerMessageId) {
       await admin.from('processed_messages').update({ status: 'completed' })
         .eq('provider_message_id', providerMessageId);
@@ -1037,7 +1036,25 @@ export async function handleIncomingMessage(
     return;
   }
 
-  // 6. AI turn + Try/Catch wrapper (W1.2)
+  // 6. Persist incoming message in parallel with AI inference
+  let userMsgPromise: Promise<void> = Promise.resolve();
+  if (preSavedIds.length === 0) {
+    userMsgPromise = (async () => {
+      const { error } = await admin
+        .from('messages')
+        .insert({
+          lead_id: activeLead.id,
+          company_id: companyId,
+          role: 'user',
+          content: messageText,
+        });
+      if (error) logError(`[Engine][${tag}] 💥 failed to persist user message:`, error);
+    })();
+  } else {
+    console.log(`[Engine][${tag}] ⚡ skipped user msg insert — pre-saved (${preSavedIds.length} ids)`);
+  }
+
+  // 7. AI turn + Try/Catch wrapper (W1.2)
   const historyList = history as Message[];
   logDebug(`History list prepared with ${historyList.length} messages`);
   const isNewConversation = (assistantTotal ?? 0) === 0;
@@ -1111,6 +1128,9 @@ export async function handleIncomingMessage(
 
     // Consolida para fins de compatibilidade de logs e analytics
     finalReply = sanitizedParts.join('\n\n');
+
+    // Ensure the parallel user message insertion has completed before continuing
+    await userMsgPromise;
 
     const isShadowMode = activeLead.control_mode === 'shadow';
 
@@ -1360,6 +1380,9 @@ export async function handleIncomingMessage(
     });
 
   } catch (err: any) {
+    // If the turn fails, still ensure user message got persisted if we started it
+    await userMsgPromise.catch(() => {});
+
     const errMsg = String(err?.message ?? '');
     // A deadline bail is treated like a total provider failure: hand off to a
     // human gracefully (and release locks below) BEFORE the platform kills us.

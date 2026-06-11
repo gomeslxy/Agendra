@@ -77,13 +77,20 @@ export function calculateAvailableSlots(options: AvailabilityOptions): Available
   // Returns UTC offset in minutes for a given timezone at a given UTC moment.
   // Returns UTC offset in minutes for a given timezone at a given UTC moment.
   // 100% robust conversion using standard en-US double formatting, preventing midnight 24h bugs.
+  const offsetCache = new Map<string, number>();
   function getOffsetMinutes(utcDate: Date, tz: string): number {
+    const dayKey = `${utcDate.getUTCFullYear()}-${utcDate.getUTCMonth()}-${utcDate.getUTCDate()}`;
+    const cached = offsetCache.get(dayKey);
+    if (cached !== undefined) return cached;
+
     try {
       const tzString = utcDate.toLocaleString('en-US', { timeZone: tz });
       const localDate = new Date(tzString);
       const utcString = utcDate.toLocaleString('en-US', { timeZone: 'UTC' });
       const utcNormalized = new Date(utcString);
-      return Math.round((localDate.getTime() - utcNormalized.getTime()) / 60000);
+      const offset = Math.round((localDate.getTime() - utcNormalized.getTime()) / 60000);
+      offsetCache.set(dayKey, offset);
+      return offset;
     } catch (e) {
       console.error('Error calculating offset:', e);
       return -180; // Default to BRT

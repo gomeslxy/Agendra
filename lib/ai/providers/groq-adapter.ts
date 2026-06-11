@@ -53,7 +53,12 @@ export class GroqAdapter implements AIProviderAdapter {
     let iterations = 0;
 
     let response = await this.client.chat.completions.create(
-      { model: modelName, messages, ...(tools ? { tools, tool_choice: toolChoice } : {}) },
+      {
+        model: modelName,
+        messages,
+        ...(tools ? { tools, tool_choice: toolChoice } : {}),
+        ...(params.maxTokens ? { max_tokens: params.maxTokens } : {}),
+      },
       reqOpts,
     );
 
@@ -107,7 +112,12 @@ export class GroqAdapter implements AIProviderAdapter {
       messages.push(...toolResults);
 
       response = await this.client.chat.completions.create(
-        { model: modelName, messages, ...(tools ? { tools, tool_choice: 'auto' } : {}) },
+        {
+          model: modelName,
+          messages,
+          ...(tools ? { tools, tool_choice: 'auto' } : {}),
+          ...(params.maxTokens ? { max_tokens: params.maxTokens } : {}),
+        },
         reqOpts,
       );
 

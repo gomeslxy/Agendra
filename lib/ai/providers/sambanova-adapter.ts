@@ -49,7 +49,12 @@ export class SambaNovaAdapter implements AIProviderAdapter {
     let totalIn = 0, totalOut = 0, iterations = 0;
 
     let resp = await this.post(
-      { model: modelName, messages, ...(tools ? { tools, tool_choice: toolChoice } : {}) },
+      {
+        model: modelName,
+        messages,
+        ...(tools ? { tools, tool_choice: toolChoice } : {}),
+        ...(params.maxTokens ? { max_tokens: params.maxTokens } : {}),
+      },
       params.signal,
     );
     totalIn += resp.usage?.prompt_tokens ?? 0;
@@ -88,7 +93,12 @@ export class SambaNovaAdapter implements AIProviderAdapter {
       messages.push(...results);
 
       resp = await this.post(
-        { model: modelName, messages, ...(tools ? { tools, tool_choice: 'auto' } : {}) },
+        {
+          model: modelName,
+          messages,
+          ...(tools ? { tools, tool_choice: 'auto' } : {}),
+          ...(params.maxTokens ? { max_tokens: params.maxTokens } : {}),
+        },
         params.signal,
       );
       totalIn += resp.usage?.prompt_tokens ?? 0;

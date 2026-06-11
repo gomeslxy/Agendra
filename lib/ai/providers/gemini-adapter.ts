@@ -87,6 +87,7 @@ export class GeminiAdapter implements AIProviderAdapter {
       toolConfig: declarations.length > 0
         ? { functionCallingConfig: { mode: callingMode } }
         : undefined,
+      ...(params.maxTokens ? { generationConfig: { maxOutputTokens: params.maxTokens } } : {}),
     });
 
     // Forward the router's AbortSignal so a deadline/timeout closes the request.

@@ -101,8 +101,12 @@ export async function routeChat(
 ): Promise<ProviderRouteResult> {
   const chain = opts.chain === 'tools' ? TOOLS_CHAIN : CONV_CHAIN;
   const baseTimeout = opts.chain === 'tools' ? TOOLS_TIMEOUT_MS : CHAT_TIMEOUT_MS;
+  const maxTokens = opts.chain !== 'tools' ? 250 : undefined;
   const { result, provider, fallbackUsed } = await runChain(
-    chain, (p, signal) => p.chat({ ...params, signal }), baseTimeout, opts.traceId
+    chain,
+    (p, signal) => p.chat({ ...params, signal, ...(maxTokens ? { maxTokens } : {}) }),
+    baseTimeout,
+    opts.traceId
   );
   return { ...result, provider, fallbackUsed };
 }
