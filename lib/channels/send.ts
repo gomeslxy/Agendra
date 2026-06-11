@@ -173,7 +173,7 @@ export async function sendChannelMedia(
 /**
  * Triggers typing indicator through the unified channel abstraction layer.
  */
-export async function sendChannelTyping(to: string, companyId?: string): Promise<void> {
+export async function sendChannelTyping(to: string, companyId?: string, messageId?: string): Promise<void> {
   if (!companyId || !to) return;
 
   try {
@@ -181,7 +181,7 @@ export async function sendChannelTyping(to: string, companyId?: string): Promise
     const adapter = getAdapter(config.provider);
 
     if (adapter.sendTypingIndicator) {
-      await adapter.sendTypingIndicator(config, to);
+      await adapter.sendTypingIndicator(config, messageId || to);
     }
   } catch {
     // Typing indicator is a best-effort failure-silent action

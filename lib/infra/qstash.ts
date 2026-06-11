@@ -18,7 +18,7 @@ export function qstashEnabled(): boolean {
   return Boolean(process.env.QSTASH_TOKEN);
 }
 
-function publicBaseUrl(): string {
+export function publicBaseUrl(): string {
   return (
     process.env.SERVER_APP_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -27,7 +27,7 @@ function publicBaseUrl(): string {
 }
 
 let _client: Client | null = null;
-function client(): Client {
+export function client(): Client {
   if (!_client) _client = new Client({ token: process.env.QSTASH_TOKEN! });
   return _client;
 }

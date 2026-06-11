@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { after } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logDebug, logInfo, logError, isDebug } from '@/lib/logging';
-import { sendChannelMessage } from '@/lib/channels/send';
+import { sendChannelMessage, sendChannelTyping } from '@/lib/channels/send';
 import type { Lead, Message } from '@/lib/types/database';
 import crypto from 'crypto';
 import {
@@ -853,6 +853,27 @@ export async function handleIncomingMessage(
           }, { onConflict: 'provider_message_id' });
 
           if (!requeueErr) {
+            // Fast requeue retry via QStash: instead of waiting for the 1-minute pg_cron
+            // to run, we trigger a delayed call directly to /api/cron/flush-buffer.
+            try {
+              const { qstashEnabled, client: qstashClient, publicBaseUrl } = await import('@/lib/infra/qstash');
+              if (qstashEnabled()) {
+                const delaySec = Math.ceil(delayMs / 1000);
+                await qstashClient().publishJSON({
+                  url: `${publicBaseUrl()}/api/cron/flush-buffer`,
+                  body: {},
+                  delay: delaySec,
+                  headers: {
+                    Authorization: `Bearer ${process.env.CRON_SECRET}`,
+                  },
+                  retries: 1,
+                });
+                console.log(`[Engine][${tag}] 📨 scheduled buffer flush retry via QStash (delay=${delaySec}s)`);
+              }
+            } catch (qstashErr: any) {
+              console.error(`[Engine][${tag}] 💥 failed to schedule QStash flush-buffer retry:`, qstashErr?.message);
+            }
+
             if (providerMessageId) {
               // Free the dedup claim — without this the redelivery hits the
               // processed_messages PK and is silently skipped as a duplicate.
@@ -1073,6 +1094,19 @@ export async function handleIncomingMessage(
   let finalReply = '';
   let sentMessage: any = null;
   let leadPatch: any = null;
+
+  let typingActive = true;
+  let typingInterval: NodeJS.Timeout | null = null;
+  if (providerMessageId) {
+    void sendChannelTyping(phone, companyId, providerMessageId);
+    typingInterval = setInterval(() => {
+      if (!typingActive) {
+        if (typingInterval) clearInterval(typingInterval);
+        return;
+      }
+      void sendChannelTyping(phone, companyId, providerMessageId);
+    }, 4000);
+  }
 
   try {
     console.log(`[Engine][${tag}] 🤖 calling AI (planType=${usage.planType} historyLen=${historyToSend.length} newConv=${isNewConversation})`);
@@ -1434,6 +1468,9 @@ export async function handleIncomingMessage(
       }).eq('provider_message_id', providerMessageId);
     }
     throw err;
+  } finally {
+    typingActive = false;
+    if (typingInterval) clearInterval(typingInterval);
   }
 
   // 12. Background analytics (non-blocking — does not affect response latency)
