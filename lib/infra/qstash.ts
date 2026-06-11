@@ -28,7 +28,14 @@ export function publicBaseUrl(): string {
 
 let _client: Client | null = null;
 export function client(): Client {
-  if (!_client) _client = new Client({ token: process.env.QSTASH_TOKEN! });
+  if (!_client) {
+    const token = process.env.QSTASH_TOKEN!;
+    const url = process.env.QSTASH_URL;
+    _client = new Client({
+      token,
+      ...(url ? { baseUrl: url } : {}),
+    });
+  }
   return _client;
 }
 
