@@ -128,6 +128,7 @@ export async function getFreeBusySlots(
   calendarId: string,
   timeMin: string,
   timeMax: string,
+  opts: { noCache?: boolean } = {},
 ): Promise<BusySlot[]> {
   const tokenHash = hashToken(refreshToken);
   const cacheKey = `gcal:freebusy:${tokenHash}:${calendarId}:${timeMin}:${timeMax}`;
@@ -135,21 +136,26 @@ export async function getFreeBusySlots(
 
   const backupCacheKey = `gcal:freebusy:backup:${tokenHash}:${calendarId}:${timeMin}:${timeMax}`;
 
-  // 1. Try distributed Redis cache
-  if (isRedisAvailable()) {
-    try {
-      const cachedData = await redis.get(cacheKey);
-      if (cachedData) {
-        return JSON.parse(cachedData) as BusySlot[];
+  // noCache: the booking double-check must see the REAL calendar state. A 90s
+  // cached "free" answer is exactly the window where two leads can race for the
+  // same slot — serving it would defeat the double-booking guard.
+  if (!opts.noCache) {
+    // 1. Try distributed Redis cache
+    if (isRedisAvailable()) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          return JSON.parse(cachedData) as BusySlot[];
+        }
+      } catch (err) {
+        console.warn('[GCal Cache] Redis freebusy get failed, falling back to local memory:', err);
       }
-    } catch (err) {
-      console.warn('[GCal Cache] Redis freebusy get failed, falling back to local memory:', err);
     }
-  }
 
-  // 2. Fallback to local process cache (90-second TTL)
-  const cached = localFreeBusyCache.get(localCacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.slots;
+    // 2. Fallback to local process cache (90-second TTL)
+    const cached = localFreeBusyCache.get(localCacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.slots;
+  }
 
   try {
 

@@ -264,7 +264,12 @@ export async function handleCheckAvailability(
   const company = coRes.data;
   const persona = (company?.persona_config ?? {}) as any;
   
-  const now = new Date();
+  // Quantizado ao minuto: timeMin/timeMax com precisão de ms tornavam a chave do
+  // cache Free/Busy única por chamada → 0% de hit, toda consulta de disponibilidade
+  // pagava o round-trip completo ao Google. Com granularidade de 60s, chamadas
+  // repetidas dentro do TTL de 90s (lead explorando dias/períodos) hitam o cache.
+  // Inofensivo para o cálculo: slots começam no próximo bloco de 30min + 1h buffer.
+  const now = new Date(Math.floor(Date.now() / 60_000) * 60_000);
   const rangeEnd = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
 
   // 2. Buscar bloqueios (Local + GCal) — overlap query: event overlaps [now, rangeEnd]
@@ -504,11 +509,14 @@ export async function handleBookAppointment(
   if (company?.google_refresh_token) {
     try {
       // FIX-F2: 5s timeout so booking stall doesn't block the AI if GCal is slow at booking time
+      // noCache: precisa do estado REAL do calendário no instante da confirmação —
+      // um "livre" cacheado de até 90s atrás é exatamente a janela de double-booking.
       const gcalDoubleCheckPromise = getFreeBusySlots(
         company.google_refresh_token,
         company.google_calendar_id ?? 'primary',
         startTime.toISOString(),
-        endTime.toISOString()
+        endTime.toISOString(),
+        { noCache: true }
       );
       const gcalDoubleCheckTimeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('GCal double-check timeout (5s)')), 5000)

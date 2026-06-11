@@ -21,8 +21,12 @@ function toOpenAITool(t: NeutralToolDefinition): ChatCompletionTool {
 
 export class CerebrasAdapter implements AIProviderAdapter {
   readonly name = 'cerebras' as const;
-  readonly defaultChatModel = 'llama3.1-8b';
-  readonly defaultGenerateModel = 'llama3.1-8b';
+  // llama3.1-8b foi descomissionado pela Cerebras (404 model_not_found em jun/2026),
+  // o que fazia TODO turn conversacional queimar uma tentativa falha no 1º hop da
+  // chain. gpt-oss-120b é o substituto atual: tool calling confiável e reasoning
+  // retornado em campo separado (message.reasoning), nunca vazando no content.
+  readonly defaultChatModel = 'gpt-oss-120b';
+  readonly defaultGenerateModel = 'gpt-oss-120b';
 
   private get client() {
     const key = process.env.CEREBRAS_API_KEY;
@@ -50,8 +54,12 @@ export class CerebrasAdapter implements AIProviderAdapter {
     let totalOutput = 0;
     let iterations = 0;
 
+    // gpt-oss-120b é reasoning model: effort 'low' corta os tokens de raciocínio
+    // (~12 vs centenas) sem perder qualidade no atendimento — testado a 622ms RTT.
+    const reasoningOpts = { reasoning_effort: 'low' } as Record<string, unknown>;
+
     let response = await this.client.chat.completions.create(
-      { model: modelName, messages, ...(tools ? { tools, tool_choice: toolChoice } : {}) },
+      { model: modelName, messages, ...reasoningOpts, ...(tools ? { tools, tool_choice: toolChoice } : {}) },
       reqOpts,
     );
 
@@ -105,7 +113,7 @@ export class CerebrasAdapter implements AIProviderAdapter {
       messages.push(...toolResults);
 
       response = await this.client.chat.completions.create(
-        { model: modelName, messages, ...(tools ? { tools, tool_choice: 'auto' } : {}) },
+        { model: modelName, messages, ...reasoningOpts, ...(tools ? { tools, tool_choice: 'auto' } : {}) },
         reqOpts,
       );
 
@@ -128,6 +136,7 @@ export class CerebrasAdapter implements AIProviderAdapter {
     const response = await this.client.chat.completions.create({
       model: modelName,
       messages: [{ role: 'user', content: params.prompt }],
+      ...({ reasoning_effort: 'low' } as Record<string, unknown>),
       ...(params.jsonMode ? { response_format: { type: 'json_object' } } : {}),
     }, reqOpts);
     return response.choices[0].message.content || '';

@@ -15,6 +15,13 @@ if (process.env.UPSTASH_REDIS_URL) {
       // Timeout configurado para o ambiente serverless
       commandTimeout: 2500,
     });
+    // Sem este listener, erros de conexão emitem 'error' sem handler no
+    // EventEmitter → "[ioredis] Unhandled error event" e potencial crash do
+    // function no meio de um turn (visto no cron flush-buffer em prod).
+    // Os comandos já têm try/catch individual; aqui só absorvemos o evento.
+    globalAny._tcpRedis.on('error', (err: Error) => {
+      console.warn('[redis] connection error (handled):', err?.message);
+    });
   }
   tcpRedis = globalAny._tcpRedis;
 }
