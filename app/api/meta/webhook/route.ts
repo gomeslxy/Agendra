@@ -123,9 +123,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const start = Date.now();
   const rawBody = await request.text();
+  console.log(`[Meta Webhook] 📥 Received POST request (body size: ${rawBody.length} bytes)`);
   if (isDebug) logDebug('[Meta Webhook] Raw body', rawBody);
 
   const isValid = await validateSignature(request, rawBody);
+  console.log(`[Meta Webhook] Signature verification result: ${isValid}`);
   if (!isValid) {
     console.error("[Meta Webhook] ❌ Signature verification failed.");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -135,6 +137,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const payload = JSON.parse(rawBody);
     const objectType = payload.object;
     let provider: ChannelProvider;
+
+    console.log(`[Meta Webhook] Parsing payload: objectType=${objectType}`);
 
     if (objectType === "whatsapp_business_account") {
       provider = "whatsapp";
@@ -147,12 +151,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const adapter = getAdapter(provider);
     const parsed = await adapter.parseWebhookPayload(rawBody, request.headers);
+    console.log(`[Meta Webhook] Parsed webhook payload: found ${parsed.messages.length} messages, providerId=${parsed.channelProviderId}`);
 
     if (parsed.messages.length === 0) {
+      console.log(`[Meta Webhook] No messages in payload. Exiting.`);
       return NextResponse.json({ status: "ok" }, { status: 200 });
     }
 
     const channel = await resolveChannel(provider, parsed.channelProviderId);
+    console.log(`[Meta Webhook] Resolved channel: found=${!!channel}, id=${channel?.id}, status=${channel?.status}`);
     if (!channel) {
       console.warn(`[Meta Webhook] ⚠️ Channel not registered or found for providerId=${parsed.channelProviderId}`);
       return NextResponse.json({ status: "ok" }, { status: 200 });
@@ -164,10 +171,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const companyId = channel.company_id;
+    console.log(`[Meta Webhook] Resolved company: ${companyId}`);
 
     // Tenant Flood/Throttling protection check (extremely fast Redis gate)
     const { checkRateLimitAsync } = await import("@/lib/rate-limit");
     const isAllowed = await checkRateLimitAsync(`flood:${companyId}`, 20, 10000);
+    console.log(`[Meta Webhook] Tenant flood check result: ${isAllowed}`);
     if (!isAllowed) {
       console.error(`[Meta Webhook] 🚫 Flood protection triggered for company ${companyId}. Webhook payload blocked.`);
       return NextResponse.json({ status: "ok" }, { status: 200 });
@@ -181,6 +190,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .eq("id", companyId)
       .maybeSingle();
 
+    console.log(`[Meta Webhook] Subscription status check: found=${!!company}, status=${company?.subscription_status}`);
     if (!company) {
       console.warn(`[Meta Webhook] ⚠️ Company ${companyId} not found. Channel ignored.`);
       return NextResponse.json({ status: "ok" }, { status: 200 });
@@ -195,9 +205,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     for (const msg of parsed.messages) {
       const msgLogId = `${msg.providerMessageId.slice(-8)}`;
+      console.log(`[Meta Webhook][${msgLogId}] Processing parsed message: sender=${msg.senderIdentifier}, type=${msg.type}`);
 
       // Lead-level Flood Protection
       const isLeadAllowed = await checkRateLimitAsync(`flood:${companyId}:${msg.senderIdentifier}`, 5, 10000);
+      console.log(`[Meta Webhook][${msgLogId}] Lead flood check result: ${isLeadAllowed}`);
       if (!isLeadAllowed) {
         console.error(`[Meta Webhook][${msgLogId}] 🚫 Lead-level flood protection triggered for sender ${msg.senderIdentifier}. Message ignored.`);
         continue;
@@ -205,6 +217,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // Deduplication unique check (extremely fast Redis setNX)
       const claimed = await claimMessage(msg.providerMessageId);
+      console.log(`[Meta Webhook][${msgLogId}] Deduplication claim result: ${claimed}`);
       if (!claimed) {
         console.log(`[Meta Webhook][${msgLogId}] 🔁 Deduplication hit - message already processed.`);
         continue;
@@ -215,6 +228,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (msg.type !== 'text') {
         if (msg.mediaId) mediaMetadata.mediaId = msg.mediaId;
         if (msg.mediaMimeType) mediaMetadata.mediaMimeType = msg.mediaMimeType;
+        console.log(`[Meta Webhook][${msgLogId}] Captured media metadata:`, mediaMetadata);
       }
 
       const metadataContext = {
@@ -224,6 +238,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       };
 
       // Push raw message structure directly to DB queue and schedule QStash
+      console.log(`[Meta Webhook][${msgLogId}] Calling bufferAndQueueMessage...`);
       await bufferAndQueueMessage({
         companyId,
         leadPhone: msg.senderIdentifier,
@@ -233,10 +248,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         msgType: msg.type,
         metadata: metadataContext,
       });
+      console.log(`[Meta Webhook][${msgLogId}] bufferAndQueueMessage completed.`);
     }
 
   } catch (err: any) {
-    console.error(`[Meta Webhook] 💥 Webhook payload processing failed:`, err.message);
+    console.error(`[Meta Webhook] 💥 Webhook payload processing failed:`, err.message, err.stack);
   }
 
   console.log(`[Meta Webhook] 🏁 POST completed in ${Date.now() - start}ms`);
