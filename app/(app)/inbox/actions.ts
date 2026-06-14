@@ -37,25 +37,32 @@ export async function sendNote(leadId: string, content: string) {
     
     await requireOnboarding(company_id);
 
-    // 1. Salvar no banco
+    // 1. Send FIRST. Persisting before the send left "ghost" messages: a manual
+    //    text that WhatsApp rejected (e.g. lead outside the 24h window) still
+    //    appeared in the inbox as if delivered. Send-then-persist guarantees the
+    //    bubble only exists for messages WhatsApp actually accepted; on failure we
+    //    surface the (now humanized) reason and persist nothing.
+    const sendResult = await sendChannelMessage(phone, trimmed, company_id);
+
+    // 2. Persist only after a confirmed send.
     const { error: dbError } = await supabase.from("messages").insert({
       lead_id: leadId,
       company_id,
       content: trimmed,
       role: "agent",
+      metadata: sendResult?.providerMessageId
+        ? { provider_message_id: sendResult.providerMessageId }
+        : null,
     });
 
     if (dbError) throw new Error(`Erro no Banco: ${dbError.message}`);
 
-    // 2. Manter last_message_at atualizado para ordenação correta
+    // 3. Manter last_message_at atualizado para ordenação correta
     await supabase
       .from("leads")
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", leadId)
       .eq("company_id", company_id);
-
-    // 3. Enviar WhatsApp / Canal unificado
-    await sendChannelMessage(phone, trimmed, company_id);
 
     revalidatePath("/inbox");
     return { success: true };
@@ -373,6 +380,14 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
 
   const mediaUrl = signedData.signedUrl;
 
+  // Send FIRST, persist only on success (same ghost-message guard as sendNote).
+  let sendResult;
+  try {
+    sendResult = await sendChannelMedia(phone, mediaUrl, waType, file.name, caption, company_id);
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+
   const { error: dbError } = await supabase.from('messages').insert({
     lead_id: leadId,
     company_id,
@@ -383,12 +398,11 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
       media_url: mediaUrl,
       media_type: waType,
       filename: file.name,
-      file_size: file.size
+      file_size: file.size,
+      ...(sendResult?.providerMessageId ? { provider_message_id: sendResult.providerMessageId } : {}),
     },
   });
   if (dbError) return { success: false, error: `DB: ${dbError.message}` };
-
-  await sendChannelMedia(phone, mediaUrl, waType, file.name, caption, company_id);
 
   revalidatePath('/inbox');
   return { success: true };

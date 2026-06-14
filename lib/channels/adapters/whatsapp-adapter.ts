@@ -7,6 +7,47 @@ import { logInfo, logError, isDebug, logDebug } from '@/lib/logging';
 const WHATSAPP_API_BASE = 'https://graph.facebook.com/v21.0';
 const META_VERSION = 'v21.0';
 
+/**
+ * Maps raw WhatsApp Cloud API error bodies to operator-friendly PT messages.
+ * Most important: 131047 (24h customer-service window closed) — the #1 reason a
+ * manual/free-form message silently "doesn't arrive". The operator must know the
+ * lead has to reply first (or use an approved template) to reopen the window.
+ */
+export function humanizeWhatsAppError(status: number, rawBody: string): string {
+  let code: number | undefined;
+  let metaMsg = '';
+  try {
+    const parsed = JSON.parse(rawBody);
+    code = parsed?.error?.code;
+    metaMsg = parsed?.error?.message ?? '';
+  } catch {
+    /* body wasn't JSON — fall through to status-based mapping */
+  }
+
+  switch (code) {
+    case 131047:
+      return 'O lead está fora da janela de 24h do WhatsApp. Só é possível enviar uma mensagem livre depois que ele responder. Para reabrir a conversa agora, use um template aprovado.';
+    case 131026:
+      return 'Mensagem não entregue: este número não tem WhatsApp ativo ou não pode receber mensagens no momento.';
+    case 131051:
+      return 'Tipo de mensagem não suportado para este destinatário.';
+    case 130472:
+      return 'O lead faz parte de um experimento do WhatsApp e não pode receber esta mensagem agora.';
+    case 190:
+      return 'O token do WhatsApp expirou ou é inválido. Reconecte o canal nas configurações.';
+    case 100:
+      return metaMsg || 'Parâmetro inválido ao enviar a mensagem do WhatsApp.';
+  }
+
+  if (status === 401 || status === 403) {
+    return 'Falha de autenticação com o WhatsApp. Reconecte o canal nas configurações.';
+  }
+  if (status === 429) {
+    return 'Limite de envio do WhatsApp atingido momentaneamente. Tente novamente em instantes.';
+  }
+  return metaMsg ? `WhatsApp: ${metaMsg}` : `Falha ao enviar pelo WhatsApp (erro ${status}).`;
+}
+
 export class WhatsAppAdapter implements ChannelAdapter {
   provider: 'whatsapp' = 'whatsapp';
 
@@ -79,7 +120,7 @@ export class WhatsAppAdapter implements ChannelAdapter {
         
         const isAuthError = res.status === 401 || res.status === 403;
         await this.updateChannelStatus(channelConfig.id, isAuthError ? 'error' : 'active', errorMessage);
-        return { ok: false, error: errorMessage };
+        return { ok: false, error: humanizeWhatsAppError(res.status, err) };
       }
 
       const data = await res.json() as { messages?: { id: string }[] };
@@ -135,7 +176,7 @@ export class WhatsAppAdapter implements ChannelAdapter {
 
         const isAuthError = res.status === 401 || res.status === 403;
         await this.updateChannelStatus(channelConfig.id, isAuthError ? 'error' : 'active', errorMessage);
-        return { ok: false, error: errorMessage };
+        return { ok: false, error: humanizeWhatsAppError(res.status, err) };
       }
 
       const data = await res.json() as { messages?: { id: string }[] };
