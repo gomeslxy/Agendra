@@ -200,6 +200,15 @@ export interface AILog {
   provider?: 'cerebras' | 'groq' | 'sambanova' | 'gemini' | null;
   provider_chain_used?: string[] | null;
   chain_kind?: 'conv' | 'tools' | 'bg' | null;
+  metadata?: {
+    t_debounce?: number | null;
+    t_rag?: number | null;
+    t_ai?: number | null;
+    t_send?: number | null;
+    debounce_batch_size?: number | null;
+    via_sql_fallback?: boolean;
+    [key: string]: any;
+  } | null;
 }
 
 export interface AITrace {

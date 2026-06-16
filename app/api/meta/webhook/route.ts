@@ -266,6 +266,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ...mediaMetadata,
         channelProvider: provider,
         channelId: channel.id,
+        received_at: start,
       };
 
       // Push raw message structure directly to DB queue and schedule QStash

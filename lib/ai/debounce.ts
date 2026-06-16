@@ -260,9 +260,15 @@ export async function flushBuffer(job: FlushJob): Promise<void> {
   }
 
   // 5. Consolidate bodies and metadata
+  const receivedAtList = items.map(i => (i.metadata as Record<string, any>)?.received_at).filter(Boolean);
+  const minReceivedAt = receivedAtList.length > 0 ? Math.min(...receivedAtList) : undefined;
+
   const mergedMetadata = items.reduce<Record<string, any>>(
     (acc, i) => ({ ...acc, ...(i.metadata ?? {}) }), {}
   );
+  if (minReceivedAt !== undefined) {
+    mergedMetadata.received_at = minReceivedAt;
+  }
   const lastItem = items[items.length - 1];
   const consolidatedBody = items.length > 1
     ? `[O lead enviou ${items.length} mensagens em sequência:]\n` + items.map((i) => i.body).join('\n')

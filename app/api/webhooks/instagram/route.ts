@@ -247,6 +247,7 @@ async function processPayload(rawBody: string): Promise<void> {
         ...mediaMetadata,
         channelProvider: "instagram",
         channelId: channel.id,
+        received_at: start,
       };
       try {
         await bufferAndDebounce({

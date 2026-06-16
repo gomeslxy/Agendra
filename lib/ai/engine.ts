@@ -700,6 +700,15 @@ export async function handleIncomingMessage(
 
   const admin = createAdminClient();
   const timer = createTimer();
+  
+  // Timing Milestones
+  const startTime = Date.now();
+  const receivedAt = incomingMetadata?.received_at;
+  const t_debounce = typeof receivedAt === 'number' ? startTime - receivedAt : null;
+  let t_rag: number | null = null;
+  let t_ai: number | null = null;
+  let t_send: number | null = null;
+
   const traceId = crypto.randomUUID(); // W2.6 Trace ID generation
   const tag = traceId.slice(0, 8);
   console.log(`[Engine][${tag}] 🚀 start company=${companyId} phone=${phone.slice(0, 6)}*** msgId=${providerMessageId?.slice(-8) ?? 'n/a'} len=${messageText.length}`);
@@ -992,7 +1001,9 @@ export async function handleIncomingMessage(
     // RAG guard: skip embedding if company has no knowledge documents (avoids quota burn on empty corpus)
     if ((knowledgeCount ?? 0) > 0) {
       try {
+        const ragTimer = createTimer();
         const { text: semanticContext, status } = await getSemanticKnowledge(companyId, messageText, admin);
+        t_rag = ragTimer();
         ragStatus = status;
         if (semanticContext) {
           persona.extra_instructions = (persona.extra_instructions || '') + '\n' + semanticContext;
@@ -1152,9 +1163,11 @@ export async function handleIncomingMessage(
         traceId,
         intent
       );
-      console.log(`[Engine][${tag}] 🎯 AI replied in ${Date.now() - aiStart}ms via ${aiResult.provider_used}/${aiResult.model_used} tools=${aiResult.tools_called?.length ?? 0} fallback=${aiResult.fallback_used} replyLen=${aiResult.reply?.length ?? 0} intent=${intent.type}`);
+      t_ai = Date.now() - aiStart;
+      console.log(`[Engine][${tag}] 🎯 AI replied in ${t_ai}ms via ${aiResult.provider_used}/${aiResult.model_used} tools=${aiResult.tools_called?.length ?? 0} fallback=${aiResult.fallback_used} replyLen=${aiResult.reply?.length ?? 0} intent=${intent.type}`);
     } catch (aiErr: any) {
-      console.error(`[Engine][${tag}] 💥 processLeadMessage failed after ${Date.now() - aiStart}ms:`, aiErr?.message ?? aiErr);
+      t_ai = Date.now() - aiStart;
+      console.error(`[Engine][${tag}] 💥 processLeadMessage failed after ${t_ai}ms:`, aiErr?.message ?? aiErr);
       throw aiErr;
     }
 
@@ -1230,6 +1243,7 @@ export async function handleIncomingMessage(
       }
       console.log(`[AI Engine] Modo Shadow ativo para lead ${phone}. ${sanitizedParts.length} rascunhos persistidos.`);
     } else {
+      const sendStart = Date.now();
       const personaConfig = (company.persona_config as any) ?? {};
       const ttsEnabled = personaConfig.tts_enabled === true;
       const replyInAudio = ttsEnabled && incomingMetadata?.is_audio === true;
@@ -1361,6 +1375,7 @@ export async function handleIncomingMessage(
           }
         }
       }
+      t_send = Date.now() - sendStart;
     }
 
     // 9. Update lead state
@@ -1415,6 +1430,8 @@ export async function handleIncomingMessage(
 
     console.log(`[Engine][${tag}] ✅ turn complete in ${timer()}ms`);
 
+    console.log(`[Engine][${tag}] Telemetry milestones: t_debounce=${t_debounce}ms, t_rag=${t_rag}ms, t_ai=${t_ai}ms, t_send=${t_send}ms`);
+
     // 11. Observability
     const schedulingIntentLocal = /\b(agend|hor[áa]rio|marcar|dispon[íi]v|hoje|amanh[ãa]|que dia|que horas|cancel|reagend)\b/i.test(messageText);
     await persistAILog({
@@ -1439,6 +1456,14 @@ export async function handleIncomingMessage(
       provider: aiResult.provider_used as 'cerebras' | 'groq' | 'sambanova' | 'gemini',
       provider_chain_used: [aiResult.provider_used],
       chain_kind: schedulingIntentLocal ? 'tools' : 'conv',
+      metadata: {
+        t_debounce,
+        t_rag,
+        t_ai,
+        t_send,
+        debounce_batch_size: incomingMetadata?.debounce_batch_size ?? 1,
+        via_sql_fallback: incomingMetadata?.via_sql_fallback ?? false,
+      },
     });
 
   } catch (err: any) {

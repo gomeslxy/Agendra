@@ -84,10 +84,16 @@ export async function flushMessageBuffer(
     try {
       const usage = await getCompanyUsage(items[0].company_id);
       const consolidated = items.map((i) => i.body).join('\n');
+      const receivedAtList = items.map(i => (i.metadata as Record<string, any>)?.received_at).filter(Boolean);
+      const minReceivedAt = receivedAtList.length > 0 ? Math.min(...receivedAtList) : undefined;
+
       const mergedMetadata = items.reduce(
         (acc, i) => ({ ...acc, ...((i.metadata as Record<string, any>) ?? {}) }),
         {} as Record<string, any>,
       );
+      if (minReceivedAt !== undefined) {
+        mergedMetadata.received_at = minReceivedAt;
+      }
 
       const outcome = await handleIncomingMessage(
         items[0].company_id,
