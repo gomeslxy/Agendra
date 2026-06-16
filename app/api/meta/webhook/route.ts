@@ -203,6 +203,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { claimMessage, bufferAndQueueMessage } = await import('@/lib/ai/debounce');
 
+    // Side-effects that must complete before we return 200 (serverless kills the
+    // instance after the response). Typing indicators go here so they fire NOW —
+    // not after the debounce window + QStash round-trip + AI cold start.
+    const sideEffects: Promise<unknown>[] = [];
+    const typingAdapter = getAdapter(provider);
+
     for (const msg of parsed.messages) {
       const msgLogId = `${msg.providerMessageId.slice(-8)}`;
       console.log(`[Meta Webhook][${msgLogId}] Processing parsed message: sender=${msg.senderIdentifier}, type=${msg.type}`);
@@ -221,6 +227,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (!claimed) {
         console.log(`[Meta Webhook][${msgLogId}] 🔁 Deduplication hit - message already processed.`);
         continue;
+      }
+
+      // ⌨️ INSTANT typing indicator — fired the moment the message lands, using the
+      // channel token we already decrypted. Independent of debounce/QStash/AI so the
+      // lead sees "typing…" within the webhook latency, not seconds later. The engine
+      // keeps it alive (4s interval) through AI processing until the reply is sent.
+      if (typingAdapter.sendTypingIndicator && channel.access_token) {
+        const tStart = Date.now();
+        sideEffects.push(
+          typingAdapter
+            .sendTypingIndicator(
+              {
+                id: channel.id,
+                companyId,
+                provider,
+                providerId: channel.provider_id,
+                accessToken: channel.access_token,
+                meta: channel.meta || {},
+                status: channel.status,
+              },
+              msg.providerMessageId,
+            )
+            .then(() => console.log(`[Meta Webhook][${msgLogId}] ⌨️ typing fired in ${Date.now() - tStart}ms`))
+            .catch(() => {}),
+        );
       }
 
       // Capture media parameters if not text (to download and transcribe asynchronously on flush)
@@ -250,6 +281,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
       console.log(`[Meta Webhook][${msgLogId}] bufferAndQueueMessage completed.`);
     }
+
+    // Ensure typing indicators actually flush before the serverless instance dies.
+    if (sideEffects.length > 0) await Promise.allSettled(sideEffects);
 
   } catch (err: any) {
     console.error(`[Meta Webhook] 💥 Webhook payload processing failed:`, err.message, err.stack);

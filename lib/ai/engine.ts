@@ -388,26 +388,47 @@ export async function processLeadMessage(
   // On lite plans, always flash-lite. The Groq adapter ignores this (uses its own default).
   const geminiModelOverride = isLitePlan ? 'gemini-2.5-flash-lite' : undefined;
 
+  async function dispatchTool(name: string, args: Record<string, any>): Promise<any> {
+    if (name === 'listServices') return await handleListServices(args as any, ctx);
+    if (name === 'checkAvailability' || name === 'get_available_slots') {
+      const slotsArgs = {
+        ...args,
+        timezone: args.timezone || persona.timezone || 'America/Sao_Paulo'
+      };
+      return await handleGetAvailableSlots(slotsArgs as any, ctx);
+    }
+    if (name === 'bookAppointment') return await handleBookAppointment(args as any, ctx);
+    if (name === 'cancelAppointment') return await handleCancelAppointment(args as any, ctx);
+    if (name === 'rescheduleAppointment') return await handleRescheduleAppointment(args as any, ctx);
+    if (name === 'myAppointments') return await handleMyAppointments(args as any, ctx);
+    if (name === 'updateLeadInfo') return await handleUpdateLeadInfo(args as any, ctx);
+    if (name === 'updateLeadMemory') return await handleUpdateLeadMemory(args as any, ctx);
+    if (name === 'requestHumanAgent') return await handleRequestHumanAgent(args as any, ctx);
+    if (name === 'generatePixCharge') return await handleGeneratePixCharge(args as any, ctx);
+    if (name === 'checkPaymentStatus') return await handleCheckPaymentStatus(args as any, ctx);
+    return { error: 'Ferramenta desconhecida' };
+  }
+
   async function toolHandler(name: string, args: Record<string, any>): Promise<any> {
     try {
-      if (name === 'listServices') return await handleListServices(args as any, ctx);
-      if (name === 'checkAvailability' || name === 'get_available_slots') {
-        const slotsArgs = {
-          ...args,
-          timezone: args.timezone || persona.timezone || 'America/Sao_Paulo'
-        };
-        return await handleGetAvailableSlots(slotsArgs as any, ctx);
+      // Backstop timeout: the router's AbortController only cancels the MODEL fetch,
+      // never the tool handler. A stuck external call (GCal, PIX gateway) would
+      // otherwise run unbounded inside the agentic loop and blow past the provider
+      // deadline (root cause of the 37s "gemini timeout"). Each tool already caps
+      // its own I/O; this is the last line of defense for anything that doesn't.
+      const TOOL_TIMEOUT_MS = 12_000;
+      let timer: NodeJS.Timeout;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`tool_timeout:${name}:${TOOL_TIMEOUT_MS}ms`)),
+          TOOL_TIMEOUT_MS,
+        );
+      });
+      try {
+        return await Promise.race([dispatchTool(name, args), timeout]);
+      } finally {
+        clearTimeout(timer!);
       }
-      if (name === 'bookAppointment') return await handleBookAppointment(args as any, ctx);
-      if (name === 'cancelAppointment') return await handleCancelAppointment(args as any, ctx);
-      if (name === 'rescheduleAppointment') return await handleRescheduleAppointment(args as any, ctx);
-      if (name === 'myAppointments') return await handleMyAppointments(args as any, ctx);
-      if (name === 'updateLeadInfo') return await handleUpdateLeadInfo(args as any, ctx);
-      if (name === 'updateLeadMemory') return await handleUpdateLeadMemory(args as any, ctx);
-      if (name === 'requestHumanAgent') return await handleRequestHumanAgent(args as any, ctx);
-      if (name === 'generatePixCharge') return await handleGeneratePixCharge(args as any, ctx);
-      if (name === 'checkPaymentStatus') return await handleCheckPaymentStatus(args as any, ctx);
-      return { error: 'Ferramenta desconhecida' };
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : String(err);
       const lowercase = rawMessage.toLowerCase();

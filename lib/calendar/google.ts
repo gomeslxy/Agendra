@@ -16,6 +16,13 @@
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GCAL_API_BASE = 'https://www.googleapis.com/calendar/v3';
 
+// Hard cap on every outbound Google call. Without this, a slow/hung GCal request
+// runs unbounded INSIDE the AI agentic tool-loop. The router's AbortController
+// only cancels the model fetch, never the tool handler — so a stuck calendar call
+// blows past the per-provider timeout (observed: gemini "timeout" at 37436ms while
+// the real culprit was an un-capped freeBusy/event call). 8s is well above p99.
+const GCAL_FETCH_TIMEOUT_MS = 8_000;
+
 import crypto from 'crypto';
 import { redis, isAvailable as isRedisAvailable } from '@/lib/infra/redis';
 
@@ -87,6 +94,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
       client_id: clientId,
       client_secret: clientSecret,
     }),
+    signal: AbortSignal.timeout(GCAL_FETCH_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -182,6 +190,7 @@ export async function getFreeBusySlots(
       timeMax,
       items: [{ id: calendarId }],
     }),
+    signal: AbortSignal.timeout(GCAL_FETCH_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -267,7 +276,10 @@ export async function listGCalEvents(
 
   const res = await fetch(
     `${GCAL_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(GCAL_FETCH_TIMEOUT_MS),
+    },
   );
 
   // 410 Gone = syncToken expired — caller must retry as full sync
@@ -319,6 +331,7 @@ export async function deleteGCalEvent(
     {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(GCAL_FETCH_TIMEOUT_MS),
     },
   );
 
@@ -355,6 +368,7 @@ export async function updateGCalEvent(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(GCAL_FETCH_TIMEOUT_MS),
     },
   );
 
@@ -440,6 +454,7 @@ export async function createGoogleCalendarEvent(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(GCAL_FETCH_TIMEOUT_MS),
     },
   );
 
