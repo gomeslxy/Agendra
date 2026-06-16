@@ -773,3 +773,137 @@ export async function saveReactivationConfig(data: {
   revalidatePath("/settings");
 }
 
+export async function getUserNotificationSettings(companyId: string) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("user_notification_settings")
+    .select("*")
+    .eq("user_id", profile.id)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  return data || {
+    user_id: profile.id,
+    company_id: companyId,
+    email_enabled: true,
+    in_app_enabled: true,
+    whatsapp_enabled: false,
+    enabled_types: ['invite', 'member_joined', 'member_left', 'channel_error', 'payment_failed', 'lead_hot', 'system'],
+    quiet_hours_enabled: false,
+    quiet_hours_start: '22:00',
+    quiet_hours_end: '08:00',
+  };
+}
+
+export async function saveUserNotificationSettings(
+  companyId: string,
+  settings: {
+    email_enabled: boolean;
+    in_app_enabled: boolean;
+    whatsapp_enabled: boolean;
+    enabled_types: string[];
+    quiet_hours_enabled: boolean;
+    quiet_hours_start: string;
+    quiet_hours_end: string;
+  }
+) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  // Validate quiet hours format
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  if (settings.quiet_hours_enabled) {
+    if (!timeRegex.test(settings.quiet_hours_start) || !timeRegex.test(settings.quiet_hours_end)) {
+      throw new Error("Formato de horário silencioso inválido (use HH:MM).");
+    }
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("user_notification_settings")
+    .upsert({
+      user_id: profile.id,
+      company_id: companyId,
+      email_enabled: settings.email_enabled,
+      in_app_enabled: settings.in_app_enabled,
+      whatsapp_enabled: settings.whatsapp_enabled,
+      enabled_types: settings.enabled_types,
+      quiet_hours_enabled: settings.quiet_hours_enabled,
+      quiet_hours_start: settings.quiet_hours_start,
+      quiet_hours_end: settings.quiet_hours_end,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: "user_id,company_id"
+    });
+
+  if (error) throw new Error(error.message);
+
+  await logAuditAction({
+    action: "user.notification_preferences_update",
+    companyId,
+    payload: {
+      email_enabled: settings.email_enabled,
+      in_app_enabled: settings.in_app_enabled,
+      quiet_hours_enabled: settings.quiet_hours_enabled,
+    }
+  });
+
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+export async function saveCompanyReminderSettings(
+  companyId: string,
+  settings: {
+    reminders_quiet_hours_enabled: boolean;
+    reminders_quiet_hours_start: string;
+    reminders_quiet_hours_end: string;
+  }
+) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const role = profile.memberships?.[0]?.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem configurar o horário silencioso de lembretes.");
+  }
+
+  // Validate quiet hours format
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  if (settings.reminders_quiet_hours_enabled) {
+    if (!timeRegex.test(settings.reminders_quiet_hours_start) || !timeRegex.test(settings.reminders_quiet_hours_end)) {
+      throw new Error("Formato de horário silencioso inválido (use HH:MM).");
+    }
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("companies")
+    .update({
+      reminders_quiet_hours_enabled: settings.reminders_quiet_hours_enabled,
+      reminders_quiet_hours_start: settings.reminders_quiet_hours_start,
+      reminders_quiet_hours_end: settings.reminders_quiet_hours_end,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", companyId);
+
+  if (error) throw new Error(error.message);
+
+  await logAuditAction({
+    action: "company.reminders_quiet_hours_update",
+    companyId,
+    payload: {
+      reminders_quiet_hours_enabled: settings.reminders_quiet_hours_enabled,
+    }
+  });
+
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+

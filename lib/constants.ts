@@ -8,6 +8,7 @@ import {
   IconChannels,
   IconTeam,
   IconSettings,
+  IconBell,
 } from "@/components/icons";
 
 export type NavItem =
@@ -34,6 +35,7 @@ export const NAV: NavItem[] = [
   { kind: "link", id: "leads",   label: "Leads",       icon: IconLeads,    href: "/leads" },
   { kind: "link", id: "reports", label: "Relatórios",  icon: IconReports,  href: "/reports" },
   { kind: "section", label: "Sistema" },
+  { kind: "link", id: "notifications", label: "Notificações", icon: IconBell, href: "/notifications" },
   { kind: "link", id: "settings", label: "Configurações", icon: IconSettings, href: "/settings" },
 ];
 

@@ -12,6 +12,7 @@ interface AppShellProps {
   children: React.ReactNode;
   hotCount?: number;
   unhealthyChannelsCount?: number;
+  unreadNotificationsCount?: number;
 }
 
 function SidebarFallback() {
@@ -34,13 +35,14 @@ function SidebarFallback() {
 export function AppShell({ 
   children, 
   hotCount = 0,
-  unhealthyChannelsCount = 0 
+  unhealthyChannelsCount = 0,
+  unreadNotificationsCount = 0
 }: AppShellProps) {
   return (
     <>
       <div className="bg-[#FAFAFA] grid overflow-hidden md:grid-cols-[240px_1fr] h-[calc(100dvh-3.5rem)] md:h-screen">
         <Suspense fallback={<SidebarFallback />}>
-          <Sidebar hotCount={hotCount} />
+          <Sidebar hotCount={hotCount} unreadCount={unreadNotificationsCount} />
         </Suspense>
         <div className="grid min-w-0 grid-rows-[auto_1fr]">
           <Topbar />

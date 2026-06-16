@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { sendChannelMessage } from '@/lib/channels/send';
+import { processCompanyReminders } from '@/lib/notifications/reminders';
 import { syncCompanyCalendar } from '@/lib/calendar/sync';
 import { validateWhatsAppToken } from '@/lib/whatsapp/validate';
 import { triggerAutoFollowUp } from '@/lib/ai/engine';
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Fetch active companies (active or trial status) with all required plan/config context
   const { data: activeCompanies, error: companiesError } = await admin
     .from('companies')
-    .select('id, name, plan_type, subscription_status, google_refresh_token, persona_config')
+    .select('id, name, plan_type, subscription_status, google_refresh_token, persona_config, reminders_quiet_hours_enabled, reminders_quiet_hours_start, reminders_quiet_hours_end')
     .in('subscription_status', ACTIVE_SUBSCRIPTION_STATUSES)
     .not('subscription_status', 'eq', 'canceled');
 
@@ -153,102 +153,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── 3. Reminders (fallback sweep — primary processing via /api/cron/reminders every 5min) ───────────────────────────────
   try {
     const now = new Date().toISOString();
-    // Expiry guard: events that started more than 30min ago — cancel their pending reminders
     const expiryThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     let sent = 0;
     let failed = 0;
     let expired = 0;
+    let rescheduled = 0;
 
     for (const company of companiesList) {
-      // Get reminders with an active event (not cancelled)
-      const { data: reminders, error: remErr } = await admin
-        .from('reminders')
-        .select('*, leads (phone, name), events!inner (start_time, title, status)')
-        .eq('company_id', company.id)
-        .eq('status', 'pending')
-        .lte('remind_at', now)
-        .neq('events.status', 'cancelled')
-        .limit(10);
-
-      if (remErr) {
-        console.error(`[morning-cron] reminders error for company ${company.id}:`, remErr.message);
-        continue;
-      }
-
-      const tz = (company.persona_config as any)?.timezone ?? 'America/Sao_Paulo';
-
-      for (const rem of reminders ?? []) {
-        const lead = rem.leads as any;
-        const event = rem.events as any;
-
-        // Expiry guard: don't send reminders for events that already started
-        if (event?.start_time && new Date(event.start_time) < new Date(expiryThreshold)) {
-          await admin
-            .from('reminders')
-            .update({ status: 'cancelled', error_log: 'Evento expirado', updated_at: new Date().toISOString() })
-            .eq('id', rem.id)
-            .eq('status', 'pending');
-          expired++;
-          continue;
-        }
-
-        // Data guard before atomic claim — avoids claiming then immediately failing
-        if (!lead?.phone || !event?.start_time) continue;
-
-        try {
-          // Atomic claim
-          const { data: claimed } = await admin
-            .from('reminders')
-            .update({ status: 'sent' })
-            .eq('id', rem.id)
-            .eq('status', 'pending')
-            .select('id')
-            .maybeSingle();
-
-          if (!claimed) continue;
-
-          const dateObj = new Date(event.start_time);
-          const fmt = new Intl.DateTimeFormat('pt-BR', {
-            timeZone: tz,
-            hour: '2-digit',
-            minute: '2-digit',
-            day: '2-digit',
-            month: '2-digit',
-          });
-          const parts = fmt.formatToParts(dateObj);
-          const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
-          const timeStr = `${get('hour')}:${get('minute')} do dia ${get('day')}/${get('month')}`;
-
-          const message = `Olá ${lead.name.split(' ')[0]}! Passando para lembrar do seu agendamento de "${event.title}" às ${timeStr}. Nos vemos em breve! 🗓`;
-
-          await sendChannelMessage(lead.phone, message, rem.company_id);
-
-          // Log message history to lead
-          await admin.from('messages').insert({
-            lead_id: rem.lead_id,
-            company_id: rem.company_id,
-            role: 'assistant',
-            content: message,
-            metadata: { type: 'reminder', event_id: rem.event_id },
-          });
-
-          // Insert into automation events feed
-          await admin.from('automation_events').insert({
-            company_id: rem.company_id,
-            lead_id: rem.lead_id,
-            type: 'reminder_sent',
-            detail: `Lembrete enviado para ${lead.name.split(' ')[0]} — ${event.title}`,
-            payload: { event_id: rem.event_id, remind_at: rem.remind_at },
-          });
-
-          sent++;
-        } catch (err: any) {
-          await admin.from('reminders').update({ status: 'failed', error_log: err.message }).eq('id', rem.id);
-          failed++;
-        }
-      }
+      const r = await processCompanyReminders(admin, company, now, expiryThreshold, 10);
+      sent += r.sent;
+      failed += r.failed;
+      expired += r.expired;
+      rescheduled += r.rescheduled;
     }
-    summary.reminders = { sent, failed, expired };
+    summary.reminders = { sent, failed, expired, rescheduled };
     console.log('[morning-cron] reminders:', summary.reminders);
   } catch (err: any) {
     summary.reminders = { error: err.message };

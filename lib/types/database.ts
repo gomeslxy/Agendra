@@ -243,6 +243,12 @@ export interface Notification {
   metadata: Record<string, unknown>;
   priority: NotificationPriority;
   read: boolean;
+  delivery_status: 'pending' | 'sending' | 'delivered' | 'failed';
+  delivered_at: string | null;
+  read_at: string | null;
+  click_at: string | null;
+  error_log: string | null;
+  idempotency_key: string | null;
   created_at: string;
 }
 

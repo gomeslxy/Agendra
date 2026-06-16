@@ -41,11 +41,12 @@ export default async function AppLayout({
 
   let hotCount = 0;
   let unhealthyChannelsCount = 0;
+  let unreadNotificationsCount = 0;
 
   if (companyId) {
     const supabase = await createClient();
 
-    const [{ count: hc }, { count: uc }] = await Promise.all([
+    const [{ count: hc }, { count: uc }, { count: nc }] = await Promise.all([
       supabase
         .from("leads")
         .select("id", { count: "exact", head: true })
@@ -56,9 +57,16 @@ export default async function AppLayout({
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId)
         .eq("status", "error"),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("company_id", companyId)
+        .eq("read", false),
     ]);
     hotCount = hc ?? 0;
     unhealthyChannelsCount = uc ?? 0;
+    unreadNotificationsCount = nc ?? 0;
   }
 
   return (
@@ -67,6 +75,7 @@ export default async function AppLayout({
         <AppShell 
           hotCount={hotCount} 
           unhealthyChannelsCount={unhealthyChannelsCount}
+          unreadNotificationsCount={unreadNotificationsCount}
         >
           {children}
         </AppShell>

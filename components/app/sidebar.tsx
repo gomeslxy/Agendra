@@ -13,6 +13,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { getInitials, cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
 import { calculateTrialStatus, calculateTrialProgress } from "@/lib/billing/plans";
+import { createClient } from "@/lib/supabase/client";
 
 function isActive(href: string, pathname: string, searchParams: URLSearchParams) {
   try {
@@ -26,15 +27,55 @@ function isActive(href: string, pathname: string, searchParams: URLSearchParams)
   }
 }
 
-export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
+export function Sidebar({ hotCount = 0, unreadCount = 0 }: { hotCount?: number; unreadCount?: number }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { profile, signOut, loading } = useAuth();
   const [mounted, setMounted] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(unreadCount);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setUnreadNotifications(unreadCount);
+  }, [unreadCount]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const supabase = createClient();
+    
+    const fetchUnread = async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", profile.id)
+        .eq("company_id", profile.memberships?.[0]?.company_id)
+        .eq("read", false);
+      setUnreadNotifications(count ?? 0);
+    };
+
+    const channel = supabase
+      .channel(`sidebar_notifications:${profile.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${profile.id}`,
+        },
+        () => {
+          fetchUnread();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id]);
 
   const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "Usuário";
   const companyName = profile?.companies?.name ?? "Minha empresa";
@@ -97,7 +138,12 @@ export function Sidebar({ hotCount = 0 }: { hotCount?: number }) {
                   )}
                   <n.icon size={16} className="relative z-10" />
                   <span className="relative z-10">{n.label}</span>
-                  {n.badge && (
+                  {n.id === "notifications" && unreadNotifications > 0 && (
+                    <Badge variant="success" className="relative z-10 ml-auto">
+                      {unreadNotifications}
+                    </Badge>
+                  )}
+                  {n.id !== "notifications" && n.badge && (
                     <Badge variant={n.badge.type} className="relative z-10 ml-auto">
                       {n.id === "inbox" ? hotCount : n.badge.count}
                     </Badge>

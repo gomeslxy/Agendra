@@ -342,10 +342,17 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             </div>
 
             {notifications.length > 0 && (
-              <div className="border-t border-[#E4E4E7] bg-[#F4F4F5] px-4 py-2.5">
-                <p className="text-center text-[11px] font-medium text-[#71717A]">
-                  Mostrando as últimas {notifications.length} notificações
+              <div className="border-t border-[#E4E4E7] bg-[#F4F4F5] px-4 py-2.5 flex items-center justify-between">
+                <p className="text-[11px] font-medium text-[#71717A]">
+                  Mostrando as últimas {notifications.length}
                 </p>
+                <a
+                  href="/notifications"
+                  onClick={() => setOpen(false)}
+                  className="text-[11px] font-bold text-[#2563EB] hover:underline hover:text-[#1D4ED8] transition-colors"
+                >
+                  Ver todas
+                </a>
               </div>
             )}
           </motion.div>
