@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logInfo, logError } from '@/lib/logging';
+import { clearChannelConfigCache } from '../send';
 
 const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
@@ -193,6 +194,7 @@ export async function exchangeCodeForInstagramChannel(
     }
 
     logInfo(`[Instagram OAuth] Canal configurado com sucesso e criptografado no Vault: ${channelId}`);
+    clearChannelConfigCache();
     return { success: true };
   } catch (err: any) {
     logError('[Instagram OAuth] Falha crítica de integração:', err.message);
@@ -254,6 +256,7 @@ export async function refreshInstagramLongLivedToken(
     if (rpcErr) throw rpcErr;
 
     logInfo(`[Instagram Token Refresh] Token atualizado com sucesso no Vault para o canal: ${channelId}`);
+    clearChannelConfigCache();
     return { success: true, token: newToken };
   } catch (err: any) {
     logError(`[Instagram Token Refresh] Falha crítica ao atualizar token do canal ${channelId}:`, err.message);

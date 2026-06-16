@@ -153,6 +153,16 @@ export async function getChannelConfig(companyId: string, to: string): Promise<C
   if (configCache.size > 500) {
     const now = Date.now();
     for (const [k, v] of configCache) if (v.expires <= now) configCache.delete(k);
+
+    // Hard limit: evict oldest entry if size is still above 500 (LRU eviction)
+    while (configCache.size > 500) {
+      const oldestKey = configCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        configCache.delete(oldestKey);
+      } else {
+        break;
+      }
+    }
   }
   configCache.set(key, { config, expires: Date.now() + CONFIG_CACHE_TTL_MS });
   return config;

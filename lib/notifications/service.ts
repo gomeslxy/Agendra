@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { NotificationType, NotificationPriority } from '@/lib/types/database';
 import { sendEmail } from '@/lib/email/send';
+import { sendChannelMessage } from '@/lib/channels/send';
 
 export interface CreateNotificationInput {
   company_id: string;
@@ -12,6 +13,32 @@ export interface CreateNotificationInput {
   metadata?: Record<string, unknown>;
   priority?: NotificationPriority;
   idempotency_key?: string;
+}
+
+/**
+ * Renders a beautiful HTML email for notifications.
+ */
+export function renderNotificationEmailHtml(title: string, body: string, actionUrl?: string | null, isDelayed = false): string {
+  const heading = isDelayed ? `[Lembrete] ${title}` : title;
+  const intro = isDelayed ? `<p style="color: #71717a; font-size: 13px; font-style: italic; margin-bottom: 16px; margin-top: 0;">Este é o envio postergado da sua notificação retida durante o horário silencioso.</p>` : '';
+  const actionButton = actionUrl ? `
+    <div style="margin-top: 24px;">
+      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://www.agendra.site'}${actionUrl}" style="background-color: #2563eb; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: bold; display: inline-block;">
+        Visualizar no painel
+      </a>
+    </div>
+  ` : '';
+
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e4e4e7; border-radius: 12px; background-color: #ffffff;">
+      ${intro}
+      <h2 style="color: #09090b; font-size: 18px; font-weight: bold; margin-top: 0; margin-bottom: 12px; letter-spacing: -0.02em;">${heading}</h2>
+      <p style="color: #3f3f46; font-size: 14px; line-height: 1.6; margin: 0;">${body}</p>
+      ${actionButton}
+      <hr style="border: 0; border-top: 1px solid #e4e4e7; margin-top: 32px; margin-bottom: 16px;" />
+      <p style="color: #71717a; font-size: 11px; line-height: 1.4; margin: 0;">Este é um e-mail automático enviado pelo Agendra. Você pode gerenciar suas preferências de notificação a qualquer momento nas configurações da sua conta.</p>
+    </div>
+  `;
 }
 
 /**
@@ -72,7 +99,7 @@ export class NotificationService {
 
       // 2. Fetch target user profile and notification settings
       const [userRes, settingsRes] = await Promise.all([
-        admin.from('users').select('email').eq('id', input.user_id).single(),
+        admin.from('users').select('email, phone').eq('id', input.user_id).single(),
         admin
           .from('user_notification_settings')
           .select('*')
@@ -171,21 +198,7 @@ export class NotificationService {
             await sendEmail({
               to: userEmail,
               subject: `[Agendra] ${input.title}`,
-              html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e4e7; rounded: 12px;">
-                  <h2 style="color: #09090b; font-size: 18px; font-weight: bold;">${input.title}</h2>
-                  <p style="color: #3f3f46; font-size: 14px; line-height: 1.5; margin-top: 12px;">${input.body}</p>
-                  ${input.action_url ? `
-                    <div style="margin-top: 24px;">
-                      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://www.agendra.site'}${input.action_url}" style="background-color: #2563eb; color: white; padding: 10px 16px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: bold;">
-                        Visualizar no painel
-                      </a>
-                    </div>
-                  ` : ''}
-                  <hr style="border: 0; border-top: 1px solid #e4e4e7; margin-top: 32px;" />
-                  <p style="color: #71717a; font-size: 11px;">Este é um e-mail automático enviado pelo Agendra. Você pode gerenciar suas preferências de notificação a qualquer momento no menu de configurações.</p>
-                </div>
-              `
+              html: renderNotificationEmailHtml(input.title, input.body, input.action_url, false),
             });
           } catch (mailErr: any) {
             console.error(`[NotificationService] Email delivery failed for ${userEmail}:`, mailErr.message);
@@ -197,9 +210,24 @@ export class NotificationService {
           }
         }
 
-        // WhatsApp Dispatch (if configured, we can implement it as a future hook, currently logged)
-        if (settings.whatsapp_enabled) {
-          console.log(`[NotificationService] WhatsApp user dispatch triggered for ${input.user_id} (Not implemented in this channel)`);
+        // WhatsApp Dispatch
+        if (settings.whatsapp_enabled && userRes.data?.phone) {
+          try {
+            const formattedText = `🔔 *[Agendra]* *${input.title}*\n\n${input.body}${
+              input.action_url
+                ? `\n\nAcesse: ${process.env.NEXT_PUBLIC_APP_URL || 'https://www.agendra.site'}${input.action_url}`
+                : ''
+            }`;
+            await sendChannelMessage(userRes.data.phone, formattedText, input.company_id);
+          } catch (waErr: any) {
+            console.error(`[NotificationService] WhatsApp delivery failed for ${userRes.data.phone}:`, waErr.message);
+            const currentErr = (await admin.from('notifications').select('error_log').eq('id', notif.id).single()).data?.error_log;
+            const combinedErr = currentErr ? `${currentErr} | WhatsApp delivery error: ${waErr.message}` : `WhatsApp delivery error: ${waErr.message}`;
+            await admin
+              .from('notifications')
+              .update({ error_log: combinedErr })
+              .eq('id', notif.id);
+          }
         }
       }
 
@@ -281,18 +309,37 @@ export class NotificationService {
             })
             .eq('id', n.id);
 
-          // Get target user email
-          const { data: user } = await admin.from('users').select('email').eq('id', n.user_id).single();
+          // Get target user email & phone
+          const { data: user } = await admin.from('users').select('email, phone').eq('id', n.user_id).single();
 
           if (settings?.email_enabled && user?.email) {
             try {
               await sendEmail({
                 to: user.email,
                 subject: `[Agendra] [Lembrete] ${n.title}`,
-                html: `<p>Este é o envio postergado da sua notificação:</p><p>${n.body}</p>`
+                html: renderNotificationEmailHtml(n.title, n.body, n.action_url, true),
               });
-            } catch (err) {
+            } catch (err: any) {
               console.error(`[NotificationService] Delayed email release failed:`, err);
+              const currentErr = (await admin.from('notifications').select('error_log').eq('id', n.id).single()).data?.error_log;
+              const combinedErr = currentErr ? `${currentErr} | Delayed email release failed: ${err.message}` : `Delayed email release failed: ${err.message}`;
+              await admin.from('notifications').update({ error_log: combinedErr }).eq('id', n.id);
+            }
+          }
+
+          if (settings?.whatsapp_enabled && user?.phone) {
+            try {
+              const formattedText = `🔔 *[Agendra]* *${n.title}*\n\n${n.body}${
+                n.action_url
+                  ? `\n\nAcesse: ${process.env.NEXT_PUBLIC_APP_URL || 'https://www.agendra.site'}${n.action_url}`
+                  : ''
+              }`;
+              await sendChannelMessage(user.phone, formattedText, companyId);
+            } catch (err: any) {
+              console.error(`[NotificationService] Delayed WhatsApp release failed for ${user.phone}:`, err);
+              const currentErr = (await admin.from('notifications').select('error_log').eq('id', n.id).single()).data?.error_log;
+              const combinedErr = currentErr ? `${currentErr} | Delayed WhatsApp release failed: ${err.message}` : `Delayed WhatsApp release failed: ${err.message}`;
+              await admin.from('notifications').update({ error_log: combinedErr }).eq('id', n.id);
             }
           }
           released++;

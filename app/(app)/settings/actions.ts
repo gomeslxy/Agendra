@@ -8,6 +8,7 @@ import { getCompanyUsage } from "@/lib/billing/limits";
 import { revalidatePath } from "next/cache";
 import { assertSafeWebhookUrl } from "@/lib/security/url-guard";
 import { logAuditAction } from "@/lib/security/audit";
+import { clearChannelConfigCache } from "@/lib/channels/send";
 
 export async function updatePersona(formData: FormData) {
   const profile = await getUserProfile();
@@ -211,6 +212,7 @@ export async function saveWhatsAppChannel(formData: FormData) {
     payload: { channel_id: channel.id, provider: "whatsapp", phone_number_id: phoneId }
   });
 
+  clearChannelConfigCache();
   revalidatePath("/settings");
 }
 
@@ -264,6 +266,7 @@ export async function disconnectChannel(channelId: string) {
     payload: { channel_id: channelId, provider_id: channel.provider_id }
   });
 
+  clearChannelConfigCache();
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -463,8 +466,9 @@ export async function completeWhatsAppOnboarding(shortLivedToken: string) {
       payload: { channel_id: channel.id, provider: "whatsapp", method: "embedded_signup", phone: details.display_phone_number }
     });
 
-  revalidatePath("/settings");
-  return { success: true, phone: details.display_phone_number };
+    clearChannelConfigCache();
+    revalidatePath("/settings");
+    return { success: true, phone: details.display_phone_number };
   } catch (error: any) {
     console.error("[ONBOARDING_ERROR]", error);
     return { success: false, error: error.message };
