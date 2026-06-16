@@ -113,6 +113,51 @@ async function resolveChannelConfig(companyId: string, to: string): Promise<Chan
   throw new Error(`Nenhum canal ativo configurado para a empresa ${companyId} e destinatário ${to}`);
 }
 
+// ── Per-turn channel config cache ────────────────────────────────────────────
+// resolveChannelConfig runs 2-3 DB queries (lead lookup + channel lookup + Vault
+// token-decrypt RPC). During a single AI turn it's called on every typing ping
+// (4s interval) AND each reply part — all resolving the SAME channel. That's
+// ~12-15 redundant Supabase round-trips on the hot path, directly delaying the
+// reply reaching the lead. Cache the resolved config briefly so a turn resolves
+// once. TTL is short so a rotated token is picked up fast; a send failure busts
+// the entry immediately (invalidateChannelConfig) so a 401 self-heals on retry.
+const CONFIG_CACHE_TTL_MS = 30_000;
+const configCache = new Map<string, { config: ChannelConfig; expires: number }>();
+
+function configCacheKey(companyId: string, to: string): string {
+  return `${companyId}::${to}`;
+}
+
+export function invalidateChannelConfig(companyId: string, to: string): void {
+  configCache.delete(configCacheKey(companyId, to));
+}
+
+/** Drops every cached channel config. Use after a company-wide token rotation. */
+export function clearChannelConfigCache(): void {
+  configCache.clear();
+}
+
+/**
+ * Resolves a ChannelConfig with a short-lived in-memory cache. Use this on the
+ * message-send hot path (typing pings, reply parts) to avoid re-querying the same
+ * channel several times per turn. Falls through to a fresh resolve on cache miss.
+ */
+export async function getChannelConfig(companyId: string, to: string): Promise<ChannelConfig> {
+  const key = configCacheKey(companyId, to);
+  const hit = configCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.config;
+
+  const config = await resolveChannelConfig(companyId, to);
+
+  // Bound memory: prune expired entries before inserting when the map grows large.
+  if (configCache.size > 500) {
+    const now = Date.now();
+    for (const [k, v] of configCache) if (v.expires <= now) configCache.delete(k);
+  }
+  configCache.set(key, { config, expires: Date.now() + CONFIG_CACHE_TTL_MS });
+  return config;
+}
+
 /**
  * Sends a text message through the unified channel abstraction layer.
  */
@@ -122,12 +167,14 @@ export async function sendChannelMessage(to: string, text: string, companyId?: s
   }
 
   const sanitizedText = sanitizeClientResponse(text);
-  const config = await resolveChannelConfig(companyId, to);
+  const config = await getChannelConfig(companyId, to);
   const adapter = getAdapter(config.provider);
 
   const result = await adapter.sendText(config, { to, text: sanitizedText });
 
   if (!result.ok) {
+    // Bust the cache so a stale/expired token doesn't keep failing the whole turn.
+    invalidateChannelConfig(companyId, to);
     throw new Error(result.error || 'Failed to send channel text message');
   }
 
@@ -151,7 +198,7 @@ export async function sendChannelMedia(
   }
 
   const sanitizedCaption = sanitizeClientResponse(caption);
-  const config = await resolveChannelConfig(companyId, to);
+  const config = await getChannelConfig(companyId, to);
   const adapter = getAdapter(config.provider);
 
   const result = await adapter.sendMedia(config, {
@@ -164,6 +211,7 @@ export async function sendChannelMedia(
   });
 
   if (!result.ok) {
+    invalidateChannelConfig(companyId, to);
     throw new Error(result.error || 'Failed to send channel media message');
   }
 
@@ -177,7 +225,7 @@ export async function sendChannelTyping(to: string, companyId?: string, messageI
   if (!companyId || !to) return;
 
   try {
-    const config = await resolveChannelConfig(companyId, to);
+    const config = await getChannelConfig(companyId, to);
     const adapter = getAdapter(config.provider);
 
     if (adapter.sendTypingIndicator) {
