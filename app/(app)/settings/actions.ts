@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient, getUserProfile } from "@/lib/supabase/server";
+import { createClient, getUserProfile, getActiveCompanyId, getActiveMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { exchangeForLongLivedToken, getWhatsAppNumberDetails } from "@/lib/whatsapp/meta-api";
 import { validateWhatsAppToken } from "@/lib/whatsapp/validate";
@@ -14,13 +14,16 @@ export async function updatePersona(formData: FormData) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
-  const role = profile.memberships?.[0]?.role;
+  const activeMembership = getActiveMembership(profile);
+  if (!activeMembership) throw new Error("No company");
+
+  const role = activeMembership.role;
   if (role !== "admin" && role !== "owner") {
     throw new Error("Apenas administradores podem atualizar as orientações da IA.");
   }
 
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("No company");
+  const companyId = activeMembership.company_id;
+
 
   const supabase = await createClient();
 
@@ -113,6 +116,31 @@ export async function updatePersona(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  // Automatically record a new prompt version entry
+  try {
+    const { data: maxRow } = await supabase
+      .from("prompt_versions")
+      .select("version")
+      .eq("company_id", companyId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextVersion = (maxRow?.version ?? 0) + 1;
+
+    await supabase.from("prompt_versions").insert({
+      company_id: companyId,
+      version: nextVersion,
+      ai_name: (personaConfigPatch.name as string) ?? "Agendra",
+      ai_tone: (personaConfigPatch.tone as string) ?? "Amigável",
+      system_instructions: (personaConfigPatch.extra_instructions as string) ?? "",
+      ai_forbidden: aiForbidden !== undefined ? aiForbidden : null,
+      created_by: profile.id,
+    });
+  } catch (pvErr) {
+    console.error("[updatePersona] Error creating prompt_version:", pvErr);
+  }
+
   await logAuditAction({
     action: "persona.update",
     companyId,
@@ -124,6 +152,7 @@ export async function updatePersona(formData: FormData) {
       has_extra_instructions: extraInstructions !== undefined,
     }
   });
+
 
   revalidatePath("/settings");
 }
@@ -909,5 +938,144 @@ export async function saveCompanyReminderSettings(
   revalidatePath("/settings");
   return { success: true };
 }
+
+export async function updateUserProfile(data: { full_name?: string; phone?: string }) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const companyId = profile.memberships?.[0]?.company_id;
+  const fullName = data.full_name !== undefined ? data.full_name.trim() : undefined;
+  const phone = data.phone !== undefined ? data.phone.trim() : undefined;
+
+  if (fullName !== undefined && fullName.length > 120) {
+    throw new Error("Nome muito longo (máximo 120 caracteres).");
+  }
+
+  const patch: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (fullName !== undefined) patch.full_name = fullName || null;
+  if (phone !== undefined) patch.phone = phone || null;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("users")
+    .update(patch)
+    .eq("id", profile.id);
+
+  if (error) throw new Error(error.message);
+
+  if (companyId) {
+    await logAuditAction({
+      action: "user.profile_update",
+      companyId,
+      payload: { user_id: profile.id, updated_fields: Object.keys(patch) }
+    });
+  }
+
+  revalidatePath("/settings");
+  return { success: true };
+}
+
+export async function getPromptVersions(companyId: string) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const activeMembership = getActiveMembership(profile, companyId);
+  if (!activeMembership) throw new Error("Unauthorized");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("prompt_versions")
+    .select("id, version, ai_name, ai_tone, system_instructions, ai_forbidden, created_at, created_by")
+    .eq("company_id", activeMembership.company_id)
+    .order("version", { ascending: false })
+    .limit(20);
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function rollbackPromptVersion(versionId: string) {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+
+  const activeMembership = getActiveMembership(profile);
+  if (!activeMembership) throw new Error("Unauthorized");
+
+  const role = activeMembership.role;
+  if (role !== "admin" && role !== "owner") {
+    throw new Error("Apenas administradores podem restaurar versões do prompt.");
+  }
+
+  const companyId = activeMembership.company_id;
+  const supabase = await createClient();
+
+  const { data: targetVersion, error: fetchErr } = await supabase
+    .from("prompt_versions")
+    .select("*")
+    .eq("id", versionId)
+    .eq("company_id", companyId)
+    .single();
+
+  if (fetchErr || !targetVersion) throw new Error("Versão do prompt não encontrada.");
+
+  const { data: existing } = await supabase
+    .from("companies")
+    .select("persona_config")
+    .eq("id", companyId)
+    .single();
+
+  const currentConfig = (existing?.persona_config ?? {}) as Record<string, unknown>;
+  const personaConfigPatch = {
+    ...currentConfig,
+    name: targetVersion.ai_name,
+    tone: targetVersion.ai_tone,
+    extra_instructions: targetVersion.system_instructions || null,
+  };
+
+  const updatePayload = {
+    persona_config: personaConfigPatch,
+    ai_name: targetVersion.ai_name,
+    ai_tone: targetVersion.ai_tone,
+    ai_forbidden: targetVersion.ai_forbidden,
+  };
+
+  const { error: updateErr } = await supabase
+    .from("companies")
+    .update(updatePayload)
+    .eq("id", companyId);
+
+  if (updateErr) throw new Error(updateErr.message);
+
+  const { data: maxRow } = await supabase
+    .from("prompt_versions")
+    .select("version")
+    .eq("company_id", companyId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextVersion = (maxRow?.version ?? 0) + 1;
+
+  await supabase.from("prompt_versions").insert({
+    company_id: companyId,
+    version: nextVersion,
+    ai_name: targetVersion.ai_name,
+    ai_tone: targetVersion.ai_tone,
+    system_instructions: targetVersion.system_instructions || "",
+    ai_forbidden: targetVersion.ai_forbidden,
+    created_by: profile.id,
+  });
+
+  await logAuditAction({
+    action: "persona.rollback",
+    companyId,
+    payload: { restored_version: targetVersion.version, new_version: nextVersion }
+  });
+
+  revalidatePath("/settings");
+  return { success: true, restoredVersion: targetVersion.version };
+}
+
+
 
 

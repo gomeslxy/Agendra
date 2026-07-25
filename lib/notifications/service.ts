@@ -126,7 +126,11 @@ export class NotificationService {
       };
 
       // Check if this type of notification is disabled by the user
-      if (!settings.enabled_types.includes(input.type)) {
+      const enabledTypes = Array.isArray(settings?.enabled_types)
+        ? settings.enabled_types
+        : ['invite', 'member_joined', 'member_left', 'channel_error', 'payment_failed', 'lead_hot', 'system'];
+
+      if (!enabledTypes.includes(input.type)) {
         console.log(`[NotificationService] Notification type ${input.type} disabled for user ${input.user_id}`);
         return null;
       }

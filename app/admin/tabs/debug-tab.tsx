@@ -7,11 +7,14 @@ import {
   RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Layers, Wifi, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   checkEnvHealth, checkDependencyHealth, getCronJobsHealth,
   inspectLeadByPhone, getLatestMigrations,
   getCompanyChannelDetails, getCompanyQuotaStatus, forceUnlockStaleLead,
+  searchAdminLeads,
 } from "../actions";
 import type { Company } from "../types";
 import type { DepResult, CronJobStatus } from "../actions";
@@ -627,6 +630,80 @@ function ChannelDebugCard({ companies }: { companies: Company[] }) {
   );
 }
 
+function GlobalLeadSearchCard() {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<any[] | null>(null);
+
+  async function handleSearch() {
+    if (!query.trim()) return;
+    setLoading(true);
+    const res = await searchAdminLeads(query.trim());
+    setLoading(false);
+    if (res.success) {
+      setResults(res.leads ?? []);
+    } else {
+      toast.error(res.error || "Erro ao buscar leads");
+    }
+  }
+
+  return (
+    <div className="border border-[#E4E4E7] bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-[#E4E4E7] bg-[#F4F4F5] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Search size={15} className="text-[#2563EB]" />
+          <h2 className="text-sm font-semibold text-[#09090B]">Busca Global de Leads (Suporte)</h2>
+        </div>
+        <span className="text-[10px] font-mono text-[#71717A]">AD-08</span>
+      </div>
+
+      <div className="p-4 flex gap-2">
+        <Input
+          placeholder="Buscar por telefone (ex: 551199999999) ou nome..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          className="flex-1 border border-[#E4E4E7] rounded-xl text-sm"
+        />
+        <Button size="sm" variant="orange" onClick={handleSearch} disabled={loading}>
+          {loading ? <RefreshCw size={12} className="animate-spin" /> : <Search size={12} />}
+          Buscar
+        </Button>
+      </div>
+
+      {results && (
+        <div className="border-t border-[#E4E4E7] max-h-[300px] overflow-y-auto divide-y divide-[#E4E4E7]">
+          {results.length === 0 ? (
+            <div className="p-4 text-center text-xs text-[#71717A]">Nenhum lead encontrado para a busca.</div>
+          ) : (
+            results.map((l) => (
+              <div key={l.id} className="p-3.5 flex items-center justify-between text-xs hover:bg-[#FAFAFA]">
+                <div className="flex flex-col gap-0.5">
+                  <p className="font-bold text-[#09090B] flex items-center gap-2">
+                    {l.name}
+                    <span className="font-mono text-[10px] text-[#2563EB] bg-[#2563EB]/10 px-2 py-0.5 rounded-full">
+                      {l.companies?.name ?? l.company_id}
+                    </span>
+                  </p>
+                  <p className="font-mono text-[11px] text-[#71717A]">{l.phone}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="cold" className="text-[10px] font-mono">
+                    Score: {l.heat_score}
+                  </Badge>
+                  <span className="text-[10px] text-[#A1A1AA] font-mono">
+                    {new Date(l.created_at).toLocaleDateString("pt-BR")}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export function DebugTab({ companies }: Props) {
@@ -643,6 +720,7 @@ export function DebugTab({ companies }: Props) {
       <DependencyHealthCard />
       <EnvHealthCard />
       <CronHealthCard />
+      <GlobalLeadSearchCard />
       <LeadInspectorCard companies={companies} />
       <ChannelDebugCard companies={companies} />
       <MigrationsCard />

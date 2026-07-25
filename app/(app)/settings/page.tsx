@@ -40,9 +40,19 @@ export default async function SettingsPage({
   const needsServices = tab === "brain" || tab === "services";
   const needsLogs = tab === "logs";
   const needsAutomation = tab === "automation";
+  const needsBrain = tab === "brain";
 
   const empty = Promise.resolve({ data: [] as any[] });
   const emptyCount = Promise.resolve({ count: 0 });
+
+  const promptVersionsQuery = needsBrain
+    ? supabase
+        .from('prompt_versions')
+        .select('id, version, ai_name, ai_tone, system_instructions, ai_forbidden, created_at, created_by')
+        .eq('company_id', companyId)
+        .order('version', { ascending: false })
+        .limit(20)
+    : empty;
 
   // Mente da IA fetch — Pro: 30 latest, Business: 50 latest (realtime augments client-side)
   const aiLogsLimit = usage?.planType === 'business' ? 50 : 30;
@@ -78,6 +88,7 @@ export default async function SettingsPage({
     { data: webhooksData },
     { data: pendingInvitationsData },
     { data: auditLogsData },
+    { data: promptVersionsData },
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -147,6 +158,7 @@ export default async function SettingsPage({
           .order("created_at", { ascending: false })
       : empty,
     auditLogsQuery,
+    promptVersionsQuery,
   ]);
 
   const services = servicesData ?? [];
@@ -166,9 +178,11 @@ export default async function SettingsPage({
           pendingInvitations={pendingInvitationsData ?? []}
           currentUserRole={userRole ?? "member"}
           auditLogs={auditLogsData ?? []}
+          promptVersions={promptVersionsData ?? []}
         />
       </Suspense>
   );
+
 }
 
 function SettingsSkeleton() {

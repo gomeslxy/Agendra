@@ -95,3 +95,35 @@ export const getCachedUserProfile = cache(async (userId: string) => {
   }
   return data ?? null;
 });
+
+/**
+ * Safely resolves the active companyId from user profile memberships.
+ * Handles users belonging to multiple companies without assuming index 0.
+ */
+export function getActiveCompanyId(
+  profile: { memberships?: Array<{ company_id: string; role: string }> | null } | null,
+  targetCompanyId?: string | null
+): string | null {
+  if (!profile?.memberships?.length) return null;
+  if (targetCompanyId) {
+    const match = profile.memberships.find((m) => m.company_id === targetCompanyId);
+    if (match) return match.company_id;
+  }
+  return profile.memberships[0].company_id;
+}
+
+/**
+ * Safely resolves the active membership (role + company_id) from user profile.
+ */
+export function getActiveMembership(
+  profile: { memberships?: Array<{ company_id: string; role: string }> | null } | null,
+  targetCompanyId?: string | null
+): { company_id: string; role: string } | null {
+  if (!profile?.memberships?.length) return null;
+  if (targetCompanyId) {
+    const match = profile.memberships.find((m) => m.company_id === targetCompanyId);
+    if (match) return match;
+  }
+  return profile.memberships[0];
+}
+

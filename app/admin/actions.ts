@@ -1324,3 +1324,38 @@ export async function triggerTenantAnomalyAlert(
     return { success: false, error: err.message };
   }
 }
+
+export async function searchAdminLeads(query: string): Promise<{
+  success: boolean;
+  leads?: Array<{
+    id: string;
+    name: string;
+    phone: string;
+    status: string;
+    heat_score: number;
+    company_id: string;
+    companies?: { name: string } | null;
+    created_at: string;
+  }>;
+  error?: string;
+}> {
+  try {
+    await validateAdminSessionOrThrow();
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return { success: true, leads: [] };
+
+    const adminClient = createAdminClient();
+    const { data, error } = await adminClient
+      .from("leads")
+      .select("id, name, phone, status, heat_score, company_id, companies(name), created_at")
+      .or(`name.ilike.%${cleanQuery}%,phone.ilike.%${cleanQuery}%`)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (error) throw new Error(error.message);
+    return { success: true, leads: (data as any) ?? [] };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
