@@ -37,15 +37,21 @@ export async function syncCompanyCalendar(companyId: string): Promise<SyncResult
 
   const { data: company } = await admin
     .from('companies')
-    .select('google_refresh_token, google_calendar_id, gcal_sync_token')
+    .select('google_refresh_token, google_refresh_token_secret_id, google_calendar_id, gcal_sync_token')
     .eq('id', companyId)
     .single();
 
-  if (!company?.google_refresh_token) {
+  let refreshToken: string | null = company?.google_refresh_token ?? null;
+  if (!refreshToken && company?.google_refresh_token_secret_id) {
+    const { getCompanyGCalRefreshToken } = await import('@/lib/calendar/gcal-token');
+    refreshToken = await getCompanyGCalRefreshToken(companyId);
+  }
+
+  if (!refreshToken) {
     return { skipped: true, inserted: 0, updated: 0, deleted: 0, syncToken: '' };
   }
 
-  const calendarId = company.google_calendar_id ?? 'primary';
+  const calendarId = company?.google_calendar_id ?? 'primary';
   const now = new Date();
 
   let gcalResult: Awaited<ReturnType<typeof listGCalEvents>>;
@@ -53,18 +59,18 @@ export async function syncCompanyCalendar(companyId: string): Promise<SyncResult
   const runFullSync = async () => {
     const timeMin = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const timeMax = new Date(now.getTime() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString();
-    return listGCalEvents(company.google_refresh_token!, calendarId, { timeMin, timeMax });
+    return listGCalEvents(refreshToken, calendarId, { timeMin, timeMax });
   };
 
   try {
-    if (company.gcal_sync_token) {
-      gcalResult = await listGCalEvents(company.google_refresh_token, calendarId, {
+    if (company?.gcal_sync_token) {
+      gcalResult = await listGCalEvents(refreshToken, calendarId, {
         syncToken: company.gcal_sync_token,
       });
     } else {
       gcalResult = await runFullSync();
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
     const isRevoked = errMsg.includes('invalid_grant') || errMsg.includes('invalid_client') || errMsg.includes('Token expirado') || errMsg.includes('400') || errMsg.includes('401');
 
@@ -81,6 +87,11 @@ export async function syncCompanyCalendar(companyId: string): Promise<SyncResult
           gcal_sync_token: null,
         })
         .eq('id', companyId);
+
+      if (company?.google_refresh_token_secret_id) {
+        const { setCompanyGCalRefreshToken } = await import('@/lib/calendar/gcal-token');
+        await setCompanyGCalRefreshToken(companyId, null).catch(() => {});
+      }
 
       // 2. Alert the company owners and admins via high-priority in-app notification
       try {
@@ -214,9 +225,10 @@ export async function syncCompanyCalendar(companyId: string): Promise<SyncResult
   // API was down (booking/cancel/reschedule marked gcal_sync_status='error').
   // Non-fatal: a reconcile failure must not invalidate the pull sync above.
   try {
-    await reconcileGCalPushFailures(companyId, company.google_refresh_token, calendarId);
-  } catch (err: any) {
-    console.warn('[GCal Reconcile] push reconciliation failed (non-fatal):', err?.message ?? err);
+    await reconcileGCalPushFailures(companyId, refreshToken, calendarId);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('[GCal Reconcile] push reconciliation failed (non-fatal):', msg);
   }
 
   return { inserted, updated, deleted, syncToken: gcalResult.nextSyncToken };

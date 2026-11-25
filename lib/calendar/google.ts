@@ -127,6 +127,38 @@ export interface BusySlot {
   end: string;
 }
 
+const FB_VERSION_TTL_SEC = 86_400;
+
+async function getFreeBusyVersion(scopeKey: string): Promise<string> {
+  if (!isRedisAvailable()) return '0';
+  try {
+    const ver = await redis.get(`gcal:fbver:${scopeKey}`);
+    return ver ?? '0';
+  } catch {
+    return '0';
+  }
+}
+
+/**
+ * Invalidates all cached Free/Busy windows for a company in O(1) by bumping
+ * the monotonic Redis version counter and clearing process-local entries.
+ */
+export async function invalidateGCalFreeBusyCache(companyId: string): Promise<void> {
+  for (const key of localFreeBusyCache.keys()) {
+    if (key.startsWith(`${companyId}:`)) {
+      localFreeBusyCache.delete(key);
+    }
+  }
+  if (!isRedisAvailable()) return;
+  try {
+    const verKey = `gcal:fbver:${companyId}`;
+    await redis.incr(verKey);
+    await redis.expire(verKey, FB_VERSION_TTL_SEC);
+  } catch (err) {
+    console.warn('[GCal Cache] Failed to bump Free/Busy version:', err);
+  }
+}
+
 /**
  * Consulta a API Free/Busy do Google Calendar.
  * Retorna os intervalos OCUPADOS (busy) para o calendário especificado.
@@ -136,7 +168,7 @@ export async function getFreeBusySlots(
   calendarId: string,
   timeMin: string,
   timeMax: string,
-  opts: { noCache?: boolean } = {},
+  opts: { noCache?: boolean; companyId?: string } = {},
 ): Promise<BusySlot[]> {
   // Defensive guard against empty/invalid range. Google Calendar freeBusy will fail with 400 timeRangeEmpty.
   if (!timeMin || !timeMax) {
@@ -149,10 +181,12 @@ export async function getFreeBusySlots(
   }
 
   const tokenHash = hashToken(refreshToken);
-  const cacheKey = `gcal:freebusy:${tokenHash}:${calendarId}:${timeMin}:${timeMax}`;
-  const localCacheKey = `${refreshToken.slice(-8)}:${calendarId}:${timeMin}:${timeMax}`;
+  const scopeId = opts.companyId ?? tokenHash;
+  const ver = opts.companyId ? await getFreeBusyVersion(opts.companyId) : '0';
+  const cacheKey = `gcal:freebusy:${scopeId}:${calendarId}:${ver}:${timeMin}:${timeMax}`;
+  const localCacheKey = `${scopeId}:${calendarId}:${ver}:${timeMin}:${timeMax}`;
 
-  const backupCacheKey = `gcal:freebusy:backup:${tokenHash}:${calendarId}:${timeMin}:${timeMax}`;
+  const backupCacheKey = `gcal:freebusy:backup:${scopeId}:${calendarId}:${timeMin}:${timeMax}`;
 
   // noCache: the booking double-check must see the REAL calendar state. A 90s
   // cached "free" answer is exactly the window where two leads can race for the
@@ -477,9 +511,9 @@ const GOOGLE_OAUTH_SCOPES = [
 
 /**
  * Gera a URL de autorização para redirecionar o usuário ao Google OAuth.
- * state = companyId (para associar o token à empresa correta no callback).
+ * `state` deve ser um token HMAC assinado (`createSignedOAuthState`).
  */
-export function buildGoogleOAuthUrl(companyId: string): string {
+export function buildGoogleOAuthUrl(state: string): string {
   const { clientId, redirectUri } = getOAuthConfig();
 
   const params = new URLSearchParams({
@@ -489,7 +523,7 @@ export function buildGoogleOAuthUrl(companyId: string): string {
     scope: GOOGLE_OAUTH_SCOPES,
     access_type: 'offline',   // garante refresh_token
     prompt: 'consent',         // força re-exibição mesmo se já autorizado
-    state: companyId,
+    state,
   });
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

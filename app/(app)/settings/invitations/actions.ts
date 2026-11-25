@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient, getUserProfile } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications/create";
 import { revalidatePath } from "next/cache";
@@ -169,14 +169,8 @@ export async function declineInvitation(invitationId: string) {
  * Cancel a pending invitation (admin/owner only).
  */
 export async function cancelInvitation(invitationId: string) {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("No company");
-
-  const role = profile.memberships?.[0]?.role;
-  if (role !== "admin" && role !== "owner") throw new Error("Apenas administradores podem cancelar convites.");
+  const { requireTenantContext } = await import("@/lib/tenant/context");
+  const { companyId } = await requireTenantContext({ requireAdmin: true });
 
   const admin = createAdminClient();
 
@@ -213,14 +207,8 @@ export async function cancelInvitation(invitationId: string) {
  * Resend a pending or expired invitation.
  */
 export async function resendInvitation(invitationId: string) {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("No company");
-
-  const role = profile.memberships?.[0]?.role;
-  if (role !== "admin" && role !== "owner") throw new Error("Apenas administradores podem reenviar convites.");
+  const { requireTenantContext } = await import("@/lib/tenant/context");
+  const { companyId, userId } = await requireTenantContext({ requireAdmin: true });
 
   const admin = createAdminClient();
 
@@ -269,7 +257,7 @@ export async function resendInvitation(invitationId: string) {
   }
 
   const { data: company } = await admin.from("companies").select("name").eq("id", companyId).maybeSingle();
-  const { data: inviterProfile } = await admin.from("users").select("full_name").eq("id", profile.id).maybeSingle();
+  const { data: inviterProfile } = await admin.from("users").select("full_name").eq("id", userId).maybeSingle();
 
   const companyName = company?.name ?? "uma empresa";
   const inviterName = inviterProfile?.full_name ?? "Alguém";
@@ -297,7 +285,7 @@ export async function resendInvitation(invitationId: string) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.agendra.site";
     await admin.auth.admin.inviteUserByEmail(invite.invited_email, {
       redirectTo: `${appUrl}/accept-invite?invitationId=${invitationId}`,
-      data: { company_id: companyId, invited_role: invite.role },
+      data: { invited_company_id: companyId, company_id: companyId, invited_role: invite.role },
     });
   }
 
@@ -314,26 +302,22 @@ export async function resendInvitation(invitationId: string) {
  * Get all notifications for the current user (last 20).
  */
 export async function getNotifications() {
+  const { requireTenantContext } = await import("@/lib/tenant/context");
+  let userId: string;
+  let companyId: string;
+  try {
+    const ctx = await requireTenantContext();
+    userId = ctx.userId;
+    companyId = ctx.companyId;
+  } catch {
+    return [];
+  }
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
-
-  // H1 FIX: Retrieve user's active membership company_id to enforce multi-tenant isolation
-  const admin = createAdminClient();
-  const { data: membership } = await admin
-    .from("memberships")
-    .select("company_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-
-  const companyId = membership?.company_id;
-  if (!companyId) return [];
-
   const { data, error } = await supabase
     .from("notifications")
     .select("id, type, title, body, action_url, metadata, priority, read, created_at")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("company_id", companyId)
     .order("created_at", { ascending: false })
     .limit(20);

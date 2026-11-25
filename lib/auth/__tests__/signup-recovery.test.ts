@@ -29,40 +29,48 @@ describe("Signup API Route — Recovery of Unconfirmed Users", () => {
   const mockInsert = vi.fn();
   const mockUpdate = vi.fn();
   const mockEq = vi.fn();
+  const mockMaybeSingle = vi.fn();
   const mockFrom = vi.fn();
   const mockCreateUser = vi.fn();
-  const mockListUsers = vi.fn();
+  const mockGetUserById = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Setup Supabase Database Mock Chains
-    mockEq.mockReturnValue({ eq: mockEq });
+    mockEq.mockReturnValue({ eq: mockEq, maybeSingle: mockMaybeSingle });
     mockUpdate.mockReturnValue({ eq: mockEq });
     mockInsert.mockReturnValue({ error: null });
-    mockFrom.mockReturnValue({
-      update: mockUpdate,
-      insert: mockInsert,
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: () => ({ eq: mockEq }),
+        };
+      }
+      return {
+        update: mockUpdate,
+        insert: mockInsert,
+      };
     });
 
     // Setup GoTrueAdminApi Mock
-    (createAdminClient as any).mockReturnValue({
+    (createAdminClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       from: mockFrom,
       auth: {
         admin: {
           createUser: mockCreateUser,
-          listUsers: mockListUsers,
+          getUserById: mockGetUserById,
         },
       },
     });
   });
 
-  function createMockRequest(body: any) {
+  function createMockRequest(body: Record<string, unknown>) {
     return new NextRequest("http://localhost/api/auth/signup", {
       method: "POST",
       body: JSON.stringify(body),
       headers: {
-        "x-forwarded-for": "127.0.0.1",
+        "x-real-ip": "127.0.0.1",
       },
     });
   }
@@ -100,16 +108,17 @@ describe("Signup API Route — Recovery of Unconfirmed Users", () => {
       error: { message: "already registered" },
     });
 
-    mockListUsers.mockResolvedValue({
+    mockMaybeSingle.mockResolvedValue({
+      data: { id: "existing-user-id" },
+      error: null,
+    });
+    mockGetUserById.mockResolvedValue({
       data: {
-        users: [
-          {
-            id: "existing-user-id",
-            email: "confirmed@example.com",
-            email_confirmed_at: "2026-05-30T00:00:00Z",
-          },
-        ],
-        aud: "",
+        user: {
+          id: "existing-user-id",
+          email: "confirmed@example.com",
+          email_confirmed_at: "2026-05-30T00:00:00Z",
+        },
       },
       error: null,
     });
@@ -135,16 +144,17 @@ describe("Signup API Route — Recovery of Unconfirmed Users", () => {
       error: { message: "already registered" },
     });
 
-    mockListUsers.mockResolvedValue({
+    mockMaybeSingle.mockResolvedValue({
+      data: { id: "existing-unconfirmed-id" },
+      error: null,
+    });
+    mockGetUserById.mockResolvedValue({
       data: {
-        users: [
-          {
-            id: "existing-unconfirmed-id",
-            email: "unconfirmed@example.com",
-            email_confirmed_at: null,
-          },
-        ],
-        aud: "",
+        user: {
+          id: "existing-unconfirmed-id",
+          email: "unconfirmed@example.com",
+          email_confirmed_at: null,
+        },
       },
       error: null,
     });

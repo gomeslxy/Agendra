@@ -1,6 +1,6 @@
 // app/onboarding/layout.tsx
 import { redirect } from "next/navigation";
-import { getUser, getCachedUserProfile } from "@/lib/supabase/server";
+import { getUser, getCachedUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { getOnboardingStatus } from "@/lib/onboarding/guards";
 
 export default async function OnboardingLayout({
@@ -14,7 +14,7 @@ export default async function OnboardingLayout({
   const profile = await getCachedUserProfile(user.id);
   if (!profile) redirect("/login");
 
-  const companyId = profile.memberships?.[0]?.company_id ?? null;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId) redirect("/login");
 
   try {

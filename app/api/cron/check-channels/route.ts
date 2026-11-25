@@ -2,128 +2,135 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotificationForUsers } from '@/lib/notifications/create';
 import { validateWhatsAppToken } from '@/lib/whatsapp/validate';
+import { verifyBearerSecret } from '@/lib/security/crypto-compare';
+import { mapWithConcurrency } from '@/lib/infra/concurrency';
+import { logError, logInfo } from '@/lib/logging';
 
-export const maxDuration = 60;
-
-function isAuthorized(req: NextRequest): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return false;
-  const header = req.headers.get('authorization') ?? '';
-  return header === `Bearer ${cronSecret}`;
-}
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  if (!isAuthorized(req)) {
+  if (!verifyBearerSecret(req.headers.get('authorization'), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const admin = createAdminClient();
 
-  // Fetch all channels (M2 FIX: Exclude access_token from bulk query)
   const { data: channels, error: channelsError } = await admin
     .from('channels')
     .select('id, company_id, provider_id, provider, status, token_expires_at, last_error');
 
   if (channelsError) {
-    console.error('[check-channels] Failed to fetch channels:', channelsError.message);
+    logError('[check-channels] Failed to fetch channels:', channelsError.message);
     return NextResponse.json({ error: channelsError.message }, { status: 500 });
   }
 
   let markedError = 0;
+  const activeChannels = (channels ?? []).filter((ch) => ch.status === 'active');
 
-  // Active validation step
-  for (const ch of channels ?? []) {
-    if (ch.status === 'active') {
-      // M2 FIX: Decrypt and fetch access_token securely on demand using Vault RPC
-      const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: ch.id });
-      const token = tokenData as string;
+  await mapWithConcurrency(
+    activeChannels,
+    5,
+    async (ch) => {
+      const { data: tokenData } = await admin.rpc('channel_get_access_token', {
+        p_channel_id: ch.id,
+      });
+      const token = tokenData as string | null;
 
       if (!token) {
-        console.warn(`[check-channels] Access token missing for channel ${ch.id}`);
-        continue;
+        logInfo(`[check-channels] Access token missing for channel ${ch.id}`);
+        return;
       }
 
       if (ch.provider === 'instagram') {
         let tokenExpired = false;
-        
-        // Dynamic Instagram Token Refresh: if expiration is < 10 days, refresh it!
+
         if (ch.token_expires_at) {
           const expiresDate = new Date(ch.token_expires_at);
           const diffDays = (expiresDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-          
+
           if (diffDays < 10) {
-            console.log(`[check-channels] Instagram token for channel ${ch.id} expires in ${diffDays.toFixed(1)} days. Refreshing token...`);
+            logInfo(
+              `[check-channels] Instagram token for channel ${ch.id} expires in ${diffDays.toFixed(1)} days. Refreshing...`,
+            );
             try {
-              const { refreshInstagramLongLivedToken } = await import('@/lib/channels/adapters/instagram-auth');
+              const { refreshInstagramLongLivedToken } = await import(
+                '@/lib/channels/adapters/instagram-auth'
+              );
               const refreshRes = await refreshInstagramLongLivedToken(ch.id, token);
-              
+
               if (!refreshRes.success) {
+                const errMsg = refreshRes.error || 'Falha ao atualizar token Instagram';
                 await admin
                   .from('channels')
                   .update({
                     status: 'error',
-                    last_error: refreshRes.error || 'Falha ao atualizar token Instagram',
-                    updated_at: new Date().toISOString()
+                    last_error: errMsg,
+                    updated_at: new Date().toISOString(),
                   })
                   .eq('id', ch.id);
                 ch.status = 'error';
-                ch.last_error = refreshRes.error || 'Falha ao atualizar token Instagram';
+                ch.last_error = errMsg;
                 markedError++;
                 tokenExpired = true;
               }
-            } catch (refErr: any) {
-              console.error(`[check-channels] Failed to refresh Instagram token for channel ${ch.id}:`, refErr.message);
+            } catch (refErr: unknown) {
+              const msg = refErr instanceof Error ? refErr.message : String(refErr);
+              logError(`[check-channels] Failed to refresh Instagram token for ${ch.id}:`, msg);
             }
           }
         }
 
-        // If refresh did not fail, do standard validation check against Facebook Graph API
         if (!tokenExpired) {
           try {
-            const pageRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${token}`);
+            const pageRes = await fetch('https://graph.facebook.com/v19.0/me', {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: AbortSignal.timeout(8_000),
+            });
             if (!pageRes.ok) {
-              const errData = await pageRes.json();
+              const errData = (await pageRes.json()) as { error?: { message?: string } };
               throw new Error(errData?.error?.message || `HTTP ${pageRes.status}`);
             }
-          } catch (valErr: any) {
+          } catch (valErr: unknown) {
+            const msg = valErr instanceof Error ? valErr.message : String(valErr);
             await admin
               .from('channels')
               .update({
                 status: 'error',
-                last_error: `Instagram validation failed: ${valErr.message}`,
-                updated_at: new Date().toISOString()
+                last_error: `Instagram validation failed: ${msg}`,
+                updated_at: new Date().toISOString(),
               })
               .eq('id', ch.id);
             ch.status = 'error';
-            ch.last_error = `Instagram validation failed: ${valErr.message}`;
+            ch.last_error = `Instagram validation failed: ${msg}`;
             markedError++;
           }
         }
       } else {
-        // WhatsApp validation
         const validation = await validateWhatsAppToken(ch.provider_id, token);
         if (!validation.ok) {
+          const errMsg = validation.error || 'Token inválido ou expirado';
           await admin
             .from('channels')
             .update({
               status: 'error',
-              last_error: validation.error || 'Token inválido ou expirado',
-              updated_at: new Date().toISOString()
+              last_error: errMsg,
+              updated_at: new Date().toISOString(),
             })
             .eq('id', ch.id);
-          ch.status = 'error'; // update local status for notification flow
-          ch.last_error = validation.error || 'Token inválido ou expirado';
+          ch.status = 'error';
+          ch.last_error = errMsg;
           markedError++;
         }
       }
-    }
-  }
+    },
+    { deadlineMs: startedAt + 240_000 },
+  );
 
-  const errorChannels = (channels ?? []).filter(ch => ch.status === 'error');
+  const errorChannels = (channels ?? []).filter((ch) => ch.status === 'error');
   let notified = 0;
 
   for (const channel of errorChannels) {
-    // Get all members of this company to notify
     const { data: members } = await admin
       .from('memberships')
       .select('user_id')
@@ -131,8 +138,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (!members?.length) continue;
 
-    // Check if we already sent a channel_error notification in the last hour
-    // to avoid spam on repeated cron runs
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count: recentCount } = await admin
       .from('notifications')
@@ -141,15 +146,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .eq('type', 'channel_error')
       .gte('created_at', oneHourAgo);
 
-    if ((recentCount ?? 0) > 0) continue; // already notified recently
+    if ((recentCount ?? 0) > 0) continue;
 
+    const providerLabel = channel.provider === 'instagram' ? 'Instagram' : 'WhatsApp';
     await createNotificationForUsers(members, {
       company_id: channel.company_id,
       type: 'channel_error',
-      title: 'Canal WhatsApp com erro ⚠️',
+      title: `Canal ${providerLabel} com erro ⚠️`,
       body: channel.last_error
         ? `Erro no canal: ${String(channel.last_error).slice(0, 120)}`
-        : 'Um canal do WhatsApp está desconectado. Reconecte nas configurações.',
+        : `Um canal do ${providerLabel} está desconectado. Reconecte nas configurações.`,
       action_url: '/settings?tab=channels',
       priority: 'critical',
       metadata: { channel_id: channel.id, provider_id: channel.provider_id },
@@ -162,6 +168,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ok: true,
     checked: channels?.length ?? 0,
     marked_error: markedError,
-    notified
+    notified,
   });
 }

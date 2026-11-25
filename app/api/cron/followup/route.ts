@@ -1,7 +1,5 @@
 /**
  * /api/cron/followup — Vercel Free Tier hourly/continual cron
- *
- * Runs Auto Follow-up to re-engage leads silent for followup_delay_hours (max 10 per company)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -9,23 +7,21 @@ import { triggerAutoFollowUp } from '@/lib/ai/engine';
 import { getPlanLimits } from '@/lib/billing/plans';
 import { getCompanyUsage } from '@/lib/billing/limits';
 import { ACTIVE_SUBSCRIPTION_STATUSES } from '@/lib/billing/active-statuses';
+import { verifyBearerSecret } from '@/lib/security/crypto-compare';
+import { mapWithConcurrency } from '@/lib/infra/concurrency';
+import { logError, logInfo } from '@/lib/logging';
 
-function isAuthorized(req: NextRequest): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return false;
-  const header = req.headers.get('authorization') ?? '';
-  return header === `Bearer ${cronSecret}`;
-}
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  if (!isAuthorized(req)) {
+  if (!verifyBearerSecret(req.headers.get('authorization'), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const admin = createAdminClient();
-  const summary: Record<string, any> = {};
+  const summary: Record<string, unknown> = {};
 
-  // Fetch active companies (active or trial status) with required plan/config context
   const { data: activeCompanies, error: companiesError } = await admin
     .from('companies')
     .select('id, name, plan_type, subscription_status, persona_config')
@@ -33,64 +29,73 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .not('subscription_status', 'eq', 'canceled');
 
   if (companiesError) {
-    console.error('[followup-cron] Failed to fetch companies:', companiesError.message);
+    logError('[followup-cron] Failed to fetch companies:', companiesError.message);
     return NextResponse.json({ error: companiesError.message }, { status: 500 });
   }
 
   const companiesList = activeCompanies ?? [];
-  console.log(`[followup-cron] Processing ${companiesList.length} active companies`);
+  logInfo(`[followup-cron] Processing ${companiesList.length} active companies`);
 
   try {
     const results: { id: string; company_id: string; status: string; error?: string }[] = [];
-    for (const company of companiesList) {
-      if (!getPlanLimits(company.plan_type).hasFollowUp) continue;
 
-      const delayHours = (company.persona_config as any)?.followup_delay_hours ?? 24;
-      const intervalHours = delayHours * 2;
-      const delayAgo = new Date(Date.now() - delayHours * 60 * 60 * 1000).toISOString();
-      const intervalAgo = new Date(Date.now() - intervalHours * 60 * 60 * 1000).toISOString();
+    await mapWithConcurrency(
+      companiesList,
+      5,
+      async (company) => {
+        if (!getPlanLimits(company.plan_type).hasFollowUp) return;
 
-      const { data: leads, error: leadsErr } = await admin
-        .from('leads')
-        .select('id')
-        .eq('company_id', company.id)
-        .eq('is_paused', false)
-        .eq('followup_in_progress', false) // Safe guard
-        .not('status', 'in', '("success","disqualified")')
-        .lt('updated_at', delayAgo)
-        .or(`last_followup_at.is.null,last_followup_at.lt.${intervalAgo}`)
-        .limit(10);
+        const persona = (company.persona_config ?? {}) as { followup_delay_hours?: number };
+        const delayHours = persona.followup_delay_hours ?? 24;
+        const intervalHours = delayHours * 2;
+        const delayAgo = new Date(Date.now() - delayHours * 60 * 60 * 1000).toISOString();
+        const intervalAgo = new Date(Date.now() - intervalHours * 60 * 60 * 1000).toISOString();
 
-      if (leadsErr) {
-        console.error(`[followup-cron] followup search error for company ${company.id}:`, leadsErr.message);
-        continue;
-      }
+        const { data: leads, error: leadsErr } = await admin
+          .from('leads')
+          .select('id')
+          .eq('company_id', company.id)
+          .eq('is_paused', false)
+          .eq('followup_in_progress', false)
+          .not('status', 'in', '("success","disqualified")')
+          .lt('updated_at', delayAgo)
+          .or(`last_followup_at.is.null,last_followup_at.lt.${intervalAgo}`)
+          .limit(10);
 
-      if (!leads || leads.length === 0) continue;
-
-      // Preload usage once per company to avoid N+1 queries
-      let usage;
-      try {
-        usage = await getCompanyUsage(company.id);
-      } catch (usageErr: any) {
-        console.error(`[followup-cron] followup usage error for company ${company.id}:`, usageErr.message);
-        continue;
-      }
-
-      for (const lead of leads) {
-        try {
-          await triggerAutoFollowUp(lead.id, usage);
-          results.push({ id: lead.id, company_id: company.id, status: 'success' });
-        } catch (err: any) {
-          results.push({ id: lead.id, company_id: company.id, status: 'error', error: err.message });
+        if (leadsErr) {
+          logError(`[followup-cron] followup search error for company ${company.id}:`, leadsErr.message);
+          return;
         }
-      }
-    }
+
+        if (!leads || leads.length === 0) return;
+
+        let usage;
+        try {
+          usage = await getCompanyUsage(company.id);
+        } catch (usageErr: unknown) {
+          const msg = usageErr instanceof Error ? usageErr.message : String(usageErr);
+          logError(`[followup-cron] followup usage error for company ${company.id}:`, msg);
+          return;
+        }
+
+        for (const lead of leads) {
+          try {
+            await triggerAutoFollowUp(lead.id, usage);
+            results.push({ id: lead.id, company_id: company.id, status: 'success' });
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            results.push({ id: lead.id, company_id: company.id, status: 'error', error: msg });
+          }
+        }
+      },
+      { deadlineMs: startedAt + 240_000 },
+    );
+
     summary.followup = { processed: results.length, details: results };
-    console.log('[followup-cron] followup:', summary.followup);
-  } catch (err: any) {
-    summary.followup = { error: err.message };
-    console.error('[followup-cron] followup failed:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.followup = { error: msg };
+    logError('[followup-cron] followup failed:', msg);
   }
 
   return NextResponse.json({ ok: true, ...summary });

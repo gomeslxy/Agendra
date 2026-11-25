@@ -17,8 +17,9 @@ function getRedirectUri() {
 
 /**
  * Generates the Facebook OAuth dialog URL to authenticate page and messaging scopes.
+ * `state` must be an HMAC-signed OAuth state (`createSignedOAuthState`).
  */
-export function getInstagramOAuthUrl(companyId: string): string {
+export function getInstagramOAuthUrl(state: string): string {
   const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
   if (!appId) {
     throw new Error('NEXT_PUBLIC_INSTAGRAM_APP_ID is not configured.');
@@ -32,7 +33,7 @@ export function getInstagramOAuthUrl(companyId: string): string {
     'pages_messaging'
   ].join(',');
 
-  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${companyId}`;
+  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}`;
 }
 
 /**

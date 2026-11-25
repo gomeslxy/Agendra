@@ -1,6 +1,6 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { getUser, getCachedUserProfile, createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getUser, getCachedUserProfile, createClient, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { InboxClient } from "./inbox-client";
 import type { Lead, Message, Event } from "@/lib/types/database";
 
@@ -14,7 +14,7 @@ export default async function InboxPage() {
   if (!user) redirect("/login");
 
   const profile = await getCachedUserProfile(user.id);
-  const companyId = profile?.memberships?.[0]?.company_id;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId) redirect("/login");
 
   const supabase = await createClient();
@@ -38,31 +38,40 @@ export default async function InboxPage() {
       .limit(200),
   ]);
 
-  // Dynamically sign media URLs on the server so that the private storage bucket
-  // files are securely accessible to authenticated agents.
-  const admin = createAdminClient();
-  const signingPromises: Promise<void>[] = [];
-
-  for (const l of data ?? []) {
-    for (const msg of l.messages ?? []) {
-      const meta = msg.metadata as any;
-      if (meta?.media_path) {
-        signingPromises.push(
-          (async () => {
-            const { data: signedData } = await admin.storage
-              .from("inbox-media")
-              .createSignedUrl(meta.media_path, 86400); // 24 hours
-            if (signedData?.signedUrl) {
-              meta.media_url = signedData.signedUrl;
-            }
-          })()
-        );
+  // Batch-sign media URLs in a single Storage request via RLS-bound client.
+  const mediaPaths = new Set<string>();
+  for (const lead of data ?? []) {
+    for (const msg of lead.messages ?? []) {
+      const meta = msg.metadata as Record<string, unknown> | null;
+      if (meta && typeof meta.media_path === "string" && meta.media_path.length > 0) {
+        mediaPaths.add(meta.media_path);
       }
     }
   }
 
-  if (signingPromises.length > 0) {
-    await Promise.allSettled(signingPromises);
+  if (mediaPaths.size > 0) {
+    const { data: signedList } = await supabase.storage
+      .from("inbox-media")
+      .createSignedUrls(Array.from(mediaPaths), 86400);
+
+    const signedByPath = new Map<string, string>();
+    for (const item of signedList ?? []) {
+      if (item.path && item.signedUrl) {
+        signedByPath.set(item.path, item.signedUrl);
+      }
+    }
+
+    for (const lead of data ?? []) {
+      for (const msg of lead.messages ?? []) {
+        const meta = msg.metadata as Record<string, unknown> | null;
+        if (meta && typeof meta.media_path === "string") {
+          const url = signedByPath.get(meta.media_path);
+          if (url) {
+            meta.media_url = url;
+          }
+        }
+      }
+    }
   }
 
   // Index upcoming events by lead_id (first/nearest one per lead)
@@ -82,5 +91,9 @@ export default async function InboxPage() {
     };
   });
 
-  return <InboxClient leads={leads} companyId={companyId} fetchError={error?.message ?? null} />;
+  return (
+    <Suspense fallback={<div className="h-full w-full animate-pulse bg-[#FAFAFA]" />}>
+      <InboxClient leads={leads} companyId={companyId} fetchError={error?.message ?? null} />
+    </Suspense>
+  );
 }

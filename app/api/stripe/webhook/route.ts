@@ -19,6 +19,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { invalidateUsageCache } from '@/lib/billing/limits';
+import { invalidateCompanyChannelCaches } from '@/lib/channels/channel-cache';
 import { planFromPriceId } from '@/lib/billing/plans';
 
 export async function POST(req: Request) {
@@ -102,6 +103,7 @@ export async function POST(req: Request) {
     if (error) console.error(`[Stripe Webhook] ❌ Error updating company ${companyId}:`, error.message);
     else {
       await invalidateUsageCache(companyId); // plan/subscription changed → drop stale usage cache
+      await invalidateCompanyChannelCaches(companyId);
       console.log(`[Stripe Webhook] ✅ Updated company ${companyId} → status=${status} plan=${plan} cancel_at=${cancelAtPeriodEnd}`);
     }
   }

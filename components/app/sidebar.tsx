@@ -27,12 +27,27 @@ function isActive(href: string, pathname: string, searchParams: URLSearchParams)
   }
 }
 
-export function Sidebar({ hotCount = 0, unreadCount = 0 }: { hotCount?: number; unreadCount?: number }) {
+export function Sidebar({
+  activeCompanyId,
+  hotCount = 0,
+  unreadCount = 0,
+}: {
+  activeCompanyId?: string;
+  hotCount?: number;
+  unreadCount?: number;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { profile, signOut, loading } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(unreadCount);
+
+  const resolvedCompanyId =
+    activeCompanyId ??
+    profile?.company_id ??
+    [...(profile?.memberships ?? [])]
+      .sort((a, b) => a.company_id.localeCompare(b.company_id))
+      .at(0)?.company_id;
 
   useEffect(() => {
     setMounted(true);
@@ -43,7 +58,7 @@ export function Sidebar({ hotCount = 0, unreadCount = 0 }: { hotCount?: number; 
   }, [unreadCount]);
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profile?.id || !resolvedCompanyId) return;
     const supabase = createClient();
     
     const fetchUnread = async () => {
@@ -51,7 +66,7 @@ export function Sidebar({ hotCount = 0, unreadCount = 0 }: { hotCount?: number; 
         .from("notifications")
         .select("id", { count: "exact", head: true })
         .eq("user_id", profile.id)
-        .eq("company_id", profile.memberships?.[0]?.company_id)
+        .eq("company_id", resolvedCompanyId)
         .eq("read", false);
       setUnreadNotifications(count ?? 0);
     };
@@ -75,7 +90,7 @@ export function Sidebar({ hotCount = 0, unreadCount = 0 }: { hotCount?: number; 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.id]);
+  }, [profile?.id, resolvedCompanyId]);
 
   const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "Usuário";
   const companyName = profile?.companies?.name ?? "Minha empresa";

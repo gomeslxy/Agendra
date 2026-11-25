@@ -2,23 +2,27 @@
  * Stripe Checkout — Route Handler
  *
  * POST /api/stripe/checkout
- *
- * Cria uma sessão de checkout para assinatura de planos.
- * Vincula o company_id aos metadados para processar no webhook.
- *
- * [FIX CRIT-4] Verifica assinatura existente antes de criar nova sessão.
- * [FIX MED-8]  success_url aponta para /settings (não /app/settings).
+ * Exige sessão owner/admin no tenant ativo e priceId válido (rejeita desconhecidos com 400).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { createServerClient } from '@supabase/ssr';
+import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { cookies } from 'next/headers';
 import { planFromPriceId } from '@/lib/billing/plans';
+import { requireTenantContext, TenantContextError } from '@/lib/tenant/context';
+import { logError, logInfo } from '@/lib/logging';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-04-22.dahlia' as any,
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error('STRIPE_SECRET_KEY não configurada');
+  }
+  return new Stripe(key);
+}
+
+const CheckoutBodySchema = z.object({
+  priceId: z.string().trim().min(1, 'priceId é obrigatório').max(128),
 });
 
 /** Returns '/settings' or '/planos' based on referer — never allows external redirects. */
@@ -27,143 +31,128 @@ function resolveReturnPath(referer: string | null): '/settings' | '/planos' {
     try {
       const ref = new URL(referer);
       if (ref.pathname.startsWith('/settings')) return '/settings';
-    } catch { /* ignore malformed referer */ }
+    } catch {
+      /* ignore malformed referer */
+    }
   }
   return '/planos';
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { priceId } = await request.json();
-    // origin comes from the request origin header; fall back to env — never from user body
-    const origin = process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin') || '';
-
-    if (!priceId) {
-      return NextResponse.json({ error: 'priceId é obrigatório' }, { status: 400 });
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
     }
 
-    // 1. Autenticação
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: () => {},
-        },
-      }
-    );
+    const parsed = CheckoutBodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? 'priceId é obrigatório' },
+        { status: 400 },
+      );
+    }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    const { priceId } = parsed.data;
+    const resolvedPlanType = planFromPriceId(priceId);
+    if (!resolvedPlanType) {
+      return NextResponse.json({ error: 'priceId inválido ou não reconhecido' }, { status: 400 });
+    }
 
-    // 2. Resolver company e verificar assinatura existente
+    const origin = process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin') || '';
+    const ctx = await requireTenantContext({ requireAdmin: true });
+
+    const stripe = getStripe();
     const admin = createAdminClient();
-    const { data: profile, error: profileError } = await admin
-      .from('users')
-      .select('company_id, companies(name, stripe_subscription_id, stripe_customer_id, subscription_status)')
-      .eq('id', user.id)
+    const { data: company, error: companyError } = await admin
+      .from('companies')
+      .select('name, stripe_subscription_id, stripe_customer_id, subscription_status')
+      .eq('id', ctx.companyId)
       .maybeSingle();
 
-    if (profileError) {
-      console.error('[Checkout] User profile error:', profileError);
-      return NextResponse.json({ 
-        error: `Erro ao buscar perfil: ${profileError.message}`
-      }, { status: 500 });
+    if (companyError) {
+      logError('[Checkout] Company lookup error:', companyError.message);
+      return NextResponse.json({ error: 'Erro ao buscar empresa' }, { status: 500 });
     }
 
-    if (!profile || !profile.company_id) {
-      console.error('[Checkout] No company linked to user:', user.id);
-      return NextResponse.json({ 
-        error: 'Sua conta não está vinculada a nenhuma empresa. Entre em contato com o suporte.'
-      }, { status: 404 });
+    if (!company) {
+      return NextResponse.json(
+        { error: 'Sua conta não está vinculada a nenhuma empresa. Entre em contato com o suporte.' },
+        { status: 404 },
+      );
     }
 
-    const companyId = profile.company_id;
-    const company = profile.companies as any;
-
-    // 1. Validar empresa e IDs
-    console.log('[DEBUG CHECKOUT] Iniciando processamento:', {
-      userId: user.id,
-      companyId: companyId,
-      stripeCustomerId: company?.stripe_customer_id,
-      currentStatus: company?.subscription_status,
-      priceIdRequested: priceId
+    const companyId = ctx.companyId;
+    logInfo('[Checkout] Iniciando processamento', {
+      userId: ctx.userId,
+      companyId,
+      currentStatus: company.subscription_status,
+      planType: resolvedPlanType,
     });
 
-    // 2. Se já é assinante e está ativo E tem customer_id, faz upgrade direto (1-click)
-    if (company?.subscription_status === 'active' && company?.stripe_subscription_id && company?.stripe_customer_id) {
-      console.log('[DEBUG CHECKOUT] Iniciando UPGRADE DIRETO (Usuário Ativo)');
-      
+    // Upgrade direto (1-click) para assinante ativo
+    if (
+      company.subscription_status === 'active' &&
+      company.stripe_subscription_id &&
+      company.stripe_customer_id
+    ) {
       try {
-        // 1. Recuperar a assinatura atual para identificar o item a ser substituído
         const subscription = await stripe.subscriptions.retrieve(company.stripe_subscription_id);
-        const currentItemId = subscription.items.data[0].id;
+        const currentItemId = subscription.items.data[0]?.id;
+        if (!currentItemId) {
+          throw new Error('Item da assinatura atual não encontrado.');
+        }
 
-        // 2. Realizar o swap do plano diretamente via API
-        // Usamos proration_behavior: 'create_prorations' para cobrar a diferença proporcional
-        const upgradePlanType = planFromPriceId(priceId) ?? 'pro';
         const updatedSubscription = await stripe.subscriptions.update(
           company.stripe_subscription_id,
           {
-            items: [
-              { id: currentItemId, deleted: true }, // Remove o item atual
-              { price: priceId },                    // Adiciona o novo plano
-            ],
+            items: [{ id: currentItemId, deleted: true }, { price: priceId }],
             proration_behavior: 'create_prorations',
             payment_behavior: 'pending_if_incomplete',
             expand: ['latest_invoice.payment_intent'],
             metadata: {
               companyId,
-              planType: upgradePlanType,
-            }
-          }
+              planType: resolvedPlanType,
+            },
+          },
         );
 
-        const latestInvoice = updatedSubscription.latest_invoice as Stripe.Invoice;
-        
-        // 3. Verificar se o pagamento da diferença exige ação do usuário (ex: 3D Secure)
-        if (latestInvoice.status === 'open' && latestInvoice.hosted_invoice_url) {
-          console.log('[DEBUG CHECKOUT] Upgrade exige autenticação/pagamento manual:', latestInvoice.hosted_invoice_url);
+        const latestInvoice = updatedSubscription.latest_invoice as Stripe.Invoice | null;
+        if (latestInvoice?.status === 'open' && latestInvoice.hosted_invoice_url) {
           return NextResponse.json({ url: latestInvoice.hosted_invoice_url });
         }
 
-        // Sucesso imediato — resolve path from referer with whitelist guard
         const returnPath = resolveReturnPath(request.headers.get('referer'));
-        const successPath = `${returnPath}?tab=billing&stripe=success`;
-        console.log('[DEBUG CHECKOUT] Upgrade processado instantaneamente. Redirect:', successPath);
         return NextResponse.json({
-          url: `${origin}${successPath}`,
-          directSuccess: true
+          url: `${origin}${returnPath}?tab=billing&stripe=success`,
+          directSuccess: true,
         });
-
-      } catch (upgradeError: any) {
-        console.error('[DEBUG CHECKOUT] Falha no upgrade direto:', upgradeError.message);
-        return NextResponse.json({ 
-          error: `Não foi possível atualizar sua assinatura automaticamente: ${upgradeError.message}. Por favor, tente pelo portal de faturamento ou contate o suporte.` 
-        }, { status: 500 });
+      } catch (upgradeError: unknown) {
+        const msg = upgradeError instanceof Error ? upgradeError.message : String(upgradeError);
+        logError('[Checkout] Falha no upgrade direto:', msg);
+        return NextResponse.json(
+          {
+            error: `Não foi possível atualizar sua assinatura automaticamente: ${msg}. Por favor, tente pelo portal de faturamento ou contate o suporte.`,
+          },
+          { status: 500 },
+        );
       }
     }
 
-    // 3. Determinar planType a partir do priceId — nunca confiar em input do cliente.
-    const resolvedPlanType = planFromPriceId(priceId) ?? 'pro';
-
-    // 4. Criar Sessão de Checkout
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
       success_url: `${origin}${resolveReturnPath(request.headers.get('referer'))}?tab=billing&stripe=success`,
       cancel_url: `${origin}${resolveReturnPath(request.headers.get('referer'))}?tab=billing&stripe=cancel`,
-      // [FIX] Stripe does not allow both customer and customer_email
-      ...(company?.stripe_customer_id 
-        ? { customer: company.stripe_customer_id } 
-        : { customer_email: user.email }
-      ),
+      ...(company.stripe_customer_id
+        ? { customer: company.stripe_customer_id }
+        : { customer_email: ctx.userEmail || undefined }),
       metadata: {
         companyId,
-        userId: user.id,
+        userId: ctx.userId,
       },
       subscription_data: {
         metadata: {
@@ -174,9 +163,12 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ url: session.url });
-  } catch (err) {
+  } catch (err: unknown) {
+    if (err instanceof TenantContextError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     const message = err instanceof Error ? err.message : 'Erro interno';
-    console.error('[Stripe Checkout] ❌ Erro:', message);
+    logError('[Stripe Checkout] Erro:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

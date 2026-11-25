@@ -1,12 +1,5 @@
 /**
- * /api/cron/nightly — Vercel Free Tier unified cron (runs once daily at 20:00 BRT)
- *
- * Executes in sequence:
- *   1. Cold Lead Reactivation — re-engages cold/warm leads (Business plan logic)
- *   2. Reminders (evening sweep) — catches any reminders missed by morning run
- *   3. Flush Buffer — flushes pending SQL message buffers (safety fallback)
- *
- * Multi-tenant: all queries scoped by company_id — no cross-tenant data access.
+ * /api/cron/nightly — Vercel unified nightly cron (20:00 BRT)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -15,131 +8,135 @@ import { routeGenerate } from '@/lib/ai/providers/router';
 import { ACTIVE_SUBSCRIPTION_STATUSES } from '@/lib/billing/active-statuses';
 import { flushMessageBuffer } from '@/lib/ai/buffer-flush';
 import { processCompanyReminders } from '@/lib/notifications/reminders';
+import { verifyBearerSecret } from '@/lib/security/crypto-compare';
+import { mapWithConcurrency } from '@/lib/infra/concurrency';
+import { logError, logInfo } from '@/lib/logging';
 
-function isAuthorized(req: NextRequest): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return false;
-  const header = req.headers.get('authorization') ?? '';
-  return header === `Bearer ${cronSecret}`;
-}
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  if (!isAuthorized(req)) {
+  if (!verifyBearerSecret(req.headers.get('authorization'), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const admin = createAdminClient();
-  const summary: Record<string, any> = {};
+  const summary: Record<string, unknown> = {};
 
-  // Fetch all active companies once — both tasks iterate over this list
   const { data: companies, error: companiesError } = await admin
     .from('companies')
-    .select('id, plan_type, subscription_status, persona_config, name, ai_name, ai_tone, reminders_quiet_hours_enabled, reminders_quiet_hours_start, reminders_quiet_hours_end')
+    .select(
+      'id, plan_type, subscription_status, persona_config, name, ai_name, ai_tone, reminders_quiet_hours_enabled, reminders_quiet_hours_start, reminders_quiet_hours_end',
+    )
     .in('subscription_status', ACTIVE_SUBSCRIPTION_STATUSES)
     .not('subscription_status', 'eq', 'canceled');
 
   if (companiesError) {
-    console.error('[nightly-cron] Failed to fetch companies:', companiesError.message);
+    logError('[nightly-cron] Failed to fetch companies:', companiesError.message);
     return NextResponse.json({ error: companiesError.message }, { status: 500 });
   }
 
   const activeCompanies = companies ?? [];
-  console.log(`[nightly-cron] Processing ${activeCompanies.length} active companies`);
+  logInfo(`[nightly-cron] Processing ${activeCompanies.length} active companies`);
 
   // ── 1. Cold Lead Reactivation ────────────────────────────────────────────────
   try {
     const reactivationResults: Array<{ company: string; leads_processed: number; errors: number }> = [];
+    const businessCompanies = activeCompanies.filter((c) => c.plan_type === 'business');
 
-    // Filter only companies that qualify for Business (where followup / reactivation is active)
-    for (const company of activeCompanies) {
-      if (company.plan_type !== 'business') continue;
-
-      const pc = (company.persona_config ?? {}) as Record<string, any>;
-      const inactivityDays: number = pc.reactivation_days ?? 30;
-      const cutoffDate = new Date(Date.now() - inactivityDays * 24 * 60 * 60 * 1000).toISOString();
-      let leadsProcessed = 0;
-      let errors = 0;
-
-      try {
-        type ReactivateLead = {
-          id: string;
-          name: string;
-          phone: string | null;
-          summary: string | null;
-          lead_memory: unknown;
-          heat_score: number;
-          last_message_at: string | null;
-          last_sentiment: number | null;
-          last_sentiment_at: string | null;
+    await mapWithConcurrency(
+      businessCompanies,
+      5,
+      async (company) => {
+        const pc = (company.persona_config ?? {}) as {
+          reactivation_days?: number;
+          reactivation_hook?: string;
         };
+        const inactivityDays = pc.reactivation_days ?? 30;
+        const cutoffDate = new Date(
+          Date.now() - inactivityDays * 24 * 60 * 60 * 1000,
+        ).toISOString();
+        let leadsProcessed = 0;
+        let errors = 0;
 
-        // Fetch eligible cold/warm leads
-        const { data: leads } = await admin
-          .from('leads')
-          .select('id, name, phone, summary, lead_memory, heat_score, last_message_at, last_sentiment, last_sentiment_at')
-          .eq('company_id', company.id)
-          .in('status', ['cold', 'warm'])
-          .not('is_paused', 'eq', true)
-          .eq('followup_in_progress', false) // Avoid reactivating leads mid-followup
-          .lt('last_message_at', cutoffDate)
-          .not('phone', 'is', null)
-          .order('last_message_at', { ascending: true })
-          .limit(20) as unknown as { data: ReactivateLead[] | null; error: unknown };
+        try {
+          type ReactivateLead = {
+            id: string;
+            name: string;
+            phone: string | null;
+            summary: string | null;
+            lead_memory: unknown;
+            heat_score: number;
+            last_message_at: string | null;
+            last_sentiment: number | null;
+            last_sentiment_at: string | null;
+          };
 
-        if (!leads?.length) continue;
+          const { data: leads } = (await admin
+            .from('leads')
+            .select(
+              'id, name, phone, summary, lead_memory, heat_score, last_message_at, last_sentiment, last_sentiment_at',
+            )
+            .eq('company_id', company.id)
+            .in('status', ['cold', 'warm'])
+            .not('is_paused', 'eq', true)
+            .eq('followup_in_progress', false)
+            .lt('last_message_at', cutoffDate)
+            .not('phone', 'is', null)
+            .order('last_message_at', { ascending: true })
+            .limit(20)) as unknown as { data: ReactivateLead[] | null; error: unknown };
 
-        // Sentiment guard: skip leads that had very negative last interactions (< -0.5)
-        const eligibleLeads = leads.filter((l) => {
-          if (typeof l.last_sentiment === 'number' && l.last_sentiment < -0.5) return false;
-          return true;
-        });
+          if (!leads?.length) return;
 
-        if (!eligibleLeads.length) continue;
+          const eligibleLeads = leads.filter((l) => {
+            if (typeof l.last_sentiment === 'number' && l.last_sentiment < -0.5) return false;
+            return true;
+          });
 
-        // Fetch active WhatsApp channel
-        const { data: channel } = await admin
-          .from('channels')
-          .select('provider_id')
-          .eq('company_id', company.id)
-          .eq('provider', 'whatsapp')
-          .eq('status', 'active')
-          .maybeSingle();
+          if (!eligibleLeads.length) return;
 
-        if (!channel) continue;
+          const { data: channel } = await admin
+            .from('channels')
+            .select('provider_id')
+            .eq('company_id', company.id)
+            .eq('provider', 'whatsapp')
+            .eq('status', 'active')
+            .maybeSingle();
 
-        const aiName = company.ai_name ?? 'Agendra';
-        const businessName = company.name ?? 'nossa empresa';
-        const customHook = pc.reactivation_hook ?? '';
+          if (!channel) return;
 
-        // Batch: fetch all leads reactivated in the last 72h in a single query (avoids N+1)
-        const recentCutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
-        const eligibleLeadIds = eligibleLeads.map((l) => l.id);
-        const { data: recentReactivations } = await admin
-          .from('automation_events')
-          .select('lead_id')
-          .eq('company_id', company.id)
-          .eq('type', 'reactivation_sent')
-          .gte('created_at', recentCutoff)
-          .in('lead_id', eligibleLeadIds);
-        const recentlyReactivatedSet = new Set(recentReactivations?.map((r) => r.lead_id) ?? []);
+          const aiName = company.ai_name ?? 'Agendra';
+          const businessName = company.name ?? 'nossa empresa';
+          const customHook = pc.reactivation_hook ?? '';
 
-        for (const lead of eligibleLeads) {
-          try {
-            if (recentlyReactivatedSet.has(lead.id)) continue;
+          const recentCutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+          const eligibleLeadIds = eligibleLeads.map((l) => l.id);
+          const { data: recentReactivations } = await admin
+            .from('automation_events')
+            .select('lead_id')
+            .eq('company_id', company.id)
+            .eq('type', 'reactivation_sent')
+            .gte('created_at', recentCutoff)
+            .in('lead_id', eligibleLeadIds);
+          const recentlyReactivatedSet = new Set(recentReactivations?.map((r) => r.lead_id) ?? []);
 
-            // Generate personalized re-engagement message via multi-provider BG chain
-            const firstName = lead.name?.split(' ')[0] ?? lead.name ?? 'cliente';
-            const lastSummary = lead.summary ?? 'Demonstrou interesse em nossos serviços.';
-            const daysSilent = Math.floor(
-              (Date.now() - new Date(lead.last_message_at ?? Date.now()).getTime()) /
-              (1000 * 60 * 60 * 24)
-            );
+          for (const lead of eligibleLeads) {
+            try {
+              if (recentlyReactivatedSet.has(lead.id)) continue;
 
-            const sentimentHint = typeof lead.last_sentiment === 'number'
-              ? `Última interação teve sentimento ${lead.last_sentiment > 0 ? 'positivo' : 'neutro/cauteloso'} (${lead.last_sentiment.toFixed(2)}). Adapte o tom.`
-              : '';
+              const firstName = lead.name?.split(' ')[0] ?? lead.name ?? 'cliente';
+              const lastSummary = lead.summary ?? 'Demonstrou interesse em nossos serviços.';
+              const daysSilent = Math.floor(
+                (Date.now() - new Date(lead.last_message_at ?? Date.now()).getTime()) /
+                  (1000 * 60 * 60 * 24),
+              );
 
-            const prompt = `Você é ${aiName}, assistente de ${businessName}.
+              const sentimentHint =
+                typeof lead.last_sentiment === 'number'
+                  ? `Última interação teve sentimento ${lead.last_sentiment > 0 ? 'positivo' : 'neutro/cauteloso'} (${lead.last_sentiment.toFixed(2)}). Adapte o tom.`
+                  : '';
+
+              const prompt = `Você é ${aiName}, assistente de ${businessName}.
 Escreva UMA mensagem curta e amigável de reativação para o lead "${firstName}".
 Contexto: ${lastSummary}
 Silêncio: ${daysSilent} dias sem resposta.
@@ -153,57 +150,61 @@ Regras:
 - Seja direto e pessoal.
 Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
 
-            const { text: message } = await routeGenerate({ prompt }, { chain: 'bg' });
-            if (!message?.trim()) continue;
+              const { text: message } = await routeGenerate({ prompt }, { chain: 'bg' });
+              if (!message?.trim()) continue;
 
-            // Send via WhatsApp client
-            await sendChannelMessage(lead.phone!, message, company.id);
+              await sendChannelMessage(lead.phone!, message, company.id);
 
-            // Record in message history
-            await admin.from('messages').insert({
-              lead_id: lead.id,
-              company_id: company.id,
-              role: 'assistant',
-              content: message,
-              metadata: { type: 'reactivation' },
-            });
+              await admin.from('messages').insert({
+                lead_id: lead.id,
+                company_id: company.id,
+                role: 'assistant',
+                content: message,
+                metadata: { type: 'reactivation' },
+              });
 
-            // Log activity event
-            await admin.from('automation_events').insert({
-              company_id: company.id,
-              lead_id: lead.id,
-              type: 'reactivation_sent',
-              detail: `Reativação enviada para ${lead.name} após ${daysSilent} dias`,
-            });
+              await admin.from('automation_events').insert({
+                company_id: company.id,
+                lead_id: lead.id,
+                type: 'reactivation_sent',
+                detail: `Reativação enviada para ${lead.name} após ${daysSilent} dias`,
+              });
 
-            // Update lead interaction date
-            await admin
-              .from('leads')
-              .update({ last_message_at: new Date().toISOString() })
-              .eq('id', lead.id)
-              .eq('company_id', company.id);
+              await admin
+                .from('leads')
+                .update({ last_message_at: new Date().toISOString() })
+                .eq('id', lead.id)
+                .eq('company_id', company.id);
 
-            leadsProcessed++;
-          } catch (leadErr: any) {
-            console.error(`[nightly-cron] [Reactivation] Erro no lead ${lead.id}:`, leadErr.message);
-            errors++;
+              leadsProcessed++;
+            } catch (leadErr: unknown) {
+              const msg = leadErr instanceof Error ? leadErr.message : String(leadErr);
+              logError(`[nightly-cron] [Reactivation] Erro no lead ${lead.id}:`, msg);
+              errors++;
+            }
           }
+        } catch (companyErr: unknown) {
+          const msg = companyErr instanceof Error ? companyErr.message : String(companyErr);
+          logError(`[nightly-cron] [Reactivation] Erro na empresa ${company.id}:`, msg);
+          errors++;
         }
-      } catch (companyErr: any) {
-        console.error(`[nightly-cron] [Reactivation] Erro na empresa ${company.id}:`, companyErr.message);
-        errors++;
-      }
 
-      reactivationResults.push({ company: company.id, leads_processed: leadsProcessed, errors });
-    }
+        reactivationResults.push({
+          company: company.id,
+          leads_processed: leadsProcessed,
+          errors,
+        });
+      },
+      { deadlineMs: startedAt + 160_000 },
+    );
     summary.reactivation = reactivationResults;
-    console.log('[nightly-cron] reactivation:', summary.reactivation);
-  } catch (err: any) {
-    summary.reactivation = { error: err.message };
-    console.error('[nightly-cron] reactivation failed:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.reactivation = { error: msg };
+    logError('[nightly-cron] reactivation failed:', msg);
   }
 
-  // ── 2. Reminders (evening sweep — fallback for /api/cron/reminders 5-min route) ────────────────────────────────────────
+  // ── 2. Reminders (evening sweep) ──────────────────────────────────────────────
   try {
     const now = new Date().toISOString();
     const expiryThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -212,28 +213,38 @@ Escreva APENAS a mensagem, sem aspas ou explicações adicionais.`;
     let totalExpired = 0;
     let totalRescheduled = 0;
 
-    for (const company of activeCompanies) {
-      const r = await processCompanyReminders(admin, company, now, expiryThreshold, 10);
-      totalSent += r.sent;
-      totalFailed += r.failed;
-      totalExpired += r.expired;
-      totalRescheduled += r.rescheduled;
-    }
+    await mapWithConcurrency(
+      activeCompanies,
+      5,
+      async (company) => {
+        const r = await processCompanyReminders(admin, company, now, expiryThreshold, 10);
+        totalSent += r.sent;
+        totalFailed += r.failed;
+        totalExpired += r.expired;
+        totalRescheduled += r.rescheduled;
+      },
+      { deadlineMs: startedAt + 220_000 },
+    );
 
-    summary.reminders_evening = { sent: totalSent, failed: totalFailed, expired: totalExpired, rescheduled: totalRescheduled };
-    console.log('[nightly-cron] reminders_evening:', summary.reminders_evening);
-  } catch (err: any) {
-    summary.reminders_evening = { error: err.message };
-    console.error('[nightly-cron] reminders_evening failed:', err.message);
+    summary.reminders_evening = {
+      sent: totalSent,
+      failed: totalFailed,
+      expired: totalExpired,
+      rescheduled: totalRescheduled,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.reminders_evening = { error: msg };
+    logError('[nightly-cron] reminders_evening failed:', msg);
   }
 
-  // ── 3. Flush Buffer (safety sweep — primary drain is the 1-min /api/cron/flush-buffer) ──
+  // ── 3. Flush Buffer ───────────────────────────────────────────────────────────
   try {
     summary.flush_buffer = await flushMessageBuffer(admin);
-    console.log('[nightly-cron] flush_buffer:', summary.flush_buffer);
-  } catch (err: any) {
-    summary.flush_buffer = { error: err.message };
-    console.error('[nightly-cron] flush_buffer failed:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.flush_buffer = { error: msg };
+    logError('[nightly-cron] flush_buffer failed:', msg);
   }
 
   return NextResponse.json({ ok: true, ...summary });

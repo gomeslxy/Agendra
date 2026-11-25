@@ -36,10 +36,10 @@ export async function enforceLimits(companyId: string) {
   if (usage.limits.maxCalendars <= 0) {
     const { data: companyCal } = await admin
       .from('companies')
-      .select('google_refresh_token')
+      .select('google_refresh_token, google_refresh_token_secret_id')
       .eq('id', companyId)
       .maybeSingle();
-    if (companyCal?.google_refresh_token) {
+    if (companyCal?.google_refresh_token || companyCal?.google_refresh_token_secret_id) {
       throw new Error(
         `Seu plano ${usage.planType.toUpperCase()} não inclui integração de calendário.`,
       );

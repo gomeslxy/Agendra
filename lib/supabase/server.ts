@@ -5,9 +5,12 @@
  *
  * ⚠️  Never import in "use client" files.
  */
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { cache } from "react";
+import { logError } from "@/lib/logging";
+
+const ACTIVE_COMPANY_COOKIE = "agendra_active_company";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -20,7 +23,7 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet: any[]) {
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options),
@@ -60,16 +63,12 @@ export async function getUserProfile() {
 
   const { data, error } = await supabase
     .from("users")
-    .select("*, companies(id, name, plan_type, subscription_status), memberships(role, company_id)")
+    .select("*, companies(id, name, plan_type, subscription_status, onboarding_completed), memberships(role, company_id)")
     .eq("id", user.id)
     .maybeSingle();
 
   if (error) {
-    console.error(
-      "Erro ao buscar perfil do usuário no Supabase:",
-      JSON.stringify(error, null, 2),
-      "| Mensagem:", error.message
-    );
+    logError("[getUserProfile] error:", error.message);
   }
 
   return data ?? null;
@@ -86,44 +85,99 @@ export const getCachedUserProfile = cache(async (userId: string) => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("users")
-    .select("*, companies(id, name, plan_type, subscription_status), memberships(role, company_id)")
+    .select("*, companies(id, name, plan_type, subscription_status, onboarding_completed), memberships(role, company_id)")
     .eq("id", userId)
     .maybeSingle();
 
   if (error) {
-    console.error("[getCachedUserProfile] error:", error.message);
+    logError("[getCachedUserProfile] error:", error.message);
   }
   return data ?? null;
 });
 
+type MembershipShape = { company_id: string; role: string };
+type ProfileWithMemberships = {
+  company_id?: string | null;
+  memberships?: MembershipShape[] | null;
+} | null;
+
 /**
- * Safely resolves the active companyId from user profile memberships.
- * Handles users belonging to multiple companies without assuming index 0.
+ * Deterministically resolves the active membership from profile memberships.
+ * Priority: explicit `targetCompanyId` -> `profile.company_id` (primary non-ghost tenant) -> sorted company_id.
  */
-export function getActiveCompanyId(
-  profile: { memberships?: Array<{ company_id: string; role: string }> | null } | null,
-  targetCompanyId?: string | null
-): string | null {
-  if (!profile?.memberships?.length) return null;
+export function getActiveMembership(
+  profile: ProfileWithMemberships,
+  targetCompanyId?: string | null,
+): MembershipShape | null {
+  const list = profile?.memberships;
+  if (!list?.length) return null;
+
   if (targetCompanyId) {
-    const match = profile.memberships.find((m) => m.company_id === targetCompanyId);
-    if (match) return match.company_id;
+    const match = list.find((m) => m.company_id === targetCompanyId);
+    if (match) return match;
   }
-  return profile.memberships[0].company_id;
+
+  if (profile?.company_id) {
+    const primaryMatch = list.find((m) => m.company_id === profile.company_id);
+    if (primaryMatch) return primaryMatch;
+  }
+
+  return [...list].sort((a, b) => a.company_id.localeCompare(b.company_id))[0];
 }
 
 /**
- * Safely resolves the active membership (role + company_id) from user profile.
+ * Safely resolves the active companyId from user profile memberships.
  */
-export function getActiveMembership(
-  profile: { memberships?: Array<{ company_id: string; role: string }> | null } | null,
-  targetCompanyId?: string | null
-): { company_id: string; role: string } | null {
-  if (!profile?.memberships?.length) return null;
+export function getActiveCompanyId(
+  profile: ProfileWithMemberships,
+  targetCompanyId?: string | null,
+): string | null {
+  return getActiveMembership(profile, targetCompanyId)?.company_id ?? null;
+}
+
+/**
+ * Cookie-aware helper for Server Components / Server Actions that already fetched `profile`.
+ */
+export async function resolveProfileCompanyId(
+  profile: ProfileWithMemberships,
+  targetCompanyId?: string | null,
+): Promise<string | null> {
   if (targetCompanyId) {
-    const match = profile.memberships.find((m) => m.company_id === targetCompanyId);
-    if (match) return match;
+    return getActiveCompanyId(profile, targetCompanyId);
   }
-  return profile.memberships[0];
+  try {
+    const cookieStore = await cookies();
+    const cookieCompanyId = cookieStore.get(ACTIVE_COMPANY_COOKIE)?.value ?? null;
+    if (cookieCompanyId) {
+      const match = profile?.memberships?.find((m) => m.company_id === cookieCompanyId);
+      if (match) return match.company_id;
+    }
+  } catch {
+    // Non-request context fallback
+  }
+  return getActiveCompanyId(profile);
+}
+
+/**
+ * Cookie-aware helper returning both `companyId` and `role` from an already-fetched `profile`.
+ */
+export async function resolveProfileMembership(
+  profile: ProfileWithMemberships,
+  targetCompanyId?: string | null,
+): Promise<MembershipShape | null> {
+  if (targetCompanyId) {
+    return getActiveMembership(profile, targetCompanyId);
+  }
+  try {
+    const cookieStore = await cookies();
+    const cookieCompanyId = cookieStore.get(ACTIVE_COMPANY_COOKIE)?.value ?? null;
+    if (cookieCompanyId) {
+      const match = profile?.memberships?.find((m) => m.company_id === cookieCompanyId);
+      if (match) return match;
+    }
+  } catch {
+    // Non-request context fallback
+  }
+  return getActiveMembership(profile);
 }
 

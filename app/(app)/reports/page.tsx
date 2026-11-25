@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
+import { createClient, getUser, getCachedUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { ReportsClient } from "./reports-client";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlanLimits, type PlanType } from "@/lib/billing/plans";
 
 // Types for provider and chain stats
@@ -23,7 +22,7 @@ export default async function ReportsPage() {
   const user = await getUser();
   if (!user) redirect("/login");
   const profile = await getCachedUserProfile(user.id);
-  const companyId = profile?.memberships?.[0]?.company_id;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId) redirect("/login");
 
   const supabase = await createClient();
@@ -160,9 +159,8 @@ export default async function ReportsPage() {
     ? totalRevenue90d / allTransactions.filter((t) => t.status === "paid").length
     : 0;
 
-    // Provider health analytics
-    const adminClient = createAdminClient();
-    const { data: companyData } = await adminClient.from('companies').select('plan_type').eq('id', companyId).single();
+    // Provider health analytics (RLS-bound createClient)
+    const { data: companyData } = await supabase.from('companies').select('plan_type').eq('id', companyId).single();
     const planLimits = getPlanLimits((companyData?.plan_type ?? 'trial') as PlanType);
     const hasAnalytics = planLimits.hasAnalytics ?? false;
     let providerStats: ProviderStat[] = [];
@@ -170,7 +168,7 @@ export default async function ReportsPage() {
     if (hasAnalytics) {
       const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data: aiLogs } = await adminClient.from('ai_logs')
+      const { data: aiLogs } = await supabase.from('ai_logs')
         .select('provider, chain_kind, latency_ms, cost, error, created_at')
         .eq('company_id', companyId)
         .gte('created_at', since7d)

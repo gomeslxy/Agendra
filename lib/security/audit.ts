@@ -1,10 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getUserProfile } from "@/lib/supabase/server";
+import { getUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 
 export interface LogAuditOptions {
   action: string;
   companyId?: string;
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -16,7 +16,7 @@ export interface LogAuditOptions {
 export async function logAuditAction(options: LogAuditOptions) {
   try {
     const profile = await getUserProfile();
-    const companyId = options.companyId || profile?.memberships?.[0]?.company_id;
+    const companyId = options.companyId || (await resolveProfileCompanyId(profile));
     if (!companyId) {
       console.warn(`[AuditLog] Skipping audit log for action "${options.action}": No company_id resolved.`);
       return;

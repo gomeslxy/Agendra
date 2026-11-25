@@ -1,39 +1,51 @@
 "use server";
 
-import { createClient, getUserProfile } from "@/lib/supabase/server";
+import { createClient, getUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { requireOnboarding } from "@/lib/onboarding/guards";
-import { activateTakeover, deactivateTakeover } from "@/lib/ai/takeover";
+import { activateTakeover, deactivateTakeover, extendTakeoverOnHumanMessage, isUnderHumanTakeover } from "@/lib/ai/takeover";
+import { buildControlModePatch } from "./control-mode";
 import { sendChannelMessage, sendChannelMedia } from "@/lib/channels/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { persistAITrace } from "@/lib/ai/observability";
+import { logError } from "@/lib/logging";
 import crypto from "crypto";
 import type { Message } from "@/lib/types/database";
+
+async function requireInboxSession() {
+  const profile = await getUserProfile();
+  if (!profile) throw new Error("Unauthorized");
+  const companyId = await resolveProfileCompanyId(profile);
+  if (!companyId) throw new Error("Unauthorized");
+  return { profile, companyId };
+}
 
 async function getLeadInfo(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string, companyId: string) {
   const { data, error } = await supabase
     .from("leads")
-    .select("company_id, phone")
+    .select("company_id, phone, control_mode, human_takeover_until")
     .eq("id", leadId)
     .eq("company_id", companyId)
     .single();
   if (error || !data) throw new Error("Lead não encontrado");
-  return { company_id: data.company_id as string, phone: data.phone as string };
+  return {
+    company_id: data.company_id as string,
+    phone: data.phone as string,
+    control_mode: (data.control_mode as "autonomous" | "shadow" | "manual" | null) ?? "autonomous",
+    human_takeover_until: (data.human_takeover_until as string | null) ?? null,
+  };
 }
 
-export async function sendNote(leadId: string, content: string) {
+export async function sendNote(leadId: string, content: string, clientTempId?: string) {
   const trimmed = content?.trim() ?? "";
   if (!trimmed) throw new Error("Mensagem vazia");
   if (trimmed.length > 4096) throw new Error("Mensagem muito longa (máx 4096 chars)");
 
   try {
-    const profile = await getUserProfile();
-    if (!profile) throw new Error("Não autorizado");
-    const companyId = profile.memberships?.[0]?.company_id;
-    if (!companyId) throw new Error("Não autorizado");
+    const { profile, companyId } = await requireInboxSession();
 
     const supabase = await createClient();
-    const { company_id, phone } = await getLeadInfo(supabase, leadId, companyId);
+    const { company_id, phone, control_mode, human_takeover_until } = await getLeadInfo(supabase, leadId, companyId);
     
     await requireOnboarding(company_id);
 
@@ -42,22 +54,37 @@ export async function sendNote(leadId: string, content: string) {
     //    appeared in the inbox as if delivered. Send-then-persist guarantees the
     //    bubble only exists for messages WhatsApp actually accepted; on failure we
     //    surface the (now humanized) reason and persist nothing.
-    const sendResult = await sendChannelMessage(phone, trimmed, company_id);
+    const sendResult = await sendChannelMessage(phone, trimmed, company_id, {
+      isHumanOperator: true,
+    });
+
+    const metadata: Record<string, unknown> = {};
+    if (sendResult?.providerMessageId) metadata.provider_message_id = sendResult.providerMessageId;
+    if (clientTempId) metadata.client_temp_id = clientTempId;
 
     // 2. Persist only after a confirmed send.
-    const { error: dbError } = await supabase.from("messages").insert({
-      lead_id: leadId,
-      company_id,
-      content: trimmed,
-      role: "agent",
-      metadata: sendResult?.providerMessageId
-        ? { provider_message_id: sendResult.providerMessageId }
-        : null,
-    });
+    const { data: insertedMessage, error: dbError } = await supabase
+      .from("messages")
+      .insert({
+        lead_id: leadId,
+        company_id,
+        content: trimmed,
+        role: "agent",
+        metadata: Object.keys(metadata).length > 0 ? metadata : null,
+      })
+      .select("id, lead_id, company_id, content, role, metadata, created_at")
+      .single();
 
     if (dbError) throw new Error(`Erro no Banco: ${dbError.message}`);
 
-    // 3. Manter last_message_at atualizado para ordenação correta
+    // 3. P0-UX-02: Ativar takeover se o lead estava em modo autônomo ou estender takeover ativo
+    if (control_mode === "autonomous") {
+      await activateTakeover({ companyId: company_id, leadId, userId: profile.id });
+    } else if (isUnderHumanTakeover({ human_takeover_until })) {
+      await extendTakeoverOnHumanMessage({ companyId: company_id, leadId, userId: profile.id });
+    }
+
+    // 4. Manter last_message_at atualizado para ordenação correta
     await supabase
       .from("leads")
       .update({ last_message_at: new Date().toISOString() })
@@ -65,20 +92,16 @@ export async function sendNote(leadId: string, content: string) {
       .eq("company_id", company_id);
 
     revalidatePath("/inbox");
-    return { success: true };
+    return { success: true, message: insertedMessage as Message };
   } catch (err) {
     const msg = (err as Error).message;
-    console.error("[Action:sendNote] ❌ Falha crítica:", msg);
+    logError("[Action:sendNote] Falha crítica:", msg);
     return { success: false, error: msg };
   }
 }
 
 export async function takeOverLead(leadId: string) {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("Unauthorized");
+  const { profile, companyId } = await requireInboxSession();
 
   const supabase = await createClient();
   const { company_id } = await getLeadInfo(supabase, leadId, companyId);
@@ -115,11 +138,7 @@ export async function takeOverLead(leadId: string) {
 }
 
 export async function automatizeLead(leadId: string) {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("Unauthorized");
+  const { companyId } = await requireInboxSession();
 
   const supabase = await createClient();
   const { company_id } = await getLeadInfo(supabase, leadId, companyId);
@@ -152,11 +171,7 @@ export async function automatizeLead(leadId: string) {
 }
 
 export async function setConversationTone(leadId: string, tone: "cold" | "warm" | "hot") {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("No company");
+  const { companyId } = await requireInboxSession();
 
   const supabase = await createClient();
 
@@ -172,11 +187,7 @@ export async function setConversationTone(leadId: string, tone: "cold" | "warm" 
 }
 
 export async function setControlMode(leadId: string, mode: 'autonomous' | 'shadow' | 'manual') {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("Unauthorized");
+  const { profile, companyId } = await requireInboxSession();
 
   const supabase = await createClient();
   const { company_id } = await getLeadInfo(supabase, leadId, companyId);
@@ -188,13 +199,13 @@ export async function setControlMode(leadId: string, mode: 'autonomous' | 'shado
   } else if (mode === 'autonomous') {
     await deactivateTakeover({ companyId: company_id, leadId });
   } else {
-    // shadow mode: use admin client to avoid potential RLS gaps on control_mode
-    const admin = createAdminClient();
-    await admin
+    const patch = buildControlModePatch('shadow', profile.id);
+    const { error: shadowErr } = await supabase
       .from("leads")
-      .update({ control_mode: mode, is_paused: false })
+      .update(patch)
       .eq("id", leadId)
       .eq("company_id", company_id);
+    if (shadowErr) throw new Error(shadowErr.message);
   }
 
   const modeLabels = {
@@ -216,11 +227,7 @@ export async function setControlMode(leadId: string, mode: 'autonomous' | 'shado
 }
 
 export async function approveDraftMessage(messageId: string) {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("No company");
+  const { companyId } = await requireInboxSession();
 
   const supabase = await createClient();
 
@@ -268,11 +275,7 @@ export async function editAndSendDraft(messageId: string, editedText: string) {
   if (!editedText.trim()) throw new Error("Texto não pode ser vazio");
   if (editedText.length > 4096) throw new Error("Mensagem muito longa (máx 4096 chars)");
 
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("No company");
+  const { companyId } = await requireInboxSession();
 
   const supabase = await createClient();
 
@@ -287,7 +290,9 @@ export async function editAndSendDraft(messageId: string, editedText: string) {
   const phone = (msg.lead as any)?.phone;
   if (!phone) throw new Error("Telefone do lead não encontrado");
 
-  await sendChannelMessage(phone, editedText.trim(), msg.company_id);
+  await sendChannelMessage(phone, editedText.trim(), msg.company_id, {
+    isHumanOperator: true,
+  });
 
   const newMetadata = msg.metadata ? { ...msg.metadata } : {};
   delete newMetadata.is_draft;
@@ -305,11 +310,7 @@ export async function editAndSendDraft(messageId: string, editedText: string) {
 }
 
 export async function deleteDraftMessage(messageId: string) {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("No company");
+  const { companyId } = await requireInboxSession();
 
   const supabase = await createClient();
 
@@ -342,14 +343,12 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
   if (!waType) return { success: false, error: `Tipo não suportado: ${file.type}` };
 
   const caption = ((formData.get('caption') as string) ?? '').trim();
+  const clientTempId = ((formData.get('client_temp_id') as string) ?? '').trim() || undefined;
 
-  const profile = await getUserProfile();
-  if (!profile) throw new Error('Não autorizado');
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error('Não autorizado');
+  const { profile, companyId } = await requireInboxSession();
 
   const supabase = await createClient();
-  const { company_id, phone } = await getLeadInfo(supabase, leadId, companyId);
+  const { company_id, phone, control_mode, human_takeover_until } = await getLeadInfo(supabase, leadId, companyId);
   await requireOnboarding(company_id);
 
   const admin = createAdminClient();
@@ -388,31 +387,59 @@ export async function sendFileAttachment(leadId: string, formData: FormData) {
     return { success: false, error: (err as Error).message };
   }
 
-  const { error: dbError } = await supabase.from('messages').insert({
-    lead_id: leadId,
-    company_id,
-    content: caption || file.name,
-    role: 'agent',
-    metadata: {
-      media_path: uploadData.path,
-      media_url: mediaUrl,
-      media_type: waType,
-      filename: file.name,
-      file_size: file.size,
-      ...(sendResult?.providerMessageId ? { provider_message_id: sendResult.providerMessageId } : {}),
-    },
-  });
+  const { data: insertedMessage, error: dbError } = await supabase
+    .from('messages')
+    .insert({
+      lead_id: leadId,
+      company_id,
+      content: caption || file.name,
+      role: 'agent',
+      metadata: {
+        media_path: uploadData.path,
+        media_url: mediaUrl,
+        media_type: waType,
+        filename: file.name,
+        file_size: file.size,
+        ...(clientTempId ? { client_temp_id: clientTempId } : {}),
+        ...(sendResult?.providerMessageId ? { provider_message_id: sendResult.providerMessageId } : {}),
+      },
+    })
+    .select('id, lead_id, company_id, content, role, metadata, created_at')
+    .single();
   if (dbError) return { success: false, error: `DB: ${dbError.message}` };
 
+  // P0-UX-02: Ativar takeover se o lead estava em modo autônomo ou estender takeover ativo
+  if (control_mode === 'autonomous') {
+    await activateTakeover({ companyId: company_id, leadId, userId: profile.id });
+  } else if (isUnderHumanTakeover({ human_takeover_until })) {
+    await extendTakeoverOnHumanMessage({ companyId: company_id, leadId, userId: profile.id });
+  }
+
+  await supabase
+    .from('leads')
+    .update({ last_message_at: new Date().toISOString() })
+    .eq('id', leadId)
+    .eq('company_id', company_id);
+
   revalidatePath('/inbox');
-  return { success: true };
+  return { success: true, message: insertedMessage as Message };
+}
+
+export async function getSignedMediaUrl(mediaPath: string): Promise<string | null> {
+  const { companyId } = await requireInboxSession();
+  if (!mediaPath || !mediaPath.startsWith(`${companyId}/`)) {
+    throw new Error('Acesso negado à mídia solicitada');
+  }
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage
+    .from('inbox-media')
+    .createSignedUrl(mediaPath, 86400);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
 }
 
 export async function fetchOlderMessages(leadId: string, beforeDate: string): Promise<Message[]> {
-  const profile = await getUserProfile();
-  if (!profile) throw new Error("Unauthorized");
-  const companyId = profile.memberships?.[0]?.company_id;
-  if (!companyId) throw new Error("No company");
+  const { companyId } = await requireInboxSession();
 
   const supabase = await createClient();
 

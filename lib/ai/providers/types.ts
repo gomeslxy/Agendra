@@ -40,7 +40,7 @@ export interface ChatParams {
   history: NormalizedMessage[];
   userMessage: string;
   tools: NeutralToolDefinition[];
-  toolHandler: (name: string, args: Record<string, any>) => Promise<any>;
+  toolHandler: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   maxIterations: number;
   preferredModel?: string;
   /** AbortSignal injected by the router per-attempt. */
@@ -89,11 +89,13 @@ export type ErrorKind =
 
 export interface ProviderRouteResult extends ChatResult {
   provider: ProviderName;
+  attemptedProviders: ProviderName[];
   fallbackUsed: boolean;
 }
 
 export interface ProviderGenerateResult {
   text: string;
   provider: ProviderName;
+  attemptedProviders: ProviderName[];
   fallbackUsed: boolean;
 }

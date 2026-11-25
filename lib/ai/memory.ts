@@ -1,7 +1,14 @@
-// lib/ai/memory.ts
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { LeadMemory, LeadMemoryEventType, ScoreHistoryEntry, Message } from '@/lib/types/database';
+import type {
+  LeadMemory,
+  LeadMemoryEventType,
+  Message,
+  ScoreHistoryEntry,
+} from '@/lib/types/database';
+import { logError } from '@/lib/logging';
 import { routeGenerate } from './providers/router';
+import type { ToolCallRecord } from './providers/types';
+import { BackgroundAnalyticsSchema } from './schemas/analytics.schema';
 
 export const EMPTY_MEMORY: LeadMemory = {
   timeline: [],
@@ -12,11 +19,10 @@ export const EMPTY_MEMORY: LeadMemory = {
   qualification_answers: {},
 };
 
-/**
- * mountContext — Builds a high-fidelity contextual block for the system prompt.
- * Merges memory state, previous summary, and strategic signals.
- */
-export function mountContext(memory: LeadMemory | null | undefined, summary: string | null): string {
+export function mountContext(
+  memory: LeadMemory | null | undefined,
+  summary: string | null,
+): string {
   if (!memory && !summary) return '';
 
   const lines: string[] = ['## Memória Estratégica do Lead'];
@@ -43,7 +49,6 @@ export function mountContext(memory: LeadMemory | null | undefined, summary: str
     lines.push(`- Evolução do Score: ${trend}`);
   }
 
-  // Extrair respostas de qualificação se houver
   const answers = Object.entries(memory?.qualification_answers || {});
   if (answers.length > 0) {
     lines.push('- Dados Coletados:');
@@ -54,34 +59,38 @@ export function mountContext(memory: LeadMemory | null | undefined, summary: str
     const firstContact = memory.timeline.find((e) => e.event === 'first_contact');
     if (firstContact) {
       const d = new Date(firstContact.date);
-      lines.push(`- Primeiro contato: ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`);
+      lines.push(
+        `- Primeiro contato: ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`,
+      );
     }
 
     const slotShown = memory.timeline.filter((e) => e.event === 'slot_shown').length;
     if (slotShown > 0) {
       const declined = memory.timeline.filter((e) => e.event === 'slot_declined').length;
-      lines.push(`- Engajamento: ${slotShown} convites de agenda${declined > 0 ? ` (${declined} recusas)` : ''}`);
+      lines.push(
+        `- Engajamento: ${slotShown} convites de agenda${declined > 0 ? ` (${declined} recusas)` : ''}`,
+      );
     }
 
-    const flags = [];
-    if (memory.timeline.some((e) => e.event === 'disqualified')) flags.push('⚠️ Lead Desqualificado');
-    if (memory.timeline.some((e) => e.event === 'no_show')) flags.push('⚠️ No-show anterior');
+    const flags: string[] = [];
+    if (memory.timeline.some((e) => e.event === 'disqualified')) {
+      flags.push('⚠️ Lead Desqualificado');
+    }
+    if (memory.timeline.some((e) => e.event === 'no_show')) {
+      flags.push('⚠️ No-show anterior');
+    }
     if (flags.length > 0) lines.push(`- Flags: ${flags.join(' | ')}`);
   }
 
   return lines.join('\n');
 }
 
-/**
- * processBackgroundAnalytics — Consolidated background task to extract memory facts, summary, and cognitive audit.
- * Runs on gemini-2.5-flash-lite to save tokens and quota.
- */
 export async function processBackgroundAnalytics(
   history: Message[],
   message: string,
   reply: string,
-  toolsCalled: any[],
-  currentSummary: string | null
+  toolsCalled: ToolCallRecord[],
+  currentSummary: string | null,
 ): Promise<{
   sentiment: 'positive' | 'neutral' | 'frustrated' | 'aggressively_cold';
   sentiment_score: number;
@@ -94,11 +103,10 @@ export async function processBackgroundAnalytics(
   answers: Record<string, string>;
   new_summary: string;
 }> {
-  // [FIX P2-3] Limita o histórico do analytics para as últimas 5 mensagens (economiza mais de 60% dos tokens)
   const conversation = history
-    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
     .slice(-5)
-    .map(m => `${m.role === 'user' ? 'Lead' : 'IA'}: ${m.content}`)
+    .map((m) => `${m.role === 'user' ? 'Lead' : 'IA'}: ${m.content}`)
     .join('\n');
 
   const prompt = `Analise a última interação do lead e extraia metadados estruturados para o CRM e auditoria no formato JSON.
@@ -128,22 +136,31 @@ JSON:`;
 
   try {
     const generateResult = await routeGenerate({ prompt, jsonMode: true }, { chain: 'bg' });
-    const parsed = JSON.parse(generateResult.text);
-    
+    const rawParsed: unknown = JSON.parse(generateResult.text);
+    const validated = BackgroundAnalyticsSchema.safeParse(rawParsed);
+
+    if (!validated.success) {
+      logError('[AI Audit] BackgroundAnalyticsSchema validation failed:', validated.error.message);
+      return {
+        sentiment: 'neutral',
+        sentiment_score: 0,
+        intent_detected: 'conversação',
+        urgency_detected: false,
+        objection_handled: null,
+        rationale: 'Interação padrão.',
+        services: [],
+        objections: [],
+        answers: {},
+        new_summary: currentSummary || 'Lead em conversação.',
+      };
+    }
+
     return {
-      sentiment: parsed.sentiment || 'neutral',
-      sentiment_score: parsed.sentiment_score ?? 0.0,
-      intent_detected: parsed.intent_detected || 'conversação',
-      urgency_detected: !!parsed.urgency_detected,
-      objection_handled: parsed.objection_handled || null,
-      rationale: parsed.rationale || 'Interação padrão.',
-      services: Array.isArray(parsed.services) ? parsed.services : [],
-      objections: Array.isArray(parsed.objections) ? parsed.objections : [],
-      answers: typeof parsed.answers === 'object' && parsed.answers !== null ? parsed.answers : {},
-      new_summary: parsed.new_summary || currentSummary || 'Lead em conversação.',
+      ...validated.data,
+      new_summary: validated.data.new_summary || currentSummary || 'Lead em conversação.',
     };
   } catch (err) {
-    console.error('[AI Audit] Falha na analise de background (Lite):', err);
+    logError('[AI Audit] Falha na analise de background:', err);
     return {
       sentiment: 'neutral',
       sentiment_score: 0.0,
@@ -159,47 +176,41 @@ JSON:`;
   }
 }
 
-/**
- * cleanContext — Prunes the timeline to keep it compact while preserving key strategic events.
- */
 export function cleanContext(memory: LeadMemory): LeadMemory {
-  // Keep the first contact, all bookings/no-shows, and the last 10 events
-  const first = memory.timeline.find(e => e.event === 'first_contact');
+  const first = memory.timeline.find((e) => e.event === 'first_contact');
   const criticalEvents = ['booked', 'no_show', 'disqualified', 'reactivated'];
-  
-  const criticals = memory.timeline.filter(e => criticalEvents.includes(e.event));
+
+  const criticals = memory.timeline.filter((e) => criticalEvents.includes(e.event));
   const recent = memory.timeline.slice(-10);
 
-  const newTimeline = [...new Set([
-    ...(first ? [first] : []),
-    ...criticals,
-    ...recent
-  ])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const newTimeline = [
+    ...new Set([...(first ? [first] : []), ...criticals, ...recent]),
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return {
     ...memory,
     timeline: newTimeline,
-    score_history: memory.score_history.slice(-10), // Keep only last 10 scores
+    score_history: memory.score_history.slice(-10),
   };
 }
 
-/**
- * prepareForRAG — Transforms memory into a clean string for embedding storage.
- */
 export function prepareForRAG(memory: LeadMemory, summary: string | null): string {
   const parts = [
     summary ? `Resumo: ${summary}` : '',
-    memory.services_mentioned.length > 0 ? `Serviços: ${memory.services_mentioned.join(', ')}` : '',
-    memory.objections_raised.length > 0 ? `Objeções: ${memory.objections_raised.join(', ')}` : '',
-    Object.entries(memory.qualification_answers || {}).map(([q, a]) => `${q}: ${a}`).join(' | ')
+    memory.services_mentioned.length > 0
+      ? `Serviços: ${memory.services_mentioned.join(', ')}`
+      : '',
+    memory.objections_raised.length > 0
+      ? `Objeções: ${memory.objections_raised.join(', ')}`
+      : '',
+    Object.entries(memory.qualification_answers || {})
+      .map(([q, a]) => `${q}: ${a}`)
+      .join(' | '),
   ].filter(Boolean);
 
   return parts.join(' \n ');
 }
 
-/**
- * appendMemoryEvent — Appends a new event and updates derived fields.
- */
 export function appendMemoryEvent(
   current: LeadMemory | null | undefined,
   event: LeadMemoryEventType,
@@ -215,7 +226,6 @@ export function appendMemoryEvent(
     ? { ...current, timeline: [...current.timeline] }
     : { ...EMPTY_MEMORY, timeline: [] };
 
-  // Avoid duplicate major events in short succession
   const lastEvent = mem.timeline[mem.timeline.length - 1];
   if (lastEvent?.event === event && lastEvent.note === options.note) return mem;
 
@@ -255,9 +265,6 @@ export function appendScoreHistory(
   return mem;
 }
 
-/**
- * handleUpdateLeadMemory — Tool handler to persist memory updates.
- */
 export async function handleUpdateLeadMemory(
   args: {
     event_type: LeadMemoryEventType;

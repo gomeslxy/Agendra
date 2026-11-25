@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
+import { createClient, getUser, getCachedUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { AgendaClient } from "./agenda-client";
 
 export default async function AgendaPage() {
@@ -7,18 +7,18 @@ export default async function AgendaPage() {
   if (!user) redirect("/login");
 
   const profile = await getCachedUserProfile(user.id);
-  const companyId = profile?.memberships?.[0]?.company_id;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId) redirect("/login");
 
   const supabase = await createClient();
 
   const { data: company } = await supabase
     .from("companies")
-    .select("google_refresh_token, google_calendar_email, last_synced_at")
+    .select("google_refresh_token, google_refresh_token_secret_id, google_calendar_email, last_synced_at")
     .eq("id", companyId)
     .single();
 
-  const gcalConnected = !!company?.google_refresh_token;
+  const gcalConnected = Boolean(company?.google_refresh_token || company?.google_refresh_token_secret_id);
   const gcalEmail: string | null = company?.google_calendar_email ?? null;
   const lastSyncedAt: string | null = company?.last_synced_at ?? null;
 

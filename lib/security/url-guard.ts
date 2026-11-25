@@ -1,67 +1,140 @@
 import { isIP } from 'net';
+import { lookup } from 'dns/promises';
 
-// RFC 5735 / RFC 1918 private + link-local + loopback ranges
-const PRIVATE_CIDRS: [number, number, number][] = [
+// RFC 5735 / RFC 1918 / RFC 6598 private + CGNAT + link-local + loopback ranges
+const PRIVATE_CIDRS: [number, number][] = [
   // loopback 127.0.0.0/8
-  [0x7f000000, 0xff000000, 4],
+  [0x7f000000, 0xff000000],
   // link-local 169.254.0.0/16 (AWS/GCP metadata)
-  [0xa9fe0000, 0xffff0000, 4],
+  [0xa9fe0000, 0xffff0000],
   // RFC-1918 10.0.0.0/8
-  [0x0a000000, 0xff000000, 4],
+  [0x0a000000, 0xff000000],
   // RFC-1918 172.16.0.0/12
-  [0xac100000, 0xfff00000, 4],
+  [0xac100000, 0xfff00000],
   // RFC-1918 192.168.0.0/16
-  [0xc0a80000, 0xffff0000, 4],
-  // Broadcast 0.0.0.0/8
-  [0x00000000, 0xff000000, 4],
+  [0xc0a80000, 0xffff0000],
+  // CGNAT RFC-6598 100.64.0.0/10
+  [0x64400000, 0xffc00000],
+  // Broadcast / "this" network 0.0.0.0/8
+  [0x00000000, 0xff000000],
   // Multicast 224.0.0.0/4
-  [0xe0000000, 0xf0000000, 4],
+  [0xe0000000, 0xf0000000],
+];
+
+const META_MEDIA_HOST_PATTERNS: RegExp[] = [
+  /^graph\.facebook\.com$/i,
+  /^lookaside\.fbsbx\.com$/i,
+  /\.fbcdn\.net$/i,
+  /\.cdninstagram\.com$/i,
+  /\.whatsapp\.net$/i,
+  /^scontent[^.]*\.cdninstagram\.com$/i,
 ];
 
 function ipToInt(ip: string): number {
   return ip.split('.').reduce((acc, octet) => (acc << 8) | parseInt(octet, 10), 0) >>> 0;
 }
 
-function isPrivateIpv4(ip: string): boolean {
-  const n = ipToInt(ip);
-  return PRIVATE_CIDRS.filter(([, , v]) => v === 4).some(([net, mask]) => (n & mask) === net);
+export function isPrivateIpAddress(ip: string): boolean {
+  const family = isIP(ip);
+  if (family === 4) {
+    const n = ipToInt(ip);
+    return PRIVATE_CIDRS.some(([net, mask]) => ((n & mask) >>> 0) === (net >>> 0));
+  }
+  if (family === 6) {
+    const normalized = ip.toLowerCase();
+    // Handle IPv4-mapped IPv6 in dotted (::ffff:127.0.0.1) or WHATWG-normalized hex (::ffff:7f00:1) form
+    if (normalized.startsWith('::ffff:')) {
+      const mapped = normalized.slice(7);
+      if (isIP(mapped) === 4) return isPrivateIpAddress(mapped);
+      const hexParts = mapped.split(':');
+      if (hexParts.length === 2 && /^[0-9a-f]{1,4}$/.test(hexParts[0]) && /^[0-9a-f]{1,4}$/.test(hexParts[1])) {
+        const hi = parseInt(hexParts[0], 16);
+        const lo = parseInt(hexParts[1], 16);
+        const ipv4Int = ((hi << 16) | lo) >>> 0;
+        return PRIVATE_CIDRS.some(([net, mask]) => ((ipv4Int & mask) >>> 0) === (net >>> 0));
+      }
+    }
+    return (
+      normalized === '::1' ||
+      normalized === '::' ||
+      normalized.startsWith('fe80:') || // link-local
+      normalized.startsWith('fc') || // ULA fc00::/7
+      normalized.startsWith('fd') ||
+      normalized.startsWith('ff') // multicast
+    );
+  }
+  return true;
 }
 
 /**
- * Returns true if `rawUrl` points to a private/internal address — block before fetch.
- * Defends against SSRF via webhook URLs registered by tenants.
+ * Synchronous heuristic check for private/internal URLs before persistence or fetch.
  */
 export function isPrivateUrl(rawUrl: string): boolean {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
-    return true; // unparseable URL → treat as private/blocked
+    return true;
   }
 
-  // Only allow HTTPS in production
   if (process.env.NODE_ENV === 'production' && parsed.protocol !== 'https:') return true;
 
-  const hostname = parsed.hostname.toLowerCase();
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
 
-  // Explicit loopback names
   if (hostname === 'localhost' || hostname === '::1' || hostname === '0.0.0.0') return true;
-
-  // Raw IPv4
-  if (isIP(hostname) === 4) return isPrivateIpv4(hostname);
-
-  // Raw IPv6 — block all for simplicity (internal infrastructure uses domain names)
-  if (isIP(hostname) === 6) return true;
-
-  // DNS rebinding: block .local, .internal, .localhost TLDs
+  if (isIP(hostname) !== 0) return isPrivateIpAddress(hostname);
   if (/\.(local|internal|localhost|intranet|corp|lan)$/.test(hostname)) return true;
 
   return false;
 }
 
 /**
+ * Full SSRF check with DNS resolution (`dns.lookup`) to mitigate DNS rebinding.
+ */
+export async function isPrivateUrlAsync(rawUrl: string): Promise<boolean> {
+  if (isPrivateUrl(rawUrl)) return true;
+
+  let hostname: string;
+  try {
+    hostname = new URL(rawUrl).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  } catch {
+    return true;
+  }
+
+  if (isIP(hostname) !== 0) {
+    return isPrivateIpAddress(hostname);
+  }
+
+  try {
+    const records = await lookup(hostname, { all: true, verbatim: true });
+    if (!records.length) return true;
+    return records.some((rec) => isPrivateIpAddress(rec.address));
+  } catch {
+    // Fail-closed on DNS failure
+    return true;
+  }
+}
+
+/**
+ * Strict allowlist for direct media URLs coming from Meta (WhatsApp / Instagram).
+ */
+export function isAllowedMetaMediaUrl(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== 'https:') return false;
+  if (isPrivateUrl(rawUrl)) return false;
+
+  const hostname = parsed.hostname.toLowerCase();
+  return META_MEDIA_HOST_PATTERNS.some((pattern) => pattern.test(hostname));
+}
+
+/**
  * Validates a webhook URL is safe for outbound dispatch.
- * Throws with a user-facing message if invalid.
  */
 export function assertSafeWebhookUrl(url: string): void {
   if (!url) throw new Error('URL é obrigatória.');

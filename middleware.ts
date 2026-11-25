@@ -39,6 +39,7 @@ const PROTECTED_PREFIXES = [
   "/agenda",
   "/leads",
   "/reports",
+  "/notifications",
   "/settings",
   "/onboarding",
   "/accept-invite",
@@ -71,8 +72,10 @@ const AUTH_ONLY_PREFIXES = [
  * Prevents open-redirect attacks if something upstream ever passes an absolute URL.
  */
 function safeNext(pathname: string): string {
-  // Ensure the value starts with "/" — discard anything that looks external.
-  if (!pathname.startsWith("/")) return "/inbox";
+  // Ensure the value is a single-slash internal pathname (rejects "//evil.com" or backslashes).
+  if (!pathname.startsWith("/") || pathname.startsWith("//") || pathname.includes("\\")) {
+    return "/inbox";
+  }
   return pathname;
 }
 
@@ -138,7 +141,13 @@ export async function middleware(request: NextRequest) {
           getAll() {
             return request.cookies.getAll();
           },
-          setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          setAll(
+            cookiesToSet: {
+              name: string;
+              value: string;
+              options?: Parameters<typeof response.cookies.set>[2];
+            }[],
+          ) {
             // Propagate refreshed tokens to both the incoming request object
             // and the outgoing response so downstream Server Components see
             // the updated session.
@@ -147,7 +156,7 @@ export async function middleware(request: NextRequest) {
             );
             response = NextResponse.next({ request });
             cookiesToSet.forEach(({ name, value, options }) =>
-              response.cookies.set(name, value, options as any),
+              response.cookies.set(name, value, options),
             );
           },
         },
@@ -189,41 +198,39 @@ export async function middleware(request: NextRequest) {
     if (pathname === "/" && user) {
       return NextResponse.redirect(new URL("/inbox", request.url));
     }
-  } catch (err: any) {
-    // ── 5. Handle broken/revoked sessions ────────────────────────────────
-    // Any AuthApiError that indicates an invalid session (expired, revoked,
-    // missing) should clear the stale sb-* cookies so the next request
-    // doesn't keep retrying with a dead token.
+  } catch (err: unknown) {
+    // ── 5. Fail-closed on protected/admin routes; clear stale cookies on Auth errors
+    const errRecord = (typeof err === "object" && err !== null ? err : {}) as {
+      name?: string;
+      code?: string;
+      message?: string;
+    };
     const isAuthError =
-      err?.name === "AuthApiError" ||
-      err?.code === "refresh_token_not_found" ||
-      err?.code === "invalid_jwt" ||
-      err?.message?.includes("JWT");
+      errRecord.name === "AuthApiError" ||
+      errRecord.code === "refresh_token_not_found" ||
+      errRecord.code === "invalid_jwt" ||
+      (typeof errRecord.message === "string" && errRecord.message.includes("JWT"));
+
+    const isAdminRoute = pathname.startsWith(ADMIN_PREFIX);
+    const isProtectedRoute =
+      isAdminRoute || PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+
+    if (isProtectedRoute) {
+      const target = isAdminRoute
+        ? new URL("/admin/login", request.url)
+        : new URL(`/login?next=${encodeURIComponent(safeNext(pathname))}`, request.url);
+      const redirectRes = NextResponse.redirect(target);
+      return isAuthError ? clearSupabaseCookies(request, redirectRes) : redirectRes;
+    }
 
     if (isAuthError) {
-      const isProtectedRoute =
-        pathname.startsWith(ADMIN_PREFIX) ||
-        PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
-
-      if (isProtectedRoute) {
-        const target = pathname.startsWith(ADMIN_PREFIX)
-          ? new URL("/admin/login", request.url)
-          : new URL(`/login?next=${encodeURIComponent(safeNext(pathname))}`, request.url);
-        return clearSupabaseCookies(
-          request,
-          NextResponse.redirect(target),
-        );
-      }
-
-      // Not a protected route: clear the dead cookies but let the request pass.
       return clearSupabaseCookies(
         request,
         NextResponse.next({ request: { headers: request.headers } }),
       );
     }
 
-    // Unexpected error — pass through with the original response.
-    // Do NOT expose the error to the client.
+    // Public route with unexpected transient failure — do NOT expose the error.
     return response;
   }
 

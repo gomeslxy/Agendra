@@ -1,11 +1,11 @@
 /**
- * /api/cron/morning — Vercel Free Tier unified cron (runs once daily at 08:00 BRT)
+ * /api/cron/morning — Vercel unified morning cron (08:00 BRT)
  *
- * Executes in sequence:
- *   1. GCal Sync      — syncs Google Calendar for all connected companies
- *   2. Auto Follow-up — re-engages leads silent for 24h+ (max 10 per company)
- *   3. Reminders      — sends WhatsApp reminders for appointments due today
- *   4. Channel Health — validates WhatsApp tokens, marks broken channels
+ * Stages:
+ *   1. GCal Sync      — syncs Google Calendar for connected companies
+ *   2. Auto Follow-up — re-engages silent leads (max 10 per company)
+ *   3. Reminders      — sends reminders for appointments due today
+ *   4. Channel Health — validates WhatsApp & Instagram tokens separately (fixes P0-SEC-06)
  *   5. Flush Buffer   — flushes pending SQL message buffers (safety fallback)
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -18,139 +18,155 @@ import { getPlanLimits } from '@/lib/billing/plans';
 import { getCompanyUsage } from '@/lib/billing/limits';
 import { flushMessageBuffer } from '@/lib/ai/buffer-flush';
 import { ACTIVE_SUBSCRIPTION_STATUSES } from '@/lib/billing/active-statuses';
+import { verifyBearerSecret } from '@/lib/security/crypto-compare';
+import { mapWithConcurrency } from '@/lib/infra/concurrency';
+import { logError, logInfo } from '@/lib/logging';
 
-function isAuthorized(req: NextRequest): boolean {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return false;
-  const header = req.headers.get('authorization') ?? '';
-  return header === `Bearer ${cronSecret}`;
-}
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  if (!isAuthorized(req)) {
+  if (!verifyBearerSecret(req.headers.get('authorization'), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const admin = createAdminClient();
-  const summary: Record<string, any> = {};
+  const summary: Record<string, unknown> = {};
 
-  // Fetch active companies (active or trial status) with all required plan/config context
   const { data: activeCompanies, error: companiesError } = await admin
     .from('companies')
-    .select('id, name, plan_type, subscription_status, google_refresh_token, persona_config, reminders_quiet_hours_enabled, reminders_quiet_hours_start, reminders_quiet_hours_end')
+    .select(
+      'id, name, plan_type, subscription_status, google_refresh_token, google_refresh_token_secret_id, persona_config, reminders_quiet_hours_enabled, reminders_quiet_hours_start, reminders_quiet_hours_end',
+    )
     .in('subscription_status', ACTIVE_SUBSCRIPTION_STATUSES)
     .not('subscription_status', 'eq', 'canceled');
 
   if (companiesError) {
-    console.error('[morning-cron] Failed to fetch companies:', companiesError.message);
+    logError('[morning-cron] Failed to fetch companies:', companiesError.message);
     return NextResponse.json({ error: companiesError.message }, { status: 500 });
   }
 
   const companiesList = activeCompanies ?? [];
-  console.log(`[morning-cron] Processing ${companiesList.length} active companies`);
+  logInfo(`[morning-cron] Processing ${companiesList.length} active companies`);
 
   // ── 1. GCal Sync ────────────────────────────────────────────────────────────
   try {
     const gcal = { synced: 0, skipped: 0, errors: 0 };
-    for (const co of companiesList) {
-      if (!co.google_refresh_token) {
-        gcal.skipped++;
-        continue;
-      }
-      try {
-        const r = await syncCompanyCalendar(co.id);
-        r.skipped ? gcal.skipped++ : gcal.synced++;
-      } catch (err: any) {
-        gcal.errors++;
-        console.error(`[morning-cron] GCal sync error for company ${co.id} (${co.name}):`, err?.message);
-        
-        // GCal Fallback: alert admins when refresh token expires or is revoked (invalid_grant)
-        const errMsg = err?.message ?? '';
-        if (errMsg.includes('invalid_grant') || errMsg.includes('renovar token') || errMsg.includes('OAuth')) {
-          try {
-            // Find company admin/owner users to notify
-            const { data: admins } = await admin
-              .from('memberships')
-              .select('user_id')
-              .eq('company_id', co.id)
-              .in('role', ['admin', 'owner']);
+    await mapWithConcurrency(
+      companiesList,
+      5,
+      async (co) => {
+        if (!co.google_refresh_token && !co.google_refresh_token_secret_id) {
+          gcal.skipped++;
+          return;
+        }
+        try {
+          const r = await syncCompanyCalendar(co.id);
+          if (r.skipped) gcal.skipped++;
+          else gcal.synced++;
+        } catch (err: unknown) {
+          gcal.errors++;
+          const errMsg = err instanceof Error ? err.message : String(err);
+          logError(`[morning-cron] GCal sync error for company ${co.id} (${co.name}):`, errMsg);
 
-            if (admins?.length) {
-              const { createNotificationForUsers } = await import('@/lib/notifications/create');
-              await createNotificationForUsers(admins, {
-                company_id: co.id,
-                type: 'channel_error',
-                title: 'Calendário Google Desconectado ⚠️',
-                body: `A integração do Google Calendar para a empresa ${co.name} expirou ou foi revogada. Por favor, acesse Configurações -> Canais para reconectar.`,
-                action_url: '/settings?tab=channels',
-                priority: 'high',
-              });
+          if (
+            errMsg.includes('invalid_grant') ||
+            errMsg.includes('renovar token') ||
+            errMsg.includes('OAuth')
+          ) {
+            try {
+              const { data: admins } = await admin
+                .from('memberships')
+                .select('user_id')
+                .eq('company_id', co.id)
+                .in('role', ['admin', 'owner']);
+
+              if (admins?.length) {
+                const { createNotificationForUsers } = await import('@/lib/notifications/create');
+                await createNotificationForUsers(admins, {
+                  company_id: co.id,
+                  type: 'channel_error',
+                  title: 'Calendário Google Desconectado ⚠️',
+                  body: `A integração do Google Calendar para a empresa ${co.name} expirou ou foi revogada. Por favor, acesse Configurações -> Canais para reconectar.`,
+                  action_url: '/settings?tab=channels',
+                  priority: 'high',
+                });
+              }
+            } catch (notifErr: unknown) {
+              const nMsg = notifErr instanceof Error ? notifErr.message : String(notifErr);
+              logError('[morning-cron] Failed to dispatch GCal error notification:', nMsg);
             }
-          } catch (notifErr: any) {
-            console.error('[morning-cron] Failed to dispatch GCal error notification:', notifErr?.message);
           }
         }
-      }
-    }
+      },
+      { deadlineMs: startedAt + 90_000 },
+    );
     summary.gcal_sync = gcal;
-    console.log('[morning-cron] gcal_sync:', gcal);
-  } catch (err: any) {
-    summary.gcal_sync = { error: err.message };
-    console.error('[morning-cron] gcal_sync failed:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.gcal_sync = { error: msg };
+    logError('[morning-cron] gcal_sync failed:', msg);
   }
 
   // ── 2. Auto Follow-up ─────────────────────────────────────────────────────────
   try {
     const results: { id: string; company_id: string; status: string; error?: string }[] = [];
-    for (const company of companiesList) {
-      if (!getPlanLimits(company.plan_type).hasFollowUp) continue;
+    await mapWithConcurrency(
+      companiesList,
+      5,
+      async (company) => {
+        if (!getPlanLimits(company.plan_type).hasFollowUp) return;
 
-      const delayHours = (company.persona_config as any)?.followup_delay_hours ?? 24;
-      const intervalHours = delayHours * 2;
-      const delayAgo = new Date(Date.now() - delayHours * 60 * 60 * 1000).toISOString();
-      const intervalAgo = new Date(Date.now() - intervalHours * 60 * 60 * 1000).toISOString();
+        const persona = (company.persona_config ?? {}) as { followup_delay_hours?: number };
+        const delayHours = persona.followup_delay_hours ?? 24;
+        const intervalHours = delayHours * 2;
+        const delayAgo = new Date(Date.now() - delayHours * 60 * 60 * 1000).toISOString();
+        const intervalAgo = new Date(Date.now() - intervalHours * 60 * 60 * 1000).toISOString();
 
-      const { data: leads, error: leadsErr } = await admin
-        .from('leads')
-        .select('id')
-        .eq('company_id', company.id)
-        .eq('is_paused', false)
-        .not('status', 'in', '("success","disqualified")')
-        .lt('updated_at', delayAgo)
-        .or(`last_followup_at.is.null,last_followup_at.lt.${intervalAgo}`)
-        .limit(10);
+        const { data: leads, error: leadsErr } = await admin
+          .from('leads')
+          .select('id')
+          .eq('company_id', company.id)
+          .eq('is_paused', false)
+          .not('status', 'in', '("success","disqualified")')
+          .lt('updated_at', delayAgo)
+          .or(`last_followup_at.is.null,last_followup_at.lt.${intervalAgo}`)
+          .limit(10);
 
-      if (leadsErr) {
-        console.error(`[morning-cron] followup search error for company ${company.id}:`, leadsErr.message);
-        continue;
-      }
-
-      // Preload usage once per company to avoid N+1 queries
-      let usage;
-      try {
-        usage = await getCompanyUsage(company.id);
-      } catch (usageErr: any) {
-        console.error(`[morning-cron] followup usage error for company ${company.id}:`, usageErr.message);
-        continue;
-      }
-
-      for (const lead of leads ?? []) {
-        try {
-          await triggerAutoFollowUp(lead.id, usage);
-          results.push({ id: lead.id, company_id: company.id, status: 'success' });
-        } catch (err: any) {
-          results.push({ id: lead.id, company_id: company.id, status: 'error', error: err.message });
+        if (leadsErr) {
+          logError(`[morning-cron] followup search error for ${company.id}:`, leadsErr.message);
+          return;
         }
-      }
-    }
+
+        let usage;
+        try {
+          usage = await getCompanyUsage(company.id);
+        } catch (usageErr: unknown) {
+          const msg = usageErr instanceof Error ? usageErr.message : String(usageErr);
+          logError(`[morning-cron] followup usage error for ${company.id}:`, msg);
+          return;
+        }
+
+        for (const lead of leads ?? []) {
+          try {
+            await triggerAutoFollowUp(lead.id, usage);
+            results.push({ id: lead.id, company_id: company.id, status: 'success' });
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            results.push({ id: lead.id, company_id: company.id, status: 'error', error: msg });
+          }
+        }
+      },
+      { deadlineMs: startedAt + 170_000 },
+    );
     summary.followup = { processed: results.length, details: results };
-    console.log('[morning-cron] followup:', summary.followup);
-  } catch (err: any) {
-    summary.followup = { error: err.message };
-    console.error('[morning-cron] followup failed:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.followup = { error: msg };
+    logError('[morning-cron] followup failed:', msg);
   }
 
-  // ── 3. Reminders (fallback sweep — primary processing via /api/cron/reminders every 5min) ───────────────────────────────
+  // ── 3. Reminders ──────────────────────────────────────────────────────────────
   try {
     const now = new Date().toISOString();
     const expiryThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -159,78 +175,105 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let expired = 0;
     let rescheduled = 0;
 
-    for (const company of companiesList) {
-      const r = await processCompanyReminders(admin, company, now, expiryThreshold, 10);
-      sent += r.sent;
-      failed += r.failed;
-      expired += r.expired;
-      rescheduled += r.rescheduled;
-    }
+    await mapWithConcurrency(
+      companiesList,
+      5,
+      async (company) => {
+        const r = await processCompanyReminders(admin, company, now, expiryThreshold, 10);
+        sent += r.sent;
+        failed += r.failed;
+        expired += r.expired;
+        rescheduled += r.rescheduled;
+      },
+      { deadlineMs: startedAt + 210_000 },
+    );
     summary.reminders = { sent, failed, expired, rescheduled };
-    console.log('[morning-cron] reminders:', summary.reminders);
-  } catch (err: any) {
-    summary.reminders = { error: err.message };
-    console.error('[morning-cron] reminders failed:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.reminders = { error: msg };
+    logError('[morning-cron] reminders failed:', msg);
   }
 
-  // ── 4. Channel Health ────────────────────────────────────────────────────────
+  // ── 4. Channel Health (provider-aware: WhatsApp vs Instagram) ─────────────────
   try {
-    // Check ALL channels with status='error' + a sample of 'active' channels
-    // to detect silently expired tokens before they cause message loss.
     const { data: errorChannels } = await admin
       .from('channels')
-      .select('id, company_id, provider_id, status, last_error')
+      .select('id, company_id, provider, provider_id, status, last_error')
       .eq('status', 'error');
 
     const { data: activeChannels } = await admin
       .from('channels')
-      .select('id, company_id, provider_id, status, last_error')
+      .select('id, company_id, provider, provider_id, status, last_error')
       .eq('status', 'active')
-      .order('last_seen_at', { ascending: true }) // prioritize longest unseen
-      .limit(5); // CRIT-7: validate sample of active channels too
+      .order('last_seen_at', { ascending: true })
+      .limit(5);
 
-    const channelsToCheck = [
-      ...(errorChannels ?? []),
-      ...(activeChannels ?? []),
-    ];
+    const channelsToCheck = [...(errorChannels ?? []), ...(activeChannels ?? [])];
 
     let healthy = 0;
     let broken = 0;
-    for (const ch of channelsToCheck) {
-      const { data: tokenData } = await admin.rpc('channel_get_access_token', { p_channel_id: ch.id });
-      const token = tokenData as string;
+    await mapWithConcurrency(
+      channelsToCheck,
+      5,
+      async (ch) => {
+        const { data: tokenData } = await admin.rpc('channel_get_access_token', {
+          p_channel_id: ch.id,
+        });
+        const token = tokenData as string | null;
 
-      if (!token) {
-        console.warn(`[morning-cron] Access token missing for channel ${ch.id}`);
-        continue;
-      }
+        if (!token) {
+          logInfo(`[morning-cron] Access token missing for channel ${ch.id}`);
+          return;
+        }
 
-      const validation = await validateWhatsAppToken(ch.provider_id, token);
-      if (!validation.ok) {
-        await admin.from('channels').update({ status: 'error', updated_at: new Date().toISOString() }).eq('id', ch.id);
-        broken++;
-      } else if (ch.status !== 'active') {
-        // Was 'error', now healed
-        await admin.from('channels').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', ch.id);
-        healthy++;
-      } else {
-        healthy++;
-      }
-    }
+        let isHealthy = false;
+        if (ch.provider === 'instagram') {
+          try {
+            const pageRes = await fetch('https://graph.facebook.com/v19.0/me', {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: AbortSignal.timeout(8_000),
+            });
+            isHealthy = pageRes.ok;
+          } catch {
+            isHealthy = false;
+          }
+        } else {
+          const validation = await validateWhatsAppToken(ch.provider_id, token);
+          isHealthy = validation.ok;
+        }
+
+        if (!isHealthy) {
+          await admin
+            .from('channels')
+            .update({ status: 'error', updated_at: new Date().toISOString() })
+            .eq('id', ch.id);
+          broken++;
+        } else if (ch.status !== 'active') {
+          await admin
+            .from('channels')
+            .update({ status: 'active', updated_at: new Date().toISOString() })
+            .eq('id', ch.id);
+          healthy++;
+        } else {
+          healthy++;
+        }
+      },
+      { deadlineMs: startedAt + 240_000 },
+    );
     summary.channel_health = { healthy, broken, checked: channelsToCheck.length };
-    console.log('[morning-cron] channel_health:', summary.channel_health);
-  } catch (err: any) {
-    summary.channel_health = { error: err.message };
-    console.error('[morning-cron] channel_health failed:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.channel_health = { error: msg };
+    logError('[morning-cron] channel_health failed:', msg);
   }
 
-  // ── 5. Flush Buffer (safety sweep — primary drain is the 1-min /api/cron/flush-buffer) ──
+  // ── 5. Flush Buffer ───────────────────────────────────────────────────────────
   try {
     summary.flush_buffer = await flushMessageBuffer(admin);
-    console.log('[morning-cron] flush_buffer:', summary.flush_buffer);
-  } catch (err: any) {
-    summary.flush_buffer = { error: err.message };
-    console.error('[morning-cron] flush_buffer failed:', err.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.flush_buffer = { error: msg };
+    logError('[morning-cron] flush_buffer failed:', msg);
   }
 
   return NextResponse.json({ ok: true, ...summary });

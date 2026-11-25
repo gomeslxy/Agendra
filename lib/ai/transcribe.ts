@@ -1,5 +1,7 @@
 import { genAI } from './client';
-import { logInfo } from '@/lib/logging';
+import { logError, logInfo } from '@/lib/logging';
+import { withTimeout } from './timeout';
+import { isAllowedMetaMediaUrl } from '@/lib/security/url-guard';
 
 const MAX_AUDIO_SIZE = 25 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 10_000;
@@ -15,18 +17,29 @@ interface TranscribeResult {
 
 export async function transcribeWhatsAppAudio(
   mediaId: string,
-  accessToken: string
+  accessToken: string,
 ): Promise<TranscribeResult> {
   let buffer: Buffer;
   let mimeType = 'audio/ogg';
 
-  // 1. Resolver media URL ou usar diretamente se for link completo (Instagram)
   if (mediaId.startsWith('http://') || mediaId.startsWith('https://')) {
-    logInfo(`[Transcribe] Direct URL detected, fetching directly: ${mediaId.substring(0, 30)}...`);
+    if (!isAllowedMetaMediaUrl(mediaId)) {
+      return {
+        text: '[Áudio recebido — URL de mídia não permitida]',
+        error: 'blocked_media_url',
+      };
+    }
+    logInfo(`[Transcribe] Direct URL detected: ${mediaId.substring(0, 30)}...`);
     const audioRes = await fetch(mediaId, {
+      redirect: 'error',
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!audioRes.ok) return { text: '[Áudio recebido — falha no download direto]', error: `audio_direct ${audioRes.status}` };
+    if (!audioRes.ok) {
+      return {
+        text: '[Áudio recebido — falha no download direto]',
+        error: `audio_direct ${audioRes.status}`,
+      };
+    }
     const contentLength = audioRes.headers.get('content-length');
     if (contentLength && parseInt(contentLength, 10) > MAX_AUDIO_SIZE) {
       return { text: '[Áudio recebido — muito grande]', error: 'too large' };
@@ -38,29 +51,42 @@ export async function transcribeWhatsAppAudio(
     const contentType = audioRes.headers.get('content-type');
     if (contentType) mimeType = contentType;
   } else {
-    // Resolver via WhatsApp Cloud API
     const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!metaRes.ok) return { text: '[Áudio recebido — falha ao resolver mídia]', error: `meta ${metaRes.status}` };
-    const meta = (await metaRes.json()) as { url?: string; mime_type?: string; file_size?: number };
+    if (!metaRes.ok) {
+      return {
+        text: '[Áudio recebido — falha ao resolver mídia]',
+        error: `meta ${metaRes.status}`,
+      };
+    }
+    const meta = (await metaRes.json()) as {
+      url?: string;
+      mime_type?: string;
+      file_size?: number;
+    };
     if (!meta.url) return { text: '[Áudio recebido — URL ausente]', error: 'no url' };
+    if (!isAllowedMetaMediaUrl(meta.url)) {
+      return { text: '[Áudio recebido — URL de mídia não permitida]', error: 'blocked_media_url' };
+    }
     if (meta.file_size && meta.file_size > MAX_AUDIO_SIZE) {
       return { text: '[Áudio recebido — muito grande]', error: 'too large' };
     }
 
-    // Baixar bytes
     const audioRes = await fetch(meta.url, {
+      redirect: 'error',
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!audioRes.ok) return { text: '[Áudio recebido — falha no download]', error: `audio ${audioRes.status}` };
+    if (!audioRes.ok) {
+      return { text: '[Áudio recebido — falha no download]', error: `audio ${audioRes.status}` };
+    }
     buffer = Buffer.from(await audioRes.arrayBuffer());
     if (meta.mime_type) mimeType = meta.mime_type;
   }
 
-  // 2. Tentar Groq Whisper (grátis, ~5x mais rápido que Gemini)
+  // 2. Groq Whisper (AbortSignal.timeout nativo sem timers órfãos)
   if (process.env.GROQ_API_KEY) {
     try {
       const form = new FormData();
@@ -70,40 +96,42 @@ export async function transcribeWhatsAppAudio(
       form.append('language', 'pt');
       form.append('response_format', 'text');
 
-      const groqRes = await Promise.race([
-        fetch(GROQ_URL, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-          body: form,
-        }),
-        new Promise<never>((_, r) => setTimeout(() => r(new Error('groq timeout')), TRANSCRIBE_TIMEOUT_MS)),
-      ]);
+      const groqRes = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        body: form,
+        signal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS),
+      });
 
       if (groqRes.ok) {
         const text = (await groqRes.text()).trim();
         return { text: text || '[Áudio sem fala detectada]', provider: 'groq' };
       }
-      console.warn(`[Transcribe] Groq ${groqRes.status} — fallback Gemini`);
-    } catch (err: any) {
-      console.warn('[Transcribe] Groq err:', err.message);
+      logInfo(`[Transcribe] Groq ${groqRes.status} — fallback Gemini`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logInfo('[Transcribe] Groq err:', msg);
     }
   }
 
-  // 3. Fallback Gemini multimodal
+  // 3. Fallback Gemini multimodal com cleanup garantido
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
-    const result = await Promise.race([
+    const result = await withTimeout(
       model.generateContent([
-        { inlineData: { data: buffer.toString('base64'), mimeType: mimeType } },
-        { text: 'Transcreva este áudio para português brasileiro de forma fiel. Responda APENAS com o texto transcrito.' },
+        { inlineData: { data: buffer.toString('base64'), mimeType } },
+        {
+          text: 'Transcreva este áudio para português brasileiro de forma fiel. Responda APENAS com o texto transcrito.',
+        },
       ]),
-      new Promise<never>((_, r) => setTimeout(() => r(new Error('gemini timeout')), TRANSCRIBE_TIMEOUT_MS)),
-    ]);
+      TRANSCRIBE_TIMEOUT_MS,
+      'gemini timeout',
+    );
     const text = result.response.text().trim();
     return { text: text || '[Áudio sem fala detectada]', provider: 'gemini' };
-  } catch (err: any) {
-    console.error('[Transcribe] Gemini fail:', err.message);
-    return { text: '[Áudio recebido — falha em todos providers]', error: err.message };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logError('[Transcribe] Gemini fail:', msg);
+    return { text: '[Áudio recebido — falha em todos providers]', error: msg };
   }
 }
-

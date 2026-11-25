@@ -1,9 +1,10 @@
 "use server";
 
-import { createClient, getUserProfile } from "@/lib/supabase/server";
+import { createClient, getUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { isValidUuid } from "@/lib/utils";
 import { requireOnboarding } from "@/lib/onboarding/guards";
+import { sanitizeCsvCell } from "@/lib/security/csv";
 
 const VALID_CHANNELS = ["whatsapp", "instagram", "form"] as const;
 type Channel = (typeof VALID_CHANNELS)[number];
@@ -12,7 +13,7 @@ export async function exportLeads(): Promise<string> {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
-  const companyId = profile.memberships?.[0]?.company_id;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId) throw new Error("No company");
   await requireOnboarding(companyId);
 
@@ -32,18 +33,18 @@ export async function exportLeads(): Promise<string> {
   ]);
 
   const csv = [headers, ...rows]
-    .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    .map((row) => row.map((v) => sanitizeCsvCell(v)).join(","))
     .join("\n");
 
   // UTF-8 BOM so Excel renders accents correctly
-  return "﻿" + csv;
+  return "\uFEFF" + csv;
 }
 
 export async function createLead(formData: FormData) {
   const profile = await getUserProfile();
   if (!profile) throw new Error("Unauthorized");
 
-  const companyId = profile.memberships?.[0]?.company_id;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId || !isValidUuid(companyId)) throw new Error("No company");
   await requireOnboarding(companyId);
 

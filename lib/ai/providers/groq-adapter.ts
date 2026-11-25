@@ -1,5 +1,9 @@
 import OpenAI from 'openai';
-import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+} from 'openai/resources/chat/completions';
+import { sanitizeToolError } from '../error-sanitizer';
 import type {
   AIProviderAdapter,
   ChatParams,
@@ -24,7 +28,7 @@ export class GroqAdapter implements AIProviderAdapter {
   readonly defaultChatModel = 'llama-3.3-70b-versatile';
   readonly defaultGenerateModel = 'llama-3.3-70b-versatile';
 
-  private get client() {
+  private get client(): OpenAI {
     const key = process.env.GROQ_API_KEY;
     if (!key) throw new Error('groq: GROQ_API_KEY not set');
     return new OpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: key });
@@ -33,8 +37,6 @@ export class GroqAdapter implements AIProviderAdapter {
   async chat(params: ChatParams): Promise<ChatResult> {
     const modelName = this.defaultChatModel;
     const tools = params.tools.length > 0 ? params.tools.map(toOpenAITool) : undefined;
-    // Groq returns 400 "Failed to call a function" when tool_choice='required' on complex
-    // prompts. Always use 'auto' — Groq's 70b is reliable enough for tool calling.
     const toolChoice = 'auto';
     const reqOpts: OpenAI.RequestOptions = {
       ...(params.signal ? { signal: params.signal } : {}),
@@ -44,7 +46,7 @@ export class GroqAdapter implements AIProviderAdapter {
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: params.systemPrompt },
       ...params.history.map((m) => ({
-        role: m.role as 'user' | 'assistant',
+        role: m.role,
         content: m.content,
       })),
       { role: 'user', content: params.userMessage },
@@ -71,7 +73,7 @@ export class GroqAdapter implements AIProviderAdapter {
     while (iterations < params.maxIterations) {
       iterations++;
       const choice = response.choices[0];
-      const toolCalls = choice.message.tool_calls?.filter(tc => tc.type === 'function');
+      const toolCalls = choice.message.tool_calls?.filter((tc) => tc.type === 'function');
 
       if (!toolCalls || toolCalls.length === 0) break;
 
@@ -79,26 +81,13 @@ export class GroqAdapter implements AIProviderAdapter {
 
       const toolResults: ChatCompletionMessageParam[] = await Promise.all(
         toolCalls.map(async (tc) => {
-          let result: any;
-          const fn = (tc as any).function as { name: string; arguments: string };
+          const fn = tc.type === 'function' ? tc.function : { name: '', arguments: '{}' };
+          let result: unknown;
           try {
-            const args = JSON.parse(fn.arguments);
-            result = await params.toolHandler(fn.name, args);
-          } catch (err) {
-            const rawMessage = err instanceof Error ? err.message : String(err);
-            const lowercase = rawMessage.toLowerCase();
-            const technicalIndicators = [
-              'select', 'insert', 'update', 'delete', 'postgres', 'supabase', 'database', 'db',
-              'gcal', 'google', 'calendar', 'token', 'auth', 'unauthorized', 'jwt', 'secret',
-              'network', 'fetch', 'http', 'status', 'timeout', 'connection', 'null', 'undefined',
-              'reference', 'typeerror', 'syntaxerror', 'parse', 'json', 'xml', 'api', 'internal',
-              'server error', 'row', 'column', 'foreign key', 'unique constraint', 'violates'
-            ];
-            const hasTechnicalIndicator = technicalIndicators.some(indicator => lowercase.includes(indicator));
-            const safeMessage = hasTechnicalIndicator 
-              ? 'Não foi possível completar esta ação no momento devido a uma instabilidade temporária. Por favor, tente novamente em instantes ou fale com um de nossos atendentes.'
-              : rawMessage;
-            result = { error: safeMessage };
+            const parsedArgs = JSON.parse(fn.arguments || '{}') as Record<string, unknown>;
+            result = await params.toolHandler(fn.name, parsedArgs);
+          } catch (err: unknown) {
+            result = { error: sanitizeToolError(err) };
           }
           toolsCalled.push({
             name: fn.name,
@@ -109,7 +98,7 @@ export class GroqAdapter implements AIProviderAdapter {
             tool_call_id: tc.id,
             content: JSON.stringify(result),
           };
-        })
+        }),
       );
 
       messages.push(...toolResults);
@@ -143,11 +132,14 @@ export class GroqAdapter implements AIProviderAdapter {
       ...(params.signal ? { signal: params.signal } : {}),
       ...(params.timeout ? { timeout: params.timeout } : {}),
     };
-    const response = await this.client.chat.completions.create({
-      model: modelName,
-      messages: [{ role: 'user', content: params.prompt }],
-      ...(params.jsonMode ? { response_format: { type: 'json_object' } } : {}),
-    }, reqOpts);
+    const response = await this.client.chat.completions.create(
+      {
+        model: modelName,
+        messages: [{ role: 'user', content: params.prompt }],
+        ...(params.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      },
+      reqOpts,
+    );
     return response.choices[0].message.content || '';
   }
 }

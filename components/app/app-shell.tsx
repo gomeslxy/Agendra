@@ -10,6 +10,7 @@ import Link from "next/link";
 
 interface AppShellProps {
   children: React.ReactNode;
+  activeCompanyId?: string;
   hotCount?: number;
   unhealthyChannelsCount?: number;
   unreadNotificationsCount?: number;
@@ -34,17 +35,18 @@ function SidebarFallback() {
 
 export function AppShell({ 
   children, 
+  activeCompanyId,
   hotCount = 0,
   unhealthyChannelsCount = 0,
   unreadNotificationsCount = 0
 }: AppShellProps) {
   return (
     <>
-      <div className="bg-[#FAFAFA] grid overflow-hidden md:grid-cols-[240px_1fr] h-[calc(100dvh-3.5rem)] md:h-screen">
+      <div className="bg-[#FAFAFA] grid overflow-hidden md:grid-cols-[240px_1fr] h-dvh md:h-screen">
         <Suspense fallback={<SidebarFallback />}>
-          <Sidebar hotCount={hotCount} unreadCount={unreadNotificationsCount} />
+          <Sidebar activeCompanyId={activeCompanyId} hotCount={hotCount} unreadCount={unreadNotificationsCount} />
         </Suspense>
-        <div className="grid min-w-0 grid-rows-[auto_1fr]">
+        <div className="grid min-w-0 grid-rows-[auto_1fr] min-h-0">
           <Topbar />
           <main className="relative min-h-0 overflow-hidden flex flex-col">
             <AnimatePresence>
@@ -78,7 +80,7 @@ export function AppShell({
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="flex-1 overflow-hidden relative">
+            <div className="flex-1 min-h-0 overflow-hidden relative pb-[calc(60px+env(safe-area-inset-bottom,0px))] md:pb-0">
               {children}
             </div>
           </main>

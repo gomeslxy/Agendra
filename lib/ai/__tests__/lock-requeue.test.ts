@@ -172,4 +172,37 @@ describe('handleIncomingMessage — lock contention requeue', () => {
     expect(processedDeletes).toBe(0); // claim NOT released
     expect(processedErrorUpdates).toHaveLength(1); // surfaced as error, visible
   });
+
+  it('does NOT drop a message sent <1s after Worker 1 acquired the lock (P0-ENG-03)', async () => {
+    const recentLead = {
+      ...lockedLead,
+      last_message_at: new Date(Date.now() - 200).toISOString(), // 200ms ago (<1s!)
+    };
+    const admin = buildAdmin();
+    const origFrom = admin.from;
+    admin.from = vi.fn((table: string) => {
+      if (table === 'leads') {
+        return {
+          select: vi.fn(() => chainable({ data: recentLead, error: null })),
+          update: vi.fn(() => chainable({ data: null, error: null })),
+        };
+      }
+      return origFrom(table);
+    });
+    (createAdminClient as any).mockReturnValue(admin);
+
+    const outcome = await handleIncomingMessage(
+      'company-1',
+      '5511999999999',
+      'Carlos',
+      'mensagem rápida em 200ms',
+      'wamid.FAST1',
+      undefined,
+      {},
+    );
+
+    expect(outcome).toBe('requeued');
+    expect(bufferUpserts).toHaveLength(1);
+    expect(bufferUpserts[0].provider_message_id).toBe('wamid.FAST1');
+  });
 });

@@ -10,8 +10,9 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import crypto from 'crypto';
-import { isPrivateUrl } from '@/lib/security/url-guard';
+import { isPrivateUrlAsync } from '@/lib/security/url-guard';
 import { getPlanLimits } from '@/lib/billing/plans';
+import { logError, logInfo } from '@/lib/logging';
 
 export type WebhookEventType =
   | 'booking.created'
@@ -91,13 +92,14 @@ export async function dispatchWebhook(
         const signature = signPayload(sub.secret, body);
         let lastError: string | null = null;
 
-        if (isPrivateUrl(sub.url)) {
+        if (await isPrivateUrlAsync(sub.url)) {
           lastError = 'URL blocked: private or internal address';
-          console.warn(`[WebhookDispatcher] SSRF blocked: ${sub.url.slice(0, 60)}`);
+          logInfo(`[WebhookDispatcher] SSRF blocked: ${sub.url.slice(0, 60)}`);
         } else {
           try {
             const response = await fetch(sub.url, {
               method: 'POST',
+              redirect: 'error',
               headers: {
                 'Content-Type': 'application/json',
                 'x-agendra-signature': `sha256=${signature}`,
@@ -112,8 +114,8 @@ export async function dispatchWebhook(
             if (!response.ok) {
               lastError = `HTTP ${response.status} ${response.statusText}`;
             }
-          } catch (err: any) {
-            lastError = err?.message ?? 'Unknown error';
+          } catch (err: unknown) {
+            lastError = err instanceof Error ? err.message : 'Unknown error';
           }
         }
 
@@ -136,6 +138,6 @@ export async function dispatchWebhook(
     );
   } catch (err) {
     // Nunca propaga — não deve interromper o fluxo principal
-    console.error('[WebhookDispatcher] Falha ao despachar webhook:', err);
+    logError('[WebhookDispatcher] Falha ao despachar webhook:', err);
   }
 }

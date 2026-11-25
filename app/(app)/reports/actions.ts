@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
+import { createClient, getUser, getCachedUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 import ExcelJS from "exceljs";
 
 export async function exportReportsXlsx(): Promise<string> {
@@ -8,7 +8,7 @@ export async function exportReportsXlsx(): Promise<string> {
   if (!user) throw new Error("Unauthorized");
   
   const profile = await getCachedUserProfile(user.id);
-  const companyId = profile?.memberships?.[0]?.company_id;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId) throw new Error("No company found");
 
   const supabase = await createClient();

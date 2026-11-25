@@ -1,11 +1,12 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { getUserProfile } from "@/lib/supabase/server"
+import { requireTenantContext } from "@/lib/tenant/context"
 import { revalidatePath } from "next/cache"
 import { logAuditAction } from "@/lib/security/audit"
 
 export async function getServices(companyId: string) {
+  await requireTenantContext({ targetCompanyId: companyId })
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -20,17 +21,7 @@ export async function getServices(companyId: string) {
 }
 
 export async function createService(formData: FormData) {
-  const profile = await getUserProfile()
-  if (!profile) throw new Error("Unauthorized")
-
-  const role = profile.memberships?.[0]?.role
-  if (role !== "admin" && role !== "owner") {
-    throw new Error("Apenas administradores podem criar serviços")
-  }
-
-  // company_id comes from the authenticated session, never from client input
-  const company_id = profile.memberships?.[0]?.company_id
-  if (!company_id) throw new Error("No company")
+  const { companyId: company_id } = await requireTenantContext({ requireAdmin: true })
 
   const supabase = await createClient()
 
@@ -65,16 +56,7 @@ export async function createService(formData: FormData) {
 }
 
 export async function updateService(id: string, updates: Record<string, unknown>) {
-  const profile = await getUserProfile()
-  if (!profile) throw new Error("Unauthorized")
-
-  const role = profile.memberships?.[0]?.role
-  if (role !== "admin" && role !== "owner") {
-    throw new Error("Apenas administradores podem atualizar serviços")
-  }
-
-  const companyId = profile.memberships?.[0]?.company_id
-  if (!companyId) throw new Error("No company")
+  const { companyId } = await requireTenantContext({ requireAdmin: true })
 
   const supabase = await createClient()
 
@@ -96,16 +78,7 @@ export async function updateService(id: string, updates: Record<string, unknown>
 }
 
 export async function deleteService(id: string) {
-  const profile = await getUserProfile()
-  if (!profile) throw new Error("Unauthorized")
-
-  const role = profile.memberships?.[0]?.role
-  if (role !== "admin" && role !== "owner") {
-    throw new Error("Apenas administradores podem realizar esta ação")
-  }
-
-  const companyId = profile.memberships?.[0]?.company_id
-  if (!companyId) throw new Error("No company")
+  const { companyId } = await requireTenantContext({ requireAdmin: true })
 
   const supabase = await createClient()
 
@@ -128,16 +101,7 @@ export async function deleteService(id: string) {
 }
 
 export async function toggleServiceStatus(id: string, isPaused: boolean) {
-  const profile = await getUserProfile()
-  if (!profile) throw new Error("Unauthorized")
-
-  const role = profile.memberships?.[0]?.role
-  if (role !== "admin" && role !== "owner") {
-    throw new Error("Apenas administradores podem pausar/retomar serviços")
-  }
-
-  const companyId = profile.memberships?.[0]?.company_id
-  if (!companyId) throw new Error("No company")
+  const { companyId } = await requireTenantContext({ requireAdmin: true })
 
   const supabase = await createClient()
 

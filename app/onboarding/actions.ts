@@ -2,7 +2,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { getUser, getCachedUserProfile, createClient } from "@/lib/supabase/server";
+import { getUser, getCachedUserProfile, createClient, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { applyOnboardingConfig } from "@/lib/onboarding/apply";
 import type { ApplyResult } from "@/lib/onboarding/apply";
 import type { OnboardingData } from "@/lib/onboarding/types";
@@ -11,7 +11,7 @@ async function getCompanyId(): Promise<string> {
   const user = await getUser();
   if (!user) redirect("/login");
   const profile = await getCachedUserProfile(user.id);
-  const companyId = profile?.memberships?.[0]?.company_id;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId) redirect("/login");
   return companyId;
 }

@@ -9,7 +9,7 @@
  * para evitar fetch extra no browser no primeiro render.
  */
 import { redirect } from "next/navigation";
-import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
+import { createClient, getUser, getCachedUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { AppShell } from "@/components/app/app-shell";
 import { getOnboardingStatus } from "@/lib/onboarding/guards";
@@ -26,7 +26,7 @@ export default async function AppLayout({
   const profile = await getCachedUserProfile(user.id);
   if (!profile) redirect("/login");
 
-  const companyId = profile.memberships?.[0]?.company_id ?? null;
+  const companyId = await resolveProfileCompanyId(profile);
 
   if (!companyId) redirect('/onboarding');
 
@@ -73,6 +73,7 @@ export default async function AppLayout({
     <AuthProvider initialUser={user} initialProfile={profile}>
       <MotionProvider>
         <AppShell 
+          activeCompanyId={companyId}
           hotCount={hotCount} 
           unhealthyChannelsCount={unhealthyChannelsCount}
           unreadNotificationsCount={unreadNotificationsCount}

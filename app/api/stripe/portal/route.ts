@@ -2,64 +2,41 @@
  * Stripe Billing Portal — Route Handler
  *
  * POST /api/stripe/portal
- *
- * Cria uma sessão no Stripe Customer Portal para gerenciar assinatura.
- * Permite: trocar cartão, ver faturas, cancelar, fazer upgrade/downgrade.
+ * Exige owner/admin no tenant ativo.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { cookies } from 'next/headers';
+import { requireTenantContext, TenantContextError } from '@/lib/tenant/context';
+import { logError } from '@/lib/logging';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-04-22.dahlia' as any,
-});
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error('STRIPE_SECRET_KEY não configurada');
+  }
+  return new Stripe(key);
+}
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: () => {},
-        },
-      }
-    );
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    const ctx = await requireTenantContext({ requireAdmin: true });
+    const stripe = getStripe();
 
     const admin = createAdminClient();
-    const { data: membership } = await admin
-      .from('memberships')
-      .select('company_id, role, companies(stripe_customer_id)')
-      .eq('user_id', user.id)
-      .single();
-
-    // Only owner or admin may open the billing portal — a plain member could otherwise
-    // cancel the subscription for the entire company.
-    if (membership?.role !== 'owner' && membership?.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Apenas administradores podem gerenciar a assinatura.' },
-        { status: 403 }
-      );
-    }
-
-    const company = Array.isArray(membership?.companies)
-      ? membership?.companies[0]
-      : (membership?.companies as any);
+    const { data: company } = await admin
+      .from('companies')
+      .select('stripe_customer_id')
+      .eq('id', ctx.companyId)
+      .maybeSingle();
 
     const customerId = company?.stripe_customer_id;
 
     if (!customerId) {
       return NextResponse.json(
         { error: 'Nenhuma assinatura ativa encontrada. Assine um plano primeiro.' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -69,9 +46,12 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ url: portalSession.url });
-  } catch (err) {
+  } catch (err: unknown) {
+    if (err instanceof TenantContextError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     const message = err instanceof Error ? err.message : 'Erro interno';
-    console.error('[Stripe Portal] ❌ Erro:', message);
+    logError('[Stripe Portal] Erro:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

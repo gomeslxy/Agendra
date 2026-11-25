@@ -19,21 +19,20 @@ function checkLocal(key: string, maxRequests: number, windowMs: number): boolean
 }
 
 /**
- * Distributed rate limiter backed by Upstash Redis (INCR + EXPIRE).
- * Falls back to in-process map when Redis is unavailable (dev only).
+ * Distributed atomic rate limiter backed by Upstash Redis Lua script (`INCR` + `PEXPIRE`).
+ * Falls back to in-process map when Redis is unavailable.
  * @returns true if allowed, false if rate limited
  */
-export async function checkRateLimitAsync(key: string, maxRequests: number, windowMs: number): Promise<boolean> {
+export async function checkRateLimitAsync(
+  key: string,
+  maxRequests: number,
+  windowMs: number,
+): Promise<boolean> {
   if (!isAvailable()) return checkLocal(key, maxRequests, windowMs);
 
-  const ttlSec = Math.ceil(windowMs / 1000);
   try {
-    const count = await redis.incr(`rl:${key}`);
+    const count = await redis.rateLimitIncr(`rl:${key}`, windowMs);
     if (count === null) return checkLocal(key, maxRequests, windowMs);
-    if (count === 1) {
-      // First request in window — set TTL
-      await redis.expire(`rl:${key}`, ttlSec);
-    }
     return count <= maxRequests;
   } catch {
     return checkLocal(key, maxRequests, windowMs);

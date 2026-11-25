@@ -1,10 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-import { randomInt } from "crypto";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { sendEmail } from "@/lib/email/send";
-import { verificationEmail } from "@/lib/email/templates/verification";
-import { checkRateLimitAsync } from "@/lib/rate-limit";
-import { isPasswordCompromised, COMPROMISED_PASSWORD_MESSAGE } from "@/lib/auth/password-security";
+import { NextRequest, NextResponse } from 'next/server';
+import { randomInt } from 'crypto';
+import { z } from 'zod';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { sendEmail } from '@/lib/email/send';
+import { verificationEmail } from '@/lib/email/templates/verification';
+import { checkRateLimitAsync } from '@/lib/rate-limit';
+import { isPasswordCompromised, COMPROMISED_PASSWORD_MESSAGE } from '@/lib/auth/password-security';
+import { getTrustedClientIp } from '@/lib/security/client-ip';
+import { hashOtpCode } from '@/lib/auth/otp';
+import { logError } from '@/lib/logging';
+
+const SignupBodySchema = z.object({
+  email: z.string().trim().toLowerCase().email('Dados inválidos'),
+  password: z.string().min(8, 'Dados inválidos'),
+  companyName: z.string().trim().min(1).max(120).optional().default('usuário'),
+});
 
 function generateOtp(): string {
   // crypto.randomInt is CSPRNG — Math.random() is not safe for security tokens
@@ -12,26 +22,25 @@ function generateOtp(): string {
 }
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  
+  const ip = getTrustedClientIp(req.headers);
+
   if (!(await checkRateLimitAsync(`signup:${ip}`, 5, 60_000))) {
-    return NextResponse.json({ error: "Muitas tentativas. Aguarde 1 minuto." }, { status: 429 });
+    return NextResponse.json({ error: 'Muitas tentativas. Aguarde 1 minuto.' }, { status: 429 });
   }
 
-  let body: { email?: string; password?: string; companyName?: string };
+  let rawBody: unknown;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const password = typeof body.password === "string" ? body.password : "";
-  const companyName = typeof body.companyName === "string" ? body.companyName.trim() : "usuário";
-
-  if (!email || !password || password.length < 8) {
-    return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
+  const parsed = SignupBodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
   }
+
+  const { email, password, companyName } = parsed.data;
 
   // Leaked-password protection (HIBP). Reject known-compromised passwords at signup.
   if (await isPasswordCompromised(password)) {
@@ -41,7 +50,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
   // 1. Create user via Admin API (Silent creation, no Supabase email)
-  const { data: authUser, error: createError } = await admin.auth.admin.createUser({
+  const { error: createError } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: false, // Will confirm later in verify-otp
@@ -52,81 +61,94 @@ export async function POST(req: NextRequest) {
   });
 
   if (createError) {
-    // If user already exists, check if they are unconfirmed and allow OTP recovery
-    if (createError.message.includes("already registered") || createError.message.includes("already been registered")) {
-      const { data: listData, error: getErr } = await admin.auth.admin.listUsers();
-      const userData = listData?.users?.find((u) => u.email === email);
-      if (!getErr && userData?.email_confirmed_at) {
-        return NextResponse.json({ error: "Este email já está cadastrado." }, { status: 400 });
+    // If user already exists, check if they are unconfirmed via indexed public.users lookup + getUserById
+    if (
+      createError.message.includes('already registered') ||
+      createError.message.includes('already been registered')
+    ) {
+      const { data: userRow } = await admin
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (userRow?.id) {
+        const { data: authData, error: getErr } = await admin.auth.admin.getUserById(
+          userRow.id as string,
+        );
+        if (!getErr && authData?.user?.email_confirmed_at) {
+          return NextResponse.json({ error: 'Este email já está cadastrado.' }, { status: 400 });
+        }
       }
 
       const code = generateOtp();
-          await admin
-            .from("otp_codes")
-            .update({ used: true })
-            .eq("email", email)
-            .eq("purpose", "signup")
-            .eq("used", false);
+      await admin
+        .from('otp_codes')
+        .update({ used: true })
+        .eq('email', email)
+        .eq('purpose', 'signup')
+        .eq('used', false);
 
-          const { error: insertError } = await admin.from("otp_codes").insert({
-            email,
-            code,
-            purpose: "signup",
-          });
+      const { error: insertError } = await admin.from('otp_codes').insert({
+        email,
+        code: null,
+        code_hash: hashOtpCode(code),
+        purpose: 'signup',
+      });
 
-          if (insertError) {
-            console.error("[api/auth/register] DB error for unconfirmed user:", insertError.message);
-            return NextResponse.json({ error: "Erro interno" }, { status: 500 });
-          }
+      if (insertError) {
+        logError('[api/auth/register] DB error for unconfirmed user:', insertError.message);
+        return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+      }
 
-          try {
-            await sendEmail({
-              to: email,
-              subject: "Seu código de verificação Agendra",
-              html: verificationEmail({ code, companyName }),
-            });
-          } catch (err) {
-            console.error("[api/auth/register] Email error for unconfirmed user:", err);
-            return NextResponse.json({ error: "Erro ao enviar email de verificação." }, { status: 500 });
-          }
+      try {
+        await sendEmail({
+          to: email,
+          subject: 'Seu código de verificação Agendra',
+          html: verificationEmail({ code, companyName }),
+        });
+      } catch (err) {
+        logError('[api/auth/register] Email error for unconfirmed user:', err);
+        return NextResponse.json({ error: 'Erro ao enviar email de verificação.' }, { status: 500 });
+      }
 
-          return NextResponse.json({ ok: true, unconfirmed: true });
+      return NextResponse.json({ ok: true, unconfirmed: true });
     }
-    console.error("[api/auth/register] Create user error:", createError.message);
-    return NextResponse.json({ error: "Erro ao criar conta." }, { status: 500 });
+    logError('[api/auth/register] Create user error:', createError.message);
+    return NextResponse.json({ error: 'Erro ao criar conta.' }, { status: 500 });
   }
 
-  // 2. Generate and save OTP
+  // 2. Generate and save OTP (SHA-256 hash only)
   const code = generateOtp();
   await admin
-    .from("otp_codes")
+    .from('otp_codes')
     .update({ used: true })
-    .eq("email", email)
-    .eq("purpose", "signup")
-    .eq("used", false);
+    .eq('email', email)
+    .eq('purpose', 'signup')
+    .eq('used', false);
 
-  const { error: insertError } = await admin.from("otp_codes").insert({
+  const { error: insertError } = await admin.from('otp_codes').insert({
     email,
-    code,
-    purpose: "signup",
+    code: null,
+    code_hash: hashOtpCode(code),
+    purpose: 'signup',
   });
 
   if (insertError) {
-    console.error("[api/auth/register] DB error:", insertError.message);
-    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+    logError('[api/auth/register] DB error:', insertError.message);
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 
-  // 3. Send email via Resend
+  // 3. Send email
   try {
     await sendEmail({
       to: email,
-      subject: "Seu código de verificação Agendra",
+      subject: 'Seu código de verificação Agendra',
       html: verificationEmail({ code, companyName }),
     });
   } catch (err) {
-    console.error("[api/auth/register] Email error:", err);
-    // Even if email fails, user is created. We return error so they can try Resend.
-    return NextResponse.json({ error: "Erro ao enviar email de verificação." }, { status: 500 });
+    logError('[api/auth/register] Email error:', err);
+    return NextResponse.json({ error: 'Erro ao enviar email de verificação.' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

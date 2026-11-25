@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import { createClient, getUser, getCachedUserProfile } from "@/lib/supabase/server";
+import { createClient, getUser, getCachedUserProfile, resolveProfileCompanyId } from "@/lib/supabase/server";
 import { LeadsClient } from "./leads-client";
 import type { LeadWithLastMessage } from "@/lib/types/database";
+import { escapePostgrestLike } from "@/lib/security/csv";
 
 export default async function LeadsPage({
   searchParams,
@@ -12,7 +13,7 @@ export default async function LeadsPage({
   if (!user) redirect("/login");
 
   const profile = await getCachedUserProfile(user.id);
-  const companyId = profile?.memberships?.[0]?.company_id;
+  const companyId = await resolveProfileCompanyId(profile);
   if (!companyId) redirect("/login");
 
   const { q } = await searchParams;
@@ -36,7 +37,10 @@ export default async function LeadsPage({
     .limit(100);
 
   if (q) {
-    query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`);
+    const safeQ = escapePostgrestLike(q);
+    if (safeQ) {
+      query = query.or(`name.ilike.%${safeQ}%,phone.ilike.%${safeQ}%,email.ilike.%${safeQ}%`);
+    }
   }
 
   const { data: leads, error } = await query;

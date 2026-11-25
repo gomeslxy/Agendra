@@ -126,7 +126,7 @@ export function Topbar({ cta }: TopbarProps) {
           ) : null}
 
           {/* Novo fluxo — desktop only */}
-          <Link href={cta?.href ?? "/settings#flows"} className="hidden md:block">
+          <Link href={cta?.href ?? "/settings?tab=automation"} className="hidden md:block">
             <Button variant="primary" size="sm">
               <Plus size={14} />
               {cta?.label || "Novo fluxo"}

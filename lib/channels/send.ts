@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAdapter } from './registry';
 import { ChannelConfig, SendResult } from './types';
 import { logInfo, logError } from '@/lib/logging';
-import { sanitizeClientResponse } from '@/lib/ai/sanitizer';
+import { sanitizeAIResponse, sanitizeOutboundText } from '@/lib/ai/sanitizer';
 
 /**
  * Resolves the channel configuration for a company and target recipient.
@@ -168,15 +168,26 @@ export async function getChannelConfig(companyId: string, to: string): Promise<C
   return config;
 }
 
+export interface SendMessageOptions {
+  isHumanOperator?: boolean;
+}
+
 /**
  * Sends a text message through the unified channel abstraction layer.
  */
-export async function sendChannelMessage(to: string, text: string, companyId?: string): Promise<SendResult> {
+export async function sendChannelMessage(
+  to: string,
+  text: string,
+  companyId?: string,
+  options?: SendMessageOptions,
+): Promise<SendResult> {
   if (!companyId) {
     throw new Error('companyId is required to send messages.');
   }
 
-  const sanitizedText = sanitizeClientResponse(text);
+  const sanitizedText = options?.isHumanOperator
+    ? sanitizeOutboundText(text)
+    : sanitizeAIResponse(text);
   const config = await getChannelConfig(companyId, to);
   const adapter = getAdapter(config.provider);
 
@@ -201,13 +212,16 @@ export async function sendChannelMedia(
   filename: string,
   caption: string,
   companyId?: string,
-  audioBuffer?: Buffer
+  audioBuffer?: Buffer,
+  options?: SendMessageOptions,
 ): Promise<SendResult> {
   if (!companyId) {
     throw new Error('companyId is required to send media.');
   }
 
-  const sanitizedCaption = sanitizeClientResponse(caption);
+  const sanitizedCaption = options?.isHumanOperator
+    ? sanitizeOutboundText(caption)
+    : sanitizeAIResponse(caption);
   const config = await getChannelConfig(companyId, to);
   const adapter = getAdapter(config.provider);
 
