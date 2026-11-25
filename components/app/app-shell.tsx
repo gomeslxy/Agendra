@@ -33,8 +33,8 @@ function SidebarFallback() {
   );
 }
 
-export function AppShell({ 
-  children, 
+export function AppShell({
+  children,
   activeCompanyId,
   hotCount = 0,
   unhealthyChannelsCount = 0,
